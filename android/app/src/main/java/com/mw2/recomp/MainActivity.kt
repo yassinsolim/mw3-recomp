@@ -88,7 +88,11 @@ class MainActivity : AppCompatActivity() {
             val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode.toInt()
             else info.versionCode
             val tu = BuildConfig.MW2_TU.uppercase()
-            val build = if (isTu6()) "TITLE UPDATE 6" else "DISC VERSION 1.0.557"
+            val build = when {
+                isMw3() -> "DISC VERSION"
+                isTu6() -> "TITLE UPDATE 6"
+                else -> "DISC VERSION 1.0.557"
+            }
             versionTag.text = "$name · vcode $code · $tu · $build"
         } catch (_: Throwable) {
         }
@@ -280,7 +284,14 @@ class MainActivity : AppCompatActivity() {
             // a multiplayer install. SP accepts either, preferring lean.
             // (TU6 installs from the same disc; the update applies after.)
             val isMp = isMp()
-            val candidateIsos = if (isMp) {
+            val candidateIsos = if (isMw3()) {
+                listOf(
+                    File("/sdcard/Download/mw3.iso"),
+                    File("/sdcard/Download/Call of Duty - Modern Warfare 3.iso"),
+                    File("/sdcard/Download/Call of Duty - Modern Warfare 3 (USA, Europe).iso"),
+                    File(getExternalFilesDir(null) ?: filesDir, "mw3.iso"),
+                )
+            } else if (isMp) {
                 listOf(
                     File("/sdcard/Download/mw2.iso"),
                     File("/sdcard/Download/Call of Duty - Modern Warfare 2 (USA, Europe).iso"),
@@ -488,10 +499,12 @@ class MainActivity : AppCompatActivity() {
 
     /** A newer published APK, if there is one: silent when offline. */
     private fun checkForUpdates(manual: Boolean = false) {
+        // A title with no published builds has nothing to compare against.
+        if (BuildConfig.UPDATE_REPO.isEmpty()) return
         thread(name = "update-check", isDaemon = true) {
             var offered = false
             try {
-                val connection = (URL("https://api.github.com/repos/flavinxs0/mw2-android/releases?per_page=10")
+                val connection = (URL("https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=10")
                     .openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15000
                     readTimeout = 15000
@@ -573,8 +586,12 @@ class MainActivity : AppCompatActivity() {
 
     /** TU6 lives in separate PC archives; Android stays TU0 (future work, not started). */
     private fun openReleasesPage() {
-        openPage("https://github.com/flavinxs0/mw2-android/releases")
+        if (BuildConfig.UPDATE_REPO.isEmpty()) return
+        openPage("https://github.com/${BuildConfig.UPDATE_REPO}/releases")
     }
+
+    /** com.mw3.recomp is Modern Warfare 3; everything else here is MW2. */
+    private fun isMw3(): Boolean = packageName.startsWith("com.mw3.")
 
     private fun downloadAndInstall(apkUrl: String) {
         if (!packageManager.canRequestPackageInstalls()) {
@@ -608,7 +625,7 @@ class MainActivity : AppCompatActivity() {
             pendingInstallId = manager.enqueue(request)
             Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_SHORT).show()
         } catch (_: Throwable) {
-            openPage("https://github.com/flavinxs0/mw2-android/releases")
+            openReleasesPage()
         }
     }
 

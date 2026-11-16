@@ -128,6 +128,7 @@ android {
             dimension = "title"
             applicationIdSuffix = ".sp"
             resValue("string", "app_name", "CoD: Modern Warfare 2")
+            buildConfigField("String", "UPDATE_REPO", "\"flavinxs0/mw2-android\"")
             externalNativeBuild { cmake { arguments += listOf("-DMW2_TITLE=sp", "-DMW2_ONLINE=none") } }
         }
         create("multiplayer") {
@@ -135,10 +136,32 @@ android {
             applicationIdSuffix = ".mp"
             versionNameSuffix = "-multiplayer"
             resValue("string", "app_name", "CoD: MW2 Multiplayer")
+            buildConfigField("String", "UPDATE_REPO", "\"flavinxs0/mw2-android\"")
             // LAN backend: plain UDP system-link between phones/PCs. Steam
             // makes no sense on Android (no Steam client), and "none" would
             // leave MP with system-link on one device only.
             externalNativeBuild { cmake { arguments += listOf("-DMW2_TITLE=mp", "-DMW2_ONLINE=lan") } }
+        }
+        // Modern Warfare 3: the disc's single-player executable (campaign and
+        // Special Ops), recompiled into ppc_mw3/ by tools/recomp_mw3.sh. An
+        // app of its own, with the disc's version only (mw3Tu0*; the tu6
+        // variants are switched off below). No published builds, so nothing
+        // to check for updates against.
+        create("mw3") {
+            dimension = "title"
+            applicationId = "com.mw3.recomp"
+            resValue("string", "app_name", "CoD: Modern Warfare 3")
+            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            externalNativeBuild {
+                cmake {
+                    arguments += listOf(
+                        "-DMW2_TITLE=mw3", "-DMW3_RECOMP_ONLY=ON", "-DMW3_LINK_PROBE=ON",
+                        "-DMW2_ONLINE=none",
+                    )
+                    setting("MW3_XEX_SHA256")?.let { arguments += listOf("-DMW3_XEX_SHA256=$it") }
+                    setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
+                }
+            }
         }
         create("tu0") {
             dimension = "tu"
@@ -159,6 +182,13 @@ android {
                 "\"https://raw.githubusercontent.com/codxenon/xbox360-title-updates/25de2389ce214dae6159fcd45a9581cb3b640bd9/games/Call%20of%20Duty%20-%20Modern%20Warfare%202%20%28USA%2C%20Europe%29/TU6/TU_10LC20N_0000018000000.00000000001GA\"",
             )
             externalNativeBuild { cmake { arguments += listOf("-DMW2_VERSION=tu6") } }
+        }
+    }
+
+    androidComponents {
+        beforeVariants { variant ->
+            val flavors = variant.productFlavors.toMap()
+            if (flavors["title"] == "mw3" && flavors["tu"] == "tu6") variant.enable = false
         }
     }
 

@@ -159,13 +159,23 @@ namespace
     }
 
 #ifdef MW2_ANDROID
-    constexpr uint32_t kTitleId = 0x41560817;
-
     struct Title { const char* xex; const char* sha256; const char* disc; };
+#ifdef MW3_TITLE
+    // MW3: only the single-player executable (campaign and Special Ops) is
+    // recompiled; the disc's default_mp.xex is neither checked nor copied.
+    constexpr uint32_t kTitleId = 0x415608CB;
+    constexpr const char* kTitleName = "Modern Warfare 3";
+    constexpr Title kTitles[] = {
+        { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
+    };
+#else
+    constexpr uint32_t kTitleId = 0x41560817;
+    constexpr const char* kTitleName = "Modern Warfare 2";
     constexpr Title kTitles[] = {
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
     };
+#endif
 
     std::string Sha256(const std::vector<uint8_t>& bytes)
     {
@@ -179,20 +189,25 @@ namespace
         install::xex::Info info;
         if (!install::xex::ReadInfo(file, info))
             return name + " is not an Xbox 360 executable.";
-        char text[256];
+        char text[320];
         if (info.titleId != kTitleId)
-            std::snprintf(text, sizeof(text), "This is not Modern Warfare 2 (title %08X).", info.titleId);
+            std::snprintf(text, sizeof(text), "This is not %s (title %08X).", kTitleName, info.titleId);
         else
-#ifdef MW2_VERSION_TU0
+#if defined(MW3_TITLE)
             std::snprintf(text, sizeof(text),
-                          "This is Modern Warfare 2, but not the version this build was made from "
+                          "This is %s, but not a disc this build was made from (executable "
+                          "version %u). Install from an image of the retail disc itself.",
+                          kTitleName, info.version);
+#elif defined(MW2_VERSION_TU0)
+            std::snprintf(text, sizeof(text),
+                          "This is %s, but not the version this build was made from "
                           "(executable version %u, expected the disc's 10). A title update cannot be "
-                          "used: install from an image of the disc itself.", info.version);
+                          "used: install from an image of the disc itself.", kTitleName, info.version);
 #else
             std::snprintf(text, sizeof(text),
-                          "This is Modern Warfare 2, but not the disc this build installs from "
+                          "This is %s, but not the disc this build installs from "
                           "(executable version %u, expected the disc's 10). Install from an image of "
-                          "the disc itself; the update is applied afterwards.", info.version);
+                          "the disc itself; the update is applied afterwards.", kTitleName, info.version);
 #endif
         return text;
     }
@@ -230,7 +245,7 @@ namespace
                 if (std::string(title.xex) == kXex)
                 {
                     error = std::string("There is no ") + title.xex + " in " + Utf8(from) +
-                            ": it is not a Modern Warfare 2 disc.";
+                            ": it is not a " + kTitleName + " disc.";
                     return false;
                 }
                 continue;

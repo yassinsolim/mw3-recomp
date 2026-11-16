@@ -179,7 +179,7 @@ namespace
             if (fd >= 0) return fd;
         }
 #ifdef MW2_ANDROID
-        const std::string path = android::Paths().cache + "/physical.bank";
+        const std::string path = android::GetPaths().cache + "/physical.bank";
         const int file = open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0600);
         if (file >= 0)
         {

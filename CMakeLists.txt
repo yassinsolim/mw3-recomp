@@ -501,11 +501,12 @@ endfunction()
 if(MW2_TITLE STREQUAL "mw3")
     # An MW3 build runs the executable it was recompiled from: the one in
     # mw3/tu0 when it is there (tools/check_mw3_xex.py has already accepted it
-    # before any code was generated), a hash given on the command line for a
-    # build that has the generated sources but not the disc, or the first
-    # executable the bring-up was done on.
-    if(MW2_XEX_SHA256_SP)
-        set(mw3_xex_hash "${MW2_XEX_SHA256_SP}")
+    # before any code was generated), -DMW3_XEX_SHA256 for a build that has
+    # the generated sources but not the disc, or the first executable the
+    # bring-up was done on. MW2_XEX_SHA256_SP is not read here: the Android
+    # build always passes MW2's.
+    if(MW3_XEX_SHA256)
+        set(mw3_xex_hash "${MW3_XEX_SHA256}")
     elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw3/tu0/default.xex")
         mw2_sha256(mw3_xex_hash "${CMAKE_SOURCE_DIR}/mw3/tu0/default.xex")
     else()
