@@ -46,8 +46,12 @@ namespace
     constexpr auto     kFrameInterval = std::chrono::microseconds(5333);
 
     // Queue bounds on the host side, in frames of 5.333 ms.
-    constexpr uint32_t kLowWaterFrames  = 3;    // unused
+#ifdef MW2_ANDROID
     constexpr uint32_t kHighWaterFrames = 48;   // drop above this (256 ms)
+#else
+    constexpr uint32_t kLowWaterFrames  = 3;    // pump early below this
+    constexpr uint32_t kHighWaterFrames = 24;   // drop above this (128 ms)
+#endif
 
     constexpr uint32_t kMaxClients = 8;
     constexpr uint32_t kHandleTag = 0x41550000u;
@@ -183,7 +187,9 @@ namespace
         if (!caller.Prepare()) { LOGE("audio: could not set up the worker's guest state"); return; }
         OpenOutput();
 
+#ifndef MW2_ANDROID
         Clock::time_point lastPump = Clock::now();
+#endif
         for (;;)
         {
             uint32_t callback = 0, context = 0;
@@ -198,20 +204,39 @@ namespace
                     continue;
                 }
                 const auto now = Clock::now();
+#ifdef MW2_ANDROID
+                // Android's clock: no early pump, and a single late frame
+                // resynchronises rather than being caught up.
                 if (pick->next > now)
                 {
                     g_wake.wait_until(guard, pick->next);
                     continue;
                 }
-                // Resynchronise if falling behind (e.g. process paused or long frame)
-                // to prevent rapid burst catch-up callbacks
                 if (pick->next + kFrameInterval < now)
                     pick->next = now + kFrameInterval;
                 else
                     pick->next += kFrameInterval;
+#else
+                Clock::time_point due = pick->next;
+                // Behind by a lot (the process was stopped): resynchronise rather
+                // than pump a burst.
+                if (due + 40 * kFrameInterval < now) due = now;
+                const bool starving = QueuedFrames() < kLowWaterFrames && g_outputOpen &&
+                                      now - lastPump >= std::chrono::milliseconds(1);
+                if (due > now && !starving)
+                {
+                    g_wake.wait_until(guard, due);
+                    continue;
+                }
+                if (starving && due > now) g_earlyPumps++;
+                pick->next = std::max(due, now - kFrameInterval) + kFrameInterval;
+#endif
                 callback = pick->callback;
                 context = pick->context;
             }
+#ifndef MW2_ANDROID
+            lastPump = Clock::now();
+#endif
             g_callbacks++;
             // The callback takes the context it registered: the title's own object.
             caller.Call(callback, context);

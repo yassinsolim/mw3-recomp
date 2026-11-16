@@ -22,22 +22,16 @@ namespace
 
     // Whether something live in this arena covers `va`. FromPhysical needs
     // this to tell two arenas apart that answer to the same physical
-    // address, and it is asked from the command processor for every packet
-    // naming one -- so it does not wait: Alloc zeroes a reused block with
-    // the lock held, and blocking the GPU thread behind that would trade one
-    // stall for another. A lock it cannot take answers Unknown, and the
-    // caller keeps the answer it would have given before.
-    enum class Coverage { No, Yes, Unknown };
-
-    Coverage Covers(kernel::Heap& heap, uint32_t va)
+    // address. It waits for the heap's lock: an answer that depended on
+    // whether the lock happened to be free would resolve the same address
+    // to different windows from one call to the next.
+    bool Covers(kernel::Heap& heap, uint32_t va)
     {
-        std::unique_lock held(heap.lock, std::try_to_lock);
-        if (!held) return Coverage::Unknown;
+        std::lock_guard held(heap.lock);
         auto it = heap.live.upper_bound(va);
-        if (it == heap.live.begin()) return Coverage::No;
+        if (it == heap.live.begin()) return false;
         --it;
-        return uint64_t(va) < uint64_t(it->first) + it->second ? Coverage::Yes
-                                                              : Coverage::No;
+        return uint64_t(va) < uint64_t(it->first) + it->second;
     }
 
     // How often FromPhysical resolved an address to the general heap that the
@@ -291,18 +285,16 @@ uint32_t kernel::FromPhysical(uint32_t phys)
     const bool mightBeArena  = arena >= guest::kPhysicalBase && arena < guest::kPhysicalEnd;
     const bool mightBeCached = cached >= 0x82000000u && cached < guest::kHeapEnd;
 
-    // The image's own data and the function lookup table below the heap are not
-    // allocated through either arena, so no allocation covers them and there is
-    // nothing to tell apart.
-    if (mightBeCached && cached < guest::kHeapBase) return cached;
+    // The physical arena is asked first, and no shortcut for the image's
+    // window stands in front of it: the arena's low addresses reduce to the
+    // same physical addresses as the image and the function lookup table
+    // below the heap, and an address the GPU was handed out of the arena
+    // must never resolve into the XEX image.
+    if (mightBeArena && Covers(g_phys, arena)) return arena;
 
-    const Coverage inArena  = mightBeArena  ? Covers(g_phys, arena)  : Coverage::No;
-    const Coverage inCached = mightBeCached ? Covers(g_heap, cached) : Coverage::No;
-
-    // Where both hold something at that offset the address is genuinely
-    // ambiguous, and the physical arena is what the GPU is handed.
-    if (inArena == Coverage::Yes) return arena;
-    if (inCached == Coverage::Yes)
+    // The image is not allocated through the heap, so nothing covers it and
+    // it falls through to the high water mark below, as it always did.
+    if (mightBeCached && cached >= guest::kHeapBase && Covers(g_heap, cached))
     {
         // Worth counting: this is the case that used to come out wrong.
         if (mightBeArena && phys < (g_phys.HighWater() - guest::kPhysicalBase))
@@ -310,9 +302,9 @@ uint32_t kernel::FromPhysical(uint32_t phys)
         return cached;
     }
 
-    // Nothing live either side, or a lock that could not be taken: the answer
-    // this gave before. An address can be named before the title allocates it,
-    // so it is better to answer than to refuse.
+    // Nothing live either side: the answer this gave before. An address can
+    // be named before the title allocates it, so it is better to answer than
+    // to refuse.
     if (mightBeArena && phys < (g_phys.HighWater() - guest::kPhysicalBase)) return arena;
     if (mightBeCached) return cached;
     return 0;

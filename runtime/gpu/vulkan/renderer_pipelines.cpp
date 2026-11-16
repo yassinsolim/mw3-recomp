@@ -421,8 +421,7 @@ namespace vk::renderer::detail
 
         {
             std::lock_guard lock(g_pipelinesMutex);
-            if (built)
-                g.pipelines[key] = built;
+            g.pipelines[key] = built;   // a failure is remembered, so it fails once
         }
         return built;
     }

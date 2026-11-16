@@ -42,10 +42,11 @@ bool gpu::detail::ArenaProgress(uint32_t address, uint32_t value)
     const int32_t advance = int32_t(value - g_sequence);
     if (g_sequence && (advance <= 0 || advance > kMaxAdvance))
     {
-        // Check if the sequence counter was reset by the title (e.g. mission load,
-        // level transition, or counter wrap). Stale trailers from the circular arena
-        // ring are at most one lap behind (~64-128 sequence counts). A jump backwards
-        // of more than 128 (or restarting near 0) indicates a sequence counter reset.
+#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
+        // The MW2 phone build only: a jump backwards of more than a lap of
+        // the ring (~64-128 sequence counts), or a restart near 0, is taken
+        // for the title resetting its counter and applied. Everywhere else a
+        // backwards move is a stale trailer and is dropped, as above.
         const bool isReset = (advance < -128) || (value <= 32 && g_sequence > 64);
         if (isReset)
         {
@@ -59,6 +60,10 @@ bool gpu::detail::ArenaProgress(uint32_t address, uint32_t value)
             g_havePosition = false;
             return true;
         }
+#else
+        g_havePosition = false;
+        return true;
+#endif
     }
     g_sequence = value;
     if (g_havePosition)
@@ -77,9 +82,14 @@ void gpu::SetArenaProgressBlock(uint32_t address)
     if (prev != physical)
     {
         LOGI("gpu: arena progress block at %08X (physical %08X)", address, physical);
+#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
+        // The MW2 phone build starts the sequence over with a new block.
+        // Elsewhere the sequence is the title's and outlives the address it
+        // is reported through.
         g_sequence = 0;
         g_havePosition = false;
         g_pendingPosition = 0;
+#endif
     }
 }
 
@@ -93,6 +103,10 @@ uint32_t gpu::GetArenaSequence()
     return g_sequence;
 }
 
+#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
+// The MW2 phone build's hang monitor writes the progress D3D is waiting for
+// when the ring has gone idle under it. No other build does: it tells the
+// title the command processor read commands it never saw.
 void gpu::ForceArenaProgress(uint32_t sequence, uint32_t position)
 {
     const uint32_t block = g_block.load(std::memory_order_relaxed);
@@ -105,4 +119,5 @@ void gpu::ForceArenaProgress(uint32_t sequence, uint32_t position)
     LOGW("gpu: forced arena progress block %08X to seq=%u, pos=%08X",
          block, sequence, position);
 }
+#endif
 

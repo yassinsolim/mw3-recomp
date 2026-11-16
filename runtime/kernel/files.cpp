@@ -318,16 +318,15 @@ namespace
 
         fs::path resolved;
         bool existed = false;
-        if (!writable && !relative.empty())
+        // A mods directory laid over the read-only devices, and only when
+        // MW2_MOD_DIR names one: nothing beside the game is picked up unasked.
+        static const char* const modDir = env::Text("MW2_MOD_DIR");
+        if (modDir && !writable && !relative.empty())
         {
-            static const fs::path modDir = [] {
-                if (const char* envMod = env::Text("MW2_MOD_DIR"))
-                    return fs::path(envMod);
-                return GameRoot() / "mods";
-            }();
+            const fs::path mods(modDir);
             std::error_code ec;
-            if (fs::is_directory(modDir, ec))
-                existed = ResolveInsensitive(modDir, relative, resolved);
+            if (fs::is_directory(mods, ec))
+                existed = ResolveInsensitive(mods, relative, resolved);
         }
         if (!existed)
             existed = !relative.empty() && ResolveInsensitive(root, relative, resolved);

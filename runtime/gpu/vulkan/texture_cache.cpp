@@ -1560,11 +1560,16 @@ namespace
         // First pass: normal idle age
         evictOldest(kUnusedFrames + kSweepFrames);
 
-        // Emergency pass: if still over budget (e.g. streaming rush),
-        // evict images not bound in recent frames (outside GPU ring depth).
+        // Emergency pass: if still over budget (e.g. streaming rush), the
+        // images not bound in recent frames go too. "Recent" has to reach
+        // past every frame slot whose recorded commands can still name an
+        // image -- a slot is reused only once the GPU is done with it, so
+        // that is one frame a slot at most -- and then some.
+        constexpr uint64_t kEmergencyFrames = 8 * vk::textures::kUploadSlots;
+        static_assert(kEmergencyFrames > vk::textures::kUploadSlots);
         if (g.liveBytes > target)
         {
-            evictOldest(16);
+            evictOldest(kEmergencyFrames);
         }
 #else
         // The idle ones only (Idle): an id let go sooner could be given to

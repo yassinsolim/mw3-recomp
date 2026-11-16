@@ -17,6 +17,7 @@ using namespace kernel;
 
 namespace
 {
+#if MW2_DIAGNOSTICS
     // A backtrace of a stalled thread ends in pthread_cond_wait and stops being
     // informative exactly where the question starts -- which handle, and who else
     // touches it. This records that, so the watchdog can name it.
@@ -66,6 +67,9 @@ namespace
         }
         ~Blocked() { w.handle.store(0, std::memory_order_release); }
     };
+#else
+    struct Blocked { Blocked(uint32_t, uint32_t, uint32_t, bool) {} };
+#endif
 
     const int64_t* ReadTimeout(uint32_t addr, int64_t& storage)
     {
@@ -110,7 +114,7 @@ PPC_FUNC(__imp__NtCreateEvent)
     event->signalled = ctx.r6.u32 != 0;
     const uint32_t handle = InsertHandle(event, crash::CurrentThreadName(), uint32_t(ctx.lr));
     if (auto* out = GuestPtr<be32>(ctx.r3.u32)) *out = handle;
-    LOGI("sync: NtCreateEvent handle %08X, manual=%d, init=%d (called from %08X by '%s')",
+    LOGK("sync: NtCreateEvent handle %08X, manual=%d, init=%d (called from %08X by '%s')",
          handle, event->manualReset, event->signalled, uint32_t(ctx.lr), crash::CurrentThreadName());
     ctx.r3.u64 = X_STATUS_SUCCESS;
 }
@@ -212,6 +216,7 @@ PPC_FUNC(__imp__NtWaitForSingleObjectEx)
 // handler are the callers.
 void kernel::ReportWaits()
 {
+#if MW2_DIAGNOSTICS
     std::lock_guard g(g_waitLock);
     bool any = false;
     for (const WaitRecord* w : g_waitRecords)
@@ -246,6 +251,7 @@ void kernel::ReportWaits()
         }
     }
     if (any) LOGW("sync: --------------------------------");
+#endif
 }
 
 PPC_FUNC(__imp__NtWaitForMultipleObjectsEx)

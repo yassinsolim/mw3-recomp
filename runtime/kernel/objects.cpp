@@ -303,24 +303,7 @@ uint32_t kernel::Wait(Dispatcher* const* objects, uint32_t count, bool all,
             registered = true;
         }
         if (timed) block.wake.wait_until(held, deadline);
-        else
-        {
-            if (block.wake.wait_for(held, std::chrono::seconds(2)) == std::cv_status::timeout)
-            {
-                const char* tName = crash::CurrentThreadName();
-                if (objects[0]->handle)
-                    LOGW("sync: thread '%s' waiting on %u object(s) (first: %s, handle %08X, created by '%s' @ %08X, sig=%d) for >2s",
-                         tName ? tName : "unnamed", count, objects[0]->TypeName(), objects[0]->handle,
-                         objects[0]->creatorThread ? objects[0]->creatorThread : "?", objects[0]->creatorLr,
-                         objects[0]->Signalled(me));
-                else
-                    LOGW("sync: thread '%s' waiting on %u object(s) (first: %s at guest %08X, sig=%d) for >2s",
-                         tName ? tName : "unnamed", count, objects[0]->TypeName(), objects[0]->guestHeader,
-                         objects[0]->Signalled(me));
-                static uint32_t s_waitCount = 0;
-                if (++s_waitCount % 3 == 0) kernel::ReportWaits();
-            }
-        }
+        else block.wake.wait(held);
     }
     if (registered)
         for (uint32_t i = 0; i < count; i++)

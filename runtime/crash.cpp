@@ -353,6 +353,11 @@ namespace
     void HangMonitorLoop()
     {
         uint32_t lastLoggedSec = 0;
+#if !(defined(MW2_ANDROID) && !defined(MW3_TITLE))
+        // The arena wait already reported, so one stuck wait is one line.
+        uint32_t reportedSeq = 0, reportedPos = 0;
+        bool reportedWait = false;
+#endif
         while (g_hangMonitorRunning.load(std::memory_order_relaxed))
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -368,11 +373,29 @@ namespace
                     const uint32_t block = gpu::GetArenaProgressBlock();
                     if (block)
                     {
+#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
+                        // The MW2 phone build only: write what D3D is waiting
+                        // for into its progress block.
                         const uint32_t posTag = (neededPos & ~3u) | (neededSeq & 3u);
                         std::fprintf(stderr, "[W] hang_monitor: T_D3D_ArenaWait spinning for >2s while GPU ring is idle (readIndex=%u, wptr=%u)! Auto-resolving arena deadlock to seq=%u, pos=%08X\n",
                                      batch.readIndex, batch.wptr, neededSeq, posTag);
                         std::fflush(stderr);
                         gpu::ForceArenaProgress(neededSeq, posTag);
+#else
+                        // Reported and left alone: the progress block holds
+                        // what the command processor has read, and writing
+                        // the awaited values into it would have the title
+                        // overwrite commands that were never executed.
+                        if (!reportedWait || reportedSeq != neededSeq || reportedPos != neededPos)
+                        {
+                            reportedWait = true;
+                            reportedSeq = neededSeq;
+                            reportedPos = neededPos;
+                            std::fprintf(stderr, "[W] hang_monitor: T_D3D_ArenaWait spinning for >2s while GPU ring is idle (readIndex=%u, wptr=%u), waiting for seq=%u, pos=%08X\n",
+                                         batch.readIndex, batch.wptr, neededSeq, neededPos);
+                            std::fflush(stderr);
+                        }
+#endif
                     }
                 }
             }

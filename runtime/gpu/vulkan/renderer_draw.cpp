@@ -710,7 +710,10 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     }
     gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline");
     bool newPipeline = false;
-#ifdef MW2_ANDROID
+    // The MW2 phone build only: a draw whose pipeline is not built yet is
+    // skipped while a worker compiles it. Every other build, MW3 on Android
+    // included, builds it here, so the draw is never lost.
+#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
     VkPipeline built = FindPipeline(key);
     if (!built)
     {

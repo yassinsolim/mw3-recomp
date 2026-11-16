@@ -190,6 +190,9 @@ namespace
         return buttons;
     }
 
+#ifdef _WIN32
+    // WASD and the mouse on user 0's sticks and triggers: Windows only, and
+    // only while the game's window has the keyboard (XamInputGetState).
     void KeyboardMoveAxes(int16_t& lx, int16_t& ly)
     {
         if (!SDL_WasInit(SDL_INIT_VIDEO)) return;
@@ -222,6 +225,7 @@ namespace
         }
         return b;
     }
+#endif
 #endif
 
     // MW2_INPUT_SCRIPT="2.5:start,6:a" presses buttons at fixed times, so a title
@@ -482,41 +486,46 @@ PPC_FUNC(__imp__XamInputGetState)
                             int16_t(-1 - axis(SDL_GAMEPAD_AXIS_RIGHTY)) };
         if (user == 0)
         {
-            KeyboardMoveAxes(axes[0], axes[1]);
-            b |= MouseInputs(triggers, axes[2], axes[3]);
 #ifdef _WIN32
-            auto isDown = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
-            if (isDown(VK_RETURN))                      b |= BTN_START;
-            if (isDown(VK_ESCAPE))                      b |= BTN_BACK;
-            if (isDown(VK_TAB) || isDown(VK_BACK))      b |= BTN_BACK;
-            if (isDown(VK_UP))                          b |= BTN_DPAD_UP;
-            if (isDown(VK_DOWN))                        b |= BTN_DPAD_DOWN;
-            if (isDown(VK_LEFT))                        b |= BTN_DPAD_LEFT;
-            if (isDown(VK_RIGHT))                       b |= BTN_DPAD_RIGHT;
+            // The keyboard and mouse stand in for a pad on Windows, and only
+            // while the game's window has the keyboard: GetAsyncKeyState
+            // answers for the whole desktop, and keys typed into another
+            // window are not the player's.
+            if (SDL_WasInit(SDL_INIT_VIDEO) && SDL_GetKeyboardFocus())
+            {
+                KeyboardMoveAxes(axes[0], axes[1]);
+                b |= MouseInputs(triggers, axes[2], axes[3]);
+                auto isDown = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
+                if (isDown(VK_RETURN))                      b |= BTN_START;
+                if (isDown(VK_ESCAPE))                      b |= BTN_BACK;
+                if (isDown(VK_TAB) || isDown(VK_BACK))      b |= BTN_BACK;
+                if (isDown(VK_UP))                          b |= BTN_DPAD_UP;
+                if (isDown(VK_DOWN))                        b |= BTN_DPAD_DOWN;
+                if (isDown(VK_LEFT))                        b |= BTN_DPAD_LEFT;
+                if (isDown(VK_RIGHT))                       b |= BTN_DPAD_RIGHT;
 
-            if (isDown(VK_SPACE) || isDown('Z') || isDown(VK_RETURN)) b |= BTN_A;
-            if (isDown(VK_CONTROL) || isDown('X'))                    b |= BTN_B;
-            if (isDown('C') || isDown('R') || isDown('F'))            b |= BTN_X;
-            if (isDown('V') || isDown('1') || isDown('2') || isDown('Y')) b |= BTN_Y;
+                if (isDown(VK_SPACE) || isDown('Z') || isDown(VK_RETURN)) b |= BTN_A;
+                if (isDown(VK_CONTROL) || isDown('X'))                    b |= BTN_B;
+                if (isDown('C') || isDown('R') || isDown('F'))            b |= BTN_X;
+                if (isDown('V') || isDown('1') || isDown('2') || isDown('Y')) b |= BTN_Y;
 
-            if (isDown('Q') || isDown('4'))                           b |= BTN_LB;
-            if (isDown('G') || isDown('E'))                           b |= BTN_RB;
+                if (isDown('Q') || isDown('4'))                           b |= BTN_LB;
+                if (isDown('G') || isDown('E'))                           b |= BTN_RB;
 
-            if (isDown(VK_SHIFT))                                     b |= BTN_LTHUMB;
-            if (isDown(VK_MBUTTON))                                   b |= BTN_RTHUMB;
+                if (isDown(VK_SHIFT))                                     b |= BTN_LTHUMB;
+                if (isDown(VK_MBUTTON))                                   b |= BTN_RTHUMB;
 
-            if (isDown(VK_LBUTTON)) triggers[1] = 255;
-            if (isDown(VK_RBUTTON)) triggers[0] = 255;
+                if (isDown(VK_LBUTTON)) triggers[1] = 255;
+                if (isDown(VK_RBUTTON)) triggers[0] = 255;
 
-            if (isDown('W')) { axes[1] = 32767;  b |= BTN_DPAD_UP; }
-            if (isDown('S')) { axes[1] = -32768; b |= BTN_DPAD_DOWN; }
-            if (isDown('D')) { axes[0] = 32767;  b |= BTN_DPAD_RIGHT; }
-            if (isDown('A')) { axes[0] = -32768; b |= BTN_DPAD_LEFT; }
+                // The stick only: the D-pad is a control of its own, and the
+                // title binds other things to it.
+                if (isDown('W')) axes[1] = 32767;
+                if (isDown('S')) axes[1] = -32768;
+                if (isDown('D')) axes[0] = 32767;
+                if (isDown('A')) axes[0] = -32768;
+            }
 #endif
-            if (axes[1] > 16000) b |= BTN_DPAD_UP;
-            else if (axes[1] < -16000) b |= BTN_DPAD_DOWN;
-            if (axes[0] > 16000) b |= BTN_DPAD_RIGHT;
-            else if (axes[0] < -16000) b |= BTN_DPAD_LEFT;
 
             // What a person did, before the autopilot adds to it: a recorded
             // route keeps the presses (MW2_RECORD_PATH), and every shot is logged.

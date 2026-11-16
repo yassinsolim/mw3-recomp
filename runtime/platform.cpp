@@ -75,31 +75,9 @@ void platform::SetThreadName(const char* name)
 void platform::LowerThreadPriority() { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL); }
 void platform::IdleThreadPriority() { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_IDLE); }
 
-void platform::SetThreadAffinity(ThreadAffinityRole role)
-{
-    if (role == ThreadAffinityRole::Default) return;
-    SYSTEM_INFO sysInfo{};
-    GetSystemInfo(&sysInfo);
-    DWORD numCores = sysInfo.dwNumberOfProcessors;
-    if (numCores <= 1) return;
-
-    DWORD_PTR mask = 0;
-    if (role == ThreadAffinityRole::PrimeCore)
-    {
-        mask = (DWORD_PTR(1) << (numCores - 1));
-    }
-    else if (role == ThreadAffinityRole::PerformanceCore)
-    {
-        for (DWORD i = numCores / 2; i < numCores; ++i)
-            mask |= (DWORD_PTR(1) << i);
-    }
-    else if (role == ThreadAffinityRole::WorkerCore)
-    {
-        for (DWORD i = 0; i < numCores / 2; ++i)
-            mask |= (DWORD_PTR(1) << i);
-    }
-    if (mask) SetThreadAffinityMask(GetCurrentThread(), mask);
-}
+// Only Android pins threads (below): a desktop scheduler places them better
+// than a guess at the machine's cores would.
+void platform::SetThreadAffinity(ThreadAffinityRole) {}
 
 // No symbols without a PDB: each frame as its offset in the executable, which
 // `llvm-symbolizer --obj=mw2.exe` turns back into a name on the build machine.
@@ -246,6 +224,7 @@ void platform::IdleThreadPriority()
     if (pthread_setschedparam(pthread_self(), SCHED_IDLE, &none) != 0) LowerThreadPriority();
 }
 
+#if defined(__ANDROID__)
 namespace
 {
     struct CpuTopology
@@ -325,6 +304,8 @@ namespace
     }
 }
 
+// Pins the calling thread to the SoC's core cluster for its role. Android
+// only: a desktop scheduler places threads better than this would.
 void platform::SetThreadAffinity(ThreadAffinityRole role)
 {
     if (role == ThreadAffinityRole::Default) return;
@@ -358,6 +339,9 @@ void platform::SetThreadAffinity(ThreadAffinityRole role)
     }
     sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
 }
+#else
+void platform::SetThreadAffinity(ThreadAffinityRole) {}
+#endif
 
 #if defined(__ANDROID__)
 // _Unwind_Backtrace is in libgcc/libunwind and is what bionic itself uses.

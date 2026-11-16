@@ -255,17 +255,14 @@ namespace vk::renderer::detail
         stutters::Timed timed(stutters::kGpuWaits);
         vk::record::WaitFor(slot.queuedAt);
         report::Timed spent(report::kGpuWait);
+        // Waits for as long as it takes: the slot's command buffers are reused
+        // once this returns, and that is undefined while they still execute.
+        // The first two seconds are waited apart only so a long wait is logged.
         VkResult res = vkWaitForFences(g.device, 1, &slot.fence, VK_TRUE, 2000000000ull);
         if (res == VK_TIMEOUT)
         {
-            LOGW("renderer: waiting for %s took >2 seconds; waiting up to 5s...", what);
-            res = vkWaitForFences(g.device, 1, &slot.fence, VK_TRUE, 5000000000ull);
-        }
-        if (res == VK_TIMEOUT)
-        {
-            LOGE("renderer: fence wait timed out for %s; aborting wait to avoid permanent hang", what);
-            slot.inFlight = false;
-            return false;
+            LOGW("renderer: waiting for %s has taken over 2 seconds; still waiting", what);
+            res = vkWaitForFences(g.device, 1, &slot.fence, VK_TRUE, UINT64_MAX);
         }
         if (vk::pipeline::Failed(res, what))
             return false;

@@ -33,7 +33,9 @@ namespace gpu
     void SetArenaProgressBlock(uint32_t address);
     uint32_t GetArenaProgressBlock();
     uint32_t GetArenaSequence();
+#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
     void ForceArenaProgress(uint32_t sequence, uint32_t position);
+#endif
     bool CheckArenaWaitDeadlock(uint64_t maxWaitUs, uint32_t& outSeq, uint32_t& outPos);
 
     // The display's 256-entry colour table, as the scanout hardware holds it:
