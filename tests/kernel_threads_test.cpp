@@ -5,6 +5,7 @@
 // in for recompiled ones; no game code or data is involved.
 #include "tests/fake_guest.h"
 #include "runtime/crash.h"
+#include "runtime/platform.h"
 #include "runtime/kernel/objects.h"
 
 #ifdef NDEBUG
@@ -74,6 +75,18 @@ namespace crash
     void RegisterThread(const char*) {}
     void UnregisterThread() {}
     const char* CurrentThreadName() { return "test"; }
+}
+
+// The host thread a guest thread runs on, without the runtime's stack sizing
+// and core pinning: neither changes what ExCreateThread promises the guest.
+namespace platform
+{
+    bool StartThread(void (*body)(void*), void* argument, size_t, const char*)
+    {
+        std::thread(body, argument).detach();
+        return true;
+    }
+    void SetThreadAffinity(ThreadAffinityRole) {}
 }
 
 using namespace kernel;

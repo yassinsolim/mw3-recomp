@@ -5,6 +5,7 @@
 // the online service and the network layer are replaced by small fakes, so the
 // test sees only what the kernel side does with them. No game files are involved.
 #include "tests/fake_guest.h"
+#include "tests/fake_crash.h"
 #include "runtime/friends.h"
 #include "runtime/online/service.h"
 #include "runtime/presence.h"

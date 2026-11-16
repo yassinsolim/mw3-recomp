@@ -4,6 +4,7 @@
 // it against a small fake guest memory, so it needs no game files and no
 // recompiled code.
 #include "tests/fake_guest.h"
+#include "tests/fake_crash.h"
 #include "runtime/kernel/objects.h"
 
 #ifdef NDEBUG

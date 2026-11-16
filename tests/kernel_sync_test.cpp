@@ -1,5 +1,6 @@
 // Exercise real synchronization imports using synthetic guest memory only.
 #include "tests/fake_guest.h"
+#include "tests/fake_crash.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif

@@ -3,6 +3,7 @@
 // NtReadFile and friends the way recompiled code would, and runs them against a
 // temporary folder of synthetic files made here. No game files are involved.
 #include "tests/fake_guest.h"
+#include "tests/fake_crash.h"
 #include "runtime/kernel/objects.h"
 
 #ifdef NDEBUG
