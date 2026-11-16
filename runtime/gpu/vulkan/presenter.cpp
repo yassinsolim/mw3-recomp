@@ -12,7 +12,7 @@
 #include "../../render_size.h"
 #include "backdrop.h"
 
-#if !defined(MW2_HAVE_VULKAN) || !defined(MW2_USE_SDL)
+#if !defined(MW2_HAVE_VULKAN) || (!defined(MW2_USE_SDL) && !defined(MW2_ANDROID))
 // Without a loader or a window system there is nothing to present to; the rest
 // of the runtime carries on headless.
 bool     vk::Start()           { return false; }
@@ -37,6 +37,7 @@ uint64_t vk::PresentedFrames() { return 0; }
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 #include "capture.h"
@@ -44,9 +45,21 @@ uint64_t vk::PresentedFrames() { return 0; }
 #include "pipeline.h"
 #include "renderer.h"
 
+#ifdef MW2_USE_SDL
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+#endif
+#ifdef MW2_ANDROID
+#include <android/native_window.h>
+#include "../../android/android.h"
+// The surface extension's declarations. A build that loads Vulkan at run
+// time has had this already (loader.h); one that links it has not.
+#ifndef VK_USE_PLATFORM_ANDROID_KHR
+#define VK_USE_PLATFORM_ANDROID_KHR 1
+#endif
+#endif
 #include <vulkan/vulkan.h>
+#include "loader.h"
 #include "util.h"
 
 namespace
@@ -67,7 +80,16 @@ namespace
 
     struct Presenter
     {
+#ifdef MW2_USE_SDL
         SDL_Window* window = nullptr;
+#endif
+#ifdef MW2_ANDROID
+        // The surface the activity owns. It goes away every time the player
+        // leaves the game and comes back as a different one; `generation`
+        // is how the loop notices.
+        ANativeWindow* nativeWindow = nullptr;
+        uint64_t generation = 0;
+#endif
         VkInstance instance = VK_NULL_HANDLE;
         VkSurfaceKHR surface = VK_NULL_HANDLE;
         VkPhysicalDevice physical = VK_NULL_HANDLE;
@@ -83,6 +105,12 @@ namespace
         // remade before the next frame. A window of no size -- minimised -- has
         // nothing to remake it for, and frames are skipped until it has one.
         bool remakeSwapchain = false;
+        // The surface reports a rotation this renderer does not apply, and
+        // the swapchain was made with identity on purpose (see below). Vulkan
+        // answers every acquire and every present with SUBOPTIMAL for as long
+        // as that is true, which is correct and permanent -- it must not be
+        // read as "remake me".
+        bool suboptimalIsExpected = false;
         bool fullscreen = false;
         bool stretch = false;   // MW2_STRETCH
         uint64_t swapchainsMade = 0;
@@ -196,16 +224,75 @@ namespace
         return layers && std::strstr(layers, "validation");
     }
 
+    // Whether the installed loader/driver offers an instance-level extension
+    // (VK_KHR_get_physical_device_properties2, VK_KHR_maintenance1 ...).
+    bool InstanceHasExtension(const char* name)
+    {
+        uint32_t count = 0;
+        if (vkEnumerateInstanceExtensionProperties(name, &count, nullptr) != VK_SUCCESS || !count)
+            return false;
+        std::vector<VkExtensionProperties> offered(count);
+        if (vkEnumerateInstanceExtensionProperties(name, &count, offered.data()) != VK_SUCCESS)
+            return false;
+        for (const auto& e : offered)
+            if (std::strcmp(e.extensionName, name) == 0) return true;
+        return false;
+    }
+
     bool CreateInstance()
     {
+        std::vector<const char*> extensions;
+#ifdef MW2_ANDROID
+        // Android has one window system and it is always there.
+        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensions.push_back("VK_KHR_android_surface");
+#else
         uint32_t extensionCount = 0;
         const char* const* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
         if (!sdlExtensions) { LOGW("vulkan: SDL has no instance extensions (%s)", SDL_GetError()); return false; }
-        std::vector<const char*> extensions(sdlExtensions, sdlExtensions + extensionCount);
+        extensions.assign(sdlExtensions, sdlExtensions + extensionCount);
+#endif
 
         VkApplicationInfo app{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
         app.pApplicationName = "mw2recomp";
-        app.apiVersion = VK_API_VERSION_1_2;
+        // 1.0 is the floor: negative viewport heights (VK_KHR_maintenance1
+        // before that) are an extension too, and 1.0 is the version the APK
+        // advertises on its Play-store device filter. Everything newer is
+        // optional and asked for by extension or checked at device time.
+        // The highest the loader will admit to, capped at 1.3. It matters:
+        // dynamic rendering and extended dynamic state are core there, and
+        // a driver that has them in core rather than as extensions can only
+        // be asked for them by an application that says it targets 1.3.
+        app.apiVersion = VK_API_VERSION_1_0;
+#if defined(MW2_VULKAN_DYNAMIC)
+        if (vkEnumerateInstanceVersion)
+#endif
+        {
+            uint32_t available = 0;
+            if (vkEnumerateInstanceVersion(&available) == VK_SUCCESS)
+            {
+                if (available >= VK_API_VERSION_1_3)
+                    app.apiVersion = VK_API_VERSION_1_3;
+                else if (available >= VK_API_VERSION_1_1)
+                    app.apiVersion = VK_API_VERSION_1_1;
+            }
+        }
+
+        // The loader would name these itself on Android; everywhere else they
+        // come from SDL's list. A 1.0 instance has to name what 1.1 and 1.2
+        // make core, because the runtime asks for maintenance1's negative
+        // viewport and for `vkGetPhysicalDeviceProperties2` / `...Features2`
+        // (properties2's pNext chain, the depth resolve and driver
+        // properties read here and in pipeline.cpp) and those are pre-1.1
+        // extensions behind both.
+        if (app.apiVersion < VK_API_VERSION_1_1)
+        {
+            if (vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties") &&
+                InstanceHasExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+                extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+            if (InstanceHasExtension(VK_KHR_MAINTENANCE1_EXTENSION_NAME))
+                extensions.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+        }
 
         VkDebugUtilsMessengerCreateInfoEXT messenger{
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
@@ -223,6 +310,11 @@ namespace
         info.enabledExtensionCount = uint32_t(extensions.size());
         info.ppEnabledExtensionNames = extensions.data();
         if (!Check(vkCreateInstance(&info, nullptr, &g.instance), "vkCreateInstance")) return false;
+#if defined(MW2_VULKAN_DYNAMIC)
+        // Everything past this point is called through the driver's own
+        // entry points rather than a link-time symbol (loader.h).
+        vk::loader::LoadInstance(g.instance);
+#endif
         if (validating)
         {
             auto create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
@@ -339,7 +431,15 @@ namespace
         else
         {
             int width = 0, height = 0;
+#ifdef MW2_ANDROID
+            if (g.nativeWindow)
+            {
+                width = ANativeWindow_getWidth(g.nativeWindow);
+                height = ANativeWindow_getHeight(g.nativeWindow);
+            }
+#else
             SDL_GetWindowSizeInPixels(g.window, &width, &height);
+#endif
             g.extent.width = std::clamp(uint32_t(std::max(width, 0)),
                                         caps.minImageExtent.width, caps.maxImageExtent.width);
             g.extent.height = std::clamp(uint32_t(std::max(height, 0)),
@@ -359,7 +459,12 @@ namespace
 
         VkSwapchainCreateInfoKHR info{ VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
         info.surface = g.surface;
+#ifdef MW2_ANDROID
+        info.minImageCount = std::max(caps.minImageCount, 3u);
+#else
         info.minImageCount = std::max(caps.minImageCount, 2u);
+#endif
+        if (caps.maxImageCount && info.minImageCount > caps.maxImageCount) info.minImageCount = caps.maxImageCount;
         info.imageFormat = chosen.format;
         info.imageColorSpace = chosen.colorSpace;
         info.imageExtent = g.extent;
@@ -367,7 +472,35 @@ namespace
         // The renderer's frame is blitted in, so a transfer destination.
         info.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        info.preTransform = caps.currentTransform;
+        // How the frame sits on the panel.
+        //
+        // A phone's panel is wired portrait, so a landscape window reports
+        // currentTransform as ROTATE_90. Passing that back says "my frame is
+        // already turned to match" -- and this renderer's is not, it draws
+        // the console's landscape frame square on. The result is a picture
+        // lying on its side, which is what the first run on a phone showed.
+        //
+        // Identity instead, where the surface allows it: the compositor then
+        // turns the frame, which it is going to be doing for the system bars
+        // anyway. It costs a pass the pre-rotated path would not, and the
+        // alternative is rotating every frame in the blit below -- worth
+        // doing one day, not worth an upside-down menu today.
+        info.preTransform = (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+                                ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+                                : caps.currentTransform;
+        g.suboptimalIsExpected = info.preTransform != caps.currentTransform;
+        // Once. This is remade on every rotation and every resize, and a line
+        // a frame is its own performance problem.
+        static bool toldAboutTheTransform = false;
+        if (g.suboptimalIsExpected && !std::exchange(toldAboutTheTransform, true))
+            LOGI("vulkan: the panel is mounted %s; the compositor turns the frame",
+                 caps.currentTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR  ? "a quarter turn"
+                 : caps.currentTransform == VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR ? "upside down"
+                 : caps.currentTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR ? "three quarters round"
+                                                                                    : "at some angle");
+        else if (caps.currentTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+            LOGW("vulkan: the surface will not take an identity transform; the picture may be"
+                 " rotated");
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         info.presentMode = VK_PRESENT_MODE_FIFO_KHR;      // always supported
         info.clipped = VK_TRUE;
@@ -473,6 +606,14 @@ namespace
     void FollowTheDisplay()
     {
         double hz = 0;
+#ifdef MW2_ANDROID
+        // Display.getRefreshRate, as the app reported it. A phone that can
+        // run at 90 or 120 is asked for 60 by the app where it can, because
+        // the console's frame is a 60 Hz frame and a display at 90 shows
+        // every other one twice.
+        hz = android::RefreshHz();
+        g.exactRate = false;
+#else
         if (const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(g.window)))
         {
             // The mode's exact rate, from its pixel clock and totals, when
@@ -481,6 +622,7 @@ namespace
             hz = g.exactRate ? double(mode->refresh_rate_numerator) / mode->refresh_rate_denominator
                              : double(mode->refresh_rate);
         }
+#endif
         g.periodNs = 1e9 / (hz > 0 ? hz : 60.0);
         if (!g.presentWait) return;
         if (hz >= 59.0 && hz <= 61.0)
@@ -786,7 +928,7 @@ namespace
         // remade next frame. Suboptimal: an image was acquired and is shown,
         // since the semaphore it signals has to be waited on, and then remade.
         if (acquired == VK_ERROR_OUT_OF_DATE_KHR) { g.remakeSwapchain = true; return; }
-        if (acquired == VK_SUBOPTIMAL_KHR) g.remakeSwapchain = true;
+        if (acquired == VK_SUBOPTIMAL_KHR) { if (!g.suboptimalIsExpected) g.remakeSwapchain = true; }
         else if (acquired != VK_SUCCESS) return;
 
         Presenter::Queued shown;
@@ -885,10 +1027,18 @@ namespace
         // to be externally synchronised for a present as for a submission. Two
         // holds rather than one, so a submission of the renderer's can go
         // between them.
+        VkResult submitRes = VK_SUCCESS;
         {
             std::lock_guard queueLock(vk::pipeline::QueueMutex());
-            vk::pipeline::Failed(vk::gpu_time::Submit(g.queue, submit, frame.inFlight),
-                                 "the presenter's submission");
+            submitRes = vk::gpu_time::Submit(g.queue, submit, frame.inFlight);
+        }
+        if (submitRes != VK_SUCCESS)
+        {
+            vk::pipeline::Failed(submitRes, "the presenter's submission");
+            VkSubmitInfo emptySubmit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+            std::lock_guard queueLock(vk::pipeline::QueueMutex());
+            vkQueueSubmit(g.queue, 1, &emptySubmit, frame.inFlight);
+            return;
         }
         // The copy is in the queue ahead of anything the renderer submits from
         // now on, so the renderer may draw over the image.
@@ -918,7 +1068,8 @@ namespace
             std::lock_guard queueLock(vk::pipeline::QueueMutex());
             return vkQueuePresentKHR(g.queue, &present);
         }();
-        if (presented == VK_ERROR_OUT_OF_DATE_KHR || presented == VK_SUBOPTIMAL_KHR)
+        if (presented == VK_ERROR_OUT_OF_DATE_KHR ||
+            (presented == VK_SUBOPTIMAL_KHR && !g.suboptimalIsExpected))
             g.remakeSwapchain = true;
         else
             vk::pipeline::Failed(presented, "present");
@@ -949,6 +1100,9 @@ namespace
             }
             if (g.pool) vkDestroyCommandPool(g.device, g.pool, nullptr);
             if (g.swapchain) vkDestroySwapchainKHR(g.device, g.swapchain, nullptr);
+#if defined(MW2_VULKAN_DYNAMIC)
+            vk::loader::ForgetDevice();
+#endif
             vkDestroyDevice(g.device, nullptr);
             g.pool = VK_NULL_HANDLE;
             g.swapchain = VK_NULL_HANDLE;
@@ -965,14 +1119,135 @@ namespace
             g_messenger = VK_NULL_HANDLE;
         }
         if (g.instance) vkDestroyInstance(g.instance, nullptr);
+#ifdef MW2_USE_SDL
         if (g.window) SDL_DestroyWindow(g.window);
+        g.window = nullptr;
+#endif
+#ifdef MW2_ANDROID
+        if (g.nativeWindow)
+        {
+            android::ReleaseWindow(g.nativeWindow);
+            g.nativeWindow = nullptr;
+            android::WindowReleased();
+        }
+#endif
         g.surface = VK_NULL_HANDLE;
         g.instance = VK_NULL_HANDLE;
-        g.window = nullptr;
     }
+
+#ifdef MW2_ANDROID
+    // The Vulkan surface for the window the activity handed over.
+    bool CreateSurfaceForWindow()
+    {
+#if defined(MW2_VULKAN_DYNAMIC)
+        if (!vkCreateAndroidSurfaceKHR)
+        {
+            LOGE("vulkan: this driver has no VK_KHR_android_surface, so it cannot present");
+            android::SetStatus("This graphics driver cannot present to the screen."
+                               " Switch back to the system driver.");
+            return false;
+        }
+#endif
+        VkAndroidSurfaceCreateInfoKHR info{ VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
+        info.window = g.nativeWindow;
+        return Check(vkCreateAndroidSurfaceKHR(g.instance, &info, nullptr, &g.surface),
+                     "vkCreateAndroidSurfaceKHR");
+    }
+
+    // The activity's surface changed: it was destroyed, or destroyed and made
+    // again. Everything built on the old one goes -- in this order, and
+    // before surfaceDestroyed is allowed to return -- and the new one, if
+    // there is one by now, gets a swapchain.
+    void AdoptNewSurface()
+    {
+        const uint64_t generation = android::WindowGeneration();
+
+        if (g.device)
+        {
+            // Nothing of ours may still be reading or presenting the images.
+            // The renderer submits to the same queue, so its lock is what
+            // makes waiting for the device meaningful.
+            std::lock_guard held(vk::pipeline::QueueMutex());
+            vk::pipeline::Failed(vkDeviceWaitIdle(g.device), "the device before a surface change");
+        }
+        if (g.swapchain)
+        {
+            std::unique_lock life(g.swapchainLife);
+            vkDestroySwapchainKHR(g.device, g.swapchain, nullptr);
+            g.swapchain = VK_NULL_HANDLE;
+            std::lock_guard waiting(g.waitLock);
+            g.waiting.clear();
+            g.lastShownNs = -1;
+        }
+        if (g.surface)
+        {
+            vkDestroySurfaceKHR(g.instance, g.surface, nullptr);
+            g.surface = VK_NULL_HANDLE;
+        }
+        if (g.nativeWindow)
+        {
+            android::ReleaseWindow(g.nativeWindow);
+            g.nativeWindow = nullptr;
+            // surfaceDestroyed is waiting on exactly this.
+            android::WindowReleased();
+        }
+        LetGo();
+
+        g.generation = generation;
+        g.nativeWindow = android::AcquireWindow();
+        if (!g.nativeWindow) return;          // gone for now; the loop waits
+        if (!CreateSurfaceForWindow()) return;
+        g.remakeSwapchain = true;
+        RemakeSwapchain();
+        LOGI("vulkan: presenting to the new surface (%ux%u)", g.extent.width, g.extent.height);
+    }
+#endif
 
     bool Bring()
     {
+#ifdef MW2_ANDROID
+        std::string error;
+        if (!vk::loader::Opened() && !vk::loader::Open(error))
+        {
+            LOGE("vulkan: %s", error.c_str());
+            android::SetStatus(("No Vulkan driver could be opened: " + error).c_str());
+            return false;
+        }
+        // The game thread runs ahead of the activity's layout; the first
+        // surface can be a moment away.
+        while (android::Running() && !android::WaitForWindow(250)) {}
+        if (!android::Running()) return false;
+        g.generation = android::WindowGeneration();
+        g.nativeWindow = android::AcquireWindow();
+        if (!g.nativeWindow) { LOGW("vulkan: no surface to present to"); return false; }
+        if (!CreateInstance()) {
+            android::SetStatus("Failed to create Vulkan instance");
+            return false;
+        }
+        if (!CreateSurfaceForWindow()) {
+            android::SetStatus("Failed to create Vulkan surface for Android window");
+            return false;
+        }
+        if (!PickDevice()) {
+            android::SetStatus("No Vulkan physical device found");
+            return false;
+        }
+        if (!CreateDevice()) {
+            android::SetStatus("Failed to create Vulkan logical device");
+            return false;
+        }
+        if (!CreateSwapchain()) {
+            android::SetStatus("Failed to create Vulkan swapchain");
+            return false;
+        }
+        if (!CreateFrames()) {
+            android::SetStatus("Failed to create Vulkan presentation frames");
+            return false;
+        }
+        vk::pipeline::Initialise(g.device, g.physical, g.queue, g.queueFamily, g.instance);
+        android::SetStatus((std::string("Running on ") + vk::pipeline::DeviceName()).c_str());
+        return true;
+#else
         if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
         {
             LOGW("vulkan: SDL video would not start (%s)", SDL_GetError());
@@ -1003,6 +1278,7 @@ namespace
         // because an image cannot be shared between two.
         vk::pipeline::Initialise(g.device, g.physical, g.queue, g.queueFamily, g.instance);
         return true;
+#endif
     }
 
     void Worker()
@@ -1021,6 +1297,25 @@ namespace
 
         while (g.running.load(std::memory_order_relaxed))
         {
+#ifdef MW2_ANDROID
+            // The app asked for the run to end.
+            if (!android::Running()) break;
+            // The activity's window is on screen whenever it has a surface:
+            // nothing here is hidden until asked for (vk::ShowWindow).
+            g.shown = true;
+            // The activity's surface came, went, or was replaced.
+            if (android::WindowGeneration() != g.generation) AdoptNewSurface();
+            // Nothing to present to, or nothing worth presenting: the frames
+            // the renderer finishes are let go at once, so the guest never
+            // waits on a window that is not there.
+            if (!g.surface || !g.swapchain || android::Paused())
+            {
+                LetGo();
+                std::unique_lock lock(g.lock);
+                g.wake.wait_for(lock, std::chrono::milliseconds(32));
+                continue;
+            }
+#else
             // In front, with the keyboard's focus: a window shown a moment
             // after its program started may otherwise open behind another.
             if (!g.shown && g.showAsked.load(std::memory_order_acquire))
@@ -1102,6 +1397,7 @@ namespace
                 else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
                          event.type == SDL_EVENT_WINDOW_RESIZED)
                     g.remakeSwapchain = true;
+#endif  // MW2_ANDROID
 
             // A frame to show, or 16 ms to go round the events again. Until the
             // renderer has finished one, the window shows its own colour.
@@ -1127,7 +1423,8 @@ namespace
 bool vk::Start()
 {
     // Every build opens it; MW2_WINDOW=0 keeps it shut, for a headless
-    // measurement run.
+    // measurement run. On Android there is nothing else to be: the activity
+    // is already on screen waiting for frames.
     const bool window = !env::Text("MW2_WINDOW") || env::Flag("MW2_WINDOW");
     if (!window) return false;
 
@@ -1155,6 +1452,19 @@ void vk::ShowImage(void* image, uint32_t width, uint32_t height, uint64_t serial
 void vk::WaitUntilTaken(uint64_t serial)
 {
     if (!serial || !g.running.load(std::memory_order_relaxed)) return;
+#ifdef MW2_ANDROID
+    // The activity is not in front: there is no surface to copy the frame
+    // out to, and waiting a quarter of a second for one, every frame, is a
+    // game running at 4 fps in the background with the phone getting hot.
+    if (android::Paused())
+    {
+        std::lock_guard lock(g.lock);
+        while (!g.frameQueue.empty() && g.frameQueue.front().serial <= serial)
+            g.frameQueue.pop_front();
+        g.taken = std::max(g.taken, serial);
+        return;
+    }
+#endif
     std::unique_lock lock(g.lock);
     if (g.takenWake.wait_for(lock, std::chrono::milliseconds(250),
                              [&] { return g.taken >= serial || !g.running; }))

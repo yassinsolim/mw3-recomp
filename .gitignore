@@ -1,6 +1,12 @@
 # ---- game data: extracted from the retail disc, never commit ----
-mw2/
-mw3/
+# Anchored with a leading slash, and that matters: "mw2/" on its own matches
+# a directory of that name at any depth, and the app's Kotlin lives in
+# android/app/src/main/java/com/mw2/recomp. That rule silently swallowed the
+# whole app once -- it built, installed, and died on a manifest pointing at
+# classes that were never committed. Anchor anything meant for the root.
+/mw2/
+/mw3/
+/mw2-iso/
 *.xex
 *.xexp
 *.pe
@@ -13,11 +19,11 @@ mw3/
 
 # ---- upstream tool checkout (121 MB + 6 submodules) ----
 # Cloned and patched by build.sh; local changes live in patches/.
-XenonRecomp/
+/XenonRecomp/
 
 # ---- generated C++ (~2.2M lines, 64 MB) ----
-ppc/
-ppc_mw3/
+/ppc/
+/ppc_mw3/
 
 # ---- generated switch tables (XenonAnalyse output, rebuilt by build.sh) ----
 config/mw2_switch_tables.toml
@@ -25,12 +31,14 @@ config/mw3_switch_tables.toml
 mw3_candidates.h
 
 # ---- build artifacts ----
-build/
-build-tests/
-build-mw3*/
-build-release/
-build-win*/
-out/
+/build/
+/build-tests/
+/build-mw3*/
+/build-release/
+/build-win*/
+# The checks' own build (tests/CMakeLists.txt), which needs none of the game:
+# cmake -S tests -B build-tests -G Ninja
+/out/
 
 # ---- editor / OS ----
 .vscode/
@@ -43,19 +51,39 @@ runtime/kernel/stubs_generated.cpp
 ppc/kernel_imports.txt
 __pycache__/
 *.pyc
-diagnosis/
+/diagnosis/
 
 # ---- the user's RenderDoc captures, hundreds of MB each ----
-captures/
+/captures/
 
 # ---- saved games the runtime writes beside the binary ----
-saves/
+/saves/
 
 # ---- the multiplayer executable's derived files (TITLE=mp ./build.sh) ----
-ppc_mp/
-build-mp/
-build-mp-release/
+/ppc_mp/
+/build-mp/
+/build-mp-release/
 config/mw2mp_switch_tables.toml
+
+# ---- the Android app's build output ----
+android/build/
+android/.gradle/
+android/app/build/
+android/local.properties
+# android/gradle/wrapper/gradle-wrapper.jar
+*.apk
+*.aab
+*.keystore
+
+# ---- fetched by android/fetch_deps.sh, somebody else's code ----
+third_party/libadrenotools/
+
+# ---- the native build's scratch directory ----
+android/app/.cxx/
+.cxx/
+*.log
+*.tmp
+compile_commands.json
 
 # ---- the disc version's derived files (VERSION=tu0 ./build.sh) ----
 ppc_tu0/
@@ -65,3 +93,26 @@ config/*_switch_tables.tu0.toml
 
 # ---- a development run's switches (docs/switches.md, "The settings file") ----
 .env
+
+# ---- local vendor tools and temporary binaries ----
+tools/rad/
+tools/xdvdfs_bin/
+rad_installer.exe
+*.txt
+!CMakeLists.txt
+!requirements.txt
+
+# ---- local inspection dumps and test artifacts ----
+/ucode_dump/
+/*.png
+/*.spv
+
+
+# ---- iw4L port ----
+iw4L/
+/iw4L/
+iw4L-cpp/build/
+/iw4L-cpp/build/
+build-iw4l*/
+*.keystore
+*.b64

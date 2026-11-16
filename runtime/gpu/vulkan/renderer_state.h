@@ -94,6 +94,8 @@ namespace vk::renderer::detail
         uint32_t blendControl = 0;
         uint32_t colourMask = 0;
         uint32_t samples = 1;   // the render pass's, so the rasteriser matches it
+        uint32_t depthControl = 0; // for legacy mode where depth/stencil is static
+        uint32_t modeCntl = 0;     // for legacy mode where cull/frontface is static
         auto operator<=>(const PipelineKey&) const = default;
     };
 
@@ -150,6 +152,24 @@ namespace vk::renderer::detail
         uint32_t blendControl = 0, colourMask = 0;
         uint32_t colourFormat = 0, depthFormat = 0, samples = 1;
         auto operator<=>(const OutputKey&) const = default;
+    };
+
+    struct RenderPassKey
+    {
+        VkFormat colourFormat = VK_FORMAT_UNDEFINED;
+        VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+        VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+        auto operator<=>(const RenderPassKey&) const = default;
+    };
+
+    struct FramebufferKey
+    {
+        VkRenderPass pass = VK_NULL_HANDLE;
+        VkImageView colourView = VK_NULL_HANDLE;
+        VkImageView depthView = VK_NULL_HANDLE;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        auto operator<=>(const FramebufferKey&) const = default;
     };
 
     // A pipeline a previous run needed, with the formats its render pass was
@@ -219,6 +239,7 @@ namespace vk::renderer::detail
 
     struct State
     {
+        bool ready = false;
         VkDevice device = VK_NULL_HANDLE;
         VkPhysicalDevice physical = VK_NULL_HANDLE;
         VkQueue queue = VK_NULL_HANDLE;
@@ -458,6 +479,8 @@ namespace vk::renderer::detail
         TextureSlot recentTextures[64]{};
         uint64_t textureSlotsKept = 0, textureSlotsLookedUp = 0;
         std::map<uint32_t, ResolveSurface> resolveSurfaces;
+        std::map<RenderPassKey, VkRenderPass> legacyRenderPasses;
+        std::map<FramebufferKey, VkFramebuffer> legacyFramebuffers;
 
         uint64_t frames = 0, draws = 0, drawsRecorded = 0;
 
@@ -682,6 +705,13 @@ namespace vk::renderer::detail
     void ClearAliasedDepth(uint32_t fromTile);
     void ClearAfterResolve(const gpu::RegisterFile& r, const gpu::CopyControl& control);
 
+    // Traditional render pass and framebuffer fallback for Vulkan 1.1 / Mali
+    VkRenderPass GetRenderPass(VkFormat colourFormat, VkFormat depthFormat, VkSampleCountFlagBits samples);
+    VkFramebuffer GetFramebuffer(VkRenderPass pass, VkImageView colourView, VkImageView depthView,
+                                 uint32_t width, uint32_t height);
+    void InvalidateFramebuffers();
+    void ClearRenderPassCache();
+
     // ---- renderer_frame.cpp ----
     bool BeginFrame();
     void OpenGuestQuery();
@@ -768,6 +798,7 @@ namespace vk::renderer::detail
     void TakeOptimisedPipelines();
     // Every finished frame, so the compiling waits while the world is drawn.
     void NoteFrame(bool world);
+    extern std::mutex g_pipelinesMutex;
     void StartPreparing();
     void StopPreparing();
     void ReportPreparing();
@@ -782,12 +813,29 @@ namespace vk::renderer::detail
     DepthTests DepthTestsFor(uint32_t depthControl);
     // The culling and winding PA_SU_SC_MODE_CNTL asks for.
     void FacesFor(uint32_t modeCntl, VkCullModeFlags& cull, VkFrontFace& front);
-    // `made` says whether this call built it.
     VkPipeline EnsurePipeline(const PipelineKey& key, const Shader& vertex, const Shader& pixel,
                               bool* made = nullptr);
+    VkPipeline FindPipeline(const PipelineKey& key);
+    void EnqueuePipelineWarmup(const Recorded& rec, bool highPriority = false);
     const char* ShaderCachePath();
     void WriteShaderCache();
     void PrewarmFromCache();
+
+    struct WarmupStats
+    {
+        uint32_t queued = 0;
+        uint32_t completed = 0;
+        uint32_t misses = 0;
+        uint32_t lastCompileMs = 0;
+        bool cutsceneActive = false;
+    };
+    WarmupStats GetWarmupStats();
+    void SetCutsceneActive(bool active);
+    void StartWarmupScheduler();
+    void StopWarmupScheduler();
+    // Called by renderer_frame after each vkQueueSubmit so the warmup worker
+    // can throttle pipeline compilation during active rendering.
+    void NoteRenderSubmit();
 
     // ---- renderer_draw.cpp ----
     void ScissorOf(const gpu::RegisterFile& r, VkRect2D& scissor);

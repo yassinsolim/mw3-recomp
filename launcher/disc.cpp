@@ -24,6 +24,12 @@ namespace
         {
             file_.open(path, std::ios::binary);
             if (!file_) { error = "cannot open " + Utf8(path); return false; }
+            file_.seekg(0, std::ios::end);
+            const auto endPos = file_.tellg();
+            if (endPos <= 0) { error = "empty disc image"; return false; }
+            imageSize_ = uint64_t(endPos);
+            file_.seekg(0, std::ios::beg);
+
             for (uint64_t base : { 0x0ull, 0xFD90000ull, 0x2080000ull, 0x18300000ull, 0x18310000ull })
             {
                 char magic[20];
@@ -34,16 +40,15 @@ namespace
                 }
                 if (base == 0x18310000ull) { error = "not an Xbox 360 disc image"; return false; }
             }
+
             uint8_t volume[kSector];
             if (!ReadAt(base_ + 32 * kSector, volume, kSector)) { error = "the disc image is cut short"; return false; }
             const uint32_t rootSector = Le32(volume + 0x14), rootSize = Le32(volume + 0x18);
-            // Sized from the image's own bytes: compared with the image before
-            // anything is allocated for it.
-            std::error_code ec;
-            const uint64_t imageSize = fs::file_size(path, ec);
-            if (ec || base_ + rootSector * kSector + rootSize > imageSize)
+            if (rootSize == 0 || rootSize > 32 * 1024 * 1024 ||
+                base_ + uint64_t(rootSector) * kSector > imageSize_ ||
+                rootSize > imageSize_ - (base_ + uint64_t(rootSector) * kSector))
             {
-                error = "the disc image is cut short";
+                error = "the disc image has invalid root directory metadata";
                 return false;
             }
             std::vector<uint8_t> root(rootSize);
@@ -61,7 +66,8 @@ namespace
 
         bool Read(const File& file, uint64_t offset, void* out, size_t size) override
         {
-            if (offset + size > file.size) return false;
+            if (offset > file.size || size > file.size - offset) return false;
+            if (file.offset > imageSize_ || file.size > imageSize_ - file.offset) return false;
             return ReadAt(file.offset + offset, out, size);
         }
 
@@ -71,6 +77,7 @@ namespace
 
         bool ReadAt(uint64_t at, void* out, size_t size)
         {
+            if (at > imageSize_ || size > imageSize_ - at) return false;
             file_.clear();
             file_.seekg(std::streamoff(at));
             file_.read(static_cast<char*>(out), std::streamsize(size));
@@ -109,12 +116,18 @@ namespace
                 if (attributes & 0x10 || at + 14 + length > dir.size()) continue;   // a directory
                 std::string name(reinterpret_cast<const char*>(e + 14), length);
                 if (!IsFileName(name)) continue;
-                files_.push_back({ std::move(name), Le32(e + 8), base_ + uint64_t(Le32(e + 4)) * kSector });
+
+                const uint64_t fileOffset = base_ + uint64_t(Le32(e + 4)) * kSector;
+                const uint32_t fileSize = Le32(e + 8);
+                if (fileOffset > imageSize_ || fileSize > imageSize_ - fileOffset) continue;
+
+                files_.push_back({ std::move(name), fileSize, fileOffset });
             }
         }
 
         std::ifstream file_;
         uint64_t base_ = 0;
+        uint64_t imageSize_ = 0;
         std::vector<File> files_;
     };
 

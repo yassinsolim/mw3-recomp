@@ -21,12 +21,24 @@
 #include "../../crash.h"
 #include "../../env.h"
 #include "../../log.h"
+#include "../../platform.h"
 #include "../../report.h"
 
 #include <atomic>
 #include <thread>
 
+// The spin hint: pause on x86, yield on arm64. Both tell the core that this
+// loop is waiting for another one, which on a phone's shared cluster is the
+// difference between a spin that costs a rival thread nothing and one that
+// costs it a frame.
+#if defined(__x86_64__) || defined(__i386__)
 #include <immintrin.h>
+#define MW2_SPIN_HINT() _mm_pause()
+#elif defined(__aarch64__) || defined(__arm__)
+#define MW2_SPIN_HINT() __asm__ __volatile__("yield" ::: "memory")
+#else
+#define MW2_SPIN_HINT() ((void)0)
+#endif
 
 namespace vk::record::detail
 {
@@ -76,6 +88,7 @@ namespace
     void Run()
     {
         crash::RegisterThread("recorder");
+        platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
         uint8_t* const ring = q.ring;
         uint64_t at = q.made.load(std::memory_order_relaxed);
         uint64_t calls = 0;
@@ -147,7 +160,7 @@ namespace
         Wake();
         for (uint32_t i = 0; i < kSpins; i++)
         {
-            _mm_pause();
+            MW2_SPIN_HINT();
             if (q.made.load(std::memory_order_acquire) >= position) return;
         }
         q.waiters.fetch_add(1, std::memory_order_seq_cst);

@@ -549,7 +549,13 @@ namespace
             if (best) std::memcpy(id.data(), best->info.sessionId, 8);
             if (id == g_joinable) return;
             g_joinable = id;
-            if (best) std::memcpy(joinable.session, &best->info, sizeof best->info);
+            if (best)
+            {
+                std::memcpy(joinable.session, &best->info, sizeof best->info);
+                joinable.publicSlots = best->publicSlots;
+                joinable.privateSlots = best->privateSlots;
+                std::memcpy(joinable.nonce, best->nonce, sizeof joinable.nonce);
+            }
         }
         if (best)
         {
@@ -604,6 +610,24 @@ namespace
         }
         if (info) kernel::NoteSessionId(info->sessionId);
         LOGI("online: session %08x created, flags %x, %u public and %u private slots", object, flags, s.publicSlots, s.privateSlots);
+        // What the guest will knock on: the session's kind (Live sessions
+        // carry 0x80 in the id's top bits, system link does not) and the
+        // host's address out of its XNADDR. When a join loops on the title's
+        // "attempt #N", this line against the host's "lan as ..." line says
+        // whether the guest even has the right kind and door.
+        if (!host && info)
+        {
+            const char* kind = (info->sessionId[0] & 0x80) ? "Live" : "system-link";
+            if (uint64_t peer; kernel::XnAddrPeer(info->hostAddress, peer))
+            {
+                const uint32_t ip = uint32_t(peer >> 16);
+                LOGI("online: joining a %s session, host %u.%u.%u.%u:%u", kind,
+                     (ip >> 24) & 255, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255,
+                     unsigned(peer & 0xFFFF));
+            }
+            else
+                LOGI("online: joining a %s session, host address untagged (not this build's)", kind);
+        }
         PublishHosted();
         PublishJoinable();
         PublishListing();
@@ -1179,6 +1203,15 @@ void kernel::MovePlayerData(uint64_t from, uint64_t to)
         if (!ec) fs::rename(saves / is / was, saves / is / is, ec);
         LOGI("xam: the rank kept as %s is now %s%s", was.c_str(), is.c_str(), ec ? " -- not moved" : "");
     }
+    // The package a replaced save was rotated aside into (content.cpp,
+    // RotatePackage) follows its own number, for the reason given below.
+    std::error_code rankEc;
+    const fs::path rankWas = saves / (was + ".bak"), rankIs = saves / (is + ".bak");
+    if (fs::exists(rankWas, rankEc))
+    {
+        fs::remove_all(rankIs, rankEc);
+        fs::rename(rankWas, rankIs, rankEc);
+    }
     const fs::path users = saves / "online" / "user";
     const fs::path liveWas = users / XuidText(OnlineXuid(from)), liveIs = users / XuidText(OnlineXuid(to));
     if (fs::is_directory(liveWas, ec) && !fs::exists(liveIs, ec)) fs::rename(liveWas, liveIs, ec);
@@ -1187,11 +1220,26 @@ void kernel::MovePlayerData(uint64_t from, uint64_t to)
     std::snprintf(settingsWas, sizeof settingsWas, "profile_%012llx.bin", (unsigned long long)from);
     std::snprintf(settingsIs, sizeof settingsIs, "profile_%012llx.bin", (unsigned long long)to);
     if (fs::exists(saves / settingsWas, ec) && !fs::exists(saves / settingsIs, ec))
+    {
         fs::rename(saves / settingsWas, saves / settingsIs, ec);
+        // The copy an interrupted save left behind goes with it. Left under the
+        // old name it is both clutter and a trap: a profile later given this
+        // same number would find it and recover a stranger's settings out of it.
+        std::error_code backupEc;
+        const fs::path backupWas = saves / (std::string(settingsWas) + ".bak");
+        const fs::path backupIs  = saves / (std::string(settingsIs)  + ".bak");
+        if (fs::exists(backupWas, backupEc))
+        {
+            fs::remove(backupIs, backupEc);
+            fs::rename(backupWas, backupIs, backupEc);
+        }
+    }
 }
 
 void kernel::AcceptInvite(uint64_t inviterAccount, const uint8_t* session60, bool fromInvite)
 {
+    LOGI("online: accepting %s from %016llX for session %02X..",
+         fromInvite ? "an invitation" : "a join", (unsigned long long)inviterAccount, session60[0]);
     {
         std::lock_guard g(g_inviteLock);
         uint8_t* p = g_invite.bytes;

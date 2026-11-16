@@ -8,11 +8,14 @@
 // port every copy shares (MW2_LAN_PORT, 3074 by default), which the kernel
 // delivers to all of them; each copy's own port is the first free one after
 // it, and how far after is the copy's slot.
+// MW2_LAN_IFACE pins the announced adapter by name or address substring;
+// without it the first connection up is announced.
 #include "transport.h"
 #include "udp.h"
 #include "../env.h"
 #include "../log.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -43,8 +46,11 @@ namespace
     }
 
     // The network connections that are up, the loopback aside, in the order
-    // the system lists them.
-    struct Adapter { std::string name; uint32_t address; };
+    // the system lists them. On Android the WiFi interfaces come first: the
+    // system lists cellular (rmnet) before wlan, and announcing a cellular
+    // address, or broadcasting by the default route, would send discovery to
+    // the carrier where it dies instead of to the LAN the players share.
+    struct Adapter { std::string name; uint32_t address; uint32_t netmask; };
     std::vector<Adapter> Adapters()
     {
         std::vector<Adapter> found;
@@ -69,8 +75,10 @@ namespace
             for (auto* unicast = at->FirstUnicastAddress; unicast; unicast = unicast->Next)
             {
                 const auto* address = reinterpret_cast<const sockaddr_in*>(unicast->Address.lpSockaddr);
-                if (address->sin_family == AF_INET)
-                    found.push_back({ name, ntohl(address->sin_addr.s_addr) });
+                if (address->sin_family != AF_INET) continue;
+                const ULONG prefix = unicast->OnLinkPrefixLength > 32 ? 32 : unicast->OnLinkPrefixLength;
+                const uint32_t mask = prefix == 0 ? 0 : (0xFFFFFFFFu << (32 - prefix));
+                found.push_back({ name, ntohl(address->sin_addr.s_addr), mask });
             }
         }
 #else
@@ -80,9 +88,17 @@ namespace
         {
             if (!at->ifa_addr || at->ifa_addr->sa_family != AF_INET) continue;
             if (!(at->ifa_flags & IFF_UP) || (at->ifa_flags & IFF_LOOPBACK)) continue;
-            found.push_back({ at->ifa_name, ntohl(reinterpret_cast<sockaddr_in*>(at->ifa_addr)->sin_addr.s_addr) });
+            uint32_t mask = 0;
+            if (at->ifa_netmask && at->ifa_netmask->sa_family == AF_INET)
+                mask = ntohl(reinterpret_cast<sockaddr_in*>(at->ifa_netmask)->sin_addr.s_addr);
+            found.push_back({ at->ifa_name, ntohl(reinterpret_cast<sockaddr_in*>(at->ifa_addr)->sin_addr.s_addr), mask });
         }
         freeifaddrs(list);
+#ifdef MW2_ANDROID
+        std::stable_partition(found.begin(), found.end(), [](const Adapter& a) {
+            return a.name.compare(0, 4, "wlan") == 0;
+        });
+#endif
 #endif
         return found;
     }
@@ -91,6 +107,11 @@ namespace
     // up and not the loopback, or the loopback when there is none. The log
     // names them all: with more than one, the first may not be the one the
     // other players are on.
+    //
+    // MW2_LAN_IFACE pins one: any adapter whose name or address contains the
+    // value ("WiFi", "wlan0", "192.168.1"). Matters with several up at once --
+    // a VPN adapter first means sessions invite to an address only VPN peers
+    // reach, and WiFi-only guests then loop on "attempt #N" forever.
     uint32_t OwnAddress()
     {
         const std::vector<Adapter> adapters = Adapters();
@@ -105,6 +126,25 @@ namespace
         }
         if (adapters.empty()) LOGI("online: no network connection is up; lan stays on this machine");
         else LOGI("online: network connections: %s; announcing the first", list.c_str());
+        const char* pinned = env::Text("MW2_LAN_IFACE");
+        if (pinned && *pinned)
+        {
+            for (const Adapter& adapter : adapters)
+            {
+                in_addr address;
+                address.s_addr = htonl(adapter.address);
+                char text[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &address, text, sizeof text);
+                if (adapter.name.find(pinned) != std::string::npos ||
+                    std::string(text).find(pinned) != std::string::npos)
+                {
+                    LOGI("online: MW2_LAN_IFACE=%s, announcing %s %s", pinned,
+                         adapter.name.c_str(), text);
+                    return adapter.address;
+                }
+            }
+            LOGW("online: MW2_LAN_IFACE=%s matches no connection, announcing the first", pinned);
+        }
         return adapters.empty() ? uint32_t(INADDR_LOOPBACK) : adapters.front().address;
     }
 
@@ -136,6 +176,33 @@ namespace
             char text[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &bound.sin_addr, text, sizeof text);
             LOGI("online: lan at %s:%u, broadcasts on %u", text, ntohs(bound.sin_port), sharedPort_);
+            // Discovery also goes to every connected subnet's broadcast
+            // address: a limited broadcast (255.255.255.255) is filtered on
+            // some routers and hotspots, while the subnet's own still passes.
+            {
+                std::string subnets;
+                for (const Adapter& adapter : Adapters())
+                {
+                    if (adapter.netmask == 0 || adapter.netmask == 0xFFFFFFFFu) continue;
+                    const uint32_t target = adapter.address | ~adapter.netmask;
+                    if (target == adapter.address || target == INADDR_BROADCAST) continue;
+                    sockaddr_in to{};
+                    to.sin_family = AF_INET;
+                    to.sin_addr.s_addr = htonl(target);
+                    to.sin_port = htons(sharedPort_);
+                    bool dup = false;
+                    for (const sockaddr_in& have : broadcasts_)
+                        dup = dup || have.sin_addr.s_addr == to.sin_addr.s_addr;
+                    if (dup) continue;
+                    broadcasts_.push_back(to);
+                    in_addr bcast;
+                    bcast.s_addr = to.sin_addr.s_addr;
+                    char btext[INET_ADDRSTRLEN];
+                    inet_ntop(AF_INET, &bcast, btext, sizeof btext);
+                    subnets += (subnets.empty() ? "" : ", ") + std::string(btext);
+                }
+                if (!subnets.empty()) LOGI("online: lan also announces to %s", subnets.c_str());
+            }
             return true;
         }
 
@@ -154,7 +221,10 @@ namespace
             everyone.sin_family = AF_INET;
             everyone.sin_addr.s_addr = htonl(INADDR_BROADCAST);
             everyone.sin_port = htons(sharedPort_);
-            return udp::SendDatagram(own_, bytes, size, everyone);
+            bool ok = udp::SendDatagram(own_, bytes, size, everyone);
+            for (const sockaddr_in& subnet : broadcasts_)
+                ok = udp::SendDatagram(own_, bytes, size, subnet) && ok;
+            return ok;
         }
 
         long Next(void* bytes, size_t size, uint64_t& from) override
@@ -175,6 +245,7 @@ namespace
         uint16_t sharedPort_ = 0;
         uint64_t id_ = 0;
         uint32_t slot_ = 0;
+        std::vector<sockaddr_in> broadcasts_;   // subnet broadcasts, beside 255.255.255.255
     };
 }
 

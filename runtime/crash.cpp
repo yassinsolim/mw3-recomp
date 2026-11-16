@@ -10,14 +10,24 @@
 #include "diagnostics.h"
 #include "platform.h"
 #include "report.h"
+#include "gpu/internal.h"
+#include "gpu/gpu.h"
 #include <ppc_config.h>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
+#include <chrono>
 
 #ifndef _WIN32
-#include <execinfo.h>
+#if !defined(__ANDROID__)
+#include <execinfo.h>   // bionic has none; platform::PrintBacktrace unwinds instead
+#endif
+#if defined(__aarch64__)
+#include <sys/ucontext.h>   // faulting host PC + registers in the crash log
+#endif
+#include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <deque>
@@ -39,6 +49,10 @@ namespace
 
     void DumpBacktrace(const char* why)
     {
+#if defined(__ANDROID__)
+        // The same walk, through the unwinder bionic ships (platform.cpp).
+        platform::PrintBacktrace(why);
+#else
         void* frames[64];
         int n = backtrace(frames, 64);
         std::fprintf(stderr, "\n[E] ---- %s (%d frames) ----\n", why, n);
@@ -46,6 +60,61 @@ namespace
         backtrace_symbols_fd(frames, n, 2);
         std::fprintf(stderr, "[E] --------------------------------\n");
         std::fflush(stderr);
+#endif
+    }
+
+    // The line of /proc/self/maps that covers an address, straight from the
+    // file: the only account of the address space that cannot be out of
+    // date. Raw syscalls and no allocation, because this runs in a signal
+    // handler after something has already gone wrong.
+    void PrintMapping(const void* address)
+    {
+        const int fd = ::open("/proc/self/maps", O_RDONLY);
+        if (fd < 0) return;
+        const uintptr_t want = uintptr_t(address);
+        char buffer[8192];
+        std::string held;
+        ssize_t got;
+        bool found = false;
+        while (!found && (got = ::read(fd, buffer, sizeof buffer)) > 0)
+        {
+            held.append(buffer, size_t(got));
+            size_t start = 0;
+            for (;;)
+            {
+                const size_t nl = held.find('\n', start);
+                if (nl == std::string::npos) break;
+                const std::string line = held.substr(start, nl - start);
+                start = nl + 1;
+                unsigned long long from = 0, to = 0;
+                if (std::sscanf(line.c_str(), "%llx-%llx", &from, &to) == 2 &&
+                    want >= from && want < to)
+                {
+                    std::fprintf(stderr, "[E] mapped as: %s\n", line.c_str());
+                    found = true;
+                    break;
+                }
+            }
+            held.erase(0, start);
+        }
+        if (!found) std::fprintf(stderr, "[E] mapped as: nothing -- the address is in no mapping\n");
+        ::close(fd);
+    }
+
+    void DescribeFault(int sig, siginfo_t* info, const void* addr)
+    {
+        const char* what = "?";
+        if (sig == SIGSEGV)
+            what = info->si_code == SEGV_MAPERR ? "SEGV_MAPERR, nothing is mapped there"
+                 : info->si_code == SEGV_ACCERR ? "SEGV_ACCERR, mapped but the access is not allowed"
+                                                : "an unfamiliar SIGSEGV code";
+        else if (sig == SIGBUS)
+            what = info->si_code == BUS_ADRALN ? "BUS_ADRALN, the address is misaligned"
+                 : info->si_code == BUS_ADRERR ? "BUS_ADRERR, no object behind the mapping"
+                 : info->si_code == BUS_OBJERR ? "BUS_OBJERR, the object behind it failed"
+                                               : "an unfamiliar SIGBUS code";
+        std::fprintf(stderr, "[E] %s (si_code %d)\n", what, info->si_code);
+        PrintMapping(addr);
     }
 
     void FaultHandler(int sig, siginfo_t* info, void* uctx)
@@ -54,7 +123,17 @@ namespace
         // the process dying, so it must be asked first.
         if (sig == SIGSEGV && watchpoint::HandleWrite(info, uctx)) return;
         // A write to a page the GPU's shadow of guest memory watches.
-        if (sig == SIGSEGV && info->si_code == SEGV_ACCERR && gpu::watch::HandleFault(info->si_addr)) return;
+        //
+        // Any SIGSEGV, whatever the kernel calls it. Writing to a page the
+        // watch made read-only is SEGV_ACCERR on an x86 Linux desktop, and
+        // this phone's kernel reports the very same thing as SEGV_MAPERR --
+        // "nothing is mapped there", with /proc/self/maps showing the page
+        // right where it should be, r--s, in the physical bank. Gating on
+        // the code meant the handler was never asked, and an ordinary
+        // watched write -- the event the watch exists for -- was taken for
+        // a crash. The watch checks the address and its own record of the
+        // page before it claims a fault, so asking it is safe.
+        if (sig == SIGSEGV && gpu::watch::HandleFault(info->si_addr)) return;
         if (sig == SIGTRAP && watchpoint::HandleStep(uctx)) return;
 
         uint8_t* base = guest::Base();
@@ -65,6 +144,12 @@ namespace
                          : (sig == SIGTRAP) ? "SIGTRAP" : "SIGILL";
 
         std::fprintf(stderr, "\n[E] ---- guest fault: %s at host %p ----\n", name, addr);
+        // Which kind, in the kernel's own words. This is the difference
+        // between "nothing is mapped there" and "it is mapped and you may
+        // not write to it", and those have entirely different causes -- one
+        // is a hole in the address space, the other is something that called
+        // mprotect. Guessing between them has cost a day already.
+        DescribeFault(sig, info, addr);
         // The recompiler turns the PowerPC trap instructions into a host trap, and
         // IW4 builds its asserts out of them -- so this is the title saying one of its
         // own invariants broke, not the runtime crashing.
@@ -99,6 +184,86 @@ namespace
         }
         std::fflush(stderr);
         DumpBacktrace("fault backtrace");
+#if defined(__aarch64__)
+        // The unwinder often dies on the first host frame (no unwind tables
+        // where it matters), leaving the fault site unknown. The signal
+        // context names it exactly: host PC, thread, and registers. The PC
+        // resolves offline against the build's symbol map / disassembly; a
+        // register holding the fault address shows the data flow.
+        // Async-signal-safe enough: plain reads + fprintf, like the rest here.
+        {
+            ucontext_t* uc = static_cast<ucontext_t*>(uctx);
+            const unsigned long long pc = uc->uc_mcontext.pc;
+            // This library's executable range, so code addresses below get a
+            // mark (same /proc/self/maps walk as PrintMapping above).
+            unsigned long long libFrom = 0, libTo = 0;
+            {
+                const int fd = ::open("/proc/self/maps", O_RDONLY);
+                if (fd >= 0)
+                {
+                    char buffer[4096];
+                    std::string held;
+                    ssize_t got;
+                    while ((got = ::read(fd, buffer, sizeof buffer)) > 0)
+                    {
+                        held.append(buffer, size_t(got));
+                        size_t start = 0;
+                        for (;;)
+                        {
+                            const size_t nl = held.find('\n', start);
+                            if (nl == std::string::npos) break;
+                            const std::string line = held.substr(start, nl - start);
+                            start = nl + 1;
+                            unsigned long long from = 0, to = 0;
+                            char perms[8] = {};
+                            if (std::sscanf(line.c_str(), "%llx-%llx %7s", &from, &to, perms) == 3 &&
+                                perms[0] == 'r' && perms[2] == 'x' &&
+                                line.find("libmw2.so") != std::string::npos)
+                            {
+                                libFrom = from;
+                                libTo = to;
+                            }
+                        }
+                        held.erase(0, start);
+                    }
+                    ::close(fd);
+                }
+            }
+            std::fprintf(stderr, "[E] fault host pc %016llX on thread %s\n",
+                         pc, t_name ? t_name : "?");
+            for (int r = 0; r < 30; r += 2)
+                std::fprintf(stderr, "[E]   x%-2d %016llX  x%-2d %016llX\n",
+                             r, (unsigned long long)uc->uc_mcontext.regs[r],
+                             r + 1, (unsigned long long)uc->uc_mcontext.regs[r + 1]);
+            std::fprintf(stderr, "[E]   x30 %016llX  sp %016llX\n",
+                         (unsigned long long)uc->uc_mcontext.regs[30],
+                         (unsigned long long)uc->uc_mcontext.sp);
+            std::fflush(stderr);
+            // The return-address chain survives even when the fault PC is
+            // garbage (as here): any word pointing into this library's code
+            // is a caller and resolves offline. 32-bit words in the guest
+            // code range read as guest callers directly.
+            {
+                const unsigned long long sp = uc->uc_mcontext.sp;
+                std::fprintf(stderr, "[E] stack at %016llX (<= is this library's code):\n", sp);
+                for (int i = 0; i < 64; i++)
+                {
+                    unsigned long long w = 0;
+                    std::memcpy(&w, reinterpret_cast<const void*>(sp + (unsigned long long)i * 8), 8);
+                    const bool inLib = w >= libFrom && w < libTo;
+                    std::fprintf(stderr, "[E]   sp+%03x %016llX%s\n", i * 8, w, inLib ? " <=" : "");
+                }
+                std::fflush(stderr);
+            }
+            if (pc >= libFrom && pc < libTo)
+            {
+                uint32_t word = 0;
+                std::memcpy(&word, reinterpret_cast<const void*>(pc), 4);
+                std::fprintf(stderr, "[E] fault instruction word %08X\n", word);
+                std::fflush(stderr);
+            }
+        }
+#endif
         crash::OnFault();
         _exit(3);
     }
@@ -155,11 +320,13 @@ namespace
             if (pthread_equal(t.handle, self)) continue;
             std::fprintf(stderr, "\n[E] ==== %s ====\n", t.name);
             std::fflush(stderr);
+#ifndef MW2_ANDROID
             g_dumping.store(true, std::memory_order_release);
             if (pthread_kill(t.handle, SIGUSR1) != 0) { g_dumping.store(false); continue; }
             // A last-gasp diagnostic, so a thread that never responds is skipped.
             for (int i = 0; i < 200 && g_dumping.load(std::memory_order_acquire); i++)
                 usleep(1000);
+#endif
         }
     }
 
@@ -179,6 +346,98 @@ namespace
         DumpOtherThreads();
         crash::OnFault();
         _exit(5);
+    }
+    std::atomic<bool> g_hangMonitorRunning{ false };
+    std::thread g_hangMonitorThread;
+
+    void HangMonitorLoop()
+    {
+        uint32_t lastLoggedSec = 0;
+        while (g_hangMonitorRunning.load(std::memory_order_relaxed))
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (!g_hangMonitorRunning.load(std::memory_order_relaxed)) break;
+
+            auto batch = gpu::detail::CurrentBatchStatus();
+
+            uint32_t neededSeq = 0, neededPos = 0;
+            if (gpu::CheckArenaWaitDeadlock(2000000ull, neededSeq, neededPos))
+            {
+                if (!batch.inBatch || batch.readIndex == batch.wptr)
+                {
+                    const uint32_t block = gpu::GetArenaProgressBlock();
+                    if (block)
+                    {
+                        const uint32_t posTag = (neededPos & ~3u) | (neededSeq & 3u);
+                        std::fprintf(stderr, "[W] hang_monitor: T_D3D_ArenaWait spinning for >2s while GPU ring is idle (readIndex=%u, wptr=%u)! Auto-resolving arena deadlock to seq=%u, pos=%08X\n",
+                                     batch.readIndex, batch.wptr, neededSeq, posTag);
+                        std::fflush(stderr);
+                        gpu::ForceArenaProgress(neededSeq, posTag);
+                    }
+                }
+            }
+
+            if (batch.inBatch && batch.elapsedMs >= 4000)
+            {
+                const char* drawStage = gpu::detail::CurrentDrawStage();
+                const bool isCompiling = drawStage && std::strstr(drawStage, "Draw_EnsurePipeline") != nullptr;
+                uint32_t sec = uint32_t(batch.elapsedMs / 1000);
+                if (isCompiling)
+                {
+                    if (sec != lastLoggedSec && sec % 5 == 0)
+                    {
+                        lastLoggedSec = sec;
+                        auto opcode = gpu::detail::CurrentOpcodeStatus();
+                        std::fprintf(stderr, "[I] Shader compilation in progress (%llu ms): stage=%s, vHash=%016llX, pHash=%016llX\n",
+                                     (unsigned long long)batch.elapsedMs, drawStage,
+                                     (unsigned long long)opcode.lastVertexHash, (unsigned long long)opcode.lastPixelHash);
+                        std::fflush(stderr);
+                    }
+                }
+                else if (sec != lastLoggedSec && (sec % 3 == 0 || sec == 4))
+                {
+                    lastLoggedSec = sec;
+                    auto opcode = gpu::detail::CurrentOpcodeStatus();
+                    std::fprintf(stderr, "\n[E] ==================================================\n");
+                    std::fprintf(stderr, "[E] HANG DETECTED: GPU ring batch running for %llu ms!\n", (unsigned long long)batch.elapsedMs);
+                    std::fprintf(stderr, "[E]   Batch stats: available=%u, readIndex=%u, wptr=%u\n", batch.available, batch.readIndex, batch.wptr);
+                    std::fprintf(stderr, "[E]   Current opcode: %u (%s), depth=%u, batchWork=%llu\n", opcode.opcode, opcode.name ? opcode.name : "?", opcode.depth, (unsigned long long)opcode.batchWork);
+                    std::fprintf(stderr, "[E]   Draw stage: %s, last vHash=%016llX, pHash=%016llX\n", drawStage ? drawStage : "none", (unsigned long long)opcode.lastVertexHash, (unsigned long long)opcode.lastPixelHash);
+                    std::fprintf(stderr, "[E] ==================================================\n");
+                    std::fflush(stderr);
+
+                    kernel::ReportWaits();
+                    crash::DumpAllThreads("GPU ring batch hang");
+                }
+            }
+        }
+    }
+}
+
+void crash::DumpAllThreads(const char* reason)
+{
+    if (reason)
+        std::fprintf(stderr, "\n[E] ==== HANG / THREAD DUMP: %s ====\n", reason);
+    std::fflush(stderr);
+    DumpBacktrace("caller thread backtrace");
+    DumpOtherThreads();
+}
+
+void crash::StartHangMonitor()
+{
+    if (g_hangMonitorRunning.exchange(true)) return;
+    g_hangMonitorThread = std::thread(HangMonitorLoop);
+}
+
+void crash::StopHangMonitor()
+{
+    if (!g_hangMonitorRunning.exchange(false)) return;
+    if (g_hangMonitorThread.joinable())
+    {
+        if (g_hangMonitorThread.get_id() != std::this_thread::get_id())
+            g_hangMonitorThread.join();
+        else
+            g_hangMonitorThread.detach();
     }
 }
 
@@ -230,6 +489,8 @@ void crash::Install()
         alarm(seconds);
         LOGI("watchdog armed for %u seconds", seconds);
     }
+
+    StartHangMonitor();
 }
 
 extern "C" [[noreturn]] void MW2ReportBadIndirectCall(unsigned int guestAddress)
@@ -338,6 +599,15 @@ void crash::RegisterThread(const char* name)
 
 const char* crash::CurrentThreadName() { return t_name; }
 void crash::UnregisterThread() { report::ThreadEnded(); }
+
+void crash::DumpAllThreads(const char* reason)
+{
+    if (reason)
+        std::fprintf(stderr, "\n[E] ==== HANG / THREAD DUMP: %s ====\n", reason);
+    platform::PrintBacktrace("caller thread backtrace");
+}
+void crash::StartHangMonitor() {}
+void crash::StopHangMonitor() {}
 
 extern "C" [[noreturn]] void MW2ReportBadIndirectCall(unsigned int guestAddress)
 {

@@ -5,7 +5,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(MW2_TESTS_ONLY "Configure only asset-free runtime unit tests" OFF)
+# Android builds the runtime as the app's library (cmake/android.cmake); the
+# host checks below are not cross-compiled for the phone.
+if(ANDROID)
+    set(BUILD_TESTING OFF CACHE BOOL "Build the tests (not on Android)" FORCE)
+endif()
 include(CTest)
+# For the checks that assert rather than report, so `ctest` is a yes or a no.
+# Everything registered runs without game files, a disc or a GPU.
+enable_testing()
 if(BUILD_TESTING)
     add_executable(xex-header-test tests/xex_header_test.cpp runtime/install/xex.cpp runtime/install/crypto.cpp)
     target_include_directories(xex-header-test PRIVATE "${CMAKE_SOURCE_DIR}")
@@ -40,7 +48,7 @@ if(BUILD_TESTING)
     mw3_runtime_test(kernel_memory_test runtime/kernel/memory.cpp)
     mw3_runtime_test(kernel_threads_test runtime/kernel/threads.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_objects_test runtime/kernel/objects.cpp)
-    mw3_runtime_test(kernel_files_test runtime/kernel/files.cpp runtime/kernel/objects.cpp)
+    mw3_runtime_test(kernel_files_test runtime/kernel/files.cpp runtime/kernel/objects.cpp runtime/kernel/durable.cpp)
     mw3_runtime_test(kernel_dpc_test runtime/kernel/dpc.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_xam_test runtime/kernel/xam.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_sync_test runtime/kernel/sync.cpp runtime/kernel/objects.cpp)
@@ -64,6 +72,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Android brings its own window, input and audio (runtime/android/), so SDL is
+# off there whatever the cache says -- and a default the Gradle build does not
+# have to repeat.
+if(ANDROID)
+    set(MW2_USE_SDL OFF CACHE BOOL "Use SDL3 (not on Android)" FORCE)
+endif()
 option(MW2_USE_SDL "Use SDL3 for gamepad input (and later window/audio)" ON)
 option(MW2_TRACE_INDIRECT "Report indirect calls with no recompiled target instead of jumping to null" ON)
 option(MW2_LOGGING "Emit the runtime's log" ON)
@@ -80,6 +94,12 @@ option(MW3_LINK_PROBE "Link a diagnostic MW3 desktop executable after the compil
 # so on an older one (runtime/cpu_level.cpp) rather than stopping on the first
 # instruction it lacks.
 set(MW2_X86_LEVEL "x86-64-v2" CACHE STRING "The -march the game is compiled for")
+# An Android build is arm64 (cmake/android.cmake), where the level means nothing.
+if(ANDROID)
+    set(MW2_ARCH_OPTIONS "")
+else()
+    set(MW2_ARCH_OPTIONS "-march=${MW2_X86_LEVEL}")
+endif()
 
 # ---- which executable ------------------------------------------------------
 # The disc carries two: default.xex (the campaign and special ops) and
@@ -103,12 +123,36 @@ else()
 endif()
 # And which version of it: the one title update 6 makes of the disc's (tu6),
 # or the disc's own (tu0), recompiled into ppc_tu0/ and ppc_mp_tu0/.
-set(MW2_VERSION "tu6" CACHE STRING "Which version of the executable: tu6 (title update 6) or tu0 (the disc's)")
-if(MW2_VERSION STREQUAL "tu0")
-    set(MW2_PPC_DIR "${MW2_PPC_DIR}_tu0")
-    add_compile_definitions(MW2_VERSION_TU0=1)
-elseif(NOT MW2_VERSION STREQUAL "tu6")
-    message(FATAL_ERROR "MW2_VERSION must be tu6 or tu0, not '${MW2_VERSION}'")
+# On Android the TU dimension of android/app/build.gradle.kts picks this with
+# -DMW2_VERSION=tu6; tu0 is the default there for MW2 (MW3 has only its disc
+# executable, built as tu6 below, on every platform). TU6 trees are generated on the CI
+# runner (build.sh VERSION=tu6 regenerates ppc//ppc_mp/, or ppc_tu6//ppc_mp_tu6/
+# when those names are used); a tu6 configure without a TU6 tree fails below
+# at the empty-tree check rather than miscompiling the disc's tree as TU6.
+if(ANDROID AND NOT MW2_TITLE STREQUAL "mw3")
+    set(MW2_VERSION "tu0" CACHE STRING "Which version of the executable: tu6 (title update 6) or tu0 (the disc's)")
+    if(MW2_VERSION STREQUAL "tu0")
+        add_compile_definitions(MW2_VERSION_TU0=1)
+        if(EXISTS "${MW2_PPC_DIR}_tu0")
+            set(MW2_PPC_DIR "${MW2_PPC_DIR}_tu0")
+        endif()
+    elseif(MW2_VERSION STREQUAL "tu6")
+        if(EXISTS "${MW2_PPC_DIR}_tu6")
+            set(MW2_PPC_DIR "${MW2_PPC_DIR}_tu6")
+        endif()
+    else()
+        message(FATAL_ERROR "MW2_VERSION must be tu6 or tu0, not '${MW2_VERSION}'")
+    endif()
+else()
+    set(MW2_VERSION "tu6" CACHE STRING "Which version of the executable: tu6 (title update 6) or tu0 (the disc's)")
+    if(MW2_VERSION STREQUAL "tu0")
+        if(EXISTS "${MW2_PPC_DIR}_tu0")
+            set(MW2_PPC_DIR "${MW2_PPC_DIR}_tu0")
+        endif()
+        add_compile_definitions(MW2_VERSION_TU0=1)
+    elseif(NOT MW2_VERSION STREQUAL "tu6")
+        message(FATAL_ERROR "MW2_VERSION must be tu6 or tu0, not '${MW2_VERSION}'")
+    endif()
 endif()
 if(MW2_TITLE STREQUAL "mw3" AND NOT MW2_VERSION STREQUAL "tu6")
     message(FATAL_ERROR "MW3 currently uses its disc executable; leave MW2_VERSION at its default")
@@ -150,7 +194,8 @@ else()
     # name its hash makes, so that a new one rebuilds everything with it. The
     # disc's version (tu0) is other code, and has none.
     set(MW2_PGO_ARCHIVE "${CMAKE_SOURCE_DIR}/pgo/${MW2_TITLE}.tar.xz")
-    if(MW2_PGO AND MW2_VERSION STREQUAL "tu6" AND EXISTS "${MW2_PGO_ARCHIVE}")
+    # The recorded profiles are of the x86-64 desktop build, not the phone's.
+    if(MW2_PGO AND NOT ANDROID AND MW2_VERSION STREQUAL "tu6" AND EXISTS "${MW2_PGO_ARCHIVE}")
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MW2_PGO_ARCHIVE}")
         file(SHA256 "${MW2_PGO_ARCHIVE}" hash)
         string(SUBSTRING "${hash}" 0 16 hash)
@@ -168,6 +213,29 @@ else()
 endif()
 
 # ---- recompiled guest code -------------------------------------------------
+# Guard: a TU6 tree's entry point differs from the disc's (SP 0x82370940 vs
+# 0x82370938, MP 0x823A90C8 vs 0x823A7FE0), and the mapping names it. A build
+# whose tree is the other version's fails here instead of miscompiling it.
+if((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "sp") OR
+   (MW2_VERSION STREQUAL "tu0" AND MW2_TITLE STREQUAL "sp" AND ANDROID))
+    file(READ "${MW2_PPC_DIR}/ppc_func_mapping.cpp" _mw2_mapping)
+    string(TOLOWER "${_mw2_mapping}" _mw2_mapping)
+    if(MW2_VERSION STREQUAL "tu6" AND NOT _mw2_mapping MATCHES "0x82370940")
+        message(FATAL_ERROR "${MW2_PPC_DIR} is not a TU6 campaign tree -- run TITLE=sp VERSION=tu6 ./build.sh first")
+    elseif(MW2_VERSION STREQUAL "tu0" AND NOT _mw2_mapping MATCHES "0x82370938")
+        message(FATAL_ERROR "${MW2_PPC_DIR} is not a TU0 campaign tree")
+    endif()
+endif()
+if((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "mp") OR
+   (MW2_VERSION STREQUAL "tu0" AND MW2_TITLE STREQUAL "mp" AND ANDROID))
+    file(READ "${MW2_PPC_DIR}/ppc_func_mapping.cpp" _mw2_mapping)
+    string(TOLOWER "${_mw2_mapping}" _mw2_mapping)
+    if(MW2_VERSION STREQUAL "tu6" AND NOT _mw2_mapping MATCHES "0x823a90c8")
+        message(FATAL_ERROR "${MW2_PPC_DIR} is not a TU6 multiplayer tree -- run TITLE=mp VERSION=tu6 ./build.sh first")
+    elseif(MW2_VERSION STREQUAL "tu0" AND NOT _mw2_mapping MATCHES "0x823a7fe0")
+        message(FATAL_ERROR "${MW2_PPC_DIR} is not a TU0 multiplayer tree")
+    endif()
+endif()
 file(GLOB PPC_SOURCES CONFIGURE_DEPENDS "${MW2_PPC_DIR}/ppc_recomp.*.cpp")
 list(APPEND PPC_SOURCES "${MW2_PPC_DIR}/ppc_func_mapping.cpp")
 if(NOT PPC_SOURCES)
@@ -175,13 +243,18 @@ if(NOT PPC_SOURCES)
 endif()
 
 add_library(ppc_recomp STATIC ${PPC_SOURCES})
+set(SIMDE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/XenonRecomp/thirdparty/simde")
+if(NOT EXISTS "${SIMDE_INCLUDE_DIR}/simde/simde-common.h" AND EXISTS "${CMAKE_SOURCE_DIR}/third_party/simde/simde/simde-common.h")
+    set(SIMDE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/simde")
+endif()
 target_include_directories(ppc_recomp PUBLIC
     "${MW2_PPC_DIR}"
-    "${CMAKE_SOURCE_DIR}/XenonRecomp/thirdparty/simde")
+    "${SIMDE_INCLUDE_DIR}"
+    "${SIMDE_INCLUDE_DIR}/simde")
 # The generated code is machine output; its warnings are noise. Guest arithmetic
 # wraps as the console's does: without -fwrapv a mulld that overflows a signed
 # register is undefined, and the compiler miscompiles it.
-target_compile_options(ppc_recomp PRIVATE -w -fwrapv -march=${MW2_X86_LEVEL})
+target_compile_options(ppc_recomp PRIVATE -w -fwrapv ${MW2_ARCH_OPTIONS})
 # The console's hardware registers are plain memory in this address space. The
 # recompiler marks the stores that address them (eieio follows), and this header
 # routes those through a hook so the XMA decoder sees its kick, lock and clear
@@ -248,7 +321,7 @@ if(MW3_RECOMP_ONLY AND NOT MW3_LINK_PROBE)
         "${MW2_PPC_DIR}"
         "${CMAKE_SOURCE_DIR}/runtime"
         "${CMAKE_BINARY_DIR}/mw3-check-generated"
-        "${CMAKE_SOURCE_DIR}/XenonRecomp/thirdparty/simde")
+        "${SIMDE_INCLUDE_DIR}")
     if(MW3_AVCODEC_DIR)
         target_include_directories(mw3-runtime-compile-check PRIVATE "${MW3_AVCODEC_DIR}")
     endif()
@@ -256,7 +329,7 @@ if(MW3_RECOMP_ONLY AND NOT MW3_LINK_PROBE)
         target_link_libraries(mw3-runtime-compile-check PRIVATE Vulkan::Headers)
     endif()
     target_compile_options(mw3-runtime-compile-check PRIVATE
-        -march=${MW2_X86_LEVEL} -fwrapv)
+        ${MW2_ARCH_OPTIONS} -fwrapv)
     target_compile_definitions(mw3-runtime-compile-check PRIVATE
         MW3_TITLE=1 MW2_DIAGNOSTICS=0
         MW2_XEX_SHA256_SP=\"compile-check\" MW2_XEX_SHA256_MP=\"compile-check\"
@@ -312,6 +385,37 @@ string(SHA256 MW2_SHADER_BUILD "${shader_build_text}")
 set_source_files_properties("${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/shader_build.cpp" PROPERTIES COMPILE_DEFINITIONS
     "MW2_SHADER_BUILD=\"${MW2_SHADER_BUILD}\"")
 
+if(ANDROID)
+    # The window, the touch pad, the AAudio sink, the driver loader and the
+    # JNI surface the app talks to (docs/android.md).
+    file(GLOB ANDROID_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/runtime/android/*.cpp")
+    list(APPEND RUNTIME_SOURCES ${ANDROID_SOURCES} "${CMAKE_SOURCE_DIR}/launcher/disc.cpp")
+    # Its processor check is x86 only (__builtin_cpu_supports).
+    list(REMOVE_ITEM RUNTIME_SOURCES "${CMAKE_SOURCE_DIR}/runtime/cpu_level.cpp")
+    # The title-update package reader (dependency-free STFS): the TU6 apps
+    # apply the update on the device after copying the disc.
+    list(APPEND RUNTIME_SOURCES "${CMAKE_SOURCE_DIR}/launcher/package.cpp")
+    # XenonRecomp's patcher, which turns the disc's executables into the
+    # update's. Present when the tree was recompiled on this machine (build.sh
+    # clones it); absent for a bare checkout, where TU6 apps report that the
+    # APK must come from CI instead of failing to link.
+    set(XENON "${CMAKE_SOURCE_DIR}/XenonRecomp")
+    if(EXISTS "${XENON}/XenonUtils/xex_patcher.cpp" AND EXISTS "${XENON}/XenonUtils/xex_patcher.h")
+        enable_language(C)
+        list(APPEND RUNTIME_SOURCES
+            "${XENON}/XenonUtils/xex_patcher.cpp"
+            "${XENON}/XenonUtils/memory_mapped_file.cpp"
+            "${XENON}/thirdparty/libmspack/libmspack/mspack/lzxd.c"
+            "${XENON}/thirdparty/tiny-AES-c/aes.c")
+        set(MW2_XENON_INCLUDES
+            "${XENON}/XenonUtils"
+            "${XENON}/thirdparty/simde"
+            "${XENON}/thirdparty/libmspack/libmspack/mspack"
+            "${XENON}/thirdparty/tiny-AES-c"
+            "${XENON}/thirdparty/TinySHA1")
+    endif()
+endif()
+
 # The glue build.sh generates from the recompiled output -- a stub for every
 # kernel import the runtime lacks, a tracing hook for every D3D9 entry point --
 # lives beside that output, since it is different for each title.
@@ -332,14 +436,25 @@ set(MW2_ONLINE_SOURCES
     "${CMAKE_SOURCE_DIR}/runtime/online/server.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/online/steam.cpp")
 
-add_executable(mw2 ${RUNTIME_SOURCES}
-    ${MW2_ONLINE_SOURCES}
-    "${MW2_PPC_DIR}/stubs_generated.cpp")
-if(MW2_TITLE STREQUAL "mw3")
-    set_target_properties(mw2 PROPERTIES OUTPUT_NAME "mw3")
+# On Android there is no process of ours to be the executable: the app's
+# activity is the process, and this is what it loads (libmw2.so, System
+# .loadLibrary("mw2"), runtime/android/jni.cpp). Everywhere else it is the
+# program itself. The library keeps that name whatever the title, since the
+# app loads it by name; the desktop executable is named for its title.
+if(ANDROID)
+    add_library(mw2 SHARED ${RUNTIME_SOURCES}
+        ${MW2_ONLINE_SOURCES}
+        "${MW2_PPC_DIR}/stubs_generated.cpp")
+else()
+    add_executable(mw2 ${RUNTIME_SOURCES}
+        ${MW2_ONLINE_SOURCES}
+        "${MW2_PPC_DIR}/stubs_generated.cpp")
+    if(MW2_TITLE STREQUAL "mw3")
+        set_target_properties(mw2 PROPERTIES OUTPUT_NAME "mw3")
+    endif()
 endif()
 target_link_libraries(mw2 PRIVATE ppc_recomp)
-target_compile_options(mw2 PRIVATE -march=${MW2_X86_LEVEL})
+target_compile_options(mw2 PRIVATE ${MW2_ARCH_OPTIONS})
 if(MW2_X86_LEVEL STREQUAL "x86-64")
     # Explicit baseline diagnostic builds use SIMDe's portable fallbacks.
     set_property(SOURCE "${CMAKE_SOURCE_DIR}/runtime/cpu_level.cpp"
@@ -375,11 +490,6 @@ target_include_directories(mw2 PRIVATE "${CMAKE_BINARY_DIR}/generated")
 # A game executable runs only the title executable it was recompiled from, and
 # the launcher installs only the disc it is an update of: each known by its
 # SHA-256, read here from mw2/ (runtime/install/install.cpp, launcher/setup.cpp).
-if(MW2_VERSION STREQUAL "tu0")
-    set(MW2_XEX_DIR "${CMAKE_SOURCE_DIR}/mw2/tu0")
-else()
-    set(MW2_XEX_DIR "${CMAKE_SOURCE_DIR}/mw2")
-endif()
 function(mw2_sha256 variable path)
     if(NOT EXISTS "${path}")
         message(FATAL_ERROR "${path} is missing -- build.sh makes it from the ISO and the title update")
@@ -397,15 +507,63 @@ if(MW2_TITLE STREQUAL "mw3")
         MW2_XEX_SHA256_MP="unsupported"
         MW2_DISC_SHA256_SP="d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912"
         MW2_DISC_SHA256_MP="unsupported")
-else()
-    mw2_sha256(MW2_XEX_SHA256_SP  "${MW2_XEX_DIR}/default.xex")
-    mw2_sha256(MW2_XEX_SHA256_MP  "${MW2_XEX_DIR}/default_mp.xex")
-    mw2_sha256(MW2_DISC_SHA256_SP "${CMAKE_SOURCE_DIR}/mw2/tu0/default.xex")
-    mw2_sha256(MW2_DISC_SHA256_MP "${CMAKE_SOURCE_DIR}/mw2/tu0/default_mp.xex")
+elseif(MW2_XEX_SHA256_SP AND MW2_XEX_SHA256_MP)
+    # CMake's regexes have no {n} repetition -- "{64}" would be matched as
+    # those four characters -- so the length is counted separately.
+    foreach(given SP MP)
+        set(hash "${MW2_XEX_SHA256_${given}}")
+        string(LENGTH "${hash}" hash_length)
+        if(NOT hash_length EQUAL 64 OR NOT hash MATCHES "^[0-9a-fA-F]+$")
+            message(FATAL_ERROR
+                "MW2_XEX_SHA256_${given} is not a sha256 (64 hex characters, got"
+                " ${hash_length}): ${hash}")
+        endif()
+    endforeach()
+    if(NOT MW2_DISC_SHA256_SP)
+        set(MW2_DISC_SHA256_SP "${MW2_XEX_SHA256_SP}")
+        set(MW2_DISC_SHA256_MP "${MW2_XEX_SHA256_MP}")
+    endif()
     set(MW2_HASH_DEFINITIONS
         MW2_XEX_SHA256_SP="${MW2_XEX_SHA256_SP}" MW2_XEX_SHA256_MP="${MW2_XEX_SHA256_MP}"
         MW2_DISC_SHA256_SP="${MW2_DISC_SHA256_SP}" MW2_DISC_SHA256_MP="${MW2_DISC_SHA256_MP}")
-    if(NOT MW2_VERSION STREQUAL "tu0")
+    # The TU fastfiles a TU6 install verifies its downloaded update against.
+    # TU6 CI passes all three; without them a TU6 build refuses to apply the
+    # update on the device (empty define) rather than trusting any bytes.
+    foreach(_ff PATCH_MP DLC1_UI_MP DLC2_UI_MP)
+        if(MW2_UPDATE_SHA256_${_ff})
+            list(APPEND MW2_HASH_DEFINITIONS MW2_UPDATE_SHA256_${_ff}="${MW2_UPDATE_SHA256_${_ff}}")
+        else()
+            list(APPEND MW2_HASH_DEFINITIONS MW2_UPDATE_SHA256_${_ff}="")
+        endif()
+    endforeach()
+    message(STATUS "XEX hashes given on the command line; mw2/ is not needed")
+else()
+    if(MW2_VERSION STREQUAL "tu0")
+        set(MW2_XEX_DIR "${CMAKE_SOURCE_DIR}/mw2/tu0")
+    else()
+        set(MW2_XEX_DIR "${CMAKE_SOURCE_DIR}/mw2")
+    endif()
+    if(EXISTS "${MW2_XEX_DIR}/default.xex")
+        mw2_sha256(MW2_XEX_SHA256_SP  "${MW2_XEX_DIR}/default.xex")
+        mw2_sha256(MW2_XEX_SHA256_MP  "${MW2_XEX_DIR}/default_mp.xex")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw2/default.xex")
+        mw2_sha256(MW2_XEX_SHA256_SP  "${CMAKE_SOURCE_DIR}/mw2/default.xex")
+        mw2_sha256(MW2_XEX_SHA256_MP  "${CMAKE_SOURCE_DIR}/mw2/default_mp.xex")
+    else()
+        set(MW2_XEX_SHA256_SP "990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff")
+        set(MW2_XEX_SHA256_MP "aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde")
+    endif()
+    if(EXISTS "${CMAKE_SOURCE_DIR}/mw2/tu0/default.xex")
+        mw2_sha256(MW2_DISC_SHA256_SP "${CMAKE_SOURCE_DIR}/mw2/tu0/default.xex")
+        mw2_sha256(MW2_DISC_SHA256_MP "${CMAKE_SOURCE_DIR}/mw2/tu0/default_mp.xex")
+    else()
+        set(MW2_DISC_SHA256_SP "${MW2_XEX_SHA256_SP}")
+        set(MW2_DISC_SHA256_MP "${MW2_XEX_SHA256_MP}")
+    endif()
+    set(MW2_HASH_DEFINITIONS
+        MW2_XEX_SHA256_SP="${MW2_XEX_SHA256_SP}" MW2_XEX_SHA256_MP="${MW2_XEX_SHA256_MP}"
+        MW2_DISC_SHA256_SP="${MW2_DISC_SHA256_SP}" MW2_DISC_SHA256_MP="${MW2_DISC_SHA256_MP}")
+    if(NOT MW2_VERSION STREQUAL "tu0" AND EXISTS "${CMAKE_SOURCE_DIR}/mw2/update/patch_mp.ff")
         mw2_sha256(MW2_UPDATE_SHA256_PATCH_MP   "${CMAKE_SOURCE_DIR}/mw2/update/patch_mp.ff")
         mw2_sha256(MW2_UPDATE_SHA256_DLC1_UI_MP "${CMAKE_SOURCE_DIR}/mw2/update/dlc1_ui_mp.ff")
         mw2_sha256(MW2_UPDATE_SHA256_DLC2_UI_MP "${CMAKE_SOURCE_DIR}/mw2/update/dlc2_ui_mp.ff")
@@ -416,6 +574,11 @@ else()
     endif()
 endif()
 target_compile_definitions(mw2 PRIVATE ${MW2_HASH_DEFINITIONS})
+# XenonRecomp's patcher, compiled in on Android where its checkout is there.
+if(MW2_XENON_INCLUDES)
+    target_include_directories(mw2 PRIVATE ${MW2_XENON_INCLUDES})
+    target_compile_definitions(mw2 PRIVATE MW2_HAVE_XEX_PATCHER=1)
+endif()
 if(WIN32)
     # One executable with nothing beside it: the C++ runtime and the threads
     # linked in. The recompiled code nests deep on the host stack, and a thread
@@ -427,6 +590,8 @@ if(WIN32)
     if(NOT MW2_DIAGNOSTICS)
         target_link_options(mw2 PRIVATE -mwindows)
     endif()
+elseif(ANDROID)
+    include(cmake/android.cmake)
 else()
     # The sub_XXXXXXXX guest functions exported so backtrace_symbols can name
     # them, and nothing else (runtime/exports.list).
@@ -463,23 +628,33 @@ target_link_libraries(mw2 PRIVATE ffmpeg_xma)
 if(WIN32)
     include(cmake/vulkan-windows.cmake)
     add_dependencies(mw2 vulkan_import_library)
+elseif(ANDROID)
+    # The NDK's sysroot carries the headers and a libvulkan.so, but this build
+    # links neither: which Vulkan the process talks to is decided while it
+    # runs -- the system's, or a driver the player imported
+    # (runtime/gpu/vulkan/loader.cpp, runtime/android/driver.cpp). Setting
+    # this here keeps the Vulkan block below as it is.
+    set(Vulkan_FOUND TRUE)
+    set(Vulkan_LIBRARY "loaded at run time")
 else()
     find_package(Vulkan)
 endif()
 if(Vulkan_FOUND)
-    target_link_libraries(mw2 PRIVATE Vulkan::Vulkan)
+    if(NOT ANDROID)
+        target_link_libraries(mw2 PRIVATE Vulkan::Vulkan)
+    endif()
     target_compile_definitions(mw2 PRIVATE MW2_HAVE_VULKAN=1)
     message(STATUS "Vulkan found: ${Vulkan_LIBRARY}")
 else()
     message(STATUS "Vulkan not found -- building without a window")
 endif()
 
-if(NOT WIN32)
+if(NOT WIN32 AND NOT ANDROID)
     target_link_libraries(mw2 PRIVATE pthread)
 endif()
 
 # The two tools below are for working on the renderer, on Linux.
-if(NOT WIN32)
+if(NOT WIN32 AND NOT ANDROID)
 # ---- offline shader translation -------------------------------------------
 # The translator has to live in the runtime, because the title hands the GPU
 # microcode while it runs. Building it as a tool too gives a fast loop against
@@ -488,6 +663,9 @@ add_executable(translate-shader
     "${CMAKE_SOURCE_DIR}/tools/translate_shader.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/shader_translator.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/pipeline.cpp"
+    # The device this tool brings up is the runtime's own, so it answers for the
+    # same Snapdragon workaround (bc_decoder.cpp, vk::bc::AdrenoMode).
+    "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/bc_decoder.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/spirv.cpp")
 target_include_directories(translate-shader PRIVATE "${CMAKE_SOURCE_DIR}/runtime")
 # --compile puts a translated module in front of the real driver, which is a
@@ -505,6 +683,7 @@ add_executable(upload-texture
     "${CMAKE_SOURCE_DIR}/tools/upload_texture.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/texture.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/texture_cache.cpp"
+    "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/bc_decoder.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/image_memory.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/texture_formats.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/pipeline.cpp"
@@ -515,6 +694,31 @@ if(Vulkan_FOUND)
     target_link_libraries(upload-texture PRIVATE Vulkan::Vulkan)
     target_compile_definitions(upload-texture PRIVATE MW2_HAVE_VULKAN=1)
 endif()
+
+# ---- the software decoder's speed ------------------------------------------
+# Not a check: a number. The decoder runs on every texture uploaded where the
+# driver cannot sample block compression, so the loops in it are worth timing
+# the way the comments there quote -- a 2048x2048 decode, per format, with the
+# output buffer reused as the runtime reuses its scratch.
+add_executable(bc-bench
+    "${CMAKE_SOURCE_DIR}/tools/bc_bench.cpp"
+    "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/bc_decoder.cpp")
+target_include_directories(bc-bench PRIVATE "${CMAKE_SOURCE_DIR}/runtime")
+if(Vulkan_FOUND)
+    target_link_libraries(bc-bench PRIVATE Vulkan::Vulkan)
+    target_compile_definitions(bc-bench PRIVATE MW2_HAVE_VULKAN=1)
+endif()
+endif()
+
+# ---- the checks `ctest` runs -----------------------------------------------
+# The three of them are defined in a project of their own (tests/CMakeLists.txt)
+# so they can be configured and run on a tree that cannot build the runtime: this
+# file refuses to configure without the recompiled guest code, which is made from
+# the disc's executables and is in no repository, so a CI runner has none of it
+# (.github/workflows/tests.yml). Including it here is what keeps a local `ctest`
+# running exactly what CI runs.
+if(NOT ANDROID)
+    add_subdirectory(tests)
 endif()
 
 # ---- launcher --------------------------------------------------------------

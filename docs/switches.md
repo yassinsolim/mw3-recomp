@@ -35,6 +35,7 @@ them as unset whatever the environment says, and also drops the keys `F5`, `F7`,
 | `MW2_LOG_FILE=<path>` | R | writes the log there, creating its folder. The log goes to stderr, so `> file` does not catch it. A title started from the other one's menus writes on in the same file |
 | `MW2_REPORT=1` | R | what a bug report needs, as the launcher's REPORT A BUG sets it: the log names the graphics driver and ends with the run's frame rate, frame time spread, what was compiled at a draw, how much of the time the graphics chip was at work by its own clock (a timestamp pair around every submission), and the processor and memory in play: how busy, how much of it this game's and which threads, how much memory was free, what the memory watch's protection changes cost ([building.md](building.md)) |
 | `MW2_LOG_TIME=1` | | stamps every log line with the time since start |
+| `MW2_LOG_ALL=1` | | writes every line as it comes. Without it a line that repeats is written once and then counted -- the 1st, 2nd, 4th, 8th ... with the size of the repetition beside it, which is never above the truth and within a factor of two of it -- and two lines that differ only in an address, a size or a shader hash are one kind of line. A run that logs one thing a thousand times buries the line that says what it was |
 | `MW2_CONSOLE="30:map af_caves;45:god"` | R | queues commands into the title's console command buffer at the given wall-clock seconds; see [gameplay.md](gameplay.md) |
 | `MW2_CUSTOM_MAPS=1` | R | the multiplayer loads fastfiles nobody signed: a map converted from the PC game. Off, it refuses them as the console does, and the launcher's shader pass reads only the game's own fastfiles ([gameplay.md](gameplay.md)) |
 | `MW2_NET_LINK=0\|1` | R | whether the Ethernet link is reported up. Default down for the campaign, up for the multiplayer, which starts no match without one |
@@ -116,7 +117,7 @@ walking to it.
 | `MW2_SHADOW_SCALE=<2 to 4>` | R | draws the sun's and the spots' shadow maps that many times wider and taller than the title's 1024x2048 and 512x2048, and never smaller than `MW2_SCALE` draws them. The launcher's SHADOWS entry sets it in the settings file ([rendering.md](rendering.md#the-shadow-maps-scale)) |
 | `MW2_ANISOTROPY=<2, 4, 8 or 16>` | R | the anisotropic filtering every mipmapped texture gets at least: the title's `r_texFilterAnisoMin`, the PC game's setting, registered with it as its default. Unset or 1 is the console's, 1:1 to 4:1 as each material asks. The launcher's ANISOTROPY entry sets it in the settings file ([rendering.md](rendering.md#anisotropic-filtering)) |
 | `MW2_ARENA_MB=<n>` | R | the upload arena for constants, vertices and indices, shared by the frame slots (512) |
-| `MW2_TEXTURE_BUDGET_MB=<n>` | R | the texture cache's budget, past which it lets go of what has not been bound lately, even textures whose memory is unchanged (default half the device-local memory, within 256 MB to 2 GB) |
+| `MW2_TEXTURE_BUDGET_MB=<n>` | R | the texture cache's budget, past which it lets go of what has not been bound lately, even textures whose memory is unchanged (defaults to half the device-local memory within 256 MB to 2 GB on desktop, and 128 MB on Android) |
 | `MW2_PIPELINE_CACHE=<file>` | R | keeps the driver's compiled pipelines across runs, in place of a player's `shaders/pipelines.bin` |
 | `MW2_SHADER_CACHE=<file>` | R | records every pipeline a run needed and builds them at the next start-up |
 | `MW2_NO_PIPELINE_LIBRARIES=1` | R | builds each pipeline whole at its first draw instead of linking it from shaders compiled at load ([rendering.md](rendering.md)) |
@@ -130,7 +131,10 @@ walking to it.
 | `MW2_RENDER=0` | | executes and counts the stream but draws nothing |
 | `MW2_ONLY_SHADER=<hex>[,...]`, `MW2_SKIP_SHADER=<hex>[,...]` | | draws only, or all but, the draws using those shaders |
 | `MW2_NO_CULL=1`, `MW2_NO_DEPTH_TEST=1` | | take culling or the depth test out of every pipeline |
-| `MW2_NO_SHADOW=1` | | no shadow of guest memory: every draw copies its vertex data into the arena |
+| `MW2_NO_SHADOW=1` | | no shadow of guest memory: every draw copies its vertex data into the arena. It is 512 MB behind the arena, so Android sets it itself on a device of six gigabytes or less ([android.md](android.md)) |
+| `MW2_ADRENO_BC=hw\|dxt1` | | how much of the Snapdragon workaround applies when the driver's own BC sampling is on: `hw` keeps it entirely, `dxt1` keeps it and decodes only the BC1 family in software. Unset is every BC format in software, which is the default on Adreno ([textures.md](textures.md)) |
+| `MW2_FORCE_BC_HW=1` | | on an Adreno device: leave BC sampling to the driver rather than the software decoder |
+| `MW2_FORCE_BC_DECOMPRESS=1` | | decode every BC texture in software on any device, which is how a desktop driver is made to exercise the decoder the Snapdragon path uses |
 | `MW2_RECORD_THREAD=0` | | makes the Vulkan calls on the ring consumer instead of the recorder thread |
 | `MW2_TIME_RENDER=1` | | where the ring consumer's time goes, and how long it waits on the GPU |
 | `MW2_TIME_PASSES=<seconds>` | | from that far into the run, the GPU's time a frame by rendering instance (by target size, samples and format), resolve and the work between them, from a timestamp at each; a table at exit |

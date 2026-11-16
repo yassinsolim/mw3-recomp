@@ -65,6 +65,14 @@ size. Pitch and height are rounded up to a 32x32-block tile, for linear
 textures too; a linear mip's rows are also 256-byte aligned. Each cube face or
 array slice of a level starts on a 4 KB boundary.
 
+A volume's level is strided by its own rows and, down the third axis, by the
+**base's** depth rounded up to the four slices of a volume tile -- not by the
+level's own depth, which shrinks with it. That term was read out of Xenia
+rather than guessed, and `tests/texture_volume_test.cpp` now holds both it and
+the level offsets that follow from it to that reading; what no desktop run can
+check is a volume captured from a real one (`MW2_DUMP_TEXTURES_RAW`, which
+dumps any volume it meets).
+
 Which levels exist:
 
 - no mip address means no chain, whatever the level range says;
@@ -97,9 +105,31 @@ its slices as a 3D image, a stacked 2D texture its first slice. 96-bit formats
 
 ## Formats
 
-`vk::formats::VulkanFormatFor`. The block-compressed formats go across
-byte for byte, so the untiler's output is the upload and nothing is decoded on
-the CPU.
+`vk::formats::VulkanFormatFor`. On a desktop GPU the block-compressed formats go across
+byte for byte, so the untiler's output is uploaded directly without CPU decoding.
+
+A mobile GPU that reports no BC support at all -- ARM Mali, most often -- cannot sample
+them, so the runtime decodes BC1, BC2, BC3 and BC5 in software (`bc_decoder.cpp`) into
+uncompressed formats (RGBA8 / RG8), with direct 32- and 64-bit aligned word writes.
+
+The decoder writes into the bytes of the caller's own `TextureData`, which is what
+lets the cache hand the same object back and keep the buffer: a restage of a texture
+whose size has not changed then pays neither the allocation nor the zero fill of the
+whole image. Measured on a 2048x2048 DXT1 decode that is 5.64 ms down to 3.39 ms for
+the same bytes -- 40% of a restage, on the format that costs the most (an eightfold
+expansion). The buffer is per thread, and is released when the texture budget is
+lowered, which is what a phone's `onTrimMemory` arrives as.
+
+Snapdragon handsets are a third case. Adreno reports BC support and samples it wrongly:
+surfaces that read back black or missing for a frame at a time, and vertex garbage in
+vegetation. So the runtime turns the driver's own BC sampling off there and software-decodes
+instead (`pipeline.cpp`, `bc::AdrenoMode`), which is what the workaround costs: eight times
+the bytes in the cache for a BC1 texture and four times for the rest, plus the decode.
+`MW2_ADRENO_BC=dxt1` keeps the driver's sampling for everything but the BC1 family, which
+is the case its sampler is known to get wrong; `MW2_ADRENO_BC=hw` (the same as
+`MW2_FORCE_BC_HW=1`) drops the workaround altogether on a driver that proves clean; and
+`MW2_FORCE_BC_DECOMPRESS=1` makes a desktop driver exercise the same decoder, so a decode
+bug can be told apart from a driver one.
 
 | Xenos (id) | Vulkan |
 |---|---|
@@ -159,7 +189,9 @@ describes, uploading it the first time it is seen.
   must match the kind the shader declares; where the title binds a 2D texture
   to a slot the program reads as a cube or volume, the declared kind's 1x1
   stand-in (element 0, 1 or 2 of the image array: 2D, cube, volume) is named
-  instead. So are unbound slots.
+  instead. So are unbound slots. The stand-ins hold neutral opaque white
+  texels `(255, 255, 255, 255)`, which keeps a lighting table or ambient map
+  that is unbound from drawing black silhouettes.
 - **Size limit.** An extent beyond `maxImageDimension2D` is rejected before
   anything is created: creating one is undefined behaviour, not an error, and
   a misparsed fetch constant can describe one. Failures are cached per fetch
@@ -181,24 +213,31 @@ describes, uploading it the first time it is seen.
   dwords less the sampler's bits (clamps, filters, anisotropy, border colour)
   name the image, so a texture bound under several sampler states is held
   once.
-- **Memory** comes from 64 MB blocks (`image_memory.cpp`), a range per image.
-  A level streams tens of thousands of small textures through the cache, and
-  an allocation each is what a driver is worst at: freeing one took over half
-  a millisecond with forty thousand live. Anything over a quarter of a block
-  gets an allocation of its own.
+- **Memory** comes from 64 MB blocks on desktop, or **16 MB blocks on Android**
+  (`kBlockBytes` in `image_memory.h`), a range per image. A level streams tens of
+  thousands of small textures through the cache, and an allocation each is what
+  a driver is worst at: freeing one took over half a millisecond with forty
+  thousand live. Anything over a quarter of a block gets an allocation of its own.
 - **Letting go.** The console holds no copies: when the title puts another
   texture where one was, the old one is gone. `NewFrame` looks over the cache
-  once every 64 frames, a slice of the images a frame:
-  - An image is *idle* once unbound for 600 frames, which is past any
-    submission still running.
+  periodically (every 64 frames on desktop, or every 32 frames on Android),
+  a slice of the images a frame:
+  - An image is *idle* once unbound for `kUnusedFrames` (600 frames on desktop,
+    or 120 frames on Android), past any submission still running.
   - An idle image whose pages the write watch saw written, and whose bytes
     then sign differently, is released. Bound again it would have had to be
     read again anyway. This is what keeps the cache near what the level is
     using: without it a streaming level left two gigabytes of such copies in
     seven minutes.
-  - Past the budget (half the device-local memory, or
-    `MW2_TEXTURE_BUDGET_MB`) the idle images bound longest ago go, down to
-    three quarters of it.
+  - Past the budget (half the device-local memory clamped between 256 MB – 2 GB on desktop,
+    or **128 MB on Android**, overridable via `MW2_TEXTURE_BUDGET_MB`), a **two-pass
+    eviction** drops idle images down to three quarters of budget:
+    1. *Normal Pass*: Evicts images idle past the sweep window.
+    2. *Emergency Pass*: If still exceeding budget after a streaming rush, drops
+       images unbound for 16 frames (outside the active GPU ring buffer depth).
+  - A descriptor set not handed out for `kUnusedFrames` is freed back to its pool.
+    A set is used no later than its images are bound, so an idle image has no
+    set left.
   - Released images are destroyed a few a frame (half a millisecond's worth).
   Nothing here waits for the device.
 

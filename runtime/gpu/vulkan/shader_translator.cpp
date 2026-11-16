@@ -21,6 +21,13 @@ namespace
     constexpr uint32_t kExecutionModeOriginUpperLeft = 7;
     constexpr uint32_t kFunctionControlNone = 0;
     constexpr uint32_t kLoopControlNone = 0;
+    // The Android port marks the dispatcher's loop as not to be unrolled; the
+    // desktop drivers are left to decide, as they always were.
+#ifdef MW2_ANDROID
+    constexpr uint32_t kDispatchLoopControl = 0x2;   // DontUnroll
+#else
+    constexpr uint32_t kDispatchLoopControl = kLoopControlNone;
+#endif
     constexpr uint32_t kSelectionControlNone = 0;
     constexpr uint32_t kLoopStackDepth = 4;      // what the sequencer provides
     constexpr uint32_t kCapabilityImageQuery = 50;
@@ -78,8 +85,8 @@ namespace
         Id CubeCoordinates(Id a, Id b);
         Id ArrayElement(Id array, Id index);
         void SetArrayElement(Id array, Id index, Id value);
-        void SetPcTo(uint32_t index) { Module::Emit(m_module.Code(), Op::Store, { m_pc, m_module.ConstantU(index) }); }
-        void SetPc(Id value)         { Module::Emit(m_module.Code(), Op::Store, { m_pc, value }); }
+        void SetPcTo(uint32_t index) { if (m_pc) Module::Emit(m_module.Code(), Op::Store, { m_pc, m_module.ConstantU(index) }); }
+        void SetPc(Id value)         { if (m_pc) Module::Emit(m_module.Code(), Op::Store, { m_pc, value }); }
         Id ReadGuestDword(Id addressInDwords, uint32_t index);
         bool DecodeVertexFormat(const Fetch& op, Id address, Id out[4], uint32_t& count);
         void WriteFetchResult(const Fetch& op, Id components[4], uint32_t count);
@@ -167,6 +174,14 @@ namespace
         FetchDimension m_textureDimensions[32]{};
         Id m_arena = 0;               // the frame arena, as dwords
         Id m_arenaFloats = 0;         // and as vec4
+        bool m_linear = false;        // true if control flow has no loops, jumps or calls
+        bool m_forwardJumpsOnly = false; // true if control flow has only forward jumps (acyclic, no loops)
+        // The blocks the forward jumps open when they are lowered to
+        // selections (block kInCase + its place here): the block that
+        // dominates it, how deep it is under the entry block, and for one
+        // that branches on, the place ahead of that branch.
+        struct JumpBlock { uint32_t parent; uint32_t depth; size_t end; };
+        std::vector<JumpBlock> m_jumpBlocks;
 
         // Sequencer state, in function variables because the dispatch loop reads
         // and writes it across blocks.
@@ -252,6 +267,45 @@ namespace
     // to reuse -- is a property of the whole program, not of the instruction.
     void Translator::Analyze()
     {
+        m_linear = true;
+        m_forwardJumpsOnly = true;
+        uint32_t jumps = 0;
+        // Where the last forward jump lands: a jump from inside its span would
+        // need a selection that is not nested in the first one's.
+        uint32_t jumpEnd = 0;
+        for (uint32_t i = 0; i < m_flow.size(); i++)
+        {
+            const ControlFlow& cf = m_flow[i];
+            switch (cf.Opcode())
+            {
+            case ControlFlowOpcode::Nop:
+            case ControlFlowOpcode::Alloc:
+            case ControlFlowOpcode::MarkVsFetchDone:
+            case ControlFlowOpcode::Exec:
+            case ControlFlowOpcode::ExecEnd:
+            case ControlFlowOpcode::CondExec:
+            case ControlFlowOpcode::CondExecEnd:
+            case ControlFlowOpcode::CondExecPred:
+            case ControlFlowOpcode::CondExecPredEnd:
+            case ControlFlowOpcode::CondExecPredClean:
+            case ControlFlowOpcode::CondExecPredCleanEnd:
+                break;
+            case ControlFlowOpcode::CondJmp:
+                m_linear = false;
+                jumps++;
+                if (cf.Target() <= i || i < jumpEnd)
+                    m_forwardJumpsOnly = false; // backward jump, self-loop or overlapping jump
+                jumpEnd = cf.Target();
+                break;
+            default:
+                m_linear = false;
+                m_forwardJumpsOnly = false;
+                break;
+            }
+        }
+        if (jumps == 0 && m_linear)
+            m_forwardJumpsOnly = false;
+
         uint32_t lastSlot = bindings::kFetchSlots;
         for (const ControlFlow& cf : m_flow)
         {
@@ -678,15 +732,22 @@ namespace
         // The blocks' dominator tree: the entry block, then the loop header,
         // which dominates the dispatch block and the block after the loop;
         // the dispatch block dominates the cases.
-        const auto parent = [](uint32_t block) -> uint32_t {
+        // When forward jumps were lowered to selections instead, each block
+        // one opened says which block dominates it (m_jumpBlocks).
+        const auto parent = [this](uint32_t block) -> uint32_t {
+            if (m_forwardJumpsOnly) return block >= kInCase ? m_jumpBlocks[block - kInCase].parent : kInEntry;
             if (block >= kInCase) return kInDispatch;
             if (block == kInDispatch || block == kAfterLoop) return kInLoopHeader;
             return kInEntry;
         };
-        const auto depth = [](uint32_t block) -> uint32_t {
+        const auto depth = [this](uint32_t block) -> uint32_t {
+            if (m_forwardJumpsOnly) return block >= kInCase ? m_jumpBlocks[block - kInCase].depth : 0;
             if (block >= kInCase) return 3;
             if (block == kInDispatch || block == kAfterLoop) return 2;
             return block == kInLoopHeader ? 1 : 0;
+        };
+        const auto end = [this](uint32_t block) -> size_t {
+            return m_forwardJumpsOnly && block >= kInCase ? m_jumpBlocks[block - kInCase].end : m_blockEnd[block];
         };
         struct Load { size_t at; uint32_t index; };
         std::vector<Load> loads;
@@ -703,7 +764,7 @@ namespace
                 while (block != common) { block = parent(block); common = parent(common); }
             }
             // The first read is in that block, or in one it dominates.
-            loads.push_back({ reads[0].block == common ? reads[0].at : m_blockEnd[common], index });
+            loads.push_back({ reads[0].block == common ? reads[0].at : end(common), index });
         }
         // From the last place back, so the places before stay where they were.
         std::stable_sort(loads.begin(), loads.end(), [](const Load& a, const Load& b) { return a.at > b.at; });
@@ -1827,7 +1888,8 @@ namespace
                          { uintPointer, slot, uint32_t(StorageClass::Function), zero });
             Module::EmitString(m_module.Debug(), Op::Name, { slot }, name);
         };
-        scalar(m_pc, "pc");
+        const bool needsSequencer = !m_linear && !m_forwardJumpsOnly;
+        if (needsSequencer) scalar(m_pc, "pc");
         scalar(m_lastFetchBase, "vertex_fetch_address");
         scalar(m_lastFetchEndian, "vertex_fetch_endian");
 
@@ -1837,8 +1899,11 @@ namespace
                      { floatPointer, m_previousScalar, uint32_t(StorageClass::Function),
                        m_module.ConstantF(0.0f) });
         Module::EmitString(m_module.Debug(), Op::Name, { m_previousScalar }, "previous_scalar");
-        scalar(m_loopDepth, "loop_depth");
-        scalar(m_callDepth, "call_depth");
+        if (needsSequencer)
+        {
+            scalar(m_loopDepth, "loop_depth");
+            scalar(m_callDepth, "call_depth");
+        }
 
         // aL is signed and clamped to [-256, 256] by the sequencer.
         Id intPointer = m_module.Pointer(StorageClass::Function, m_int);
@@ -1865,17 +1930,20 @@ namespace
                        m_module.ConstantFalseValue() });
         Module::EmitString(m_module.Debug(), Op::Name, { m_killed }, "killed");
 
-        Id stack = m_module.ArrayOf(m_uint, kLoopStackDepth);
-        Id stackPointer = m_module.Pointer(StorageClass::Function, stack);
-        auto array = [&](Id& slot, const char* name) {
-            slot = m_module.Allocate();
-            Module::Emit(m_module.Code(), Op::Variable,
-                         { stackPointer, slot, uint32_t(StorageClass::Function) });
-            Module::EmitString(m_module.Debug(), Op::Name, { slot }, name);
-        };
-        array(m_loopIterators, "loop_iterators");
-        array(m_loopIds, "loop_ids");
-        array(m_callStack, "call_stack");
+        if (needsSequencer)
+        {
+            Id stack = m_module.ArrayOf(m_uint, kLoopStackDepth);
+            Id stackPointer = m_module.Pointer(StorageClass::Function, stack);
+            auto array = [&](Id& slot, const char* name) {
+                slot = m_module.Allocate();
+                Module::Emit(m_module.Code(), Op::Variable,
+                             { stackPointer, slot, uint32_t(StorageClass::Function) });
+                Module::EmitString(m_module.Debug(), Op::Name, { slot }, name);
+            };
+            array(m_loopIterators, "loop_iterators");
+            array(m_loopIds, "loop_ids");
+            array(m_callStack, "call_stack");
+        }
     }
 
     // aL = iterator * step + start, from the innermost loop's constant,
@@ -2151,33 +2219,70 @@ namespace
         // first End (DecodeControlFlow stops there), so those are emitted
         // straight-line instead. Drivers do not undo the loop themselves --
         // RADV keeps the switch, and every register live across it -- so the
-        // straight-line form needs fewer registers and instructions. Each case
-        // still stores the next pc, unread.
-        bool straight = true;
-        for (const auto& cf : m_flow)
-            switch (cf.Opcode())
-            {
-            case ControlFlowOpcode::LoopStart:
-            case ControlFlowOpcode::LoopEnd:
-            case ControlFlowOpcode::CondCall:
-            case ControlFlowOpcode::Return:
-            case ControlFlowOpcode::CondJmp:
-                straight = false;
-                break;
-            default:
-                break;
-            }
-        if (straight)
+        // straight-line form needs fewer registers and instructions. Neither
+        // this form nor the next has a counter (Analyze, EmitSequencerState).
+        const uint32_t caseCount = uint32_t(m_flow.size());
+        if (m_linear)
         {
-            for (uint32_t i = 0; i < uint32_t(m_flow.size()); i++)
+            for (uint32_t i = 0; i < caseCount; i++)
             {
                 EmitControlFlow(m_flow[i], i);
                 if (!m_result.error.empty()) return;
             }
         }
+        else if (m_forwardJumpsOnly)
+        {
+            // Forward jumps alone, none inside another's span (Analyze): each
+            // is a selection around the instructions it skips, with no loop
+            // and no switch. Mali's compiler took minutes over the dispatcher
+            // for such a program and takes milliseconds over this.
+            uint32_t i = 0;
+            while (i < caseCount)
+            {
+                const ControlFlow& cf = m_flow[i];
+                if (cf.Opcode() != ControlFlowOpcode::CondJmp)
+                {
+                    EmitControlFlow(cf, i);
+                    if (!m_result.error.empty()) return;
+                    if (cf.IsEnd()) break;
+                    i++;
+                    continue;
+                }
+                const uint32_t target = cf.Target();
+                if (Id taken = JumpTaken(cf))
+                {
+                    Id mergeBlock = m_module.Allocate();
+                    Id thenBlock = m_module.Allocate();
+                    Id notTaken = Emit(Op::LogicalNot, m_bool, { taken });
+
+                    // Both blocks are dominated by the one that branches here.
+                    const uint32_t from = m_block;
+                    const uint32_t depth = from >= kInCase ? m_jumpBlocks[from - kInCase].depth + 1 : 1;
+                    (from >= kInCase ? m_jumpBlocks[from - kInCase].end : m_blockEnd[kInEntry]) =
+                        m_module.Code().size();
+                    Module::Emit(m_module.Code(), Op::SelectionMerge, { mergeBlock, kSelectionControlNone });
+                    Module::Emit(m_module.Code(), Op::BranchConditional, { notTaken, thenBlock, mergeBlock });
+
+                    Module::Emit(m_module.Code(), Op::Label, { thenBlock });
+                    m_block = kInCase + uint32_t(m_jumpBlocks.size());
+                    m_jumpBlocks.push_back({ from, depth, 0 });
+                    for (uint32_t j = i + 1; j < target && j < caseCount; j++)
+                    {
+                        EmitControlFlow(m_flow[j], j);
+                        if (!m_result.error.empty()) return;
+                        if (m_flow[j].IsEnd()) break;
+                    }
+                    Module::Emit(m_module.Code(), Op::Branch, { mergeBlock });
+
+                    Module::Emit(m_module.Code(), Op::Label, { mergeBlock });
+                    m_block = kInCase + uint32_t(m_jumpBlocks.size());
+                    m_jumpBlocks.push_back({ from, depth, 0 });
+                }
+                i = target;
+            }
+        }
         else
         {
-            const uint32_t caseCount = uint32_t(m_flow.size());
             Id header = m_module.Allocate();
             Id dispatch = m_module.Allocate();
             // The switch needs a merge block of its own: a selection construct
@@ -2196,7 +2301,7 @@ namespace
             Module::Emit(m_module.Code(), Op::Branch, { header });
             Module::Emit(m_module.Code(), Op::Label, { header });
             m_blockEnd[kInLoopHeader] = m_module.Code().size();
-            Module::Emit(m_module.Code(), Op::LoopMerge, { merge, continueTarget, kLoopControlNone });
+            Module::Emit(m_module.Code(), Op::LoopMerge, { merge, continueTarget, kDispatchLoopControl });
             Module::Emit(m_module.Code(), Op::Branch, { dispatch });
 
             Module::Emit(m_module.Code(), Op::Label, { dispatch });

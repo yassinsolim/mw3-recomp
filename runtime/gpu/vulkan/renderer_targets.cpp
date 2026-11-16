@@ -22,17 +22,39 @@ namespace vk::renderer::detail
         info.usage = usage;
         info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        if (vkCreateImage(g.device, &info, nullptr, &target.image) != VK_SUCCESS) return false;
+        if (vkCreateImage(g.device, &info, nullptr, &target.image) != VK_SUCCESS)
+        {
+            target.image = VK_NULL_HANDLE;
+            return false;
+        }
 
         VkMemoryRequirements needs{};
         vkGetImageMemoryRequirements(g.device, target.image, &needs);
         const uint32_t type = FindMemory(needs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if (type == UINT32_MAX) return false;
+        if (type == UINT32_MAX)
+        {
+            vkDestroyImage(g.device, target.image, nullptr);
+            target.image = VK_NULL_HANDLE;
+            return false;
+        }
         VkMemoryAllocateInfo allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         allocate.allocationSize = needs.size;
         allocate.memoryTypeIndex = type;
-        if (vkAllocateMemory(g.device, &allocate, nullptr, &target.memory) != VK_SUCCESS) return false;
-        vkBindImageMemory(g.device, target.image, target.memory, 0);
+        if (vkAllocateMemory(g.device, &allocate, nullptr, &target.memory) != VK_SUCCESS)
+        {
+            vkDestroyImage(g.device, target.image, nullptr);
+            target.image = VK_NULL_HANDLE;
+            target.memory = VK_NULL_HANDLE;
+            return false;
+        }
+        if (vkBindImageMemory(g.device, target.image, target.memory, 0) != VK_SUCCESS)
+        {
+            vkFreeMemory(g.device, target.memory, nullptr);
+            vkDestroyImage(g.device, target.image, nullptr);
+            target.image = VK_NULL_HANDLE;
+            target.memory = VK_NULL_HANDLE;
+            return false;
+        }
 
         if (aspect)
         {
@@ -41,7 +63,15 @@ namespace vk::renderer::detail
             view.viewType = VK_IMAGE_VIEW_TYPE_2D;
             view.format = target.format;
             view.subresourceRange = { aspect, 0, 1, 0, 1 };
-            if (vkCreateImageView(g.device, &view, nullptr, &target.view) != VK_SUCCESS) return false;
+            if (vkCreateImageView(g.device, &view, nullptr, &target.view) != VK_SUCCESS)
+            {
+                target.view = VK_NULL_HANDLE;
+                vkFreeMemory(g.device, target.memory, nullptr);
+                vkDestroyImage(g.device, target.image, nullptr);
+                target.image = VK_NULL_HANDLE;
+                target.memory = VK_NULL_HANDLE;
+                return false;
+            }
         }
         return true;
     }
@@ -174,6 +204,7 @@ namespace vk::renderer::detail
 
     void DestroyTarget(Target& target)
     {
+        InvalidateFramebuffers();
         if (target.view) vkDestroyImageView(g.device, target.view, nullptr);
         if (target.image) vkDestroyImage(g.device, target.image, nullptr);
         if (target.memory) vkFreeMemory(g.device, target.memory, nullptr);
@@ -354,8 +385,11 @@ namespace vk::renderer::detail
             }
             info.pDepthAttachment = &depth;
             info.pStencilAttachment = &stencil;
-            dispatch.beginRendering(command, &info);
-            dispatch.endRendering(command);
+            if (dispatch.beginRendering && dispatch.endRendering)
+            {
+                dispatch.beginRendering(command, &info);
+                dispatch.endRendering(command);
+            }
 
             // A resolve writes at the colour output stage whatever it resolves.
             VkImageMemoryBarrier leaving = entering;
@@ -382,6 +416,14 @@ namespace vk::renderer::detail
     Target* EnsureTarget(const TargetKey& key, uint32_t width, uint32_t height,
                          uint32_t guestFormat)
     {
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+        // A phone's memory: no surface larger than this either way.
+        constexpr uint32_t kLargestSide = 2048;
+#else
+        constexpr uint32_t kLargestSide = UINT32_MAX;
+#endif
+        width = std::min(width, kLargestSide);
+        height = std::min(height, kLargestSide);
         State::LastTarget& last = g.lastTargets[key.depth];
         if (last.target && last.key == key && last.target->width >= width && last.target->height >= height)
             return last.target;
@@ -398,8 +440,8 @@ namespace vk::renderer::detail
             // The surface grew. Rare enough to rebuild rather than plan for.
             RetireBeforeDestroy();
             DestroyTarget(found->second);
-            width = std::max(width, found->second.width);
-            height = std::max(height, found->second.height);
+            width = std::min(kLargestSide, std::max(width, found->second.width));
+            height = std::min(kLargestSide, std::max(height, found->second.height));
             g.targets.erase(found);
             g.lastTargets[0] = g.lastTargets[1] = {};
         }
@@ -439,14 +481,182 @@ namespace vk::renderer::detail
         return &stored;
     }
 
+    VkRenderPass GetRenderPass(VkFormat colourFormat, VkFormat depthFormat, VkSampleCountFlagBits samples)
+    {
+        static std::mutex s_renderPassMutex;
+        std::lock_guard lock(s_renderPassMutex);
+        const RenderPassKey key{ colourFormat, depthFormat, samples };
+        auto found = g.legacyRenderPasses.find(key);
+        if (found != g.legacyRenderPasses.end()) return found->second;
+
+        VkAttachmentDescription attachments[2]{};
+        uint32_t count = 0;
+
+        VkAttachmentReference colourRef{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
+        if (colourFormat != VK_FORMAT_UNDEFINED)
+        {
+            colourRef = { count, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+            VkAttachmentDescription& desc = attachments[count++];
+            desc.format = colourFormat;
+            desc.samples = samples;
+            desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            desc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            desc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+
+        VkAttachmentReference depthRef{ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED };
+        if (depthFormat != VK_FORMAT_UNDEFINED)
+        {
+            depthRef = { count, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+            VkAttachmentDescription& desc = attachments[count++];
+            desc.format = depthFormat;
+            desc.samples = samples;
+            desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            desc.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = (colourFormat != VK_FORMAT_UNDEFINED) ? 1 : 0;
+        subpass.pColorAttachments = (colourFormat != VK_FORMAT_UNDEFINED) ? &colourRef : nullptr;
+        subpass.pDepthStencilAttachment = (depthFormat != VK_FORMAT_UNDEFINED) ? &depthRef : nullptr;
+
+        // Subpass dependencies to prevent tile memory writeback hazards on TBDR GPUs (Mali, Adreno).
+        // Using VK_DEPENDENCY_BY_REGION_BIT ensures dependencies stay within on-chip tile SRAM.
+        VkSubpassDependency dependencies[2]{};
+        uint32_t depCount = 0;
+
+        if (colourFormat != VK_FORMAT_UNDEFINED)
+        {
+            VkSubpassDependency& dep = dependencies[depCount++];
+            dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+            dep.dstSubpass = 0;
+            dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        }
+
+        if (depthFormat != VK_FORMAT_UNDEFINED)
+        {
+            VkSubpassDependency& dep = dependencies[depCount++];
+            dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+            dep.dstSubpass = 0;
+            dep.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            dep.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            dep.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            dep.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        }
+
+        VkRenderPassCreateInfo info{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+        info.attachmentCount = count;
+        info.pAttachments = attachments;
+        info.subpassCount = 1;
+        info.pSubpasses = &subpass;
+        info.dependencyCount = depCount;
+        info.pDependencies = dependencies;
+
+        VkRenderPass pass = VK_NULL_HANDLE;
+        VkResult r = vkCreateRenderPass(g.device, &info, nullptr, &pass);
+        if (r != VK_SUCCESS)
+        {
+            LOGE("renderer: vkCreateRenderPass failed: %d (colour=%d, depth=%d, samples=%d)",
+                 r, colourFormat, depthFormat, samples);
+            return VK_NULL_HANDLE;
+        }
+
+        g.legacyRenderPasses[key] = pass;
+        return pass;
+    }
+
+    VkFramebuffer GetFramebuffer(VkRenderPass pass, VkImageView colourView, VkImageView depthView,
+                                 uint32_t width, uint32_t height)
+    {
+        if (!pass) return VK_NULL_HANDLE;
+        const FramebufferKey key{ pass, colourView, depthView, width, height };
+        auto found = g.legacyFramebuffers.find(key);
+        if (found != g.legacyFramebuffers.end()) return found->second;
+
+        VkImageView views[2]{};
+        uint32_t count = 0;
+        if (colourView) views[count++] = colourView;
+        if (depthView) views[count++] = depthView;
+        if (!count) return VK_NULL_HANDLE;
+
+        VkFramebufferCreateInfo info{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+        info.renderPass = pass;
+        info.attachmentCount = count;
+        info.pAttachments = views;
+        info.width = width;
+        info.height = height;
+        info.layers = 1;
+
+        VkFramebuffer fb = VK_NULL_HANDLE;
+        VkResult res = vkCreateFramebuffer(g.device, &info, nullptr, &fb);
+        if (res != VK_SUCCESS)
+        {
+            LOGE("renderer: vkCreateFramebuffer failed: %d (pass=%p, count=%u, %ux%u)",
+                 res, pass, count, width, height);
+            return VK_NULL_HANDLE;
+        }
+
+        g.legacyFramebuffers[key] = fb;
+        return fb;
+    }
+
+    void InvalidateFramebuffers()
+    {
+        for (auto& [k, fb] : g.legacyFramebuffers)
+            if (fb) vkDestroyFramebuffer(g.device, fb, nullptr);
+        g.legacyFramebuffers.clear();
+    }
+
+    void ClearRenderPassCache()
+    {
+        InvalidateFramebuffers();
+        for (auto& [k, pass] : g.legacyRenderPasses)
+            if (pass) vkDestroyRenderPass(g.device, pass, nullptr);
+        g.legacyRenderPasses.clear();
+    }
+
     void BeginRendering(const Target& colour, const Target& depth, uint32_t width,
                         uint32_t height)
     {
         EndPass();
         PassTimesOpen(colour, uint32_t(colour.samples));
         const VkImageView colourView = colour.view, depthView = depth.view;
+        if (!colourView && !depthView) return;
+
         // Both are drawn at the pass's scale: their keys carry it.
         const VkExtent2D area = Scaled(VkExtent2D{ width, height }, colour.scale);
+
+        const bool legacy = vk::pipeline::LegacyMode();
+        VkRenderPass legacyPass = VK_NULL_HANDLE;
+        VkFramebuffer legacyFb = VK_NULL_HANDLE;
+        if (legacy)
+        {
+            const VkFormat cFmt = colourView ? colour.format : VK_FORMAT_UNDEFINED;
+            const VkFormat dFmt = depthView ? depth.format : VK_FORMAT_UNDEFINED;
+            VkSampleCountFlagBits samples = (cFmt != VK_FORMAT_UNDEFINED) ? colour.samples : depth.samples;
+            if (samples == 0) samples = VK_SAMPLE_COUNT_1_BIT;
+            legacyPass = GetRenderPass(cFmt, dFmt, samples);
+            legacyFb = GetFramebuffer(legacyPass, colourView, depthView, area.width, area.height);
+            if (!legacyPass || !legacyFb)
+            {
+                LOGE("renderer: BeginRendering failed to acquire render pass (%p) or framebuffer (%p)",
+                     legacyPass, legacyFb);
+                return;
+            }
+        }
         Record([=](VkCommandBuffer command) {
             // What a render pass's dependency in from the outside was: a frame
             // is many passes over the same attachments, with copies and clears
@@ -460,25 +670,36 @@ namespace vk::renderer::detail
                                  kColourStages | kDepthStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
                                  kColourStages | kDepthStages, 0, 1, &before, 0, nullptr, 0,
                                  nullptr);
-            // LOAD, not CLEAR: a frame is many rendering instances -- one per
-            // change of target -- and only the title's own draws clear anything.
-            VkRenderingAttachmentInfoKHR colourAttachment{
-                VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR };
-            colourAttachment.imageView = colourView;
-            colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-            colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            VkRenderingAttachmentInfoKHR depthAttachment = colourAttachment;
-            depthAttachment.imageView = depthView;
-            depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            VkRenderingInfoKHR info{ VK_STRUCTURE_TYPE_RENDERING_INFO_KHR };
-            info.renderArea.extent = area;
-            info.layerCount = 1;
-            info.colorAttachmentCount = 1;
-            info.pColorAttachments = &colourAttachment;
-            info.pDepthAttachment = &depthAttachment;
-            info.pStencilAttachment = &depthAttachment;
-            dispatch.beginRendering(command, &info);
+            if (legacy)
+            {
+                VkRenderPassBeginInfo beginInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+                beginInfo.renderPass = legacyPass;
+                beginInfo.framebuffer = legacyFb;
+                beginInfo.renderArea.extent = area;
+                vkCmdBeginRenderPass(command, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+            }
+            else
+            {
+                // LOAD, not CLEAR: a frame is many rendering instances -- one per
+                // change of target -- and only the title's own draws clear anything.
+                VkRenderingAttachmentInfoKHR colourAttachment{
+                    VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR };
+                colourAttachment.imageView = colourView;
+                colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+                colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+                VkRenderingAttachmentInfoKHR depthAttachment = colourAttachment;
+                depthAttachment.imageView = depthView;
+                depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+                VkRenderingInfoKHR info{ VK_STRUCTURE_TYPE_RENDERING_INFO_KHR };
+                info.renderArea.extent = area;
+                info.layerCount = 1;
+                info.colorAttachmentCount = 1;
+                info.pColorAttachments = &colourAttachment;
+                info.pDepthAttachment = &depthAttachment;
+                info.pStencilAttachment = &depthAttachment;
+                dispatch.beginRendering(command, &info);
+            }
         });
         g.currentScale = colour.scale;
         OpenGuestQuery();
@@ -614,8 +835,13 @@ namespace vk::renderer::detail
         std::lock_guard lock(vk::pipeline::QueueMutex());
         vkResetFences(g.device, 1, &g.setupFence);
         vkQueueSubmit(g.queue, 1, &submit, g.setupFence);
-        vk::pipeline::Failed(vkWaitForFences(g.device, 1, &g.setupFence, VK_TRUE, UINT64_MAX),
-                             "the set-up fence");
+        VkResult res = vkWaitForFences(g.device, 1, &g.setupFence, VK_TRUE, 2000000000ull);
+        if (res == VK_TIMEOUT)
+        {
+            LOGW("renderer: waiting for the set-up fence took >2 seconds; continuing wait...");
+            res = vkWaitForFences(g.device, 1, &g.setupFence, VK_TRUE, UINT64_MAX);
+        }
+        vk::pipeline::Failed(res, "the set-up fence");
     }
 }
 

@@ -1,6 +1,11 @@
 // XamInput* -- gamepad state. Backed by SDL3 when available; otherwise reports
 // "no controller connected" unless an explicit diagnostic input script is set.
+// On Android the touch controls and any physical pad (android/) answer first.
+#if __has_include(<ppc_recomp_shared.h>)
 #include <ppc_recomp_shared.h>
+#else
+#include "../../ppc/ppc_recomp_shared.h"
+#endif
 #include "kernel.h"
 #include "../guest.h"
 #include "../log.h"
@@ -14,6 +19,12 @@
 #include "../stutters.h"
 #include "../gpu/vulkan/renderer.h"
 
+#ifdef MW2_ANDROID
+#include "../android/android.h"
+#include <algorithm>
+#include <cstring>
+#endif
+
 #ifdef MW2_USE_SDL
 #include <SDL3/SDL.h>
 #endif
@@ -26,6 +37,10 @@
 #include <mutex>
 #include <string>
 #include <vector>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace
 {
@@ -149,12 +164,19 @@ namespace
     struct Key { SDL_Scancode code; uint16_t bit; };
     constexpr Key kKeys[] = {
         { SDL_SCANCODE_RETURN, BTN_START },   { SDL_SCANCODE_ESCAPE, BTN_BACK },
+        { SDL_SCANCODE_TAB, BTN_BACK },       { SDL_SCANCODE_BACKSPACE, BTN_BACK },
         { SDL_SCANCODE_UP, BTN_DPAD_UP },     { SDL_SCANCODE_DOWN, BTN_DPAD_DOWN },
         { SDL_SCANCODE_LEFT, BTN_DPAD_LEFT }, { SDL_SCANCODE_RIGHT, BTN_DPAD_RIGHT },
         { SDL_SCANCODE_Z, BTN_A },            { SDL_SCANCODE_X, BTN_B },
         { SDL_SCANCODE_C, BTN_X },            { SDL_SCANCODE_V, BTN_Y },
         { SDL_SCANCODE_Q, BTN_LB },           { SDL_SCANCODE_E, BTN_RB },
         { SDL_SCANCODE_HOME, signin::kGuide },
+        // Standard PC bindings beside them
+        { SDL_SCANCODE_SPACE, BTN_A },        { SDL_SCANCODE_LCTRL, BTN_B },
+        { SDL_SCANCODE_R, BTN_X },            { SDL_SCANCODE_F, BTN_X },
+        { SDL_SCANCODE_1, BTN_Y },            { SDL_SCANCODE_2, BTN_Y },
+        { SDL_SCANCODE_LSHIFT, BTN_LTHUMB },
+        { SDL_SCANCODE_4, BTN_LB },           { SDL_SCANCODE_G, BTN_RB },
     };
 
     uint16_t KeyboardButtons()
@@ -168,7 +190,40 @@ namespace
         return buttons;
     }
 
+    void KeyboardMoveAxes(int16_t& lx, int16_t& ly)
+    {
+        if (!SDL_WasInit(SDL_INIT_VIDEO)) return;
+        const bool* keys = SDL_GetKeyboardState(nullptr);
+        if (!keys) return;
+        int x = 0, y = 0;
+        if (keys[SDL_SCANCODE_W]) y += 32767;
+        if (keys[SDL_SCANCODE_S]) y -= 32767;
+        if (keys[SDL_SCANCODE_D]) x += 32767;
+        if (keys[SDL_SCANCODE_A]) x -= 32767;
+        if (x != 0) lx = int16_t(x);
+        if (y != 0) ly = int16_t(y);
+    }
+
+    uint16_t MouseInputs(uint8_t triggers[2], int16_t& rx, int16_t& ry)
+    {
+        if (!SDL_WasInit(SDL_INIT_VIDEO)) return 0;
+        float dx = 0.0f, dy = 0.0f;
+        const SDL_MouseButtonFlags mouse = SDL_GetRelativeMouseState(&dx, &dy);
+        uint16_t b = 0;
+        if (mouse & SDL_BUTTON_LMASK) triggers[1] = 255;
+        if (mouse & SDL_BUTTON_RMASK) triggers[0] = 255;
+        if (mouse & SDL_BUTTON_MMASK) b |= BTN_RTHUMB;
+
+        if (std::abs(dx) > 0.01f || std::abs(dy) > 0.01f)
+        {
+            const float sens = 3000.0f;
+            rx = int16_t(std::clamp(dx * sens, -32768.0f, 32767.0f));
+            ry = int16_t(std::clamp(-dy * sens, -32768.0f, 32767.0f));
+        }
+        return b;
+    }
 #endif
+
     // MW2_INPUT_SCRIPT="2.5:start,6:a" presses buttons at fixed times, so a title
     // can be driven to a screen without a hand on the controller, and a bring-up
     // run reproduces the same path twice.
@@ -314,6 +369,62 @@ PPC_FUNC(__imp__XamInputGetState)
     auto* out = GuestPtr<XInputState>(sAddr);
     if (!out) { ctx.r3.u64 = X_ERROR_DEVICE_NOT_CONNECTED; return; }
 
+#ifdef MW2_ANDROID
+    // The touch controls and any physical pad, merged by the Android layer.
+    // User 0 always answers: the on-screen pad stands in for a controller,
+    // and a title told there is none on user 0 stops on its "please
+    // reconnect the controller" screen and waits there.
+    {
+        // A controller the Android layer does not have falls through to the
+        // diagnostic input script below, as on a desktop build without SDL.
+        android::input::Pad pad;
+        if (android::input::Poll(user, pad))
+        {
+            int16_t axes[4] = { pad.leftX, pad.leftY, pad.rightX, pad.rightY };
+            uint8_t triggers[2] = { pad.leftTrigger, pad.rightTrigger };
+            if (user == 0)
+            {
+                // The same hand-off the desktop build makes: what the player did
+                // is seen first, then the autopilot may add to it.
+                player::SawPad(pad.buttons, triggers[1]);
+                player::Press press = player::Press::None;
+                if (player::Steer(axes, press))
+                    switch (press)
+                    {
+                    case player::Press::A:    pad.buttons |= 0x1000; break;
+                    case player::Press::Up:   pad.buttons |= 0x0001; break;
+                    case player::Press::Left: pad.buttons |= 0x0004; break;
+                    case player::Press::Fire: triggers[1] = 255; break;
+                    case player::Press::None: break;
+                    }
+            }
+
+            Latch& latch = g_latch[user & 3];
+            const bool changed = latch.buttons != pad.buttons ||
+                                 std::memcmp(latch.triggers, triggers, sizeof triggers) != 0 ||
+                                 std::memcmp(latch.axes, axes, sizeof axes) != 0;
+            if (changed)
+            {
+                latch.packet++;
+                latch.buttons = pad.buttons;
+                std::memcpy(latch.triggers, triggers, sizeof triggers);
+                std::memcpy(latch.axes, axes, sizeof axes);
+            }
+
+            out->packet               = latch.packet;
+            out->gamepad.buttons      = pad.buttons;
+            out->gamepad.leftTrigger  = triggers[0];
+            out->gamepad.rightTrigger = triggers[1];
+            out->gamepad.thumbLX      = uint16_t(axes[0]);
+            out->gamepad.thumbLY      = uint16_t(axes[1]);
+            out->gamepad.thumbRX      = uint16_t(axes[2]);
+            out->gamepad.thumbRY      = uint16_t(axes[3]);
+            ctx.r3.u64 = X_ERROR_SUCCESS;
+            return;
+        }
+    }
+#endif
+
 #ifdef MW2_USE_SDL
     if (user >= 4) { *out = XInputState{}; ctx.r3.u64 = X_ERROR_DEVICE_NOT_CONNECTED; return; }
     SDL_Gamepad* pad = PadFor(user);
@@ -371,6 +482,42 @@ PPC_FUNC(__imp__XamInputGetState)
                             int16_t(-1 - axis(SDL_GAMEPAD_AXIS_RIGHTY)) };
         if (user == 0)
         {
+            KeyboardMoveAxes(axes[0], axes[1]);
+            b |= MouseInputs(triggers, axes[2], axes[3]);
+#ifdef _WIN32
+            auto isDown = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
+            if (isDown(VK_RETURN))                      b |= BTN_START;
+            if (isDown(VK_ESCAPE))                      b |= BTN_BACK;
+            if (isDown(VK_TAB) || isDown(VK_BACK))      b |= BTN_BACK;
+            if (isDown(VK_UP))                          b |= BTN_DPAD_UP;
+            if (isDown(VK_DOWN))                        b |= BTN_DPAD_DOWN;
+            if (isDown(VK_LEFT))                        b |= BTN_DPAD_LEFT;
+            if (isDown(VK_RIGHT))                       b |= BTN_DPAD_RIGHT;
+
+            if (isDown(VK_SPACE) || isDown('Z') || isDown(VK_RETURN)) b |= BTN_A;
+            if (isDown(VK_CONTROL) || isDown('X'))                    b |= BTN_B;
+            if (isDown('C') || isDown('R') || isDown('F'))            b |= BTN_X;
+            if (isDown('V') || isDown('1') || isDown('2') || isDown('Y')) b |= BTN_Y;
+
+            if (isDown('Q') || isDown('4'))                           b |= BTN_LB;
+            if (isDown('G') || isDown('E'))                           b |= BTN_RB;
+
+            if (isDown(VK_SHIFT))                                     b |= BTN_LTHUMB;
+            if (isDown(VK_MBUTTON))                                   b |= BTN_RTHUMB;
+
+            if (isDown(VK_LBUTTON)) triggers[1] = 255;
+            if (isDown(VK_RBUTTON)) triggers[0] = 255;
+
+            if (isDown('W')) { axes[1] = 32767;  b |= BTN_DPAD_UP; }
+            if (isDown('S')) { axes[1] = -32768; b |= BTN_DPAD_DOWN; }
+            if (isDown('D')) { axes[0] = 32767;  b |= BTN_DPAD_RIGHT; }
+            if (isDown('A')) { axes[0] = -32768; b |= BTN_DPAD_LEFT; }
+#endif
+            if (axes[1] > 16000) b |= BTN_DPAD_UP;
+            else if (axes[1] < -16000) b |= BTN_DPAD_DOWN;
+            if (axes[0] > 16000) b |= BTN_DPAD_RIGHT;
+            else if (axes[0] < -16000) b |= BTN_DPAD_LEFT;
+
             // What a person did, before the autopilot adds to it: a recorded
             // route keeps the presses (MW2_RECORD_PATH), and every shot is logged.
             player::SawPad(b, triggers[1]);
@@ -493,6 +640,9 @@ PPC_FUNC(__imp__XamInputGetCapabilities)
     if (!caps) { ctx.r3.u64 = X_ERROR_DEVICE_NOT_CONNECTED; return; }
     if (user < 4) ScriptedButtons(user); // Capabilities may be queried before state.
     bool connected = user < 4 && g_scripted[user];
+#ifdef MW2_ANDROID
+    connected = connected || android::input::Connected(user);
+#endif
 #ifdef MW2_USE_SDL
     connected = connected || PadFor(user) || (user == 0 && player::Wanted());
 #endif
@@ -525,6 +675,13 @@ PPC_FUNC(__imp__XamInputSetState)
     if (user >= 4) { ctx.r3.u64 = X_ERROR_DEVICE_NOT_CONNECTED; return; }
     auto* v = GuestPtr<XInputVibration>(ctx.r5.u32);
     if (!v) { ctx.r3.u64 = X_ERROR_BAD_ARGUMENTS; return; }
+#ifdef MW2_ANDROID
+    // The phone's vibrator, or a pad that has motors of its own: the app
+    // decides which, and whether the player wanted either.
+    android::input::Rumble(user, v->left, v->right);
+    ctx.r3.u64 = X_ERROR_SUCCESS;
+    return;
+#endif
 #ifdef MW2_USE_SDL
     if (SDL_Gamepad* pad = PadFor(user))
     {

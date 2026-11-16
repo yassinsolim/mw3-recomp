@@ -9,12 +9,37 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <atomic>
+#include <chrono>
+#include <thread>
+#include <mutex>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 #ifdef MW2_USE_SDL
 #include <SDL3/SDL.h>
+#endif
+#ifdef MW2_ANDROID
+#include "../android/android.h"
+#include "../../launcher/disc.h"
+#include "../../launcher/package.h"
+#ifdef MW2_HAVE_XEX_PATCHER
+#include <xex_patcher.h>
+#endif
+// A TU6 build configured without the update's hashes (no mw2/update/ and no
+// -DMW2_UPDATE_SHA256_*): ApplyTu6 refuses at run time rather than trusting
+// any bytes, and this keeps it compiling.
+#ifndef MW2_UPDATE_SHA256_PATCH_MP
+#define MW2_UPDATE_SHA256_PATCH_MP ""
+#endif
+#ifndef MW2_UPDATE_SHA256_DLC1_UI_MP
+#define MW2_UPDATE_SHA256_DLC1_UI_MP ""
+#endif
+#ifndef MW2_UPDATE_SHA256_DLC2_UI_MP
+#define MW2_UPDATE_SHA256_DLC2_UI_MP ""
+#endif
 #endif
 
 namespace fs = std::filesystem;
@@ -32,6 +57,7 @@ namespace
     constexpr const char* kSha256 = MW2_XEX_SHA256_SP;
 #endif
     constexpr const char* kGameFolder = "game";
+    std::filesystem::path g_gameFolder = "game";
 #ifdef _WIN32
     constexpr const char* kLauncher = "mw2-launcher.exe";
 #else
@@ -63,6 +89,9 @@ namespace
         std::fprintf(stderr, "%s\n", text.c_str());
 #ifdef MW2_USE_SDL
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Modern Warfare 2", text.c_str(), nullptr);
+#endif
+#ifdef MW2_ANDROID
+        android::SetStatus(text.c_str());
 #endif
     }
 
@@ -110,7 +139,7 @@ namespace
     // build was made from.
     Installed LoadInstalled(std::vector<uint8_t>& image, std::vector<uint8_t>& xexHeader, std::string& error)
     {
-        const fs::path path = fs::path(kGameFolder) / kXex;
+        const fs::path path = fs::path(g_gameFolder) / kXex;
         std::vector<uint8_t> file;
         {
             std::ifstream in(path, std::ios::binary);
@@ -128,7 +157,327 @@ namespace
         }
         return Installed::Yes;
     }
+
+#ifdef MW2_ANDROID
+    constexpr uint32_t kTitleId = 0x41560817;
+
+    struct Title { const char* xex; const char* sha256; const char* disc; };
+    constexpr Title kTitles[] = {
+        { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
+        { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
+    };
+
+    std::string Sha256(const std::vector<uint8_t>& bytes)
+    {
+        install::crypto::Sha256 hash;
+        hash.Update(bytes.data(), bytes.size());
+        return hash.FinalHex();
+    }
+
+    std::string WrongDisc(const std::string& name, const std::vector<uint8_t>& file)
+    {
+        install::xex::Info info;
+        if (!install::xex::ReadInfo(file, info))
+            return name + " is not an Xbox 360 executable.";
+        char text[256];
+        if (info.titleId != kTitleId)
+            std::snprintf(text, sizeof(text), "This is not Modern Warfare 2 (title %08X).", info.titleId);
+        else
+#ifdef MW2_VERSION_TU0
+            std::snprintf(text, sizeof(text),
+                          "This is Modern Warfare 2, but not the version this build was made from "
+                          "(executable version %u, expected the disc's 10). A title update cannot be "
+                          "used: install from an image of the disc itself.", info.version);
+#else
+            std::snprintf(text, sizeof(text),
+                          "This is Modern Warfare 2, but not the disc this build installs from "
+                          "(executable version %u, expected the disc's 10). Install from an image of "
+                          "the disc itself; the update is applied afterwards.", info.version);
+#endif
+        return text;
+    }
+
+    bool IsGameFile(const std::string& name)
+    {
+        std::string lower = name;
+        for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+        auto endsWith = [&](const char* suffix) {
+            const size_t n = std::strlen(suffix);
+            return lower.size() >= n && lower.compare(lower.size() - n, n, suffix) == 0;
+        };
+        return endsWith(".ff") || endsWith(".pak") || endsWith(".bik") || lower == "nxeart";
+    }
+
+    struct Progress
+    {
+        std::mutex lock;
+        std::string file;
+        uint64_t done = 0, total = 0;
+        std::atomic<bool> cancel{ false };
+    };
+
+    bool Install(const fs::path& from, Progress& progress, std::string& error)
+    {
+        auto source = install::Source::Open(from, error);
+        if (!source) return false;
+
+        std::vector<const install::Source::File*> files;
+        for (const Title& title : kTitles)
+        {
+            const auto* file = source->Find(title.xex);
+            if (!file)
+            {
+                if (std::string(title.xex) == kXex)
+                {
+                    error = std::string("There is no ") + title.xex + " in " + Utf8(from) +
+                            ": it is not a Modern Warfare 2 disc.";
+                    return false;
+                }
+                continue;
+            }
+            std::vector<uint8_t> bytes;
+            if (!source->ReadAll(*file, bytes))
+            {
+                error = std::string("Could not read ") + title.xex + " from " + Utf8(from);
+                return false;
+            }
+            // A TU6 build installs from the disc's executables (the update is
+            // applied afterwards by ApplyTu6); a TU0 build installs what it
+            // was recompiled from.
+#ifdef MW2_VERSION_TU0
+            if (Sha256(bytes) != title.sha256) { error = WrongDisc(title.xex, bytes); return false; }
+#else
+            if (Sha256(bytes) != title.disc) { error = WrongDisc(title.xex, bytes); return false; }
+#endif
+        }
+        for (const auto& file : source->Files())
+            if (IsGameFile(file.name)) files.push_back(&file);
+        for (const Title& title : kTitles)
+            if (const auto* file = source->Find(title.xex)) files.push_back(file);
+
+        const fs::path folder = g_gameFolder;
+        std::error_code ec;
+        fs::create_directories(folder, ec);
+        if (ec) { error = "Cannot create " + Utf8(fs::absolute(folder)) + ": " + ec.message(); return false; }
+
+        uint64_t needed = 0;
+        std::vector<const install::Source::File*> copy;
+        const fs::path canonicalFolder = folder.lexically_normal();
+        for (const auto* file : files)
+        {
+            if (file->name.empty() || file->name == "." || file->name == ".." ||
+                file->name.find('/') != std::string::npos || file->name.find('\\') != std::string::npos)
+                continue;
+            const fs::path to = (folder / install::FromUtf8(file->name)).lexically_normal();
+            if (to.parent_path() != canonicalFolder) continue;
+
+            if (fs::is_regular_file(to, ec) && fs::file_size(to, ec) == file->size)
+            {
+                if (file->size == 0) continue;
+                bool match = true;
+                std::ifstream in(to, std::ios::binary);
+                std::vector<char> bufDisk(64 << 10), bufSrc(64 << 10);
+                for (uint64_t at = 0; at < file->size; at += bufDisk.size())
+                {
+                    const size_t checkLen = size_t(std::min<uint64_t>(bufDisk.size(), file->size - at));
+                    if (!in.read(bufDisk.data(), checkLen) || size_t(in.gcount()) != checkLen ||
+                        !source->Read(*file, at, bufSrc.data(), checkLen) ||
+                        std::memcmp(bufDisk.data(), bufSrc.data(), checkLen) != 0)
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) continue;
+            }
+            copy.push_back(file);
+            needed += file->size;
+        }
+        {
+            std::lock_guard lock(progress.lock);
+            progress.total = needed;
+        }
+        const auto space = fs::space(folder, ec);
+        if (!ec && space.available < needed)
+        {
+            char text[160];
+            std::snprintf(text, sizeof(text), "Not enough disk space: %.1f GB needed, %.1f GB free.",
+                          needed / 1e9, space.available / 1e9);
+            error = text;
+            return false;
+        }
+
+        std::vector<uint8_t> buffer(8 << 20);
+        for (const auto* file : copy)
+        {
+            {
+                std::lock_guard lock(progress.lock);
+                progress.file = file->name;
+            }
+            const fs::path to = folder / install::FromUtf8(file->name), partial = fs::path(to) += ".part";
+
+            struct PartCleaner
+            {
+                fs::path target;
+                bool disarmed = false;
+                ~PartCleaner()
+                {
+                    if (!disarmed && !target.empty())
+                    {
+                        std::error_code ec;
+                        fs::remove(target, ec);
+                    }
+                }
+            } cleaner{ partial };
+
+            std::ofstream out(partial, std::ios::binary | std::ios::trunc);
+            if (!out) { error = "Cannot write " + Utf8(fs::absolute(partial)); return false; }
+            for (uint64_t at = 0; at < file->size;)
+            {
+                if (progress.cancel) { out.close(); error = "cancelled"; return false; }
+                const size_t take = size_t(std::min<uint64_t>(buffer.size(), file->size - at));
+                if (!source->Read(*file, at, buffer.data(), take))
+                {
+                    out.close();
+                    error = "Could not read " + file->name + " from " + Utf8(from) + ".";
+                    return false;
+                }
+                out.write(reinterpret_cast<const char*>(buffer.data()), std::streamsize(take));
+                if (!out)
+                {
+                    out.close();
+                    error = "Could not write " + Utf8(fs::absolute(partial)) + " (disk full?).";
+                    return false;
+                }
+                at += take;
+                std::lock_guard lock(progress.lock);
+                progress.done += take;
+            }
+            out.close();
+            fs::rename(partial, to, ec);
+            if (ec) { error = "Cannot rename " + Utf8(partial) + ": " + ec.message(); return false; }
+            cleaner.disarmed = true;
+        }
+        return true;
+    }
+
+    std::mutex g_installLock;
+    Progress* g_installing = nullptr;
+#endif
 }
+
+#ifdef MW2_ANDROID
+namespace install
+{
+    namespace
+    {
+        std::string TuSha256(const std::vector<uint8_t>& bytes)
+        {
+            install::crypto::Sha256 hash;
+            hash.Update(bytes.data(), bytes.size());
+            return hash.FinalHex();
+        }
+
+        // Through a temporary name, so a file present is a file written whole.
+        bool TuWriteWhole(const fs::path& to, const std::vector<uint8_t>& bytes, std::string& error)
+        {
+            const fs::path partial = fs::path(to) += ".part";
+            std::ofstream out(partial, std::ios::binary | std::ios::trunc);
+            out.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
+            out.close();
+            std::error_code ec;
+            if (out) fs::rename(partial, to, ec);
+            if (!out || ec) { error = "Cannot write " + install::Utf8(fs::absolute(to)) + " (disk full?)."; return false; }
+            return true;
+        }
+    }
+
+    // Applies downloaded title update 6 to an installed disc (TU6 builds):
+    // patches both executables in memory exactly as the PC launcher's install
+    // does (launcher/setup.cpp), then lays the update's fastfiles beside the
+    // disc's. Executables go last: both present and patched is what an update
+    // that finished looks like.
+    bool ApplyTu6(const fs::path& package, std::string& error)
+    {
+#ifdef MW2_VERSION_TU0
+        (void)package;
+        error = "This build is the disc version; it needs no update.";
+        return false;
+#else
+#ifndef MW2_HAVE_XEX_PATCHER
+        (void)package;
+        error = "This APK was built without the title-update patcher; install a CI-built TU6 APK.";
+        return false;
+#else
+        static const char* kUpdateHashes[][2] = {
+            { "patch_mp.ff", MW2_UPDATE_SHA256_PATCH_MP },
+            { "dlc1_ui_mp.ff", MW2_UPDATE_SHA256_DLC1_UI_MP },
+            { "dlc2_ui_mp.ff", MW2_UPDATE_SHA256_DLC2_UI_MP },
+        };
+        for (const auto& [name, hash] : kUpdateHashes)
+            if (!*hash)
+            {
+                error = "This build does not know title update 6's files; install a CI-built TU6 APK.";
+                return false;
+            }
+        std::vector<uint8_t> packed;
+        {
+            std::ifstream in(package, std::ios::binary);
+            if (!in) { error = "Cannot read the downloaded update."; return false; }
+            packed.assign(std::istreambuf_iterator<char>(in), {});
+        }
+        std::map<std::string, std::vector<uint8_t>> files;
+        std::string why;
+        if (!install::ReadPackage(packed, files, why)) { error = "The downloaded update: " + why + "."; return false; }
+        for (const auto& [name, hash] : kUpdateHashes)
+        {
+            const auto it = files.find(name);
+            if (it == files.end() || TuSha256(it->second) != hash)
+            {
+                error = std::string("This is not title update 6: its ") + name + " is missing or another version's.";
+                return false;
+            }
+        }
+        const char* kPatches[][3] = {
+            { "default.xex", "default.xexp", MW2_XEX_SHA256_SP },
+            { "default_mp.xex", "default_mp.xexp", MW2_XEX_SHA256_MP },
+        };
+        const fs::path folder = install::GameFolder();
+        std::vector<uint8_t> patched[2];
+        for (int i = 0; i < 2; i++)
+        {
+            const auto px = files.find(kPatches[i][1]);
+            if (px == files.end() || px->second.empty())
+            {
+                error = std::string("This is not title update 6: its ") + kPatches[i][1] + " is missing.";
+                return false;
+            }
+            std::vector<uint8_t> base;
+            {
+                std::ifstream in(folder / kPatches[i][0], std::ios::binary);
+                if (!in) { error = "Install the disc first: its executables are not here yet."; return false; }
+                base.assign(std::istreambuf_iterator<char>(in), {});
+            }
+            const auto result = XexPatcher::apply(base.data(), base.size(), px->second.data(),
+                                                  px->second.size(), patched[i], false);
+            if (result != XexPatcher::Result::Success || TuSha256(patched[i]) != kPatches[i][2])
+            {
+                error = std::string("This is not title update 6: its ") + kPatches[i][1] +
+                        " does not make the expected executable.";
+                return false;
+            }
+        }
+        for (const auto& [name, hash] : kUpdateHashes)
+            if (!TuWriteWhole(folder / name, files[name], error)) return false;
+        for (int i = 0; i < 2; i++)
+            if (!TuWriteWhole(folder / kPatches[i][0], patched[i], error)) return false;
+        LOGI("install: title update 6 applied");
+        return true;
+#endif
+#endif
+    }
+}
+#endif
 
 bool install::PlayerStart(int argc, char**)
 {
@@ -147,12 +496,16 @@ bool install::Prepare(int, char**, Launch& launch, int& exitCode)
     // Everything a player's copy keeps -- game/, saves/ -- is beside the executable.
     std::error_code ec;
     if (const fs::path folder = ExecutableFolder(); !folder.empty()) fs::current_path(folder, ec);
+    // ...unless the launcher put the game files on another drive (INSTALL
+    // LOCATION): same file it wrote, beside this program too.
+    if (const fs::path at = InstallLocation(ExecutableFolder()); !at.empty())
+        SetGameFolder(at / kGameFolder);
 
     std::string error;
     switch (LoadInstalled(launch.image, launch.xexHeader, error))
     {
     case Installed::Yes:
-        launch.gameRoot = kGameFolder;
+        launch.gameRoot = g_gameFolder;
         return true;
     case Installed::Unreadable:
         ShowError(error);
@@ -186,6 +539,71 @@ bool install::LoadImageFile(const fs::path& path, std::vector<uint8_t>& image, s
     xexHeader.clear();
     image = std::move(file);
     return true;
+}
+
+void install::SetGameFolder(const fs::path& folder)
+{
+    g_gameFolder = folder;
+    LOGI("install: the game folder is %s", Utf8(fs::absolute(folder)).c_str());
+}
+
+const fs::path& install::GameFolder() { return g_gameFolder; }
+
+bool install::Installed()
+{
+    std::error_code ec;
+    return fs::is_regular_file(g_gameFolder / kXex, ec);
+}
+
+void install::CancelInstall()
+{
+#ifdef MW2_ANDROID
+    std::lock_guard lock(g_installLock);
+    if (g_installing) g_installing->cancel = true;
+#endif
+}
+
+bool install::InstallFrom(const fs::path& from, std::string& error, Report report, void* user)
+{
+#ifdef MW2_ANDROID
+    Progress progress;
+    {
+        std::lock_guard lock(g_installLock);
+        if (g_installing) { error = "An install is already running."; return false; }
+        g_installing = &progress;
+    }
+
+    std::atomic<bool> finished{ false };
+    std::thread reporter;
+    if (report)
+        reporter = std::thread([&] {
+            while (!finished.load(std::memory_order_acquire))
+            {
+                {
+                    std::lock_guard lock(progress.lock);
+                    report(progress.file.c_str(), progress.done, progress.total, user);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+            std::lock_guard lock(progress.lock);
+            report(progress.file.c_str(), progress.done, progress.total, user);
+        });
+
+    const bool ok = Install(from, progress, error);
+    finished.store(true, std::memory_order_release);
+    if (reporter.joinable()) reporter.join();
+    {
+        std::lock_guard lock(g_installLock);
+        g_installing = nullptr;
+    }
+    if (!ok && error.empty()) error = "The game could not be installed.";
+    if (ok) LOGI("install: done, into %s", Utf8(fs::absolute(g_gameFolder)).c_str());
+    else    LOGE("install: %s", error.c_str());
+    return ok;
+#else
+    error = "Not implemented on desktop";
+    return false;
+#endif
 }
 
 std::vector<uint8_t>& install::LaunchData()

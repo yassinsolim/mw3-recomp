@@ -2,16 +2,37 @@
 // rebuilds a previous run's pipelines before the title asks for them.
 #include "renderer_state.h"
 #include "shader_build.h"
+#include "../internal.h"
 #include "../../diagnostics.h"
 #include "../../log.h"
+#include "../../platform.h"
 #include "../../report.h"
+#include "pipeline.h"
 
+#include <chrono>
+#include <condition_variable>
 #include <cstdio>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <unordered_set>
+#ifdef MW2_ANDROID
+#include <sys/resource.h>
+#include "../../android/android.h"
+#endif
 
 #ifdef MW2_HAVE_VULKAN
 
 namespace vk::renderer::detail
 {
+    std::mutex g_pipelinesMutex;
+    namespace
+    {
+        std::mutex g_shadersMutex;
+        // Set on the warm-up worker, which builds pipelines beside the consumer.
+        thread_local bool t_warmupThread = false;
+    }
+
     // A shader the title has not drawn with before here: taken from the ones
     // compiled when it was loaded (TakePrepared), or translated and compiled
     // now -- a stall, which is why the load-time path exists.
@@ -20,12 +41,15 @@ namespace vk::renderer::detail
         if (!code || !words) return nullptr;
         auto& last = g.lastShader[type == shader::Type::Pixel];
         if (last.shader && last.hash == hash) return last.shader;
-        auto found = g.shaders.find(hash);
-        if (found != g.shaders.end())
         {
-            if (!found->second.module) return nullptr;
-            last = { hash, &found->second };
-            return &found->second;
+            std::lock_guard lock(g_shadersMutex);
+            auto found = g.shaders.find(hash);
+            if (found != g.shaders.end())
+            {
+                if (!found->second.module) return nullptr;
+                last = { hash, &found->second };
+                return &found->second;
+            }
         }
 
         static const bool traced = diag::Flag("MW2_TRACE_SHADER_LOADS");
@@ -50,6 +74,7 @@ namespace vk::renderer::detail
                  (unsigned long long)hash,
                  entry.translation.ok ? "driver refused the module"
                                       : entry.translation.error.c_str());
+        std::lock_guard lock(g_shadersMutex);
         auto& stored = g.shaders.emplace(hash, std::move(entry)).first->second;
         return ok ? &stored : nullptr;
     }
@@ -173,42 +198,91 @@ namespace vk::renderer::detail
         // Xenos has no fixed-function vertex input at all: the shader fetches its
         // own attributes out of set 2.
         assembly.topology = VkPrimitiveTopology(key.topology);
+        static constexpr VkViewport kDummyViewport{ 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f };
+        static constexpr VkRect2D kDummyScissor{ {0, 0}, {1, 1} };
         viewport.viewportCount = 1;
         viewport.scissorCount = 1;
+        viewport.pViewports = &kDummyViewport;
+        viewport.pScissors = &kDummyScissor;
 
         raster = vk::shaders::Rasterisation();
+        // A bias without a depth attachment means nothing, and a render pass
+        // without one is not to be given it.
+        raster.depthBiasEnable = (key.depthFormat != VK_FORMAT_UNDEFINED) ? VK_TRUE : VK_FALSE;
 
         multisample.rasterizationSamples = VkSampleCountFlagBits(std::max(key.samples, 1u));
         // The tests themselves are set per draw (DepthTestsFor); `depth` stays empty.
 
-        const gpu::BlendControl blend{ key.blendControl };
-        attachment.blendEnable = !blend.IsPassThrough();
-        attachment.srcColorBlendFactor = BlendFactor(blend.ColorSource());
-        attachment.dstColorBlendFactor = BlendFactor(blend.ColorDestination());
-        attachment.colorBlendOp = BlendOp(blend.ColorOp());
-        attachment.srcAlphaBlendFactor = BlendFactor(blend.AlphaSource());
-        attachment.dstAlphaBlendFactor = BlendFactor(blend.AlphaDestination());
-        attachment.alphaBlendOp = BlendOp(blend.AlphaOp());
-        // Four bits per target, ARGB on the console and RGBA here.
-        const uint32_t mask = key.colourMask & 0xF;
-        attachment.colorWriteMask =
-            ((mask & 1) ? VK_COLOR_COMPONENT_R_BIT : 0u) |
-            ((mask & 2) ? VK_COLOR_COMPONENT_G_BIT : 0u) |
-            ((mask & 4) ? VK_COLOR_COMPONENT_B_BIT : 0u) |
-            ((mask & 8) ? VK_COLOR_COMPONENT_A_BIT : 0u);
-        blending.attachmentCount = 1;
-        blending.pAttachments = &attachment;
+        if (key.colourFormat != VK_FORMAT_UNDEFINED)
+        {
+            const gpu::BlendControl blend{ key.blendControl };
+            attachment.blendEnable = !blend.IsPassThrough();
+            attachment.srcColorBlendFactor = BlendFactor(blend.ColorSource());
+            attachment.dstColorBlendFactor = BlendFactor(blend.ColorDestination());
+            attachment.colorBlendOp = BlendOp(blend.ColorOp());
+            attachment.srcAlphaBlendFactor = BlendFactor(blend.AlphaSource());
+            attachment.dstAlphaBlendFactor = BlendFactor(blend.AlphaDestination());
+            attachment.alphaBlendOp = BlendOp(blend.AlphaOp());
+            // Four bits per target, ARGB on the console and RGBA here.
+            const uint32_t mask = key.colourMask & 0xF;
+            attachment.colorWriteMask =
+                ((mask & 1) ? VK_COLOR_COMPONENT_R_BIT : 0u) |
+                ((mask & 2) ? VK_COLOR_COMPONENT_G_BIT : 0u) |
+                ((mask & 4) ? VK_COLOR_COMPONENT_B_BIT : 0u) |
+                ((mask & 8) ? VK_COLOR_COMPONENT_A_BIT : 0u);
+            blending.attachmentCount = 1;
+            blending.pAttachments = &attachment;
+        }
+        else
+        {
+            blending.attachmentCount = 0;
+            blending.pAttachments = nullptr;
+        }
 
-        dynamic.dynamicStateCount = vk::shaders::kDynamicStateCount;
-        dynamic.pDynamicStates = vk::shaders::kDynamicStates;
+        // Without extended dynamic state, culling, winding and the depth and
+        // stencil tests are part of the pipeline (and of its key).
+        static constexpr VkDynamicState kDynamicLegacy[] = {
+            VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS,
+            VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
+            VK_DYNAMIC_STATE_STENCIL_REFERENCE };
 
-        // Dynamic rendering: the formats of the targets stand where a render
-        // pass would.
-        colourFormat = VkFormat(key.colourFormat);
-        rendering.colorAttachmentCount = 1;
-        rendering.pColorAttachmentFormats = &colourFormat;
-        rendering.depthAttachmentFormat = VkFormat(key.depthFormat);
-        rendering.stencilAttachmentFormat = VkFormat(key.depthFormat);
+        if (vk::pipeline::LegacyMode())
+        {
+            dynamic.dynamicStateCount = uint32_t(std::size(kDynamicLegacy));
+            dynamic.pDynamicStates = kDynamicLegacy;
+
+            FacesFor(key.modeCntl, raster.cullMode, raster.frontFace);
+
+            if (key.depthFormat != VK_FORMAT_UNDEFINED)
+            {
+                const DepthTests tests = DepthTestsFor(key.depthControl);
+                depth.depthTestEnable = tests.depthTest ? VK_TRUE : VK_FALSE;
+                depth.depthWriteEnable = tests.depthWrite ? VK_TRUE : VK_FALSE;
+                depth.depthCompareOp = tests.depthCompare;
+                depth.stencilTestEnable = tests.stencilTest ? VK_TRUE : VK_FALSE;
+                depth.front.failOp = tests.front.failOp;
+                depth.front.passOp = tests.front.passOp;
+                depth.front.depthFailOp = tests.front.depthFailOp;
+                depth.front.compareOp = tests.front.compareOp;
+                depth.back.failOp = tests.back.failOp;
+                depth.back.passOp = tests.back.passOp;
+                depth.back.depthFailOp = tests.back.depthFailOp;
+                depth.back.compareOp = tests.back.compareOp;
+            }
+        }
+        else
+        {
+            dynamic.dynamicStateCount = vk::shaders::kDynamicStateCount;
+            dynamic.pDynamicStates = vk::shaders::kDynamicStates;
+
+            // Dynamic rendering: the formats of the targets stand where a render
+            // pass would.
+            colourFormat = VkFormat(key.colourFormat);
+            rendering.colorAttachmentCount = (key.colourFormat != VK_FORMAT_UNDEFINED) ? 1 : 0;
+            rendering.pColorAttachmentFormats = (key.colourFormat != VK_FORMAT_UNDEFINED) ? &colourFormat : nullptr;
+            rendering.depthAttachmentFormat = VkFormat(key.depthFormat);
+            rendering.stencilAttachmentFormat = VkFormat(key.depthFormat);
+        }
     }
 
     // The whole pipeline in one call, both shaders compiled for it: what a
@@ -226,7 +300,24 @@ namespace vk::renderer::detail
 
         const PipelineState state(key);
         VkGraphicsPipelineCreateInfo info{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
-        info.pNext = &state.rendering;
+        info.pNext = vk::pipeline::LegacyMode() ? nullptr : &state.rendering;
+
+        gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline_GetRenderPass");
+        VkRenderPass renderPass = vk::pipeline::LegacyMode()
+            ? GetRenderPass(VkFormat(key.colourFormat), VkFormat(key.depthFormat),
+                            VkSampleCountFlagBits(std::max(key.samples, 1u)))
+            : VK_NULL_HANDLE;
+
+        if (vk::pipeline::LegacyMode() && !renderPass)
+        {
+            LOGE("renderer: legacy mode has no renderPass for pipeline %016llX/%016llX (c=%d, d=%d, s=%u)",
+                 (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
+                 key.colourFormat, key.depthFormat, key.samples);
+            return VK_NULL_HANDLE;
+        }
+
+        info.renderPass = renderPass;
+        info.subpass = 0;
         info.stageCount = 2;
         info.pStages = stages;
         info.pVertexInputState = &state.input;
@@ -234,33 +325,84 @@ namespace vk::renderer::detail
         info.pViewportState = &state.viewport;
         info.pRasterizationState = &state.raster;
         info.pMultisampleState = &state.multisample;
-        info.pDepthStencilState = &state.depth;
-        info.pColorBlendState = &state.blending;
+        info.pDepthStencilState = (key.depthFormat != VK_FORMAT_UNDEFINED) ? &state.depth : nullptr;
+        info.pColorBlendState = (key.colourFormat != VK_FORMAT_UNDEFINED) ? &state.blending : nullptr;
         info.pDynamicState = &state.dynamic;
         info.layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
 
+        gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline_vkCreateGraphicsPipelines");
+        const auto compileStart = std::chrono::steady_clock::now();
+        LOGI("renderer: building pipeline %016llX/%016llX (c=%d, d=%d, topo=%u, s=%u, blend=%08X, mask=%X, depth=%08X, mode=%08X, pass=%p, cache=%p)...",
+             (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
+             key.colourFormat, key.depthFormat, key.topology, key.samples,
+             key.blendControl, key.colourMask, key.depthControl, key.modeCntl,
+             (void*)renderPass, vk::pipeline::Cache());
+
         VkPipeline built = VK_NULL_HANDLE;
-        if (vkCreateGraphicsPipelines(g.device, static_cast<VkPipelineCache>(vk::pipeline::Cache()),
-                                      1, &info, nullptr, &built) != VK_SUCCESS)
+        VkResult res = VK_SUCCESS;
+        {
+#ifdef MW2_ANDROID
+            // The phones' drivers are given one creation at a time, and the
+            // cache to itself.
+            std::lock_guard createLock(vk::pipeline::CreationMutex());
+            std::unique_lock cacheLock(vk::pipeline::CacheMutex(), std::defer_lock);
+            if (vk::pipeline::Cache()) cacheLock.lock();
+#endif
+            res = vkCreateGraphicsPipelines(g.device, static_cast<VkPipelineCache>(vk::pipeline::Cache()),
+                                            1, &info, nullptr, &built);
+        }
+        const uint64_t tookMs = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - compileStart).count());
+        gpu::detail::SetCurrentDrawStage("idle");
+        if (res != VK_SUCCESS)
+        {
+            LOGE("renderer: vkCreateGraphicsPipelines failed: %d (colour=%d, depth=%d, topo=%u, samples=%u) in %llu ms",
+                 res, key.colourFormat, key.depthFormat, key.topology, key.samples, (unsigned long long)tookMs);
             return VK_NULL_HANDLE;
+        }
+        LOGI("renderer: built pipeline %016llX/%016llX in %llu ms (handle=%p)",
+             (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
+             (unsigned long long)tookMs, (void*)built);
         return built;
+    }
+
+    VkPipeline FindPipeline(const PipelineKey& key)
+    {
+        TakeOptimisedPipelines();
+        std::lock_guard lock(g_pipelinesMutex);
+        auto found = g.pipelines.find(key);
+        if (found != g.pipelines.end()) return found->second;
+        return VK_NULL_HANDLE;
     }
 
     VkPipeline EnsurePipeline(const PipelineKey& key, const Shader& vertex, const Shader& pixel,
                               bool* made)
     {
         TakeOptimisedPipelines();
-        if (g.lastPipeline && g.lastPipelineSwaps == g.pipelinesOptimised && key == g.lastPipelineKey)
+        // The last answer is the consumer's alone: the warm-up worker neither
+        // reads nor replaces it.
+        if (!t_warmupThread && g.lastPipeline && g.lastPipelineSwaps == g.pipelinesOptimised &&
+            key == g.lastPipelineKey)
             return g.lastPipeline;
-        auto found = g.pipelines.find(key);
-        if (found != g.pipelines.end())
         {
-            g.lastPipelineKey = key;
-            g.lastPipeline = found->second;
-            g.lastPipelineSwaps = g.pipelinesOptimised;
-            return found->second;
+            std::lock_guard lock(g_pipelinesMutex);
+            auto found = g.pipelines.find(key);
+            if (found != g.pipelines.end())
+            {
+                if (!t_warmupThread)
+                {
+                    g.lastPipelineKey = key;
+                    g.lastPipeline = found->second;
+                    g.lastPipelineSwaps = g.pipelinesOptimised;
+                }
+                return found->second;
+            }
         }
         if (made) *made = true;
+        LOGI("renderer: pipeline miss for %016llX/%016llX (c=%d, d=%d, topo=%u, blend=%08X, mask=%X, depth=%08X, mode=%08X)",
+             (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
+             key.colourFormat, key.depthFormat, key.topology,
+             key.blendControl, key.colourMask, key.depthControl, key.modeCntl);
 
         const auto compileStart = std::chrono::steady_clock::now();
         stutters::Timed timed(stutters::kPipelines);
@@ -276,8 +418,268 @@ namespace vk::renderer::detail
         if (!built)
             LOGW("renderer: pipeline for %016llX/%016llX rejected",
                  (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader);
-        g.pipelines[key] = built;   // a failure is remembered, so it fails once
+
+        {
+            std::lock_guard lock(g_pipelinesMutex);
+            if (built)
+                g.pipelines[key] = built;
+        }
         return built;
+    }
+
+    namespace warmup
+    {
+        struct QueueItem
+        {
+            Recorded recorded;
+        };
+
+        std::mutex g_warmupMutex;
+        std::condition_variable g_warmupCv;
+        std::deque<QueueItem> g_warmupQueue;
+        std::thread g_warmupThread;
+        std::atomic<bool> g_warmupRunning{ false };
+        std::atomic<bool> g_warmupStopping{ false };
+        std::atomic<bool> g_cutsceneActive{ false };
+
+        std::atomic<uint32_t> g_statQueued{ 0 };
+        std::atomic<uint32_t> g_statCompleted{ 0 };
+        std::atomic<uint32_t> g_statMisses{ 0 };
+        std::atomic<uint32_t> g_statLastCompileMs{ 0 };
+
+        // Millisecond timestamp (steady_clock epoch) of the last render-thread
+        // vkQueueSubmit. The warmup worker reads this to back off when the GPU
+        // is busy serving render frames -- preventing the queue-saturation stalls
+        // that trigger the device's ANR watchdog (Oppo Athena).
+        std::atomic<int64_t> g_lastRenderSubmitMs{ 0 };
+
+        // Records the render thread's submission time. Called from renderer_frame.cpp.
+        void NoteRenderSubmit()
+        {
+            using namespace std::chrono;
+            const int64_t ms = duration_cast<milliseconds>(
+                steady_clock::now().time_since_epoch()).count();
+            g_lastRenderSubmitMs.store(ms, std::memory_order_relaxed);
+        }
+
+        // True if the render thread has submitted a frame recently enough that the
+        // GPU is likely still busy with rendering work.
+        bool RenderActive()
+        {
+            using namespace std::chrono;
+            const int64_t nowMs = duration_cast<milliseconds>(
+                steady_clock::now().time_since_epoch()).count();
+            const int64_t lastMs = g_lastRenderSubmitMs.load(std::memory_order_relaxed);
+            // 150 ms: about 9 frames at 60 FPS. If we haven't heard from the
+            // render thread in that window, assume it is idling (cutscene load).
+            return (nowMs - lastMs) < 150;
+        }
+
+        void Worker()
+        {
+            t_warmupThread = true;
+            platform::LowerThreadPriority();
+            platform::SetThreadAffinity(platform::ThreadAffinityRole::WorkerCore);
+            LOGI("warmup: scheduler worker thread started");
+            while (!g_warmupStopping.load(std::memory_order_relaxed))
+            {
+                QueueItem item{};
+                {
+                    std::unique_lock lock(g_warmupMutex);
+                    g_warmupCv.wait(lock, [] {
+                        return g_warmupStopping.load(std::memory_order_relaxed) ||
+                               !g_warmupQueue.empty();
+                    });
+
+                    if (g_warmupStopping.load(std::memory_order_relaxed))
+                        break;
+
+                    if (g_warmupQueue.empty())
+                        continue;
+
+                    item = g_warmupQueue.front();
+                    g_warmupQueue.pop_front();
+                }
+
+                PipelineKey key;
+                key.vertexShader = item.recorded.vertexShader;
+                key.pixelShader = item.recorded.pixelShader;
+                key.colourFormat = item.recorded.colourFormat;
+                key.depthFormat = item.recorded.depthFormat;
+                key.topology = item.recorded.topology;
+                key.blendControl = item.recorded.blendControl;
+                key.colourMask = item.recorded.colourMask;
+                key.samples = item.recorded.samples;
+                if (vk::pipeline::LegacyMode())
+                {
+                    key.depthControl = item.recorded.depthControl;
+                    key.modeCntl = item.recorded.modeCntl;
+                }
+
+                // Check if already created
+                {
+                    std::lock_guard lock(g_pipelinesMutex);
+                    if (g.pipelines.find(key) != g.pipelines.end())
+                        continue;
+                }
+
+                Shader vertexCopy{};
+                Shader pixelCopy{};
+                bool foundShaders = false;
+                {
+                    std::lock_guard lock(g_shadersMutex);
+                    auto vIt = g.shaders.find(key.vertexShader);
+                    auto pIt = g.shaders.find(key.pixelShader);
+                    if (vIt != g.shaders.end() && vIt->second.module &&
+                        pIt != g.shaders.end() && pIt->second.module)
+                    {
+                        vertexCopy = vIt->second;
+                        pixelCopy = pIt->second;
+                        foundShaders = true;
+                    }
+                }
+
+                if (!foundShaders)
+                    continue;
+
+                const auto start = std::chrono::steady_clock::now();
+                bool made = false;
+                VkPipeline built = EnsurePipeline(key, vertexCopy, pixelCopy, &made);
+                const uint32_t tookMs = uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - start).count());
+
+                if (built && made)
+                {
+                    const uint32_t c = g_statCompleted.fetch_add(1, std::memory_order_relaxed) + 1;
+                    g_statLastCompileMs.store(tookMs, std::memory_order_relaxed);
+                    LOGI("warmup: precompiled pipeline %016llX/%016llX in %u ms (%u of %u ready)",
+                         (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
+                         tookMs, c, g_statQueued.load(std::memory_order_relaxed));
+
+                    static uint32_t s_lastSave = 0;
+                    if (c - s_lastSave >= 5)
+                    {
+                        s_lastSave = c;
+                        vk::pipeline::SaveCache();
+                    }
+                }
+
+                // Backpressure: when the render thread is actively submitting
+                // frames the GPU command queue is shared and can saturate,
+                // causing vkQueueSubmit on the render thread to block for 100-
+                // 700 ms -- which trips the OS ANR watchdog on this device.
+                //
+                // Strategy:
+                //  - Cutscene / loading (no render submissions): compile fast,
+                //    sleep only 10 ms between pipelines.
+                //  - Active gameplay (render submitting within last 150 ms):
+                //    sleep at least 200 ms regardless of compile time, to give
+                //    the GPU time to drain its render work between compilations.
+                //    If the last compilation was especially heavy (>150 ms on
+                //    the CPU side -- a sign the GPU was busy too), add an extra
+                //    cooldown proportional to that time.
+                //  - Default (render not recently active but not in cutscene):
+                //    sleep 35 ms.
+                int sleepMs;
+                if (warmup::g_cutsceneActive.load(std::memory_order_relaxed))
+                {
+                    sleepMs = 10;
+                }
+                else if (RenderActive())
+                {
+                    // Base 200 ms + half the compile time so a 500 ms compile
+                    // gives 450 ms of recovery rather than hammering immediately.
+                    sleepMs = 200 + int(tookMs / 2);
+                }
+                else
+                {
+#ifdef MW2_ANDROID
+                    // On mobile SoCs, allow 120 ms thermal dissipation between cold compilations
+                    // to prevent aggressive OS thermal throttling (e.g. MediaTek/Realme horae at 44C+).
+                    sleepMs = 120;
+#else
+                    sleepMs = 35;
+#endif
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
+                if (sleepMs >= 200)
+                    LOGI("warmup: render-active backpressure -- slept %d ms after %u ms compile",
+                         sleepMs, tookMs);
+            }
+            LOGI("warmup: scheduler worker thread exiting");
+        }
+    }
+
+    void StartWarmupScheduler()
+    {
+        std::lock_guard lock(warmup::g_warmupMutex);
+        if (warmup::g_warmupRunning.load()) return;
+        warmup::g_warmupStopping.store(false);
+        warmup::g_warmupRunning.store(true);
+        warmup::g_warmupThread = std::thread(warmup::Worker);
+    }
+
+    void EnqueuePipelineWarmup(const Recorded& rec, bool highPriority)
+    {
+        {
+            std::lock_guard lock(warmup::g_warmupMutex);
+            for (const auto& item : warmup::g_warmupQueue)
+            {
+                if (item.recorded.vertexShader == rec.vertexShader &&
+                    item.recorded.pixelShader == rec.pixelShader &&
+                    item.recorded.colourFormat == rec.colourFormat &&
+                    item.recorded.depthFormat == rec.depthFormat &&
+                    item.recorded.topology == rec.topology &&
+                    item.recorded.blendControl == rec.blendControl &&
+                    item.recorded.colourMask == rec.colourMask &&
+                    item.recorded.modeCntl == rec.modeCntl &&
+                    item.recorded.depthControl == rec.depthControl)
+                {
+                    return;
+                }
+            }
+            if (highPriority)
+                warmup::g_warmupQueue.push_front({ rec });
+            else
+                warmup::g_warmupQueue.push_back({ rec });
+            warmup::g_statQueued.fetch_add(1, std::memory_order_relaxed);
+        }
+        StartWarmupScheduler();
+        warmup::g_warmupCv.notify_all();
+    }
+
+    void StopWarmupScheduler()
+    {
+        {
+            std::lock_guard lock(warmup::g_warmupMutex);
+            if (!warmup::g_warmupRunning.load()) return;
+            warmup::g_warmupStopping.store(true);
+            warmup::g_warmupCv.notify_all();
+        }
+        if (warmup::g_warmupThread.joinable())
+            warmup::g_warmupThread.join();
+        warmup::g_warmupRunning.store(false);
+    }
+
+    void SetCutsceneActive(bool active)
+    {
+        warmup::g_cutsceneActive.store(active, std::memory_order_relaxed);
+    }
+
+    void NoteRenderSubmit()
+    {
+        warmup::NoteRenderSubmit();
+    }
+
+    WarmupStats GetWarmupStats()
+    {
+        WarmupStats s;
+        s.queued = warmup::g_statQueued.load(std::memory_order_relaxed);
+        s.completed = warmup::g_statCompleted.load(std::memory_order_relaxed);
+        s.misses = warmup::g_statMisses.load(std::memory_order_relaxed);
+        s.lastCompileMs = warmup::g_statLastCompileMs.load(std::memory_order_relaxed);
+        s.cutsceneActive = warmup::g_cutsceneActive.load(std::memory_order_relaxed);
+        return s;
     }
 
     // MW2_SHADER_CACHE=<file> records every pipeline a run needed and rebuilds
@@ -299,24 +701,56 @@ namespace vk::renderer::detail
     {
         const char* path = ShaderCachePath();
         if (!path || g.recorded.empty()) return;
-        std::FILE* file = std::fopen(path, "wb");
+        const std::string tmpPath = std::string(path) + ".tmp";
+        std::FILE* file = std::fopen(tmpPath.c_str(), "wb");
         if (!file) return;
 
+        bool writeOk = true;
         const uint32_t header[4] = { kCacheMagic, kCacheVersion,
                                      uint32_t(g.shaders.size()), uint32_t(g.recorded.size()) };
-        std::fwrite(header, sizeof header, 1, file);
+        if (std::fwrite(header, sizeof header, 1, file) != 1) writeOk = false;
         for (const auto& [hash, shader] : g.shaders)
         {
+            if (!writeOk) break;
             const uint32_t entry[2] = { uint32_t(shader.type == shader::Type::Pixel),
                                         uint32_t(shader.code.size()) };
-            std::fwrite(&hash, sizeof hash, 1, file);
-            std::fwrite(entry, sizeof entry, 1, file);
-            std::fwrite(shader.code.data(), 4, shader.code.size(), file);
+            if (std::fwrite(&hash, sizeof hash, 1, file) != 1 ||
+                std::fwrite(entry, sizeof entry, 1, file) != 1 ||
+                (shader.code.size() && std::fwrite(shader.code.data(), 4, shader.code.size(), file) != shader.code.size()))
+            {
+                writeOk = false;
+                break;
+            }
         }
-        std::fwrite(g.recorded.data(), sizeof(Recorded), g.recorded.size(), file);
-        std::fclose(file);
-        LOGI("renderer: wrote %zu shaders and %zu pipelines to %s",
-             g.shaders.size(), g.recorded.size(), path);
+        if (writeOk && !g.recorded.empty())
+        {
+            if (std::fwrite(g.recorded.data(), sizeof(Recorded), g.recorded.size(), file) != g.recorded.size())
+                writeOk = false;
+        }
+
+        if (std::fclose(file) != 0) writeOk = false;
+
+        if (writeOk)
+        {
+            if (std::rename(tmpPath.c_str(), path) == 0)
+            {
+                LOGI("renderer: wrote %zu shaders and %zu pipelines to %s",
+                     g.shaders.size(), g.recorded.size(), path);
+            }
+            else
+            {
+                LOGW("renderer: failed to commit shader cache to %s", path);
+                std::remove(tmpPath.c_str());
+            }
+        }
+        else
+        {
+            LOGW("renderer: failed writing shader cache, removing temporary file");
+            std::remove(tmpPath.c_str());
+        }
+
+        // Commit driver's persistent pipeline cache alongside recipes
+        vk::pipeline::SaveCache();
     }
 
     // Work the draw path would otherwise do mid-frame, which is where a hitch
@@ -328,6 +762,11 @@ namespace vk::renderer::detail
         std::FILE* file = std::fopen(path, "rb");
         if (!file) return;
 
+        std::fseek(file, 0, SEEK_END);
+        const long fileSize = std::ftell(file);
+        std::fseek(file, 0, SEEK_SET);
+        if (fileSize < 16) { std::fclose(file); return; }
+
         uint32_t header[4]{};
         if (std::fread(header, sizeof header, 1, file) != 1 ||
             header[0] != kCacheMagic || header[1] != kCacheVersion)
@@ -337,18 +776,49 @@ namespace vk::renderer::detail
             return;
         }
 
+        // Sanity bound: max 50,000 shaders or pipelines
+        if (header[2] > 50000 || header[3] > 50000)
+        {
+            std::fclose(file);
+            LOGW("renderer: %s has invalid header counts (%u, %u), ignoring it", path, header[2], header[3]);
+            return;
+        }
+
         const auto start = std::chrono::steady_clock::now();
         for (uint32_t i = 0; i < header[2]; i++)
         {
+            const long curPos = std::ftell(file);
+            if (curPos < 0 || curPos + (long)(sizeof(uint64_t) + sizeof(uint32_t) * 2) > fileSize)
+            {
+                std::fclose(file);
+                LOGW("renderer: %s truncated while reading shader header %u", path, i);
+                return;
+            }
             uint64_t hash = 0;
             uint32_t entry[2]{};
             if (std::fread(&hash, sizeof hash, 1, file) != 1 ||
                 std::fread(entry, sizeof entry, 1, file) != 1) { std::fclose(file); return; }
+            if (entry[1] > 256 * 1024) { std::fclose(file); return; } // Max 1 MB shader
+            const long dataBytes = (long)entry[1] * 4;
+            if (std::ftell(file) + dataBytes > fileSize)
+            {
+                std::fclose(file);
+                LOGW("renderer: %s truncated payload for shader %u", path, i);
+                return;
+            }
             std::vector<uint32_t> code(entry[1]);
             if (entry[1] && std::fread(code.data(), 4, code.size(), file) != code.size())
             { std::fclose(file); return; }
             ShaderFor(entry[0] ? shader::Type::Pixel : shader::Type::Vertex,
                       hash, code.data(), code.size());
+        }
+
+        const long recBytes = (long)header[3] * (long)sizeof(Recorded);
+        if (std::ftell(file) + recBytes > fileSize)
+        {
+            std::fclose(file);
+            LOGW("renderer: %s truncated recorded pipeline records", path);
+            return;
         }
 
         std::vector<Recorded> wanted(header[3]);
@@ -358,9 +828,24 @@ namespace vk::renderer::detail
         std::fclose(file);
 
         g.prewarmWanted = uint32_t(wanted.size());
+        const bool hasFastLibraries = vk::pipeline::PipelineLibraries();
+        // The whole recorded set, synchronously, when the player asked for it
+        // in Settings (MW2_SHADER_PREWARM_ALL): slow boot, no warmup debt
+        // afterwards. Otherwise the instant-boot budget, sized for this
+        // device (android::perf::PrewarmBudget).
+        const bool prewarmAll = env::Flag("MW2_SHADER_PREWARM_ALL");
+        uint32_t maxSync = 15, deadlineMs = 250;
+#ifdef MW2_ANDROID
+        if (!prewarmAll) android::perf::PrewarmBudget(maxSync, deadlineMs);
+#endif
+        const auto syncDeadline = start + std::chrono::milliseconds(deadlineMs);
         uint32_t last = 0;
-        for (const Recorded& want : wanted)
+        LOGI("renderer: prewarming %u recorded pipelines%s", uint32_t(wanted.size()),
+             prewarmAll ? ", all of them synchronously" : "");
+
+        for (size_t i = 0; i < wanted.size(); i++)
         {
+            const Recorded& want = wanted[i];
             auto vertex = g.shaders.find(want.vertexShader);
             auto pixel = g.shaders.find(want.pixelShader);
             if (vertex == g.shaders.end() || pixel == g.shaders.end() ||
@@ -375,15 +860,42 @@ namespace vk::renderer::detail
             key.blendControl = want.blendControl;
             key.colourMask = want.colourMask;
             key.samples = want.samples;
-            if (EnsurePipeline(key, vertex->second, pixel->second)) g.prewarmed++;
-            // Kept, so the cache written at shutdown is the union of this run and earlier
-            // ones. Recording only what this run built would shrink it every time.
+            if (vk::pipeline::LegacyMode())
+            {
+                key.depthControl = want.depthControl;
+                key.modeCntl = want.modeCntl;
+            }
+
             g.recorded.push_back(want);
 
-            // Progress, because this is the pass a player would be looking at.
-            const uint32_t percent = 100 * (&want - wanted.data() + 1) / uint32_t(wanted.size());
-            if (percent >= last + 25) { LOGI("compiling shaders: %u%%", percent); last = percent; }
+            const bool syncCandidate = prewarmAll || ((i < maxSync) &&
+                                       (hasFastLibraries || std::chrono::steady_clock::now() < syncDeadline));
+            if (syncCandidate)
+            {
+                if (EnsurePipeline(key, vertex->second, pixel->second)) g.prewarmed++;
+                const uint32_t percent = 100 * uint32_t(i + 1) / uint32_t(wanted.size());
+                const uint32_t step = prewarmAll ? 10 : 25;
+                if (percent >= last + step) { LOGI("compiling shaders: %u%%", percent); last = percent; }
+            }
+            else
+            {
+                // Enqueue for background warmup scheduler
+                std::lock_guard lock(warmup::g_warmupMutex);
+                warmup::g_warmupQueue.push_back({ want });
+                warmup::g_statQueued.fetch_add(1, std::memory_order_relaxed);
+            }
         }
+
+        if (!warmup::g_warmupQueue.empty())
+        {
+            LOGI("warmup: queued %u pipelines for background warmup during menus/cutscenes",
+                 warmup::g_statQueued.load(std::memory_order_relaxed));
+            StartWarmupScheduler();
+            warmup::g_warmupCv.notify_all();
+        }
+
+        warmup::g_statCompleted.store(g.prewarmed, std::memory_order_relaxed);
+
         g.prewarmMicroseconds = uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start).count());
         LOGI("renderer: prewarmed %u of %u pipelines over %zu shaders in %llu us",

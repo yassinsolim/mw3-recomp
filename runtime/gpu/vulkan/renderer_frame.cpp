@@ -160,9 +160,12 @@ namespace vk::renderer::detail
     void EndPass()
     {
         CloseGuestQuery();
-        if (g.currentColour)
+        if (g.currentColour || g.currentDepth)
             Record([](VkCommandBuffer command) {
-                dispatch.endRendering(command);
+                if (vk::pipeline::LegacyMode())
+                    vkCmdEndRenderPass(command);
+                else
+                    dispatch.endRendering(command);
                 // What a render pass's dependency out to the outside was: the
                 // copies, clears, passes and sampling after it see its writes.
                 VkMemoryBarrier after{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
@@ -220,7 +223,16 @@ namespace vk::renderer::detail
             // this slot waits for ever.
             if (!ended || vk::pipeline::Failed(vk::gpu_time::Submit(queue, submit, fence),
                                                "a frame's submission"))
-                vkQueueSubmit(queue, 0, nullptr, fence);
+            {
+                VkSubmitInfo emptySubmit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+                vkQueueSubmit(queue, 1, &emptySubmit, fence);
+            }
+            else
+            {
+                // Let the warmup thread know the GPU is being used for rendering
+                // so it can throttle pipeline compilation (backpressure).
+                NoteRenderSubmit();
+            }
         });
         // The GPU gets it now, not when more calls have gathered behind it.
         vk::record::Flush();
@@ -243,8 +255,19 @@ namespace vk::renderer::detail
         stutters::Timed timed(stutters::kGpuWaits);
         vk::record::WaitFor(slot.queuedAt);
         report::Timed spent(report::kGpuWait);
-        if (vk::pipeline::Failed(vkWaitForFences(g.device, 1, &slot.fence, VK_TRUE, UINT64_MAX),
-                                 what))
+        VkResult res = vkWaitForFences(g.device, 1, &slot.fence, VK_TRUE, 2000000000ull);
+        if (res == VK_TIMEOUT)
+        {
+            LOGW("renderer: waiting for %s took >2 seconds; waiting up to 5s...", what);
+            res = vkWaitForFences(g.device, 1, &slot.fence, VK_TRUE, 5000000000ull);
+        }
+        if (res == VK_TIMEOUT)
+        {
+            LOGE("renderer: fence wait timed out for %s; aborting wait to avoid permanent hang", what);
+            slot.inFlight = false;
+            return false;
+        }
+        if (vk::pipeline::Failed(res, what))
             return false;
         slot.inFlight = false;
         return true;
@@ -301,6 +324,7 @@ namespace vk::renderer::detail
         stutters::Finished(g.frames, worldDrawn);
         report::Frame(worldDrawn);
         NoteFrame(worldDrawn);
+        SetCutsceneActive(!worldDrawn);
         if (worldDrawn)
         {
             const auto now = std::chrono::steady_clock::now();

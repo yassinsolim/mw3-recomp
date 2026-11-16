@@ -46,6 +46,13 @@ namespace vk::renderer::detail
     // which it never reads.
     uint32_t WritePixelConstants(const gpu::RegisterFile& r, uint32_t needed)
     {
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+        // Skinned models, light grid spherical harmonic probes, and mobile
+        // Mali GPU vectorised loads require the full 256-vec4 window to be
+        // fully populated so lighting and bone constants are never truncated
+        // or read as uninitialised.
+        needed = 256;
+#endif
         const gpu::ConstantWindow window{ r[gpu::SQ_PS_CONST] };
         const uint32_t base = std::min(window.Base(), 256u);
         const uint32_t first = gpu::kConstantBaseAlu + base * 4;
@@ -390,14 +397,18 @@ namespace vk::renderer::detail
         highest = high;
     }
 
+#if !defined(_WIN32)
     __attribute__((target_clones("avx2", "default")))
+#endif
     void SwapIndices16(const uint8_t* source, uint16_t* out, uint32_t count, uint16_t& lowest,
                        uint16_t& highest)
     {
         SwapIndices(source, out, count, lowest, highest);
     }
 
+#if !defined(_WIN32)
     __attribute__((target_clones("avx2", "default")))
+#endif
     void SwapIndices32(const uint8_t* source, uint32_t* out, uint32_t count, uint32_t& lowest,
                        uint32_t& highest)
     {

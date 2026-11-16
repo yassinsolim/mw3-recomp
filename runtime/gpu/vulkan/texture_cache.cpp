@@ -4,6 +4,7 @@
 #include "pipeline.h"
 #include "recorder.h"
 #include "texture_formats.h"
+#include "bc_decoder.h"
 #include "../texture.h"
 #include "../memory_watch.h"
 #include "renderer.h"
@@ -50,6 +51,9 @@ uint32_t vk::textures::Version(uint64_t) { return 0; }
 bool vk::textures::BoundInThisSegment(uint32_t, uint32_t) { return false; }
 void vk::textures::TakeLateRestages(std::vector<uint64_t>& ids) { ids.clear(); }
 uint64_t vk::textures::FrameNumber() { return 0; }
+uint64_t vk::textures::LiveBytes() { return 0; }
+uint64_t vk::textures::Budget() { return 0; }
+void vk::textures::SetBudget(uint64_t) {}
 void vk::textures::MemoryWritten(uint32_t, uint32_t) {}
 uint64_t vk::textures::Epoch() { return 0; }
 void vk::textures::BeginUploads(uint32_t) {}
@@ -77,6 +81,52 @@ namespace
     {
         static const bool on = diag::Flag("MW2_FLASH_HUNT");
         return on;
+    }
+
+    // What the decoder writes into. It writes into `dst.bytes` itself, so
+    // handing it this same object again reuses that buffer: a restage of a
+    // texture whose size has not changed then pays neither the allocation nor
+    // the zero fill of the whole decoded image, which measured as 40% of a
+    // 2048x2048 DXT1 decode (5.64 ms down to 3.39 ms for the same bytes).
+    //
+    // Its own thread, because the command stream has one owner and a second
+    // decoding thread must not wait on the first. The largest decode seen stays
+    // resident until a smaller budget says the memory is wanted back
+    // (SetBudget), which is what a phone's onTrimMemory arrives as.
+    gpu::TextureData& DecodeScratch()
+    {
+        static thread_local gpu::TextureData scratch;
+        return scratch;
+    }
+
+    void ReleaseDecodeScratch()
+    {
+        gpu::TextureData& scratch = DecodeScratch();
+        std::vector<uint8_t>().swap(scratch.bytes);
+        scratch.levels.clear();
+        scratch.ok = false;
+    }
+
+    // Whether this texture has to go through the software decoder rather than
+    // the driver's own BC sampling.
+    //
+    // Hardware BC is off altogether on Adreno (pipeline.cpp), so there every BC
+    // format lands here -- at eight times the bytes for BC1 and four for the
+    // rest, which is the workaround's cost. MW2_ADRENO_BC=narrow keeps the
+    // driver's sampling and software-decodes only the BC1 family, the case its
+    // sampler is known to get wrong. MW2_FORCE_BC_DECOMPRESS makes a clean
+    // desktop driver exercise the same decoder, which is how a decode bug is
+    // told apart from a driver one.
+    bool DecodeInSoftware(uint32_t xenosFormat)
+    {
+        if (!vk::bc::IsBCFormat(xenosFormat)) return false;
+        static const bool force = std::getenv("MW2_FORCE_BC_DECOMPRESS") != nullptr;
+        if (force) return true;
+        if (!vk::pipeline::TextureCompressionBC()) return true;
+        if (vk::bc::AdrenoMode() != vk::bc::AdrenoBC::kDxt1Only) return false;
+        // 18 is DXT1 and 51 its 16_16_16_16 alias: the two that carry a 1-bit
+        // alpha mode, and the sizes the driver samples wrong for a frame.
+        return xenosFormat == 18 || xenosFormat == 51;
     }
 
     struct Image
@@ -345,9 +395,18 @@ namespace
             buffer = VK_NULL_HANDLE;
             return false;
         }
-        vkBindBufferMemory(g.device, buffer, memory, 0);
+        if (vkBindBufferMemory(g.device, buffer, memory, 0) != VK_SUCCESS)
+        {
+            vkFreeMemory(g.device, memory, nullptr);
+            memory = VK_NULL_HANDLE;
+            vkDestroyBuffer(g.device, buffer, nullptr);
+            buffer = VK_NULL_HANDLE;
+            return false;
+        }
         return true;
     }
+
+    void DestroyImage(Image& image);
 
     bool MakeImage(Image& out, const char** error)
     {
@@ -398,11 +457,24 @@ namespace
         vkGetImageMemoryRequirements(g.device, out.image, &needs);
         const uint32_t type = vk::util::FindMemory(g.memory, needs.memoryTypeBits,
                                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if (type == UINT32_MAX) return Fail("no device-local memory", error);
+        if (type == UINT32_MAX)
+        {
+            DestroyImage(out);
+            return Fail("no device-local memory", error);
+        }
 
         out.memory = vk::imagememory::Allocate(g.device, needs, type);
-        if (!out.memory) return Fail(Explain(VK_ERROR_OUT_OF_DEVICE_MEMORY), error);
-        vkBindImageMemory(g.device, out.image, out.memory.memory, out.memory.offset);
+        if (!out.memory)
+        {
+            DestroyImage(out);
+            return Fail(Explain(VK_ERROR_OUT_OF_DEVICE_MEMORY), error);
+        }
+        r = vkBindImageMemory(g.device, out.image, out.memory.memory, out.memory.offset);
+        if (r != VK_SUCCESS)
+        {
+            DestroyImage(out);
+            return Fail(Explain(r), error);
+        }
 
         VkImageViewCreateInfo view{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
         view.image = out.image;
@@ -435,7 +507,11 @@ namespace
         view.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0,
                                   out.volume ? 1u : out.layers };
         r = vkCreateImageView(g.device, &view, nullptr, &out.view);
-        if (r != VK_SUCCESS) return Fail(Explain(r), error);
+        if (r != VK_SUCCESS)
+        {
+            DestroyImage(out);
+            return Fail(Explain(r), error);
+        }
         return true;
     }
 
@@ -745,7 +821,13 @@ namespace
         out.volume = volume;
         out.bytes = 4 * layers;
         if (!MakeImage(out, nullptr)) return false;
-        const std::vector<uint8_t> texels(4 * layers, 0);
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+        // White on a phone: what its lighting reads where nothing is bound.
+        constexpr uint8_t kFill = 255;
+#else
+        constexpr uint8_t kFill = 0;
+#endif
+        const std::vector<uint8_t> texels(4 * layers, kFill);
         if (!StageInto(out, texels.data(), texels.size(), nullptr)) return false;
         const State::Sampler sampler = SamplerFor(0);
         out.sampler = sampler.sampler;
@@ -858,6 +940,24 @@ namespace
             Fail("no Vulkan equivalent for the format", error);
             return vk::textures::kNone;
         }
+
+        gpu::TextureData& decompressed = DecodeScratch();
+        const gpu::TextureData* pData = &data;
+        if (DecodeInSoftware(xenosFormat))
+        {
+            int decompFormat = 0;
+            if (!vk::bc::Decompress(data, xenosFormat, decompressed, decompFormat))
+            {
+                Fail("software BC decompression failed", error);
+                LOGE("Texture upload: software BC decompression failed for xenosFormat %u (%ux%u, %zu levels): %s",
+                     xenosFormat, data.width, data.height, data.levels.size(),
+                     decompressed.error ? decompressed.error : "decoder failure");
+                return vk::textures::kNone;
+            }
+            format = decompFormat;
+            pData = &decompressed;
+        }
+
         // The fetch constant asked for the stored value to be linearised. An
         // sRGB image does that in the sampler; the bytes uploaded are the same
         // ones either way, so only the format changes.
@@ -873,16 +973,16 @@ namespace
         // plausible textures of impossible size. Creating one is undefined behaviour
         // rather than an error -- the driver here builds the image and returns
         // garbage -- so the size has to be checked.
-        if (data.width > g.maxDimension || data.height > g.maxDimension)
+        if (pData->width > g.maxDimension || pData->height > g.maxDimension)
         {
             Fail("larger than the device allows", error);
             return vk::textures::kNone;
         }
 
         Image image;
-        image.oneDimensional = oneDimensional && data.height == 1;
-        image.layers = data.layers;
-        image.volume = data.volume;
+        image.oneDimensional = oneDimensional && pData->height == 1;
+        image.layers = pData->layers;
+        image.volume = pData->volume;
         image.sourceBytes = sourceBytes;
         image.signature = signature;
         // What the fetch constant asks for is in guest channels, which are not
@@ -892,15 +992,15 @@ namespace
         image.swizzle =
             vk::formats::ComposeSwizzle(swizzle, vk::formats::HostSwizzleFor(xenosFormat));
         image.format = VkFormat(format);
-        image.width = data.width;
-        image.height = data.height;
-        image.blocksWide = data.blocksWide;
-        image.blocksHigh = data.blocksHigh;
-        image.bytesPerBlock = data.bytesPerBlock;
-        image.blockWidth = data.expanded ? 1 : info.blockWidth;
-        image.blockHeight = data.expanded ? 1 : info.blockHeight;
-        image.bytes = data.bytes.size();
-        image.levels = data.levels;
+        image.width = pData->width;
+        image.height = pData->height;
+        image.blocksWide = pData->blocksWide;
+        image.blocksHigh = pData->blocksHigh;
+        image.bytesPerBlock = pData->bytesPerBlock;
+        image.blockWidth = pData->expanded ? 1 : info.blockWidth;
+        image.blockHeight = pData->expanded ? 1 : info.blockHeight;
+        image.bytes = pData->bytes.size();
+        image.levels = pData->levels;
 
         // The sampler and the id before the image: once its upload is
         // recorded, the image may not be destroyed until that has run.
@@ -919,7 +1019,7 @@ namespace
             return vk::textures::kNone;
         }
         if (!MakeImage(image, error) ||
-            !StageInto(image, data.bytes.data(), data.bytes.size(), error))
+            !StageInto(image, pData->bytes.data(), pData->bytes.size(), error))
         {
             DestroyImage(image);
             g.freeIds.push_back(id);
@@ -980,7 +1080,14 @@ bool vk::textures::Initialise()
         if (g.memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
             deviceLocal = std::max(deviceLocal, g.memory.memoryHeaps[i].size);
     g.budget = env::Number("MW2_TEXTURE_BUDGET_MB") << 20;
-    if (!g.budget) g.budget = std::clamp<uint64_t>(deviceLocal / 2, 256ull << 20, 2048ull << 20);
+    if (!g.budget)
+    {
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+        g.budget = 192ull << 20;
+#else
+        g.budget = std::clamp<uint64_t>(deviceLocal / 2, 256ull << 20, 2048ull << 20);
+#endif
+    }
 
     VkCommandPoolCreateInfo pool{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
     pool.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
@@ -1035,7 +1142,14 @@ bool vk::textures::Initialise()
         return false;
     }
 
-    LOGI("textures: uploading on %s", vk::pipeline::DeviceName());
+    // One startup snapshot for diagnosing texture corruption on drivers whose
+    // compressed-texture support differs from the renderer's expected path.
+    const bool bcHardware = vk::pipeline::TextureCompressionBC();
+    LOGI("textures: uploading on %s; BC hardware sampling=%s; "
+         "MW2_FORCE_BC_DECOMPRESS=%s; texture budget=%llu MiB; max 2D=%u",
+         vk::pipeline::DeviceName(), bcHardware ? "yes" : "no",
+         std::getenv("MW2_FORCE_BC_DECOMPRESS") ? "set" : "unset",
+         static_cast<unsigned long long>(g.budget >> 20), g.maxDimension);
     return true;
 }
 
@@ -1185,8 +1299,43 @@ namespace
     // shape. False when it could not be.
     bool Restage(Image& image, const gpu::TextureData& data)
     {
-        return data.ok && data.bytes.size() == image.bytes &&
-               StageInto(image, data.bytes.data(), data.bytes.size(), nullptr);
+        if (!data.ok) return false;
+        gpu::TextureData& decompressed = DecodeScratch();
+        const gpu::TextureData* pData = &data;
+        if (DecodeInSoftware(image.xenosFormat))
+        {
+            int decompFormat = 0;
+            if (!vk::bc::Decompress(data, image.xenosFormat, decompressed, decompFormat))
+            {
+                LOGE("Texture restage: software BC decompression failed for xenosFormat %u (%ux%u, %zu levels): %s",
+                     image.xenosFormat, data.width, data.height, data.levels.size(),
+                     decompressed.error ? decompressed.error : "decoder failure");
+                return false;
+            }
+            if (image.format != VkFormat(decompFormat) &&
+                image.format != VkFormat(vk::formats::SrgbFormatFor(decompFormat)))
+            {
+                LOGE("Texture restage: format mismatch for xenosFormat %u (got %d, image has %d)",
+                     image.xenosFormat, decompFormat, int(image.format));
+                return false;
+            }
+            pData = &decompressed;
+        }
+
+        if (!pData->ok)
+        {
+            LOGE("Texture restage: payload data is invalid for xenosFormat %u", image.xenosFormat);
+            return false;
+        }
+
+        if (pData->bytes.size() != image.bytes)
+        {
+            LOGE("Texture restage: payload size mismatch for xenosFormat %u (got %zu bytes, image expects %llu bytes)",
+                 image.xenosFormat, pData->bytes.size(), static_cast<unsigned long long>(image.bytes));
+            return false;
+        }
+
+        return StageInto(image, pData->bytes.data(), pData->bytes.size(), nullptr);
     }
 
     gpu::TextureData ReadAgain(const Image& image)
@@ -1254,6 +1403,21 @@ namespace
 
 uint64_t vk::textures::FrameNumber() { return g.frame; }
 
+uint64_t vk::textures::LiveBytes() { return g.liveBytes; }
+uint64_t vk::textures::Budget() { return g.budget; }
+
+// A budget the system asked for. The eviction pass is left to the next frame
+// -- it waits for the device, and the caller is whichever thread Android
+// chose to warn us on.
+void vk::textures::SetBudget(uint64_t bytes)
+{
+    const uint64_t floor = 48ull << 20;   // below this nothing would stay cached
+    // A smaller budget is a phone asking for memory back, so the decoder's own
+    // buffer goes with it; the next restage allocates it again.
+    if (bytes < g.budget) ReleaseDecodeScratch();
+    g.budget = std::max(bytes, floor);
+}
+
 void vk::textures::MemoryWritten(uint32_t physicalAddress, uint32_t size)
 {
     // A linear walk: a few thousand images, a couple of copies a frame.
@@ -1278,11 +1442,16 @@ namespace
     // How long an image goes unbound before it may be let go: ten seconds of
     // frames, far past any submission still running or any command the
     // recorder thread has yet to make -- which is what lets its id, and its
-    // entry in the bindless set, be given to another image.
+    // entry in the bindless set, be given to another image. Then how often
+    // the cache is looked over: once in this many frames, the images a slice
+    // a frame. A phone lets go sooner and looks more often.
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+    constexpr uint64_t kUnusedFrames = 120;
+    constexpr uint64_t kSweepFrames = 32;
+#else
     constexpr uint64_t kUnusedFrames = 600;
-    // The cache is looked over once in this many frames, the images a slice a
-    // frame.
     constexpr uint64_t kSweepFrames = 64;
+#endif
 
     // Whether an image can be let go: one of the cache's own, and unbound for
     // that long.
@@ -1362,25 +1531,52 @@ namespace
     // quarters of it.
     void Evict()
     {
-        std::vector<std::pair<uint64_t, uint64_t>> oldest;   // last bound, id
-        for (size_t i = 0; i < g.images.size(); i++)
-            if (Idle(g.images[i])) oldest.push_back({ g.images[i].lastBound, uint64_t(i + 1) });
-        if (oldest.empty()) return;
-        std::sort(oldest.begin(), oldest.end());
         const uint64_t target = g.budget / 4 * 3;
         uint64_t count = 0, bytes = 0;
-        for (const auto& [lastBound, id] : oldest)
+
+        auto evictOldest = [&](uint64_t graceFrames) {
+            std::vector<std::pair<uint64_t, uint64_t>> candidates;
+            for (size_t i = 0; i < g.images.size(); i++)
+            {
+                const Image& img = g.images[i];
+                if (img.image && !img.borrowed && !img.pinned &&
+                    g.frame - img.lastBound >= graceFrames)
+                {
+                    candidates.push_back({ img.lastBound, uint64_t(i + 1) });
+                }
+            }
+            if (candidates.empty()) return;
+            std::sort(candidates.begin(), candidates.end());
+            for (const auto& [lastBound, id] : candidates)
+            {
+                if (g.liveBytes <= target) break;
+                bytes += g.images[size_t(id - 1)].bytes;
+                count++;
+                Release(id);
+            }
+        };
+
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+        // First pass: normal idle age
+        evictOldest(kUnusedFrames + kSweepFrames);
+
+        // Emergency pass: if still over budget (e.g. streaming rush),
+        // evict images not bound in recent frames (outside GPU ring depth).
+        if (g.liveBytes > target)
         {
-            if (g.liveBytes <= target) break;
-            bytes += g.images[size_t(id - 1)].bytes;
-            count++;
-            Release(id);
+            evictOldest(16);
         }
+#else
+        // The idle ones only (Idle): an id let go sooner could be given to
+        // another image while a command yet to be made still names it.
+        evictOldest(kUnusedFrames);
+#endif
+
         g.evicted += count;
         g.evictedBytes += bytes;
         if (g.evictionPasses++ < 4)
-            LOGI("textures: over the %llu MB budget; evicted %llu (%llu MB) not bound for ten"
-                 " seconds", (unsigned long long)(g.budget >> 20), (unsigned long long)count,
+            LOGI("textures: over the %llu MB budget; evicted %llu (%llu MB)",
+                 (unsigned long long)(g.budget >> 20), (unsigned long long)count,
                  (unsigned long long)(bytes >> 20));
     }
 }

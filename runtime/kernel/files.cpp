@@ -11,6 +11,7 @@
 #include "objects.h"
 #include "../guest.h"
 #include "../diagnostics.h"
+#include "../env.h"
 #include "../log.h"
 
 #include <algorithm>
@@ -76,6 +77,12 @@ namespace
         const char* TypeName() const override { return "file"; }
         ~FileObject() override
         {
+            // Writable is only ever true inside a mounted save package -- the
+            // disc is read-only and a write anywhere else is discarded before it
+            // reaches a handle -- so this is paid on saves and nothing else, and
+            // it puts the bytes on storage before the title is told the handle
+            // has gone. Pointless for one that is about to be deleted.
+            if (handle && writable && !deleteOnClose) kernel::SyncStream(handle);
             if (handle) std::fclose(handle);
             // NT has no delete call of its own: a caller marks the file and the
             // deletion happens when the last handle goes.
@@ -145,6 +152,7 @@ namespace
         std::string component;
         auto step = [&](const std::string& name) -> bool
         {
+            if (name == "..") return false;
             if (name.empty() || name == ".") return true;
             if (!IsHostName(name)) return false;
             fs::path direct = current / name;
@@ -221,7 +229,7 @@ namespace
         auto take = [&]
         {
             if (component.empty()) return true;
-            if (!IsHostName(component)) return false;
+            if (component == ".." || !IsHostName(component)) return false;
             out /= component;
             component.clear();
             return true;
@@ -309,7 +317,20 @@ namespace
         const fs::path root = DeviceRoot(device, writable);
 
         fs::path resolved;
-        const bool existed = !relative.empty() && ResolveInsensitive(root, relative, resolved);
+        bool existed = false;
+        if (!writable && !relative.empty())
+        {
+            static const fs::path modDir = [] {
+                if (const char* envMod = env::Text("MW2_MOD_DIR"))
+                    return fs::path(envMod);
+                return GameRoot() / "mods";
+            }();
+            std::error_code ec;
+            if (fs::is_directory(modDir, ec))
+                existed = ResolveInsensitive(modDir, relative, resolved);
+        }
+        if (!existed)
+            existed = !relative.empty() && ResolveInsensitive(root, relative, resolved);
         if (!existed)
         {
             // A name that is not there is only an error until something is allowed
@@ -432,6 +453,7 @@ PPC_FUNC(__imp__NtOpenFile)
 PPC_FUNC(__imp__NtReadFile)
 {
     auto file = std::dynamic_pointer_cast<FileObject>(LookupHandle(ctx.r3.u32));
+    auto event = LookupHandleAs<Event>(ctx.r4.u32);
     auto* iosb = GuestPtr<XIoStatusBlock>(ctx.r7.u32);
     uint32_t buffer = ctx.r8.u32;
     uint32_t length = ctx.r9.u32;
@@ -440,6 +462,7 @@ PPC_FUNC(__imp__NtReadFile)
     if (!file || (!file->handle && !file->nullDevice) || !buffer)
     {
         if (iosb) { iosb->status = X_STATUS_INVALID_PARAMETER; iosb->information = 0; }
+        if (event) event->Set();
         ctx.r3.u64 = X_STATUS_INVALID_PARAMETER;
         return;
     }
@@ -447,11 +470,13 @@ PPC_FUNC(__imp__NtReadFile)
     int64_t offset = offsetPtr ? int64_t(uint64_t(*GuestPtr<be64>(offsetPtr))) : -1;
     uint32_t apcRoutine = ctx.r5.u32 & ~3u;
 
+    if (event) event->Reset();
+
     // Deferred to APC-delivery time when the caller asked for a completion
     // routine, so the buffer is filled at the moment the title is waiting for it
     // rather than while it is still decompressing out of the other half of its
     // double buffer.
-    auto transfer = [file, buffer, length, offset, iosb]
+    auto transfer = [file, event, buffer, length, offset, iosb]
     {
         std::lock_guard g(file->lock);
         // The Xbox cache/config placeholder is a zero-length NullDevice: reads
@@ -474,6 +499,7 @@ PPC_FUNC(__imp__NtReadFile)
         std::memcpy(guest::Base() + buffer, bounce.data(), got);
         uint32_t status = (got == 0 && length != 0) ? X_STATUS_END_OF_FILE : X_STATUS_SUCCESS;
         if (iosb) { iosb->status = status; iosb->information = uint32_t(got); }
+        if (event) event->Set();
         if (TraceFiles())
             LOGK("read %s: %u bytes at %lld -> %zu into %08X (%s)", file->path.filename().string().c_str(),
                  length, (long long)offset, got, buffer, status ? "eof" : "ok");
@@ -496,6 +522,7 @@ PPC_FUNC(__imp__NtReadFile)
 PPC_FUNC(__imp__NtWriteFile)
 {
     auto file = std::dynamic_pointer_cast<FileObject>(LookupHandle(ctx.r3.u32));
+    auto event = LookupHandleAs<Event>(ctx.r4.u32);
     auto* iosb = GuestPtr<XIoStatusBlock>(ctx.r7.u32);
     uint32_t buffer = ctx.r8.u32;
     uint32_t length = ctx.r9.u32;
@@ -515,6 +542,7 @@ PPC_FUNC(__imp__NtWriteFile)
     if (!file || !file->handle || !file->writable || !buffer)
     {
         if (iosb) { iosb->status = X_STATUS_SUCCESS; iosb->information = length; }
+        if (event) event->Set();
         ctx.r3.u64 = X_STATUS_SUCCESS;
         return;
     }
@@ -530,6 +558,7 @@ PPC_FUNC(__imp__NtWriteFile)
 
     const uint32_t status = (put == length) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
     if (iosb) { iosb->status = status; iosb->information = uint32_t(put); }
+    if (event) event->Set();
     if (TraceFiles())
         LOGK("write %s: %u bytes at %lld -> %zu", file->path.filename().string().c_str(),
              length, (long long)offset, put);
@@ -652,7 +681,11 @@ PPC_FUNC(__imp__NtFlushBuffersFile)
     if (auto file = std::dynamic_pointer_cast<FileObject>(LookupHandle(ctx.r3.u32)))
     {
         std::lock_guard g(file->lock);
-        if (file->handle) std::fflush(file->handle);
+        // The title asking for its save to be on disk, and the only chance it
+        // gives to make that true. fflush on its own hands the bytes to the
+        // kernel and returns; the kernel writes them back when it chooses, so a
+        // kill in between loses a save the title was told had landed.
+        if (file->handle) kernel::SyncStream(file->handle);
     }
     ctx.r3.u64 = X_STATUS_SUCCESS;
 }

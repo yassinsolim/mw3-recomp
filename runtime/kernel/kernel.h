@@ -1,8 +1,14 @@
 #pragma once
+#if __has_include(<ppc_recomp_shared.h>)
 #include <ppc_recomp_shared.h>
+#else
+#include "../../ppc/ppc_recomp_shared.h"
+#endif
 #include "physical.h"
+#include "durable.h"
 #include "../guest.h"
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <filesystem>
 #include <functional>

@@ -69,16 +69,100 @@ bool vk::renderer::CompiledShaders(std::string& why, std::string& device)
 
 using namespace vk::renderer::detail;
 
+static void RollbackInitialise()
+{
+    if (!g.device) return;
+    // Both do nothing unless Initialise got as far as starting them.
+    vk::gpu_time::Stop();
+    StopPassTimes();
+    for (uint32_t i = 0; i < kPresentImages; i++)
+    {
+        if (g.present[i]) vkDestroyImage(g.device, g.present[i], nullptr);
+        if (g.presentMemory[i]) vkFreeMemory(g.device, g.presentMemory[i], nullptr);
+        g.present[i] = VK_NULL_HANDLE;
+        g.presentMemory[i] = VK_NULL_HANDLE;
+    }
+    if (g.descriptors)
+    {
+        vkDestroyDescriptorPool(g.device, g.descriptors, nullptr);
+        g.descriptors = VK_NULL_HANDLE;
+    }
+    g.memorySet = VK_NULL_HANDLE;
+
+    gpu::watch::SetShadow(nullptr, 0);
+    g.shadowBase = 0;
+    if (g.arenaMapped)
+    {
+        vkUnmapMemory(g.device, g.arenaMemory);
+        g.arenaMapped = nullptr;
+    }
+    if (g.arena)
+    {
+        vkDestroyBuffer(g.device, g.arena, nullptr);
+        g.arena = VK_NULL_HANDLE;
+    }
+    if (g.arenaMemory)
+    {
+        vkFreeMemory(g.device, g.arenaMemory, nullptr);
+        g.arenaMemory = VK_NULL_HANDLE;
+    }
+    g.arenaBytes = 0;
+
+    if (g.setupFence)
+    {
+        vkDestroyFence(g.device, g.setupFence, nullptr);
+        g.setupFence = VK_NULL_HANDLE;
+    }
+    for (State::Slot& slot : g.slots)
+    {
+        if (slot.fence)
+        {
+            vkDestroyFence(g.device, slot.fence, nullptr);
+            slot.fence = VK_NULL_HANDLE;
+        }
+    }
+    if (g.guestQueries)
+    {
+        vkDestroyQueryPool(g.device, g.guestQueries, nullptr);
+        g.guestQueries = VK_NULL_HANDLE;
+    }
+    if (g.setupCommands)
+    {
+        vkDestroyCommandPool(g.device, g.setupCommands, nullptr);
+        g.setupCommands = VK_NULL_HANDLE;
+    }
+    g.setup = VK_NULL_HANDLE;
+    for (State::Slot& slot : g.slots)
+    {
+        if (slot.commands)
+        {
+            vkDestroyCommandPool(g.device, slot.commands, nullptr);
+            slot.commands = VK_NULL_HANDLE;
+        }
+        slot = State::Slot{};
+    }
+    vk::textures::Shutdown();
+    g.presentWidth = 1280;
+    g.presentHeight = 720;
+    g.scale = 1;
+    g.depthFormat = VK_FORMAT_UNDEFINED;
+    g.command = VK_NULL_HANDLE;
+    g.ready = false;
+    g.device = VK_NULL_HANDLE;
+    g.physical = VK_NULL_HANDLE;
+    g.queue = VK_NULL_HANDLE;
+}
+
 bool vk::renderer::Initialise()
 {
-    if (g.device) return true;
+    if (g.ready) return true;
     if (!vk::pipeline::Ready() && !vk::pipeline::Initialise()) return false;
 
     g.device = static_cast<VkDevice>(vk::pipeline::Device());
     g.physical = static_cast<VkPhysicalDevice>(vk::pipeline::PhysicalDevice());
     g.queue = static_cast<VkQueue>(vk::pipeline::Queue());
-    if (!g.device || !g.queue) { g.device = VK_NULL_HANDLE; return false; }
-    if (!vk::textures::Initialise()) { g.device = VK_NULL_HANDLE; return false; }
+    if (!g.device || !g.queue) { RollbackInitialise(); return false; }
+    if (!vk::textures::Initialise()) { RollbackInitialise(); return false; }
 
     vkGetPhysicalDeviceMemoryProperties(g.physical, &g.memory);
     VkPhysicalDeviceProperties properties{};
@@ -90,13 +174,14 @@ bool vk::renderer::Initialise()
     // AMD has no D24_UNORM_S8_UINT, so the depth format is whichever 24-bit-ish
     // combined format the device actually has.
     g.depthFormat = vk::shaders::DepthFormat(g.physical);
-    if (g.depthFormat == VK_FORMAT_UNDEFINED) { LOGW("renderer: no depth format"); return false; }
+    if (g.depthFormat == VK_FORMAT_UNDEFINED) { LOGW("renderer: no depth format"); RollbackInitialise(); return false; }
 
     // The console's 2x and 4x surfaces are drawn with that many samples unless
     // MW2_NO_MSAA=1. A count is usable when colour, depth and stencil can all
     // be drawn at it; and a multisampled depth target can only be read back
-    // through a render pass resolve, which is Vulkan 1.2 and has to take the
-    // first sample -- the only mode every 1.2 device is required to offer.
+    // through a render pass resolve, which Vulkan 1.2 has core (or
+    // VK_KHR_depth_stencil_resolve before that) and has to take the first
+    // sample -- the only mode every such device is required to offer.
     {
         const bool off = env::Flag("MW2_NO_MSAA");
         g.sampleCounts = properties.limits.framebufferColorSampleCounts &
@@ -107,8 +192,10 @@ bool vk::renderer::Initialise()
         VkPhysicalDeviceProperties2 properties2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
         properties2.pNext = &resolve;
         const bool modern = properties.apiVersion >= VK_API_VERSION_1_2;
-        if (modern) vkGetPhysicalDeviceProperties2(g.physical, &properties2);
-        const bool depthResolve = modern &&
+        if (modern || vk::pipeline::DeviceHasExtension(g.physical, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME))
+            vkGetPhysicalDeviceProperties2(g.physical, &properties2);
+        const bool depthResolve =
+            (modern || vk::pipeline::DeviceHasExtension(g.physical, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME)) &&
             (resolve.supportedDepthResolveModes & VK_RESOLVE_MODE_SAMPLE_ZERO_BIT);
         g.msaa = !off && depthResolve && (g.sampleCounts & ~VkSampleCountFlags(VK_SAMPLE_COUNT_1_BIT));
         g.stencilUnresolved = depthResolve && (resolve.independentResolveNone || resolve.independentResolve);
@@ -123,7 +210,7 @@ bool vk::renderer::Initialise()
                  env::Text("MW2_MSAA") ? " (MW2_MSAA)" : "");
         else
             LOGI("renderer: multisampling off (%s): the title's 2x and 4x surfaces are drawn at 1x",
-                 off ? "MW2_NO_MSAA" : !modern ? "the device is older than Vulkan 1.2"
+                 off ? "MW2_NO_MSAA" : !modern && !vk::pipeline::DeviceHasExtension(g.physical, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME) ? "the device is Vulkan 1.1 without the depth resolve extension"
                      : !depthResolve ? "no first-sample depth resolve"
                      : "the device draws at 1x only");
     }
@@ -197,20 +284,36 @@ bool vk::renderer::Initialise()
     // A pool each, because a slot is reset on its own while the others are busy.
     for (State::Slot& slot : g.slots)
     {
-        if (vkCreateCommandPool(g.device, &pool, nullptr, &slot.commands) != VK_SUCCESS) return false;
+        if (vkCreateCommandPool(g.device, &pool, nullptr, &slot.commands) != VK_SUCCESS)
+        {
+            RollbackInitialise();
+            return false;
+        }
         allocate.commandPool = slot.commands;
         allocate.commandBufferCount = kSegmentBuffers;
         slot.buffers.resize(kSegmentBuffers);
-        if (vkAllocateCommandBuffers(g.device, &allocate, slot.buffers.data()) != VK_SUCCESS) return false;
+        if (vkAllocateCommandBuffers(g.device, &allocate, slot.buffers.data()) != VK_SUCCESS)
+        {
+            RollbackInitialise();
+            return false;
+        }
         allocate.commandBufferCount = 1;
     }
 
     VkCommandPoolCreateInfo setupPool{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
     setupPool.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     setupPool.queueFamilyIndex = vk::pipeline::QueueFamily();
-    if (vkCreateCommandPool(g.device, &setupPool, nullptr, &g.setupCommands) != VK_SUCCESS) return false;
+    if (vkCreateCommandPool(g.device, &setupPool, nullptr, &g.setupCommands) != VK_SUCCESS)
+    {
+        RollbackInitialise();
+        return false;
+    }
     allocate.commandPool = g.setupCommands;
-    if (vkAllocateCommandBuffers(g.device, &allocate, &g.setup) != VK_SUCCESS) return false;
+    if (vkAllocateCommandBuffers(g.device, &allocate, &g.setup) != VK_SUCCESS)
+    {
+        RollbackInitialise();
+        return false;
+    }
 
     VkQueryPoolCreateInfo queries{ VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
     queries.queryType = VK_QUERY_TYPE_OCCLUSION;
@@ -222,8 +325,16 @@ bool vk::renderer::Initialise()
 
     VkFenceCreateInfo fence{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
     for (State::Slot& slot : g.slots)
-        if (vkCreateFence(g.device, &fence, nullptr, &slot.fence) != VK_SUCCESS) return false;
-    if (vkCreateFence(g.device, &fence, nullptr, &g.setupFence) != VK_SUCCESS) return false;
+        if (vkCreateFence(g.device, &fence, nullptr, &slot.fence) != VK_SUCCESS)
+        {
+            RollbackInitialise();
+            return false;
+        }
+    if (vkCreateFence(g.device, &fence, nullptr, &g.setupFence) != VK_SUCCESS)
+    {
+        RollbackInitialise();
+        return false;
+    }
 
     // Constants, vertex data and indices all live in the arena, which is why
     // it carries every usage at once.
@@ -236,7 +347,11 @@ bool vk::renderer::Initialise()
     // since they were copied is read there instead of being copied again (see
     // gpu/memory_watch.h). One buffer, so set 2 reaches both and a fetch
     // constant says which by its address alone.
-    static const bool noShadow = diag::Flag("MW2_NO_SHADOW");
+    // Read through env::, not diag::, because the shadow is 512 MB of resident
+    // memory and a release build cannot see a diagnostics switch (diag::Flag is
+    // a constant false there): on the device whose memory is shortest the
+    // switch would have done nothing at all.
+    static const bool noShadow = env::Flag("MW2_NO_SHADOW");
     const uint32_t shadowBytes = guest::kPhysicalEnd - guest::kPhysicalBase;
     uint32_t wanted = uint32_t(env::Number("MW2_ARENA_MB", kArenaWanted >> 20)) << 20;
     bool withShadow = !noShadow;
@@ -252,7 +367,7 @@ bool vk::renderer::Initialise()
         const uint32_t type = FindMemory(needs.memoryTypeBits,
                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        if (type == UINT32_MAX) { LOGW("renderer: no host-visible memory"); return false; }
+        if (type == UINT32_MAX) { LOGW("renderer: no host-visible memory"); RollbackInitialise(); return false; }
         VkMemoryAllocateInfo allocateArena{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         allocateArena.allocationSize = needs.size;
         allocateArena.memoryTypeIndex = type;
@@ -274,7 +389,7 @@ bool vk::renderer::Initialise()
         g.arenaMemory = VK_NULL_HANDLE;
         g.arena = VK_NULL_HANDLE;
     }
-    if (!g.arenaBytes) { LOGW("renderer: no frame arena"); return false; }
+    if (!g.arenaBytes) { LOGW("renderer: no frame arena"); RollbackInitialise(); return false; }
 
     // A slot's share has to hold everything one submission copies -- a frame's
     // is about 50 MB here against the 512 MB asked for, so three shares fit with
@@ -287,16 +402,23 @@ bool vk::renderer::Initialise()
     LOGI("renderer: %u frame slots of %u KB of arena each", kFrameSlots, g.arenaSlotBytes / 1024);
 
     // Before any command is recorded: the recorder thread only reads these.
-    const auto command = [](const char* name) { return vkGetDeviceProcAddr(g.device, name); };
-    dispatch.beginRendering = PFN_vkCmdBeginRenderingKHR(command("vkCmdBeginRenderingKHR"));
-    dispatch.endRendering = PFN_vkCmdEndRenderingKHR(command("vkCmdEndRenderingKHR"));
-    dispatch.setCullMode = PFN_vkCmdSetCullModeEXT(command("vkCmdSetCullModeEXT"));
-    dispatch.setFrontFace = PFN_vkCmdSetFrontFaceEXT(command("vkCmdSetFrontFaceEXT"));
-    dispatch.setDepthTestEnable = PFN_vkCmdSetDepthTestEnableEXT(command("vkCmdSetDepthTestEnableEXT"));
-    dispatch.setDepthWriteEnable = PFN_vkCmdSetDepthWriteEnableEXT(command("vkCmdSetDepthWriteEnableEXT"));
-    dispatch.setDepthCompareOp = PFN_vkCmdSetDepthCompareOpEXT(command("vkCmdSetDepthCompareOpEXT"));
-    dispatch.setStencilTestEnable = PFN_vkCmdSetStencilTestEnableEXT(command("vkCmdSetStencilTestEnableEXT"));
-    dispatch.setStencilOp = PFN_vkCmdSetStencilOpEXT(command("vkCmdSetStencilOpEXT"));
+    // On Vulkan 1.3 core devices (Mali, Tensor, etc.), the commands may be exported
+    // without the KHR / EXT suffix. Check both.
+    const auto command = [](const char* name, const char* fallback = nullptr) {
+        PFN_vkVoidFunction ptr = vkGetDeviceProcAddr(g.device, name);
+        if (!ptr && fallback)
+            ptr = vkGetDeviceProcAddr(g.device, fallback);
+        return ptr;
+    };
+    dispatch.beginRendering = PFN_vkCmdBeginRenderingKHR(command("vkCmdBeginRenderingKHR", "vkCmdBeginRendering"));
+    dispatch.endRendering = PFN_vkCmdEndRenderingKHR(command("vkCmdEndRenderingKHR", "vkCmdEndRendering"));
+    dispatch.setCullMode = PFN_vkCmdSetCullModeEXT(command("vkCmdSetCullModeEXT", "vkCmdSetCullMode"));
+    dispatch.setFrontFace = PFN_vkCmdSetFrontFaceEXT(command("vkCmdSetFrontFaceEXT", "vkCmdSetFrontFace"));
+    dispatch.setDepthTestEnable = PFN_vkCmdSetDepthTestEnableEXT(command("vkCmdSetDepthTestEnableEXT", "vkCmdSetDepthTestEnable"));
+    dispatch.setDepthWriteEnable = PFN_vkCmdSetDepthWriteEnableEXT(command("vkCmdSetDepthWriteEnableEXT", "vkCmdSetDepthWriteEnable"));
+    dispatch.setDepthCompareOp = PFN_vkCmdSetDepthCompareOpEXT(command("vkCmdSetDepthCompareOpEXT", "vkCmdSetDepthCompareOp"));
+    dispatch.setStencilTestEnable = PFN_vkCmdSetStencilTestEnableEXT(command("vkCmdSetStencilTestEnableEXT", "vkCmdSetStencilTestEnable"));
+    dispatch.setStencilOp = PFN_vkCmdSetStencilOpEXT(command("vkCmdSetStencilOpEXT", "vkCmdSetStencilOp"));
     if ((dispatch.multiDraw = vk::pipeline::MultiDraw()))
     {
         dispatch.drawMulti = PFN_vkCmdDrawMultiEXT(command("vkCmdDrawMultiEXT"));
@@ -306,8 +428,13 @@ bool vk::renderer::Initialise()
     if (!dispatch.beginRendering || !dispatch.endRendering || !dispatch.setCullMode ||
         !dispatch.setStencilOp)
     {
-        LOGW("renderer: the device did not give dynamic rendering or dynamic state commands");
-        return false;
+        if (!vk::pipeline::LegacyMode())
+        {
+            LOGW("renderer: the device did not give dynamic rendering or dynamic state commands");
+            RollbackInitialise();
+            return false;
+        }
+        LOGI("renderer: running in legacy mode without dynamic rendering / dynamic state commands");
     }
 
     VkDescriptorPoolSize size{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 };
@@ -316,15 +443,23 @@ bool vk::renderer::Initialise()
     descriptors.poolSizeCount = 1;
     descriptors.pPoolSizes = &size;
     if (vkCreateDescriptorPool(g.device, &descriptors, nullptr, &g.descriptors) != VK_SUCCESS)
+    {
+        RollbackInitialise();
         return false;
+    }
 
     VkDescriptorSetLayout memoryLayout =
         static_cast<VkDescriptorSetLayout>(vk::pipeline::SetLayout(bindings::kArenaSet));
     VkDescriptorSetAllocateInfo allocateSet{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
     allocateSet.descriptorPool = g.descriptors;
     allocateSet.descriptorSetCount = 1;
+
     allocateSet.pSetLayouts = &memoryLayout;
-    if (vkAllocateDescriptorSets(g.device, &allocateSet, &g.memorySet) != VK_SUCCESS) return false;
+    if (vkAllocateDescriptorSets(g.device, &allocateSet, &g.memorySet) != VK_SUCCESS)
+    {
+        RollbackInitialise();
+        return false;
+    }
 
     // The whole arena, as dwords and as vec4.
     VkDescriptorBufferInfo buffer{ g.arena, 0, VK_WHOLE_SIZE };
@@ -350,7 +485,10 @@ bool vk::renderer::Initialise()
         // STORAGE so the display's colour table can be applied to it in place.
         if (!MakeImage(image, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_STORAGE_BIT, 0))
+        {
+            RollbackInitialise();
             return false;
+        }
         g.present[i] = image.image;
         g.presentMemory[i] = image.memory;
     }
@@ -363,23 +501,28 @@ bool vk::renderer::Initialise()
     // A lost device ends the run, the way closing the window does.
     vk::pipeline::OnDeviceLost(crash::RequestExit);
     vk::record::Start(MakeGatheredDraws);
+    g.ready = true;
     return true;
 }
 
 void vk::renderer::Shutdown()
 {
     if (!g.device) return;
+    g.ready = false;
     // Before anything is destroyed, the display table's pipeline included: the
     // last frames are still on the GPU, and they use it -- and the last
     // commands may still be with the recorder thread.
     vk::record::Stop();
+    StopWarmupScheduler();
     vkDeviceWaitIdle(g.device);
     vk::gpu_time::Stop();
     StopPassTimes();
     StopPreparing();
     vk::display::Shutdown();
     WriteShaderCache();
+    vk::pipeline::SaveCache();
     SummariseTargets();
+    ClearRenderPassCache();
     g.pipelineCount = g.pipelines.size();
     g.shaderCount = g.shaders.size();
     for (auto& [key, pipeline] : g.pipelines) if (pipeline) vkDestroyPipeline(g.device, pipeline, nullptr);
@@ -455,7 +598,7 @@ void vk::renderer::Shutdown()
     g.device = VK_NULL_HANDLE;
 }
 
-bool vk::renderer::Ready() { return g.device != VK_NULL_HANDLE; }
+bool vk::renderer::Ready() { return g.ready; }
 
 void vk::renderer::Idle() { vk::record::Flush(); }
 

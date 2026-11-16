@@ -1,5 +1,6 @@
 // A draw: the render target and pass it goes into, its constants and
 // textures, the fixed-function state, and the command itself.
+#include <unordered_set>
 #include "renderer_state.h"
 #include "../../diagnostics.h"
 #include "texture_cache.h"
@@ -7,6 +8,7 @@
 #include "../../guest.h"
 #include "../../kernel/physical.h"
 #include "../../log.h"
+#include "../internal.h"
 
 #include <algorithm>
 #include <bit>
@@ -281,20 +283,23 @@ namespace vk::renderer::detail
             if (set & kDepthBias) vkCmdSetDepthBias(command, depthBias[0], 0.0f, depthBias[1]);
             if (set & kFaces)
             {
-                dispatch.setCullMode(command, cullMode);
-                dispatch.setFrontFace(command, frontFace);
+                if (dispatch.setCullMode) dispatch.setCullMode(command, cullMode);
+                if (dispatch.setFrontFace) dispatch.setFrontFace(command, frontFace);
             }
             if (set & kDepthTests)
             {
                 const DepthTests& d = depthTests;
-                dispatch.setDepthTestEnable(command, d.depthTest);
-                dispatch.setDepthWriteEnable(command, d.depthWrite);
-                dispatch.setDepthCompareOp(command, d.depthCompare);
-                dispatch.setStencilTestEnable(command, d.stencilTest);
-                dispatch.setStencilOp(command, VK_STENCIL_FACE_FRONT_BIT, d.front.failOp,
-                                      d.front.passOp, d.front.depthFailOp, d.front.compareOp);
-                dispatch.setStencilOp(command, VK_STENCIL_FACE_BACK_BIT, d.back.failOp,
-                                      d.back.passOp, d.back.depthFailOp, d.back.compareOp);
+                if (dispatch.setDepthTestEnable)
+                {
+                    dispatch.setDepthTestEnable(command, d.depthTest);
+                    dispatch.setDepthWriteEnable(command, d.depthWrite);
+                    dispatch.setDepthCompareOp(command, d.depthCompare);
+                    dispatch.setStencilTestEnable(command, d.stencilTest);
+                    dispatch.setStencilOp(command, VK_STENCIL_FACE_FRONT_BIT, d.front.failOp,
+                                          d.front.passOp, d.front.depthFailOp, d.front.compareOp);
+                    dispatch.setStencilOp(command, VK_STENCIL_FACE_BACK_BIT, d.back.failOp,
+                                          d.back.passOp, d.back.depthFailOp, d.back.compareOp);
+                }
             }
             if (set & kStencil)
             {
@@ -358,14 +363,24 @@ using namespace vk::renderer::detail;
 
 void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
 {
+    struct StageScope
+    {
+        StageScope() { gpu::detail::SetCurrentDrawStage("Draw_Start"); }
+        ~StageScope() { gpu::detail::SetCurrentDrawStage("Draw_Idle"); }
+    } stageScope;
+
     Stopwatch watch(g.drawNanoseconds);
     if (!g.device) return;
     // A flash hunt's record of this draw, open until it returns however it does.
     if constexpr (diag::kOn)
         g.drawRecord = BeginDrawRecord(r, call.vertexHash, call.pixelHash, call.primitive,
                                        call.indexCount, call.indexed ? call.indexAddress : 0);
-    struct CloseRecord { ~CloseRecord() { g.drawRecord = nullptr; } } closeRecord;
-    // Everything up to the indices: the shaders, the scissor, the render target
+    struct CloseRecord {
+        ~CloseRecord() {
+            g.drawRecord = nullptr;
+            gpu::detail::SetCurrentDrawStage("idle");
+        }
+    } closeRecord;
     // and the pass and framebuffer that go with it.
     const auto setupFrom = Timing() ? std::chrono::steady_clock::now()
                                     : std::chrono::steady_clock::time_point{};
@@ -374,6 +389,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     const VkPrimitiveTopology topology = TopologyFor(call.primitive);
     if (topology == VK_PRIMITIVE_TOPOLOGY_MAX_ENUM) { Skip("primitive type"); return; }
 
+    gpu::detail::SetCurrentDrawStage("Draw_ShaderFor");
     const Shader* vertex = ShaderFor(shader::Type::Vertex, call.vertexHash,
                                      call.vertexCode, call.vertexWords);
     const Shader* pixel = ShaderFor(shader::Type::Pixel, call.pixelHash,
@@ -444,9 +460,20 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     // A surface has a pitch but no height: how tall it is only shows in the region
     // the draws cover. Clamped, because a scissor left at its reset value asks for
     // a target taller than any display.
-    const uint32_t width = std::min(usePitch, 4096u);
+#if defined(MW2_ANDROID) || defined(__ANDROID__)
+    // A phone's memory: half the desktop's limit each way, and never taller
+    // than the rows of EDRAM left below the surface's base tile.
+    const uint32_t maxTiles = (2048u > colour.BaseTile()) ? (2048u - colour.BaseTile()) : 0u;
+    const uint32_t tilesPerRow = (usePitch + 79u) / 80u;
+    const uint32_t maxEdramLines = tilesPerRow ? ((maxTiles / tilesPerRow) * 16u) : 2048u;
+    const uint32_t maxWidth = 2048u;
+    const uint32_t maxHeight = std::min(2048u, std::max(32u, maxEdramLines));
+#else
+    const uint32_t maxWidth = 4096u, maxHeight = 4096u;
+#endif
+    const uint32_t width = std::min(usePitch, maxWidth);
     uint32_t height = std::clamp(uint32_t(scissor.offset.y) + scissor.extent.height,
-                                 32u, 4096u);
+                                 32u, maxHeight);
 
     // The shadow maps' scale or the frame's, for both targets.
     const uint32_t passScale = PassScale(r[gpu::RB_DEPTH_INFO], useSamples);
@@ -455,6 +482,8 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     // at its 8192 reset value, which would make it 4096 tall: at the shadow
     // maps' scale, twice the memory for rows nothing reads.
     if (passScale != g.scale) height = std::min(height, shadows::SurfaceHeight());
+
+    gpu::detail::SetCurrentDrawStage("Draw_EnsureTarget");
     Target* colourTarget = EnsureTarget({ colour.BaseTile(), usePitch,
                                           uint32_t(ColourFormatFor(colour.Format())),
                                           useSamples, false, passScale },
@@ -474,6 +503,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     const uint32_t passHeight = std::min(colourTarget->height, depthTarget->height);
     if (colourTarget->view != g.currentColour || depthTarget->view != g.currentDepth)
     {
+        gpu::detail::SetCurrentDrawStage("Draw_BeginRendering");
         if (diag::kOn && TracePasses() && DiagnoseHere() && g.passFrames <= TracePasses())
             LOGK("pass: %ux%u colour at tile %u, %ux drawn %ux, mask %08X, depth %08X, mode %u,"
                  " scissor %d,%d %ux%u, after %llu draws; depth tile %u %ux, %llu draws,"
@@ -634,15 +664,65 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     key.blendControl = r[gpu::RB_BLENDCONTROL0];
     key.colourMask = r[gpu::RB_COLOR_MASK];
     key.samples = colourTarget->samples;
+    if (vk::pipeline::LegacyMode())
+    {
+        key.depthControl = depthControl;
+        key.modeCntl = modeCntl;
+    }
+    gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline");
     bool newPipeline = false;
+#ifdef MW2_ANDROID
+    VkPipeline built = FindPipeline(key);
+    if (!built)
+    {
+        Recorded rec{ key.vertexShader, key.pixelShader,
+                      uint32_t(colourTarget->format), uint32_t(depthTarget->format),
+                      key.topology, depthControl, key.blendControl,
+                      key.colourMask, modeCntl, key.samples };
+        if (ShaderCachePath())
+        {
+            static std::unordered_set<uint64_t> s_seen;
+            static bool s_seeded = false;
+            auto keyOf = [](const Recorded& r) {
+                uint64_t h = 1469598103934665603ull;
+                for (uint64_t v : { uint64_t(r.vertexShader), uint64_t(r.pixelShader),
+                                    uint64_t(r.colourFormat), uint64_t(r.depthFormat),
+                                    uint64_t(r.topology), uint64_t(r.depthControl),
+                                    uint64_t(r.blendControl), uint64_t(r.colourMask),
+                                    uint64_t(r.modeCntl), uint64_t(r.samples) })
+                    h = (h ^ v) * 1099511628211ull;
+                return h;
+            };
+            if (!s_seeded) { s_seeded = true; for (const auto& r : g.recorded) s_seen.insert(keyOf(r)); }
+            if (s_seen.insert(keyOf(rec)).second)
+            {
+                g.recorded.push_back(rec);
+                static uint32_t s_sinceSave = 0;
+                if (++s_sinceSave >= 25) { s_sinceSave = 0; WriteShaderCache(); }
+            }
+        }
+        EnqueuePipelineWarmup(rec, /*highPriority=*/true);
+        Skip("pipeline compiling asynchronously in background");
+        return;
+    }
+#else
     VkPipeline built = [&] { Stopwatch watch(g.pipelineNanoseconds);
                              return EnsurePipeline(key, *vertex, *pixel, &newPipeline); }();
     if (!built) { Skip("pipeline rejected"); return; }
+#endif
     if (newPipeline && ShaderCachePath())
+    {
         g.recorded.push_back({ key.vertexShader, key.pixelShader,
                                uint32_t(colourTarget->format), uint32_t(depthTarget->format),
                                key.topology, depthControl, key.blendControl,
                                key.colourMask, modeCntl, key.samples });
+        static uint32_t s_lastSaved = 0;
+        if (g.recorded.size() - s_lastSaved >= 5)
+        {
+            s_lastSaved = uint32_t(g.recorded.size());
+            WriteShaderCache();
+        }
+    }
 
     // The draw's record (bindings.h), filled from here on and written into
     // the arena just before the draw. The vertex shader's texture words are
@@ -652,14 +732,32 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     uint32_t values[bindings::kRecordWords];
     std::memset(values, 0, (vertexTextures ? bindings::kRecordWords : bindings::kRecordVertexTextures) * 4);
     uint32_t scaledSlots[2]{};
+    gpu::detail::SetCurrentDrawStage("Draw_TexturesFor");
     TexturesFor(r, vertex->translation, pixel->translation, values, scaledSlots);
 
     VkViewport viewport{};
     ViewportOf(r, scissor, viewport);
+
+    if (scissor.offset.x < 0)
+    {
+        if (int32_t(scissor.extent.width) + scissor.offset.x <= 0) { Skip("scissor off-screen"); return; }
+        scissor.extent.width = uint32_t(int32_t(scissor.extent.width) + scissor.offset.x);
+        scissor.offset.x = 0;
+    }
+    if (scissor.offset.y < 0)
+    {
+        if (int32_t(scissor.extent.height) + scissor.offset.y <= 0) { Skip("scissor off-screen"); return; }
+        scissor.extent.height = uint32_t(int32_t(scissor.extent.height) + scissor.offset.y);
+        scissor.offset.y = 0;
+    }
+    if (uint32_t(scissor.offset.x) >= g.currentWidth || uint32_t(scissor.offset.y) >= g.currentHeight)
+    { Skip("scissor outside target"); return; }
+
     scissor.extent.width = std::min(scissor.extent.width,
                                     g.currentWidth - uint32_t(scissor.offset.x));
     scissor.extent.height = std::min(scissor.extent.height,
                                      g.currentHeight - uint32_t(scissor.offset.y));
+    if (!scissor.extent.width || !scissor.extent.height) { Skip("empty scissor"); return; }
 
     State::Bound& bound = g.bound;
     DrawOp op;
@@ -772,6 +870,23 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     viewport.width *= float(passScale);
     viewport.height *= float(passScale);
     scissor = { Scaled(scissor.offset, passScale), Scaled(scissor.extent, passScale) };
+    if (g.currentWidth && g.currentHeight)
+    {
+        scissor.offset.x = std::max(0, scissor.offset.x);
+        scissor.offset.y = std::max(0, scissor.offset.y);
+        const int32_t maxX = int32_t(g.currentWidth * passScale);
+        const int32_t maxY = int32_t(g.currentHeight * passScale);
+        if (scissor.offset.x >= maxX || scissor.offset.y >= maxY)
+        {
+            scissor.offset = { 0, 0 };
+            scissor.extent = { 0, 0 };
+        }
+        else
+        {
+            scissor.extent.width = std::min(scissor.extent.width, uint32_t(maxX - scissor.offset.x));
+            scissor.extent.height = std::min(scissor.extent.height, uint32_t(maxY - scissor.offset.y));
+        }
+    }
 
     if (!bound.viewportValid || std::memcmp(&bound.viewport, &viewport, sizeof viewport))
     {
@@ -897,6 +1012,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         op.firstIndex = indexOffset / (wide ? 4 : 2);
     }
     else op.count = call.indexCount;
+    gpu::detail::SetCurrentDrawStage("Draw_Record");
     vk::record::Joining(op);
     colourTarget->draws++;
     // The depth target too, so a dump can tell a depth buffer some pass is
@@ -907,6 +1023,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         colourTarget->framesWithColour++;
     g.drawsRecorded++;
     g.segmentDraws = true;
+    gpu::detail::SetCurrentDrawStage("idle");
 }
 
 #endif  // MW2_HAVE_VULKAN

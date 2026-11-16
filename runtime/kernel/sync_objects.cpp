@@ -17,14 +17,13 @@ using namespace kernel;
 
 namespace
 {
-#if MW2_DIAGNOSTICS
     // A backtrace of a stalled thread ends in pthread_cond_wait and stops being
     // informative exactly where the question starts -- which handle, and who else
     // touches it. This records that, so the watchdog can name it.
     struct WaitRecord
     {
         std::atomic<uint32_t> handle{ 0 };      // 0 when the thread is running
-        std::atomic<uint32_t> caller{ 0 };      // guest return address
+        std::atomic<uint32_t> callers[4]{ 0, 0, 0, 0 };
         std::atomic<bool>     timed{ false };
         const char* thread = nullptr;
     };
@@ -47,17 +46,26 @@ namespace
     struct Blocked
     {
         WaitRecord& w;
-        Blocked(uint32_t handle, uint32_t caller, bool timed) : w(MyWait())
+        Blocked(uint32_t handle, uint32_t lr, uint32_t r1, bool timed) : w(MyWait())
         {
-            w.caller.store(caller, std::memory_order_relaxed);
+            w.callers[0].store(lr, std::memory_order_relaxed);
+            uint32_t frame = r1;
+            for (int i = 1; i < 4 && frame; i++)
+            {
+                auto* ptr = GuestPtr<be32>(frame);
+                if (!ptr) break;
+                uint32_t nextFrame = uint32_t(*ptr);
+                if (!nextFrame) break;
+                auto* retPtr = GuestPtr<be32>(nextFrame - 8);
+                if (!retPtr) break;
+                w.callers[i].store(uint32_t(*retPtr), std::memory_order_relaxed);
+                frame = nextFrame;
+            }
             w.timed.store(timed, std::memory_order_relaxed);
             w.handle.store(handle, std::memory_order_release);
         }
         ~Blocked() { w.handle.store(0, std::memory_order_release); }
     };
-#else
-    struct Blocked { Blocked(uint32_t, uint32_t, bool) {} };
-#endif
 
     const int64_t* ReadTimeout(uint32_t addr, int64_t& storage)
     {
@@ -100,8 +108,10 @@ PPC_FUNC(__imp__NtCreateEvent)
     auto event = std::make_shared<Event>();
     event->manualReset = ctx.r5.u32 == 0;
     event->signalled = ctx.r6.u32 != 0;
-    const uint32_t handle = InsertHandle(event);
+    const uint32_t handle = InsertHandle(event, crash::CurrentThreadName(), uint32_t(ctx.lr));
     if (auto* out = GuestPtr<be32>(ctx.r3.u32)) *out = handle;
+    LOGI("sync: NtCreateEvent handle %08X, manual=%d, init=%d (called from %08X by '%s')",
+         handle, event->manualReset, event->signalled, uint32_t(ctx.lr), crash::CurrentThreadName());
     ctx.r3.u64 = X_STATUS_SUCCESS;
 }
 
@@ -109,7 +119,7 @@ PPC_FUNC(__imp__NtSetEvent)
 {
     auto event = LookupHandleAs<Event>(ctx.r3.u32);
     if (!event) { ctx.r3.u64 = X_STATUS_INVALID_HANDLE; return; }
-    const bool was = event->Set();
+    const bool was = event->Set(crash::CurrentThreadName(), uint32_t(ctx.lr));
     if (auto* previous = GuestPtr<be32>(ctx.r4.u32)) *previous = was ? 1u : 0u;
     ctx.r3.u64 = X_STATUS_SUCCESS;
 }
@@ -118,7 +128,7 @@ PPC_FUNC(__imp__NtClearEvent)
 {
     auto event = LookupHandleAs<Event>(ctx.r3.u32);
     if (!event) { ctx.r3.u64 = X_STATUS_INVALID_HANDLE; return; }
-    event->Reset();
+    event->Reset(crash::CurrentThreadName(), uint32_t(ctx.lr));
     ctx.r3.u64 = X_STATUS_SUCCESS;
 }
 
@@ -192,7 +202,7 @@ PPC_FUNC(__imp__NtWaitForSingleObjectEx)
     if (!list.Add(LookupHandle(ctx.r3.u32))) { ctx.r3.u64 = X_STATUS_INVALID_HANDLE; return; }
     int64_t storage;
     const int64_t* timeout = ReadTimeout(ctx.r6.u32, storage);
-    Blocked blocked(ctx.r3.u32, uint32_t(ctx.lr), timeout != nullptr);
+    Blocked blocked(ctx.r3.u32, uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
     ctx.r3.u64 = Wait(list.objects.data(), 1, false, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
@@ -202,22 +212,40 @@ PPC_FUNC(__imp__NtWaitForSingleObjectEx)
 // handler are the callers.
 void kernel::ReportWaits()
 {
-#if MW2_DIAGNOSTICS
     std::lock_guard g(g_waitLock);
     bool any = false;
     for (const WaitRecord* w : g_waitRecords)
     {
         const uint32_t handle = w->handle.load(std::memory_order_acquire);
         if (!handle) continue;
-        if (!any) std::fprintf(stderr, "\n[E] ---- threads blocked in a wait ----\n");
+        if (!any) LOGW("sync: ---- threads blocked in a wait ----");
         any = true;
-        std::fprintf(stderr, "[E] %-40s waiting on handle %08X%s, called from %08X\n",
-                     w->thread ? w->thread : "(unnamed)", handle,
-                     w->timed.load(std::memory_order_relaxed) ? " (with a timeout)" : " (forever)",
-                     w->caller.load(std::memory_order_relaxed));
+        LOGW("sync: %-25s waiting on handle %08X%s, stack: %08X -> %08X -> %08X -> %08X",
+             w->thread ? w->thread : "(unnamed)", handle,
+             w->timed.load(std::memory_order_relaxed) ? " (timeout)" : " (forever)",
+             w->callers[0].load(std::memory_order_relaxed),
+             w->callers[1].load(std::memory_order_relaxed),
+             w->callers[2].load(std::memory_order_relaxed),
+             w->callers[3].load(std::memory_order_relaxed));
+
+        auto obj = LookupHandle(handle);
+        if (obj)
+        {
+            if (auto* ev = dynamic_cast<Event*>(obj.get()))
+            {
+                LOGW("sync:   -> handle %08X is Event [manual=%d, sig=%d, sets=%u, resets=%u, created by '%s' @ %08X, last set by '%s' @ %08X]",
+                     handle, ev->manualReset, ev->signalled, ev->setCounter, ev->resetCounter,
+                     ev->creatorThread ? ev->creatorThread : "?", ev->creatorLr,
+                     ev->lastSignalerThread ? ev->lastSignalerThread : "none", ev->lastSignalerLr);
+            }
+            else
+            {
+                LOGW("sync:   -> handle %08X is %s [created by '%s' @ %08X]",
+                     handle, obj->TypeName(), obj->creatorThread ? obj->creatorThread : "?", obj->creatorLr);
+            }
+        }
     }
-    if (any) std::fprintf(stderr, "[E] --------------------------------\n");
-#endif
+    if (any) LOGW("sync: --------------------------------");
 }
 
 PPC_FUNC(__imp__NtWaitForMultipleObjectsEx)
@@ -235,7 +263,7 @@ PPC_FUNC(__imp__NtWaitForMultipleObjectsEx)
         if (!list.Add(LookupHandle(handles[i]))) { ctx.r3.u64 = X_STATUS_INVALID_HANDLE; return; }
     int64_t storage;
     const int64_t* timeout = ReadTimeout(ctx.r8.u32, storage);
-    Blocked blocked(handles[0], uint32_t(ctx.lr), timeout != nullptr);
+    Blocked blocked(handles[0], uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
     ctx.r3.u64 = Wait(list.objects.data(), count, ctx.r5.u32 == 0, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
@@ -245,13 +273,13 @@ PPC_FUNC(__imp__KeSetEvent)
 {
     // (Event, Increment, Wait): returns the previous state.
     auto event = ObjectAtAs<Event>(ctx.r3.u32);
-    ctx.r3.u64 = event && event->Set() ? 1 : 0;
+    ctx.r3.u64 = event && event->Set(crash::CurrentThreadName(), uint32_t(ctx.lr)) ? 1 : 0;
 }
 
 PPC_FUNC(__imp__KeResetEvent)
 {
     auto event = ObjectAtAs<Event>(ctx.r3.u32);
-    ctx.r3.u64 = event && event->Reset() ? 1 : 0;
+    ctx.r3.u64 = event && event->Reset(crash::CurrentThreadName(), uint32_t(ctx.lr)) ? 1 : 0;
 }
 
 PPC_FUNC(__imp__KeWaitForSingleObject)
@@ -262,7 +290,7 @@ PPC_FUNC(__imp__KeWaitForSingleObject)
     if (!list.Add(ObjectAt(ctx.r3.u32))) { ctx.r3.u64 = X_STATUS_INVALID_PARAMETER; return; }
     int64_t storage;
     const int64_t* timeout = ReadTimeout(ctx.r7.u32, storage);
-    Blocked blocked(ctx.r3.u32, uint32_t(ctx.lr), timeout != nullptr);
+    Blocked blocked(ctx.r3.u32, uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
     ctx.r3.u64 = Wait(list.objects.data(), 1, false, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
@@ -284,7 +312,7 @@ PPC_FUNC(__imp__KeWaitForMultipleObjects)
         if (!list.Add(ObjectAt(objects[i]))) { ctx.r3.u64 = X_STATUS_INVALID_PARAMETER; return; }
     int64_t storage;
     const int64_t* timeout = ReadTimeout(ctx.r9.u32, storage);
-    Blocked blocked(objects[0], uint32_t(ctx.lr), timeout != nullptr);
+    Blocked blocked(objects[0], uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
     ctx.r3.u64 = Wait(list.objects.data(), count, ctx.r5.u32 == 0, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);

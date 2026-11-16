@@ -33,6 +33,7 @@
 #include "../../platform.h"
 #include "../../report.h"
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -92,6 +93,14 @@ namespace
         info.flags = optimise ? VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT : 0;
         info.layout = Layout();
         VkPipeline made = VK_NULL_HANDLE;
+#ifdef MW2_ANDROID
+        // The phones' drivers are given one creation at a time, and the cache
+        // to itself. Elsewhere the fast link at a draw must not wait behind
+        // the optimised link in the background.
+        std::lock_guard createLock(vk::pipeline::CreationMutex());
+        std::unique_lock cacheLock(vk::pipeline::CacheMutex(), std::defer_lock);
+        if (Cache()) cacheLock.lock();
+#endif
         if (vkCreateGraphicsPipelines(g.device, Cache(), 1, &info, nullptr, &made) != VK_SUCCESS)
             return VK_NULL_HANDLE;
         return made;
@@ -308,6 +317,7 @@ namespace vk::renderer::detail
             finished.swap(o.finished);
             o.anyFinished.store(false, std::memory_order_relaxed);
         }
+        std::lock_guard lock(g_pipelinesMutex);
         for (auto& [key, optimised] : finished)
         {
             auto found = g.pipelines.find(key);
@@ -335,29 +345,26 @@ namespace vk::renderer::detail
 
     void StartPreparing()
     {
-        if (!vk::pipeline::PipelineLibraries())
-        {
-            std::lock_guard lock(p.lock);
-            p.stopped = true;
-            p.jobs.clear();
-            LOGI("renderer: no pipeline libraries on this device; shaders are compiled at"
-                 " their first draw");
-            return;
-        }
         {
             std::lock_guard lock(p.lock);
             p.running = true;
         }
         const unsigned threads = std::clamp(std::thread::hardware_concurrency() / 4, 1u, 4u);
         for (unsigned i = 0; i < threads; i++) p.workers.emplace_back(Work);
+        if (vk::pipeline::PipelineLibraries())
         {
             std::lock_guard lock(o.lock);
             o.running = true;
+            o.worker = std::thread(Optimise);
+            LOGI("renderer: shaders are compiled as the title loads them, on %u thread%s; pipelines"
+                 " are linked from them at the draw and optimised in the background", threads,
+                 threads == 1 ? "" : "s");
         }
-        o.worker = std::thread(Optimise);
-        LOGI("renderer: shaders are compiled as the title loads them, on %u thread%s; pipelines"
-             " are linked from them at the draw and optimised in the background", threads,
-             threads == 1 ? "" : "s");
+        else
+        {
+            LOGI("renderer: monolithic mode; shaders are pre-compiled as the title loads them, on %u worker thread%s",
+                 threads, threads == 1 ? "" : "s");
+        }
     }
 
     void StopPreparing()
