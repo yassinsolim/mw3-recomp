@@ -749,8 +749,9 @@ val mode60 = modes
             "MW2_TEXTURE_BUDGET_MB",
             if (prefs.textureBudgetMB > 0) prefs.textureBudgetMB.toString() else "",
         )
-        // The 144 MB arena is a deliberate low-memory Android setting.
-        NativeBridge.nativeSetOption("MW2_ARENA_MB", "144")
+        // The upload arena is sized by the runtime from the device's memory
+        // (runtime/android/perf.cpp). A fixed 144 MB gives each frame 48 MB,
+        // and a frame that runs out of its share draws nothing after that.
         // Both caches live in the app's own folder and make the second start
         // of a level far quicker than the first.
         val extDir = getExternalFilesDir(null)
