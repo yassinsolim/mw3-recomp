@@ -41,12 +41,13 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_MSAA, value).apply()
 
     /**
-     * How much of the phone's memory the texture cache may hold. Zero means
-     * "let the runtime decide from the device"
-     * (runtime/gpu/vulkan/texture_cache.cpp).
+     * How much of the phone's memory the texture cache may hold. Zero, the
+     * default, means "let the runtime decide from the device"
+     * (runtime/android/perf.cpp): a fixed 128 MB is less than one MW3
+     * Survival map binds, and what does not fit is drawn black.
      */
     var textureBudgetMB: Int
-        get() = store.getInt(KEY_TEXTURE_MB, 128)
+        get() = store.getInt(KEY_TEXTURE_MB, 0)
         set(value) = store.edit().putInt(KEY_TEXTURE_MB, value).apply()
 
     var showStats: Boolean
