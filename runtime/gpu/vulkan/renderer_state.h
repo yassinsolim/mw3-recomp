@@ -703,6 +703,7 @@ namespace vk::renderer::detail
                           VkImage into, VkImageView intoView, VkImageLayout before, VkPipelineStageFlags usedBy,
                           VkImageLayout after, VkAccessFlags readAs, VkPipelineStageFlags readBy);
     void ClearAliasedDepth(uint32_t fromTile);
+    void ClearAliasedColour(uint32_t baseTile, uint32_t tilesPerRow, uint32_t rows, uint32_t packed);
     void ClearAfterResolve(const gpu::RegisterFile& r, const gpu::CopyControl& control);
 
     // Traditional render pass and framebuffer fallback for Vulkan 1.1 / Mali

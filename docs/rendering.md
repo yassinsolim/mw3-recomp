@@ -61,6 +61,15 @@ dependencies.
   - In depth-only mode, the rectangles are not drawn. `ClearAliasedDepth` zeroes
     every depth target at or above their base tile. This happens before any
     target is sized, because the scissor is at its 8192 reset value.
+  - **A colour surface cleared as depth.** D3D's `Clear` of a colour surface
+    is the depth-only form as well: `RB_DEPTH_INFO` names the colour surface's
+    own base tile as D24S8, at half its pitch and 4x, and one rectangle covers
+    it with the stencil operation `REPLACE`. The sample is left holding
+    depth << 8 | stencil reference, which read as `8_8_8_8` is the clear
+    colour (z 0xFF0000 / 0xFFFFFF and reference 0 are opaque black). MW3
+    clears its interface this way once a frame and in no other. An
+    `8_8_8_8` image at that base tile, with as many tiles a row and no more
+    rows than the rectangle, is cleared to those bits (`ClearAliasedColour`).
   - In colour+depth mode, each half is drawn into the colour surface with the
     lowest sample count at that tile and format whose `pitch << samples` spans
     the same row.

@@ -186,6 +186,63 @@ namespace vk::renderer::detail
         }
     }
 
+    // A colour target filled with one value, outside any pass. `packed` is
+    // the colour as the 8_8_8_8 family stores it: ARGB, most significant byte
+    // first.
+    void ClearColour(Target& target, uint32_t packed)
+    {
+        VkClearColorValue value{};
+        value.float32[0] = ((packed >> 16) & 0xFF) / 255.0f;
+        value.float32[1] = ((packed >>  8) & 0xFF) / 255.0f;
+        value.float32[2] = ((packed >>  0) & 0xFF) / 255.0f;
+        value.float32[3] = ((packed >> 24) & 0xFF) / 255.0f;
+        VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        RecordBarrier(target.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                      kColourStages, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        const VkImage image = target.image;
+        Record([=](VkCommandBuffer command) {
+            vkCmdClearColorImage(command, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 &value, 1, &range);
+        });
+        RecordBarrier(target.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                      VK_ACCESS_TRANSFER_WRITE_BIT, kColourAccess,
+                      VK_PIPELINE_STAGE_TRANSFER_BIT, kColourStages);
+    }
+
+    // D3D's Clear of a colour surface is the depth-only idiom too: it
+    // describes the colour surface's own tiles as a D24S8 depth surface, at
+    // half the pitch and 4x, and draws one rectangle over them with the depth
+    // test ALWAYS and the stencil operation REPLACE. The 32 bits a sample then
+    // holds, depth << 8 | stencil reference, are the clear colour: EDRAM does
+    // not know which kind of surface a tile belongs to. MW3's interface is
+    // cleared this way and no other, once a frame; without it a menu is drawn
+    // over whatever the menus before it left.
+    //
+    // A colour image here is cleared when the rectangle's rows of tiles are
+    // its own: the same base tile, as many tiles a row, and all its rows.
+    // `packed` is what each sample is left holding.
+    void ClearAliasedColour(uint32_t baseTile, uint32_t tilesPerRow, uint32_t rows, uint32_t packed)
+    {
+        bool ended = false;
+        for (auto& [key, target] : g.targets)
+        {
+            if (target.depth || key.baseTile != baseTile) continue;
+            // The formats whose 32 bits ClearColour reads.
+            if (target.format != VK_FORMAT_R8G8B8A8_UNORM) continue;
+            // A tile is 80 samples by 16; 2x doubles the rows, 4x the columns too.
+            const uint32_t across = key.pitch << (key.samples == 2 ? 1 : 0);
+            const uint32_t down = target.height << (key.samples ? 1 : 0);
+            if ((across + 79) / 80 != tilesPerRow || (down + 15) / 16 > rows) continue;
+            if (!ended) { EndPass(); ended = true; }
+            ClearColour(target, packed);
+        }
+    }
+
     Target* FindTarget(const TargetKey& key)
     {
         auto found = g.targets.find(key);
@@ -725,32 +782,7 @@ namespace vk::renderer::detail
                                               uint32_t(ColourFormatFor(colour.Format())),
                                               surface.MsaaSamples(), false,
                                               PassScale(r[gpu::RB_DEPTH_INFO], surface.MsaaSamples()) }))
-            {
-                // RB_COLOR_CLEAR is the packed colour in the surface's own format;
-                // for the 8_8_8_8 family that is ARGB, most significant byte first.
-                const uint32_t packed = r[gpu::RB_COLOR_CLEAR];
-                VkClearColorValue value{};
-                value.float32[0] = ((packed >> 16) & 0xFF) / 255.0f;
-                value.float32[1] = ((packed >>  8) & 0xFF) / 255.0f;
-                value.float32[2] = ((packed >>  0) & 0xFF) / 255.0f;
-                value.float32[3] = ((packed >> 24) & 0xFF) / 255.0f;
-                VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-                RecordBarrier(target->image, VK_IMAGE_ASPECT_COLOR_BIT,
-                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                              kColourStages, VK_PIPELINE_STAGE_TRANSFER_BIT);
-                const VkImage image = target->image;
-                Record([=](VkCommandBuffer command) {
-                    vkCmdClearColorImage(command, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                         &value, 1, &range);
-                });
-                RecordBarrier(target->image, VK_IMAGE_ASPECT_COLOR_BIT,
-                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                              VK_ACCESS_TRANSFER_WRITE_BIT, kColourAccess,
-                              VK_PIPELINE_STAGE_TRANSFER_BIT, kColourStages);
-            }
+                ClearColour(*target, r[gpu::RB_COLOR_CLEAR]);
         }
 
         if (control.ClearsDepth())

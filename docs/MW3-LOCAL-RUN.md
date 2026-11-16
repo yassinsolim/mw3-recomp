@@ -229,6 +229,29 @@ unimplemented imports were reached. Captures and raw logs remain private.
 generated code, assets, and raw logs local. Public builds and synthetic tests
 run in GitHub Actions; game-dependent builds and live runs stay local.
 
+### First-run setup: the overlap and what it took to pass
+
+The overlapping setup screens were stale pixels, not open menus. MW3 clears
+its interface once a frame with D3D's `Clear`, which on the console writes
+the colour surface's tiles as a depth surface; the renderer answered that
+draw by clearing depth images only, so each menu was drawn over the last
+([rendering.md](rendering.md#clears), `ClearAliasedColour`). With the clear
+in place each screen is drawn on black.
+
+Each setup screen shows its `A` prompt only after its slider has been moved
+(the menus keep `ui_brightness_adjusted` and `ui_margin_adjusted`), so an
+input script has to adjust before it confirms, with left or right on all
+three: up and down do not move the vertical margin. From an empty `saves/`:
+
+```sh
+MW2_INPUT_SCRIPT="5:start:1,14:start:1,22:start:1,30:a:1,36:right:1,40:a:1,46:right:0.5,50:a:1,56:right:0.5,60:a:1,70:a:1,80:a:1"
+```
+
+goes through BRIGHTNESS, HORIZONTAL MARGIN, VERTICAL MARGIN and the
+content notice to the main menu and the CAMPAIGN menu on software Vulkan.
+The profile is then kept in `saves/profile.bin`, and the next run goes from
+the title screen straight to the main menu.
+
 ### Earlier incomplete-data run
 
 See [MW3-BRINGUP.md](MW3-BRINGUP.md): with `ui.ff`, `common.ff`,

@@ -422,6 +422,45 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     {
         if (!BeginFrame()) { Skip("no command buffer"); return; }
         ClearAliasedDepth(depthInfo.BaseTile());
+        // What the rectangle leaves in the tiles, for a colour surface that
+        // lives in them (ClearAliasedColour). The depth is the rectangle's
+        // own: D3D's shader for it passes the position through, three floats
+        // at the start of each vertex.
+        const gpu::StencilRefMask stencil{ r[gpu::RB_STENCILREFMASK] };
+        const uint32_t slot = uint32_t(std::countr_zero(vertex->translation.vertexFetchPairs[0]));
+        const uint32_t stride = slot < 32 ? vertex->translation.vertexFetchStride[slot] : 0;
+        const uint32_t* fetch = &r.values[gpu::kConstantBaseFetch + (slot & 31) * 2];
+        const uint32_t va = stride >= 3 && (fetch[0] & 3) == 3 ? kernel::FromPhysical(fetch[0] & ~3u) : 0;
+        if (va && call.indexCount == 3 && !call.indexed && depthInfo.Format() == 0 &&
+            ((fetch[1] >> 2) & 0xFFFFFF) >= 3 * stride &&
+            depthState.StencilEnable() && depthState.StencilFunc() == 7 &&
+            depthState.StencilZPass() == 2 && stencil.WriteMask() == 0xFF)
+        {
+            float left = 1e30f, top = 1e30f, right = -1e30f, bottom = -1e30f, z = 0.0f;
+            for (uint32_t corner = 0; corner < 3; corner++)
+            {
+                uint32_t words[3];
+                std::memcpy(words, guest::Base() + va + corner * stride * 4, sizeof words);
+                const float x = std::bit_cast<float>(__builtin_bswap32(words[0]));
+                const float y = std::bit_cast<float>(__builtin_bswap32(words[1]));
+                z = std::bit_cast<float>(__builtin_bswap32(words[2]));
+                left = std::min(left, x); right = std::max(right, x);
+                top = std::min(top, y); bottom = std::max(bottom, y);
+            }
+            if (viewportControl.ZScale()) z *= std::bit_cast<float>(r[gpu::PA_CL_VPORT_XSCALE + 4]);
+            if (viewportControl.ZOffset()) z += std::bit_cast<float>(r[gpu::PA_CL_VPORT_XSCALE + 5]);
+            // A tile is 80 samples by 16; 2x doubles the rows, 4x the columns too.
+            const uint32_t across = surface.Pitch() << (surface.MsaaSamples() == 2 ? 1 : 0);
+            const uint32_t tilesPerRow = (across + 79) / 80;
+            if (left <= 0.0f && top <= 0.0f && right >= float(surface.Pitch()) &&
+                bottom > 0.0f && bottom <= 8192.0f)
+            {
+                const uint32_t down = uint32_t(bottom) << (surface.MsaaSamples() ? 1 : 0);
+                const uint32_t depth = uint32_t(std::lround(double(std::clamp(z, 0.0f, 1.0f)) * 0xFFFFFF));
+                ClearAliasedColour(depthInfo.BaseTile(), tilesPerRow, down / 16,
+                                   depth << 8 | stencil.Reference());
+            }
+        }
         Skip("EDRAM depth clear");
         return;
     }
