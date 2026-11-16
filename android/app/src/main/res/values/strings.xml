@@ -4,6 +4,7 @@
     <string name="subtitle">A recompilation, running natively</string>
     <string name="wordmark">MODERN WARFARE 2</string>
     <string name="wordmark_recompiled">MW2 RECOMPILED</string>
+    <string name="credit_line">By: flavinxs0</string>
     <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, INFINITY WARD OR MICROSOFT.</string>
     <string name="hint_choose">TAP TO CHOOSE</string>
     <string name="network_settings">NETWORK</string>

@@ -98,6 +98,12 @@ class MainActivity : AppCompatActivity() {
         }
         // TU6 apps offer the TU0 archives instead (PC launcher parity).
         if (isTu6()) tu6Button.text = getString(R.string.entry_tu0)
+        // MW3 has one game version and no published builds: neither entry
+        // has anything to point at.
+        if (isMw3()) {
+            tu6Button.visibility = android.view.View.GONE
+            updatesButton.visibility = android.view.View.GONE
+        }
 
         directLaunchSwitch.isChecked = prefs.autoLaunch
         directLaunchSwitch.setOnCheckedChangeListener { _, isChecked ->
