@@ -14,11 +14,13 @@ Status words: **verified** (observed on the device or by a run), **built**
 | On-device install from the ISO | verified: title id and hash check pass, 184 files copied |
 | Guest code executing on the Thor | verified: start-up, menus and a Survival map load run |
 | Menus on the Thor | verified: title, first-run setup, main menu, Special Ops, Survival map list, all at 60 FPS (HUD counter) on the stock Adreno driver. Campaign and Multiplayer thumbnails on the main menu are blurred |
-| Survival map load on the Thor | partially working: Resistance (`so_survival_mp_paris`) loads in about 15 s and reaches wave 1 with HUD, minimap and enemy blips, but **the 3D world is black** and HUD elements smear; the app's counter fell to 0 FPS a minute in |
-| Player movement, aiming, shooting, enemies, waves | not verified: nothing can be seen to play |
+| Survival on the Thor | partially working: Resistance (`so_survival_mp_paris`) loads in about 15 s; the world, view weapon, enemies, HUD and minimap are drawn. **Rendering defects:** sky and several world surfaces black, ground white (no texture), post-effects suspect. **23-26 FPS** (app counter, 1280x720 scene scale 1, no MSAA), 64-68 C after two minutes |
+| Enemies, AI, damage | observed: enemies spawn, approach and shoot, armour and health fall, last stand triggers |
+| Player movement, aiming, shooting | camera look through the touch stick observed; movement and firing not yet confirmed (the player was already down) |
+| Stability | one abort two minutes into a match (`std::unordered_map` growth inside `kernel::ObjectAt` from `RtlLeaveCriticalSection`), before the merge shortcuts were undone; not seen again in the one run since |
 | Audio on the Thor | AAudio stream opens, XMA contexts decode; audible output not checked by ear |
 | Input on the Thor | verified for menus through the touch overlay (a press must be held about 0.25 s); physical pad detected, not exercised |
-| Launcher branding | MW3 wordmark, MW2-only entries hidden (built, not re-checked on screen) |
+| Launcher branding | verified: MW3 wordmark, MW2-only entries hidden |
 | Profile and saves | profile settings are written; a completed first-run setup is remembered |
 
 ## 2026-11-16
@@ -50,6 +52,14 @@ Status words: **verified** (observed on the device or by a run), **built**
 - Thor: title -> setup -> main menu -> Special Ops -> Solo Play -> Survival ->
   Resistance. The map loads and the game is at wave 1, but the world is not
   drawn. That is the next blocker.
+- The merge had also changed shared code outside any Android guard: the PM4
+  parser and `WAIT_REG_MEM`, physical-address resolution, arena progress being
+  forced by a hang monitor, frame-fence give-up, and on Android draws being
+  skipped while their pipeline compiled. An audit listed 18 such changes; they
+  are reverted or confined to the MW2 phone build. The asset-free tests build
+  again and pass (16 of 16).
+- With that, Survival draws its world on the Thor and enemies fight back.
+  Next: the rendering defects, frame rate, and the abort above.
 
 ## Build (WSL2 Ubuntu 24.04)
 
