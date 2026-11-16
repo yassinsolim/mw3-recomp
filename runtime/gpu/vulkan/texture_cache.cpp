@@ -120,7 +120,7 @@ namespace
     bool DecodeInSoftware(uint32_t xenosFormat)
     {
         if (!vk::bc::IsBCFormat(xenosFormat)) return false;
-        static const bool force = std::getenv("MW2_FORCE_BC_DECOMPRESS") != nullptr;
+        static const bool force = env::Flag("MW2_FORCE_BC_DECOMPRESS");
         if (force) return true;
         if (!vk::pipeline::TextureCompressionBC()) return true;
         if (vk::bc::AdrenoMode() != vk::bc::AdrenoBC::kDxt1Only) return false;
@@ -1148,7 +1148,7 @@ bool vk::textures::Initialise()
     LOGI("textures: uploading on %s; BC hardware sampling=%s; "
          "MW2_FORCE_BC_DECOMPRESS=%s; texture budget=%llu MiB; max 2D=%u",
          vk::pipeline::DeviceName(), bcHardware ? "yes" : "no",
-         std::getenv("MW2_FORCE_BC_DECOMPRESS") ? "set" : "unset",
+         env::Flag("MW2_FORCE_BC_DECOMPRESS") ? "set" : "unset",
          static_cast<unsigned long long>(g.budget >> 20), g.maxDimension);
     return true;
 }

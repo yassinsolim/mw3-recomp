@@ -460,11 +460,13 @@ namespace
         traced++;
         const char* name = gpu::PrimitiveName(draw.PrimitiveType());
         LOGK("draw: %-22s %5u indices, %s, surface %08X colour %08X depth %08X,"
-             " program %08X, mode %08X",
+             " program %08X, mode %08X, depthcontrol %08X, mask %08X, shaders %016llX/%016llX",
              name ? name : "unknown primitive", draw.IndexCount(), indexed ? "indexed" : "auto",
              g.registers[gpu::RB_SURFACE_INFO], g.registers[gpu::RB_COLOR_INFO],
              g.registers[gpu::RB_DEPTH_INFO], g.registers[gpu::SQ_PROGRAM_CNTL],
-             g.registers[gpu::RB_MODECONTROL]);
+             g.registers[gpu::RB_MODECONTROL], g.registers[gpu::RB_DEPTHCONTROL],
+             g.registers[gpu::RB_COLOR_MASK],
+             (unsigned long long)g.shaderHash[0], (unsigned long long)g.shaderHash[1]);
         if (indexed)
         {
             const uint32_t count = dmaSize & 0x3FFFFF;   // indices, not bytes

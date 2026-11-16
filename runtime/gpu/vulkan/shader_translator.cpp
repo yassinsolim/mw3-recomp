@@ -228,6 +228,18 @@ namespace
         auto& code = m_module.Code();
         code.push_back(Head(op, uint32_t(all.size()) + 1));
         code.insert(code.end(), all.begin(), all.end());
+        // A vertex program's arithmetic is done as written, never fused or
+        // reordered: the title draws its world twice -- depth alone with one
+        // program, then lit with another under a GEQUAL test -- and the two
+        // must arrive at the same depth for the same vertex, as the console's
+        // one arithmetic unit does. A driver that contracts a multiply and an
+        // add in one of them and not the other puts the lit surface a step
+        // behind its own depth, and it is rejected whole.
+        if (m_type == shader::Type::Vertex &&
+            (op == Op::FAdd || op == Op::FSub || op == Op::FMul || op == Op::FDiv ||
+             op == Op::VectorTimesScalar))
+            Module::Emit(m_module.Decorations(), Op::Decorate,
+                         { id, uint32_t(Decoration::NoContraction) });
         return id;
     }
 
@@ -600,6 +612,10 @@ namespace
                          { pointerOutputFloat4, m_position, uint32_t(StorageClass::Output) });
             Module::Emit(m_module.Decorations(), Op::Decorate,
                          { m_position, uint32_t(Decoration::BuiltIn), uint32_t(BuiltIn::Position) });
+            // The same position from every program that computes it the same
+            // way (see Emit): the depth pass and the lit pass are two.
+            Module::Emit(m_module.Decorations(), Op::Decorate,
+                         { m_position, uint32_t(Decoration::Invariant) });
             m_entryInterface.push_back(m_position);
 
             // A point list needs a point size written, and the program's own

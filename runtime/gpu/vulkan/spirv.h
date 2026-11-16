@@ -76,9 +76,9 @@ namespace spirv
 
     enum class Decoration : uint32_t
     {
-        Block = 2, BufferBlock = 3, ArrayStride = 6, BuiltIn = 11, Flat = 14,
+        Invariant = 0, Block = 2, BufferBlock = 3, ArrayStride = 6, BuiltIn = 11, Flat = 14,
         NonWritable = 24, Location = 30, Binding = 33, DescriptorSet = 34,
-        Offset = 35,
+        Offset = 35, NoContraction = 42,
     };
 
     enum class BuiltIn : uint32_t

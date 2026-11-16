@@ -743,12 +743,12 @@ val mode60 = modes
             "MW2_PERSIST_PIPELINE_CACHE",
             if (prefs.persistPipelineCache) "1" else "",
         )
-        // Zero means let the runtime choose a budget for the actual device.
-        // Keep the small-phone default conservative, but make the UI setting real.
-        NativeBridge.nativeSetOption(
-            "MW2_TEXTURE_BUDGET_MB",
-            if (prefs.textureBudgetMB > 0) prefs.textureBudgetMB.toString() else "",
-        )
+        // Zero means let the runtime choose a budget for the actual device:
+        // the option is then not set at all, since an empty one is kept as
+        // the player's choice and would stop the device default applying.
+        if (prefs.textureBudgetMB > 0) {
+            NativeBridge.nativeSetOption("MW2_TEXTURE_BUDGET_MB", prefs.textureBudgetMB.toString())
+        }
         // The upload arena is sized by the runtime from the device's memory
         // (runtime/android/perf.cpp). A fixed 144 MB gives each frame 48 MB,
         // and a frame that runs out of its share draws nothing after that.

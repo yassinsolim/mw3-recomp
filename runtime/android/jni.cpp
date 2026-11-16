@@ -271,14 +271,17 @@ MW2_NATIVE(jboolean, nativeInit)(JNIEnv* env, jobject, jstring filesDir, jstring
 }
 
 // A setting from the app, as one of the runtime's MW2_* switches. Set before
-// the run starts; nothing reads them again afterwards.
+// the run starts; nothing reads them again afterwards. An empty value is the
+// player's choice too -- "off" -- and is kept as an empty variable, which
+// env:: reads as unset and the device defaults (perf.cpp, overwrite = 0)
+// leave alone; removing it let MW2_NO_MSAA's default switch multisampling
+// off for a player who had asked for it.
 MW2_NATIVE(void, nativeSetOption)(JNIEnv* env, jobject, jstring key, jstring value)
 {
     const std::string name = ToString(env, key);
     const std::string text = ToString(env, value);
     if (name.empty()) return;
-    if (text.empty()) unsetenv(name.c_str());
-    else setenv(name.c_str(), text.c_str(), 1);
+    setenv(name.c_str(), text.c_str(), 1);
     LOGI("android: %s=%s", name.c_str(), text.c_str());
 }
 
