@@ -1,24 +1,41 @@
-# mw3recomp
+# mw3-android
 
-### Modern Warfare 3 · Xbox 360 → native runtime · eventual PS4 port
+### Modern Warfare 3 (2011) · Xbox 360 → native ARM64 Android
 
-Static recompilation research for **Call of Duty: Modern Warfare 3 (2011)**,
-focused on the offline single-player campaign. [XenonRecomp](https://github.com/hedge-dev/XenonRecomp)
-translates the PowerPC executable into C++, which is compiled with a native host
-runtime derived from [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled).
-This is not a conventional Xbox 360 emulator.
+A native Android build of **Call of Duty: Modern Warfare 3**, made by statically
+recompiling the Xbox 360 executable. [XenonRecomp](https://github.com/hedge-dev/XenonRecomp)
+translates the PowerPC code into C++, which the NDK compiles for arm64 and
+links with a host runtime: kernel and XAM services, the Xenos command stream
+drawn with Vulkan, guest XAudio2 with XMA decoding, AAudio, and controller and
+touch input. No emulator, Wine, Box64 or streaming is involved. First target:
+Spec Ops Survival.
 
-[Local diagnostics](docs/MW3-LOCAL-RUN.md) · [Build guide](docs/MW3-BUILD.md) ·
-[Validation workflow](.github/workflows/mw3-validation.yml) · [Bring-up history](docs/MW3-BRINGUP.md)
+It is a private fork of [mw3recomp](https://github.com/the-drk/mw3recomp) (the
+MW3 desktop bring-up of [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled))
+with the Android layer of mw2-android merged in.
 
-> [!IMPORTANT]
-> **Research build — status: 14 November 2026.** MW3 completes a bounded
-> **60-second headless startup run** with normal exit. A separate software-Vulkan
-> run produced verified **1280×720 startup and first-run brightness-screen captures**. Main-menu boot,
-> audible audio, and gameplay are **not verified**.
-> There is **no playable release, PS4 executable, or FPKG**.
+- **Where it stands, what is verified and what is not:** [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md)
+- **Why this architecture:** [docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md)
+- **Building the APK:** the Build section of the progress log
 
-## Current milestone
+| Part | Where |
+|---|---|
+| Shared platform runtime (kernel, GPU, audio, files) | `runtime/` |
+| Android platform layer | `runtime/android/`, `cmake/android.cmake` |
+| Android app (launcher, installer, game activity) | `android/` |
+| MW3-specific addresses and recompiler config | `runtime/title.h` (`MW3_TITLE`), `config/MW3.toml` |
+| Recompiler patch | `patches/xenonrecomp-mw2.patch` |
+| Asset-free tests | `tests/` |
+
+The game is not included. The ISO, extracted files, the generated C++
+(`ppc_mw3/`) and every binary built from it stay on the owner's machine and
+device and are never committed or published.
+
+The rest of this file is the upstream desktop bring-up's own README, kept for
+its history; its status paragraphs predate the Android work.
+
+## Upstream desktop milestone (14 November 2026)
+
 
 The supported campaign executable, with a complete local disc extraction,
 completed both 12-second and 60-second diagnostic runs under Ubuntu 24.04 on
