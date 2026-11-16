@@ -269,7 +269,7 @@ index f5db6d1..9c3d7b6 100644
      "recompiler_config.cpp")
  
 diff --git a/XenonRecomp/recompiler.cpp b/XenonRecomp/recompiler.cpp
-index fa91527..deae41d 100644
+index fa91527..63bd37f 100644
 --- a/XenonRecomp/recompiler.cpp
 +++ b/XenonRecomp/recompiler.cpp
 @@ -1,5 +1,6 @@
@@ -570,7 +570,7 @@ index fa91527..deae41d 100644
          default:
              println("\t__builtin_debugtrap();");
              break;
-@@ -2263,6 +2341,197 @@ bool Recompiler::Recompile(
+@@ -2263,6 +2341,212 @@ bool Recompiler::Recompile(
          println("\t{}.u64 = {}.u64 ^ {};", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2] << 16);
          break;
  
@@ -667,6 +667,21 @@ index fa91527..deae41d 100644
 +    case PPC_INST_STDUX:
 +        println("\t{} = {}.u32 + {}.u32;", ea(), r(insn.operands[1]), r(insn.operands[2]));
 +        println("\tPPC_STORE_U64({}, {}.u64);", ea(), r(insn.operands[0]));
++        println("\t{}.u32 = {};", r(insn.operands[1]), ea());
++        break;
++
++    case PPC_INST_STFSUX:
++        printSetFlushMode(false);
++        println("\t{} = {}.u32 + {}.u32;", ea(), r(insn.operands[1]), r(insn.operands[2]));
++        println("\t{}.f32 = float({}.f64);", temp(), f(insn.operands[0]));
++        println("\tPPC_STORE_U32({}, {}.u32);", ea(), temp());
++        println("\t{}.u32 = {};", r(insn.operands[1]), ea());
++        break;
++
++    case PPC_INST_STFDUX:
++        printSetFlushMode(false);
++        println("\t{} = {}.u32 + {}.u32;", ea(), r(insn.operands[1]), r(insn.operands[2]));
++        println("\tPPC_STORE_U64({}, {}.u64);", ea(), f(insn.operands[0]));
 +        println("\t{}.u32 = {};", r(insn.operands[1]), ea());
 +        break;
 +
@@ -768,7 +783,7 @@ index fa91527..deae41d 100644
      default:
          return false;
      }
-@@ -2381,6 +2650,11 @@ bool Recompiler::Recompile(const Function& fn)
+@@ -2381,6 +2665,11 @@ bool Recompiler::Recompile(const Function& fn)
          name = fmt::format("sub_{}", fn.base);
      }
  
@@ -780,7 +795,7 @@ index fa91527..deae41d 100644
  #ifdef XENON_RECOMP_USE_ALIAS
      println("__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
  #endif
-@@ -2512,20 +2786,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2512,20 +2801,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
  
          if (config.skipLr)
              println("#define PPC_CONFIG_SKIP_LR");      
@@ -803,7 +818,7 @@ index fa91527..deae41d 100644
  
          println("");
  
-@@ -2602,6 +2866,12 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2602,6 +2881,12 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
          SaveCurrentOutData("ppc_func_mapping.cpp");
      }
  
@@ -834,10 +849,10 @@ index 8242db5..b6a1f92 100644
  
 diff --git a/XenonRecomp/register_flow.cpp b/XenonRecomp/register_flow.cpp
 new file mode 100644
-index 0000000..4bff59a
+index 0000000..c8983fd
 --- /dev/null
 +++ b/XenonRecomp/register_flow.cpp
-@@ -0,0 +1,1595 @@
+@@ -0,0 +1,1600 @@
 +#include "register_flow.h"
 +#include "recompiler.h"
 +
@@ -1347,6 +1362,11 @@ index 0000000..4bff59a
 +        case PPC_INST_STHUX:
 +        case PPC_INST_STWUX:
 +            useR(0); useR(1); defR(1); useR(2);
++            break;
++
++        case PPC_INST_STFDUX:
++        case PPC_INST_STFSUX:
++            useF(0); useR(1); defR(1); useR(2);
 +            break;
 +
 +        // Store conditional: cr0 says whether it took, from the reservation.

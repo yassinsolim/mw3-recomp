@@ -12,12 +12,12 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Desktop reference (x86-64 Linux, llvmpipe) | verified: start-up sequence renders, 1280x720 captures |
 | Android arm64 build (`assembleMw3Tu0Debug`) | verified: 17 MB debug APK, installs on the Thor |
 | On-device install from the ISO | verified: title id and hash check pass, 184 files copied |
+| Guest code executing on the Thor | verified: start-up sequence runs to the title screen |
 | Rendering on the Thor | partially verified: intro visuals and the "Press START" title screen render at 60 FPS (HUD counter) on the stock Adreno driver |
-| Rendering on the Thor | partially verified: start-up visuals match the desktop reference at 60 FPS on the stock Adreno driver; nothing past start-up seen yet |
 | Audio on the Thor | AAudio stream opens; audible output not checked |
 | Input on the Thor | pads detected; not verified that the title consumes input |
+| Launcher branding | still shows MW2 text and MW2-only entries |
 | Main menu, Survival map load, gameplay | not reached (title screen is the furthest point seen) |
-| Main menu, Survival map load, gameplay | not reached |
 
 ## 2026-11-16
 
