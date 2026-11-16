@@ -4,10 +4,17 @@ import argparse
 import hashlib
 from pathlib import Path
 
-SUPPORTED_SHA256 = "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912"
+# Retail packagings of the same iw5sp_ship.exe build. Each was recompiled with
+# config/MW3.toml and gave the same 128 jump tables and no boundary errors;
+# the second (USA/Europe disc, media id 30775D59) also ran the bounded
+# headless start-up.
+SUPPORTED_SHA256 = (
+    "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912",
+    "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1",
+)
 
 
-def verify(path: Path, expected: str = SUPPORTED_SHA256) -> None:
+def verify(path: Path, expected: tuple[str, ...] = SUPPORTED_SHA256) -> None:
     with path.open("rb") as stream:
         prefix = stream.read(128)
         if prefix.startswith(b"version https://git-lfs.github.com/spec/v1"):
@@ -17,7 +24,7 @@ def verify(path: Path, expected: str = SUPPORTED_SHA256) -> None:
         digest = hashlib.sha256(prefix)
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
-    if digest.hexdigest() != expected:
+    if digest.hexdigest() not in expected:
         raise ValueError("Unsupported MW3 executable; refusing to use fixed title addresses")
 
 

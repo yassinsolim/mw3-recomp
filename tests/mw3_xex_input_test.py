@@ -27,13 +27,13 @@ class XexInputTest(unittest.TestCase):
             data = b"XEX2" + b"synthetic" * 140000
             path.write_bytes(data)
             expected = hashlib.sha256(data).hexdigest()
-            checker.verify(path, expected)
+            checker.verify(path, (expected,))
             with self.assertRaisesRegex(ValueError, "Unsupported"):
                 checker.verify(path)
             with path.open("ab") as stream:
                 stream.write(b"changed")
             with self.assertRaisesRegex(ValueError, "Unsupported"):
-                checker.verify(path, expected)
+                checker.verify(path, (expected,))
 
 
 if __name__ == "__main__":

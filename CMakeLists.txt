@@ -499,13 +499,22 @@ function(mw2_sha256 variable path)
     set(${variable} "${hash}" PARENT_SCOPE)
 endfunction()
 if(MW2_TITLE STREQUAL "mw3")
-    # The link probe is a development executable for the one pinned MW3 XEX.
-    # It accepts an explicit XEX/flat-image path; no MW2 disc or update assets
-    # are required, and the launcher/player-install path is not enabled.
+    # An MW3 build runs the executable it was recompiled from: the one in
+    # mw3/tu0 when it is there (tools/check_mw3_xex.py has already accepted it
+    # before any code was generated), a hash given on the command line for a
+    # build that has the generated sources but not the disc, or the first
+    # executable the bring-up was done on.
+    if(MW2_XEX_SHA256_SP)
+        set(mw3_xex_hash "${MW2_XEX_SHA256_SP}")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw3/tu0/default.xex")
+        mw2_sha256(mw3_xex_hash "${CMAKE_SOURCE_DIR}/mw3/tu0/default.xex")
+    else()
+        set(mw3_xex_hash "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912")
+    endif()
     set(MW2_HASH_DEFINITIONS
-        MW2_XEX_SHA256_SP="d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912"
+        MW2_XEX_SHA256_SP="${mw3_xex_hash}"
         MW2_XEX_SHA256_MP="unsupported"
-        MW2_DISC_SHA256_SP="d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912"
+        MW2_DISC_SHA256_SP="${mw3_xex_hash}"
         MW2_DISC_SHA256_MP="unsupported")
 elseif(MW2_XEX_SHA256_SP AND MW2_XEX_SHA256_MP)
     # CMake's regexes have no {n} repetition -- "{64}" would be matched as
