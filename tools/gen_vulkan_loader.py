@@ -115,7 +115,7 @@ def main():
                 lines.append("#endif")
         lines.append("")
 
-    with open(OUTPUT, "w", encoding="utf-8") as out:
+    with open(OUTPUT, "w", encoding="utf-8", newline="\n") as out:
         out.write("\n".join(lines))
     print("%s: %d entry points" % (os.path.relpath(OUTPUT, ROOT), len(names)))
     return 0
