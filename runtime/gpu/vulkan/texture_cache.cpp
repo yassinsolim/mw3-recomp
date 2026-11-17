@@ -8,12 +8,14 @@
 #include "../texture.h"
 #include "../memory_watch.h"
 #include "renderer.h"
+#include "../../crash.h"
 #include "../../env.h"
 #include "../../guest.h"
 #include "../../report.h"
 #include "../../image_move.h"
 #include "../../kernel/physical.h"
 #include "../../log.h"
+#include "../../platform.h"
 #include "../../stutters.h"
 #include "../../words_hash.h"
 
@@ -61,12 +63,16 @@ void vk::textures::BeginUploads(uint32_t) {}
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <map>
 #include <deque>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include <vulkan/vulkan.h>
@@ -93,16 +99,17 @@ namespace
     // Its own thread, because the command stream has one owner and a second
     // decoding thread must not wait on the first. The largest decode seen stays
     // resident until a smaller budget says the memory is wanted back
-    // (SetBudget), which is what a phone's onTrimMemory arrives as.
+    // (SetBudget), which is what a phone's onTrimMemory arrives as. The
+    // re-reads of a segment's end that run side by side each decode into a
+    // buffer of their own, of which this is the first (PrepareAll).
     gpu::TextureData& DecodeScratch()
     {
         static thread_local gpu::TextureData scratch;
         return scratch;
     }
 
-    void ReleaseDecodeScratch()
+    void ReleaseScratch(gpu::TextureData& scratch)
     {
-        gpu::TextureData& scratch = DecodeScratch();
         std::vector<uint8_t>().swap(scratch.bytes);
         scratch.levels.clear();
         scratch.ok = false;
@@ -1053,6 +1060,10 @@ namespace
 
 namespace
 {
+    // The threads that read textures again at a segment's end, joined before
+    // the device goes (PrepareAll).
+    void StopReaders();
+
     // The one set every draw samples through (bindings.h).
     bool MakeBindlessSet()
     {
@@ -1177,6 +1188,7 @@ bool vk::textures::Initialise()
 void vk::textures::Shutdown()
 {
     if (!g.device) return;
+    StopReaders();
     vkDeviceWaitIdle(g.device);
     for (Image& image : g.doomed) DestroyImage(image);
     g.doomed.clear();
@@ -1227,19 +1239,27 @@ namespace
     }
 
     // Both ranges a texture was read from, as one signature: a rewrite of the
-    // chain changes what is sampled as surely as one of the base.
-    uint64_t SignSource(uint32_t base, size_t baseBytes, uint32_t mips, size_t mipBytes,
-                        bool timed = false)
+    // chain changes what is sampled as surely as one of the base. By host
+    // address, and untimed touching nothing else: what a thread other than
+    // the consumer may call.
+    uint64_t SignRanges(const uint8_t* base, size_t baseBytes, const uint8_t* mips,
+                        size_t mipBytes, bool timed = false)
     {
         auto sign = [&](const uint8_t* at, size_t bytes) {
             return timed ? TimedSignatureOf(at, bytes) : SignatureOf(at, bytes);
         };
         uint64_t signature = 0;
-        if (const uint8_t* at = baseBytes ? HostAddress(base) : nullptr)
-            signature = sign(at, baseBytes);
-        if (const uint8_t* at = mipBytes ? HostAddress(mips) : nullptr)
-            signature = (signature ^ sign(at, mipBytes)) * 0x100000001B3ull + 1;
+        if (base && baseBytes) signature = sign(base, baseBytes);
+        if (mips && mipBytes)
+            signature = (signature ^ sign(mips, mipBytes)) * 0x100000001B3ull + 1;
         return signature;
+    }
+
+    uint64_t SignSource(uint32_t base, size_t baseBytes, uint32_t mips, size_t mipBytes,
+                        bool timed = false)
+    {
+        return SignRanges(baseBytes ? HostAddress(base) : nullptr, baseBytes,
+                          mipBytes ? HostAddress(mips) : nullptr, mipBytes, timed);
     }
 
     uint64_t SignImage(const Image& image, bool timed = false)
@@ -1301,13 +1321,13 @@ namespace
     }
 
     // Whether what was just read into this image looks like a block nothing has
-    // written. Measured on the decoded texture, not the padded source extent:
-    // the padding of a small texture is legitimately untouched. An image that
-    // becomes empty is queued to be read again at the end of its segment.
-    void NoteEmptiness(Image& image, const gpu::TextureData& data)
+    // written: `empty` is EmptyPercent of `data`. Measured on the decoded
+    // texture, not the padded source extent: the padding of a small texture is
+    // legitimately untouched. An image that becomes empty is queued to be read
+    // again at the end of its segment.
+    void NoteEmptiness(Image& image, const gpu::TextureData& data, uint8_t empty)
     {
         if ((!image.address && !image.mipAddress) || data.bytes.empty()) return;
-        const uint8_t empty = EmptyPercent(data.bytes.data(), data.bytes.size());
         if (empty <= 25) { image.fromAnEmptyBlock = false; return; }
         if (empty <= 60) return;
         if (!image.fromAnEmptyBlock && g.emptyThisSegment.size() < 64)
@@ -1316,55 +1336,273 @@ namespace
         if (!image.emptySince) image.emptySince = g.frame ? g.frame : 1;
     }
 
-    // The texture as its memory holds it now, through the fetch constant it
-    // was uploaded from; staged over the old contents if it still has their
-    // shape. False when it could not be.
-    bool Restage(Image& image, const gpu::TextureData& data)
+    // A texture read again as its memory holds it now, through the fetch
+    // constant it was uploaded from, in two halves. Prepare is the half that
+    // is arithmetic on guest memory -- the signature, the read and its byte
+    // swap, the software decode, the measure of how empty it came out -- and
+    // touches nothing but the job, so the jobs of a segment's end are prepared
+    // on several threads at once (PrepareAll). Stage is the copy into staging
+    // and the commands, which stay with the consumer and in the order the
+    // textures were listed.
+    struct Reread
     {
-        if (!data.ok) return false;
-        gpu::TextureData& decompressed = DecodeScratch();
-        const gpu::TextureData* pData = &data;
-        if (DecodeInSoftware(image.xenosFormat))
+        Reread(uint64_t named, Image& from) : id(named), image(&from)
         {
+            std::memcpy(fetch.d, from.fetchWords, sizeof fetch.d);
+            base = HostAddress(from.address);
+            mips = HostAddress(from.mipAddress);
+            baseBytes = from.sourceBytes;
+            mipBytes = from.mipBytes;
+            xenosFormat = from.xenosFormat;
+            format = from.format;
+            bytes = from.bytes;
+            decode = DecodeInSoftware(from.xenosFormat);
+        }
+
+        uint64_t id;
+        Image* image;   // the consumer's alone: Prepare works from the copies below
+        gpu::TextureFetch fetch;
+        const uint8_t* base = nullptr;
+        const uint8_t* mips = nullptr;
+        size_t baseBytes = 0, mipBytes = 0;
+        uint32_t xenosFormat = 0;
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        VkDeviceSize bytes = 0;
+        bool decode = false;                   // through the software decoder
+        gpu::TextureData* scratch = nullptr;   // where that decodes to (PrepareAll)
+        // Signed first, and read only if that is not `held`, the signature of
+        // what the image holds.
+        bool signFirst = false;
+        uint64_t held = 0;
+        bool measure = false;   // `empty` is wanted
+        // A texture that came up empty: measured, wanted only if it no longer
+        // is, and signed once read, as what the image then holds.
+        bool refill = false;
+
+        // What Prepare leaves.
+        gpu::TextureData data;                         // as read
+        // What to stage, null when nothing is: `data` or `*scratch`, so the
+        // job stays where it is once prepared.
+        const gpu::TextureData* payload = nullptr;
+        uint8_t empty = 0;                             // EmptyPercent of `data`
+        uint64_t signature = 0, signNanos = 0;
+    };
+
+    // What the image is staged from: the texture as read, or its software
+    // decode. Null when that is not what the image was made to hold.
+    const gpu::TextureData* PayloadOf(const Reread& job)
+    {
+        const gpu::TextureData* pData = &job.data;
+        if (job.decode)
+        {
+            gpu::TextureData& decompressed = *job.scratch;
             int decompFormat = 0;
-            if (!vk::bc::Decompress(data, image.xenosFormat, decompressed, decompFormat))
+            if (!vk::bc::Decompress(job.data, job.xenosFormat, decompressed, decompFormat))
             {
                 LOGE("Texture restage: software BC decompression failed for xenosFormat %u (%ux%u, %zu levels): %s",
-                     image.xenosFormat, data.width, data.height, data.levels.size(),
+                     job.xenosFormat, job.data.width, job.data.height, job.data.levels.size(),
                      decompressed.error ? decompressed.error : "decoder failure");
-                return false;
+                return nullptr;
             }
-            if (image.format != VkFormat(decompFormat) &&
-                image.format != VkFormat(vk::formats::SrgbFormatFor(decompFormat)))
+            if (job.format != VkFormat(decompFormat) &&
+                job.format != VkFormat(vk::formats::SrgbFormatFor(decompFormat)))
             {
                 LOGE("Texture restage: format mismatch for xenosFormat %u (got %d, image has %d)",
-                     image.xenosFormat, decompFormat, int(image.format));
-                return false;
+                     job.xenosFormat, decompFormat, int(job.format));
+                return nullptr;
             }
             pData = &decompressed;
         }
 
         if (!pData->ok)
         {
-            LOGE("Texture restage: payload data is invalid for xenosFormat %u", image.xenosFormat);
-            return false;
+            LOGE("Texture restage: payload data is invalid for xenosFormat %u", job.xenosFormat);
+            return nullptr;
         }
 
-        if (pData->bytes.size() != image.bytes)
+        if (pData->bytes.size() != job.bytes)
         {
             LOGE("Texture restage: payload size mismatch for xenosFormat %u (got %zu bytes, image expects %llu bytes)",
-                 image.xenosFormat, pData->bytes.size(), static_cast<unsigned long long>(image.bytes));
-            return false;
+                 job.xenosFormat, pData->bytes.size(), static_cast<unsigned long long>(job.bytes));
+            return nullptr;
         }
-
-        return StageInto(image, pData->bytes.data(), pData->bytes.size(), nullptr);
+        return pData;
     }
 
-    gpu::TextureData ReadAgain(const Image& image)
+    // On any thread: nothing here reads or writes what another job, the cache
+    // or Vulkan holds.
+    void Prepare(Reread& job)
     {
-        gpu::TextureFetch fetch;
-        std::memcpy(fetch.d, image.fetchWords, sizeof fetch.d);
-        return gpu::ReadTexture(fetch, HostAddress(image.address), HostAddress(image.mipAddress));
+        if (job.signFirst)
+        {
+            if constexpr (diag::kOn)
+            {
+                const auto started = std::chrono::steady_clock::now();
+                job.signature = SignRanges(job.base, job.baseBytes, job.mips, job.mipBytes);
+                job.signNanos = uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::steady_clock::now() - started).count());
+            }
+            else job.signature = SignRanges(job.base, job.baseBytes, job.mips, job.mipBytes);
+            if (job.signature == job.held) return;
+        }
+        job.data = gpu::ReadTexture(job.fetch, job.base, job.mips);
+        if (!job.data.ok) return;
+        if (job.measure || job.refill)
+            job.empty = EmptyPercent(job.data.bytes.data(), job.data.bytes.size());
+        if (job.refill && job.empty > 25) return;
+        job.payload = PayloadOf(job);
+        if (job.refill && job.payload)
+            job.signature = SignRanges(job.base, job.baseBytes, job.mips, job.mipBytes);
+    }
+
+    // Staged over the old contents, if the read came out in their shape.
+    // False when it could not be.
+    bool Stage(const Reread& job)
+    {
+        return job.payload && StageInto(*job.image, job.payload->bytes.data(),
+                                        job.payload->bytes.size(), nullptr);
+    }
+
+    // MW2_TEXTURE_THREADS=<n>: how many threads besides the consumer prepare
+    // the re-reads of a segment's end; 0 keeps every one of them on the
+    // consumer, one after another. Three, because a texture the title's image
+    // pool rewrote is read, swapped and decoded again at the end of every
+    // segment that binds it, a segment often has several, and on a phone that
+    // work made the consumer late for a frame a dozen times a minute.
+    size_t ReaderThreads()
+    {
+        static const size_t threads =
+            size_t(std::min<uint64_t>(env::Number("MW2_TEXTURE_THREADS", 3), 8));
+        return threads;
+    }
+
+    // Fork and join: the consumer hands over a batch of jobs, takes its share
+    // of them and does not go on until every one is done, so guest memory is
+    // read at the same point of the command stream as when it read them all
+    // itself.
+    struct Readers
+    {
+        std::mutex lock;
+        std::condition_variable work, done;
+        std::vector<std::thread> threads;
+        Reread* jobs = nullptr;                    // the batch, while there is one
+        size_t count = 0, next = 0, finished = 0;
+        bool stopping = false;
+        // What the batch's jobs after the first decode into, kept from one
+        // batch to the next as DecodeScratch is; and that a smaller budget
+        // has asked for them back since.
+        std::vector<gpu::TextureData> scratch;
+        std::atomic<bool> trim{ false };
+    };
+    Readers readers;
+
+    // The batch's jobs nobody has taken yet, one at a time. Called and left
+    // with the lock held.
+    void TakeJobs(std::unique_lock<std::mutex>& lock)
+    {
+        while (readers.next < readers.count)
+        {
+            Reread& job = readers.jobs[readers.next++];
+            lock.unlock();
+            Prepare(job);
+            lock.lock();
+            readers.finished++;
+        }
+    }
+
+    void RunReader()
+    {
+        crash::RegisterThread("texture reader");
+        // With the recorder and the title's own threads, off the little cores:
+        // the consumer is waiting for these.
+        platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
+        std::unique_lock lock(readers.lock);
+        for (;;)
+        {
+            readers.work.wait(lock, [] { return readers.next < readers.count || readers.stopping; });
+            if (readers.stopping) return;
+            TakeJobs(lock);
+            if (readers.finished == readers.count) readers.done.notify_one();
+        }
+    }
+
+    void StopReaders()
+    {
+        {
+            std::lock_guard lock(readers.lock);
+            readers.stopping = true;
+        }
+        readers.work.notify_all();
+        for (std::thread& thread : readers.threads) thread.join();
+        readers.threads.clear();
+        readers.scratch.clear();
+        readers.stopping = false;
+    }
+
+    // Prepares `count` jobs, at most one more than ReaderThreads, and returns
+    // when all are. One job is the consumer's own, with nothing handed over.
+    void PrepareAll(Reread* jobs, size_t count)
+    {
+        jobs[0].scratch = &DecodeScratch();
+        if (count == 1) { Prepare(jobs[0]); return; }
+
+        // Started by the first batch, so a run that never has one has no
+        // threads either.
+        if (readers.threads.empty())
+        {
+            readers.scratch.resize(ReaderThreads());
+            for (size_t i = 0; i < ReaderThreads(); i++) readers.threads.emplace_back(RunReader);
+        }
+        // No reader is at work between batches, so the buffers are free to go.
+        if (readers.trim.exchange(false))
+            for (gpu::TextureData& scratch : readers.scratch) ReleaseScratch(scratch);
+        for (size_t i = 1; i < count; i++) jobs[i].scratch = &readers.scratch[i - 1];
+
+        std::unique_lock lock(readers.lock);
+        readers.jobs = jobs;
+        readers.count = count;
+        readers.next = readers.finished = 0;
+        // A reader for each job but the one the consumer starts on.
+        for (size_t i = 1; i < count; i++) readers.work.notify_one();
+        TakeJobs(lock);
+        readers.done.wait(lock, [] { return readers.finished == readers.count; });
+        readers.jobs = nullptr;
+        readers.count = readers.next = readers.finished = 0;
+    }
+
+    // The re-reads of a segment's end. `gather` is asked about each listed
+    // texture in turn and adds a job to the batch for one that is to be read;
+    // a batch is prepared together once it has a job for the consumer and
+    // each reader, and `finish` then called for its jobs in the order they
+    // were listed. What `gather` does for one texture never depends on what
+    // `finish` did for another, so the outcome is the one of asking, reading
+    // and finishing each in turn -- which is what MW2_TEXTURE_THREADS=0 does.
+    template <typename Gather, typename Finish>
+    void RereadEach(const std::vector<uint64_t>& ids, Gather gather, Finish finish)
+    {
+        if (ids.empty()) return;
+        const size_t most = 1 + ReaderThreads();
+        std::vector<Reread> batch;
+        batch.reserve(most);
+        const auto flush = [&] {
+            if (batch.empty()) return;
+            PrepareAll(batch.data(), batch.size());
+            for (Reread& job : batch) finish(job);
+            batch.clear();
+        };
+        for (const uint64_t id : ids)
+        {
+            // Listed twice, it is asked about the second time as the first
+            // left it.
+            if (std::any_of(batch.begin(), batch.end(),
+                            [&](const Reread& job) { return job.id == id; }))
+                flush();
+            Image* image = Find(id);
+            if (!image || !image->image || image->borrowed) continue;
+            gather(id, *image, batch);
+            if (batch.size() == most) flush();
+        }
+        flush();
     }
 
     // The fetch constant is unchanged when only the bytes are, so the cache would
@@ -1431,11 +1669,13 @@ namespace
             return;
         }
         image->restageDue = false;
-        const gpu::TextureData data = ReadAgain(*image);
-        if (!Restage(*image, data)) return;
+        Reread job(id, *image);
+        job.measure = true;
+        PrepareAll(&job, 1);
+        if (!Stage(job)) return;
         image->signature = now;
         g.refreshed++;
-        NoteEmptiness(*image, data);
+        NoteEmptiness(*image, job.data, job.empty);
     }
 }
 
@@ -1451,8 +1691,13 @@ void vk::textures::SetBudget(uint64_t bytes)
 {
     const uint64_t floor = 48ull << 20;   // below this nothing would stay cached
     // A smaller budget is a phone asking for memory back, so the decoder's own
-    // buffer goes with it; the next restage allocates it again.
-    if (bytes < g.budget) ReleaseDecodeScratch();
+    // buffer goes with it, and the readers' at their next batch; the next
+    // restage allocates it again.
+    if (bytes < g.budget)
+    {
+        ReleaseScratch(DecodeScratch());
+        readers.trim.store(true);
+    }
     g.budget = std::max(bytes, floor);
 }
 
@@ -1842,7 +2087,7 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         uploaded->xenosFormat = fetch.Format();
         uploaded->watchStamp = watchStamp;
         std::memcpy(uploaded->fetchWords, fetch.d, sizeof uploaded->fetchWords);
-        NoteEmptiness(*uploaded, data);
+        NoteEmptiness(*uploaded, data, EmptyPercent(data.bytes.data(), data.bytes.size()));
     }
     // A failure is cached too: the same six dwords fail the same way, and a
     // texture bound every frame would otherwise fail thousands of times.
@@ -1856,80 +2101,85 @@ namespace
     {
         std::vector<uint64_t> again;
         again.swap(g.rewrittenThisSegment);
-        for (const uint64_t id : again)
-        {
-            Image* image = Find(id);
-            if (!image || !image->image || image->borrowed ||
-                (!image->sourceBytes && !image->mipBytes))
-                continue;
-            // What a bind of this segment found rewritten and left to here
-            // (RefreshIfChanged). Not written since, its signature is the one
-            // taken then and only the read is still owed.
-            const bool due = image->restageDue;
-            image->restageDue = false;
-            const bool unchanged = Unchanged(*image);
-            if (unchanged)
-            {
-                g.unchangedByWatch++;
-                if (!due) continue;
-            }
-            uint64_t now = image->dueSignature;
-            if (!unchanged)
-            {
-                g.rereadRewritten++;
-                image->watchStamp = TrackImage(*image);
-                now = SignImage(*image, true);
-            }
-            if (now == image->signature) continue;
-            const gpu::TextureData data = ReadAgain(*image);
-            if (!Restage(*image, data)) continue;
-            image->signature = now;
-            if (due)
-            {
-                // The bind's own read, made late: counted and looked over as
-                // it would have been there.
-                g.refreshed++;
-                NoteEmptiness(*image, data);
-                if (now == image->dueSignature) continue;
-            }
-            if constexpr (diag::kOn) g.lateRestages.push_back(id);
-            g.lateReads.push_back({ id, g.frame });
-            g.changedAfterFirstBind++;
-        }
+        RereadEach(again,
+            [](uint64_t id, Image& image, std::vector<Reread>& batch) {
+                if (!image.sourceBytes && !image.mipBytes) return;
+                // What a bind of this segment found rewritten and left to here
+                // (RefreshIfChanged). Not written since, its signature is the
+                // one taken then and only the read is still owed.
+                const bool due = image.restageDue;
+                image.restageDue = false;
+                const bool unchanged = Unchanged(image);
+                if (unchanged)
+                {
+                    g.unchangedByWatch++;
+                    if (!due || image.dueSignature == image.signature) return;
+                }
+                else
+                {
+                    g.rereadRewritten++;
+                    image.watchStamp = TrackImage(image);
+                }
+                Reread& job = batch.emplace_back(id, image);
+                // The bind's own read, made late, is looked over as it would
+                // have been there.
+                job.measure = due;
+                job.signFirst = !unchanged;
+                job.held = image.signature;
+                job.signature = image.dueSignature;
+            },
+            [](Reread& job) {
+                Image& image = *job.image;
+                g.signNanos += job.signNanos;
+                if (job.signature == image.signature || !Stage(job)) return;
+                image.signature = job.signature;
+                if (job.measure)
+                {
+                    // Counted as the bind's read would have been.
+                    g.refreshed++;
+                    NoteEmptiness(image, job.data, job.empty);
+                    if (job.signature == image.dueSignature) return;
+                }
+                if constexpr (diag::kOn) g.lateRestages.push_back(job.id);
+                g.lateReads.push_back({ job.id, g.frame });
+                g.changedAfterFirstBind++;
+            });
     }
 
     void RefreshEmpty()
     {
         std::vector<uint64_t> again;
         again.swap(g.emptyThisSegment);
-        for (const uint64_t id : again)
-        {
-            Image* image = Find(id);
-            if (!image || !image->image || image->borrowed || !image->fromAnEmptyBlock) continue;
-            image->watchStamp = TrackImage(*image);
-            const gpu::TextureData data = ReadAgain(*image);
-            if (data.ok && EmptyPercent(data.bytes.data(), data.bytes.size()) <= 25)
-            {
-                if (!Restage(*image, data)) continue;
-                if constexpr (diag::kOn) g.lateRestages.push_back(id);
-                image->signature = SignImage(*image);
-                image->fromAnEmptyBlock = false;
-                g.refilledBeforeSubmit++;
-                continue;
-            }
-            // Reaches the screen with nothing in it. tools/flash_hunt.sh matches
-            // these lines with the flashes somebody saw.
-            g.stillEmptyAtSubmit++;
-            if (g.stillEmptyAtSubmit <= 24 || FlashHunt())
-            {
-                char moves[1024];
-                imagepool::DescribeMovesAround(image->address, uint32_t(image->sourceBytes), 16,
-                                               moves, sizeof moves);
-                LOGI("textures:   still empty at submit, %ux%u fmt %u at %08X (%uKB), frame %llu:"
-                     " %s", image->width, image->height, image->xenosFormat, image->address,
-                     uint32_t(image->sourceBytes / 1024), (unsigned long long)g.frame, moves);
-            }
-        }
+        RereadEach(again,
+            [](uint64_t id, Image& image, std::vector<Reread>& batch) {
+                if (!image.fromAnEmptyBlock) return;
+                image.watchStamp = TrackImage(image);
+                batch.emplace_back(id, image).refill = true;
+            },
+            [](Reread& job) {
+                Image& image = *job.image;
+                if (job.data.ok && job.empty <= 25)
+                {
+                    if (!Stage(job)) return;
+                    if constexpr (diag::kOn) g.lateRestages.push_back(job.id);
+                    image.signature = job.signature;
+                    image.fromAnEmptyBlock = false;
+                    g.refilledBeforeSubmit++;
+                    return;
+                }
+                // Reaches the screen with nothing in it. tools/flash_hunt.sh
+                // matches these lines with the flashes somebody saw.
+                g.stillEmptyAtSubmit++;
+                if (g.stillEmptyAtSubmit <= 24 || FlashHunt())
+                {
+                    char moves[1024];
+                    imagepool::DescribeMovesAround(image.address, uint32_t(image.sourceBytes), 16,
+                                                   moves, sizeof moves);
+                    LOGI("textures:   still empty at submit, %ux%u fmt %u at %08X (%uKB), frame %llu:"
+                         " %s", image.width, image.height, image.xenosFormat, image.address,
+                         uint32_t(image.sourceBytes / 1024), (unsigned long long)g.frame, moves);
+                }
+            });
     }
 }
 

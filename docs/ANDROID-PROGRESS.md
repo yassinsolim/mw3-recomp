@@ -183,6 +183,13 @@ Status words: **verified** (observed on the device or by a run), **built**
   67,439 released because the title's image pool rewrote their memory, read
   and decoded on the ring consumer at segment ends. Moving that decode off
   the consumer is the next step for the remaining hitches.
+- Texture re-reads at a segment's end now run fork-join: the guest-memory
+  read, endian swap, BC decode and emptiness measure for each image go to up
+  to 3 reader threads (MW2_TEXTURE_THREADS) while the consumer waits, then
+  staging is recorded on the consumer in the old order. 10 minutes in play:
+  stutters 131 -> 66 (6.1 a minute, 50 of them one frame), renderer-late
+  107 -> 49, 59.1 world FPS, no fault. The few long stutters left (5 of 16+
+  frames) come with the restarts the test forces after each game over.
 
 ## Build (WSL2 Ubuntu 24.04)
 

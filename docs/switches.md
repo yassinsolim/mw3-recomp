@@ -136,6 +136,7 @@ walking to it.
 | `MW2_FORCE_BC_HW=1` | | on an Adreno device: leave BC sampling to the driver rather than the software decoder |
 | `MW2_FORCE_BC_DECOMPRESS=1` | | decode every BC texture in software on any device, which is how a desktop driver is made to exercise the decoder the Snapdragon path uses |
 | `MW2_RECORD_THREAD=0` | | makes the Vulkan calls on the ring consumer instead of the recorder thread |
+| `MW2_TEXTURE_THREADS=<n>` | R | how many threads besides the ring consumer read, byte-swap and software-decode the textures a segment's end reads again because the title rewrote their memory (3, at most 8). The consumer hands them over, takes its share and waits for all of them, then stages each in the order it would have; a single texture stays on the consumer. `0` reads them one after another on the consumer, as before |
 | `MW2_NO_MERGE=1` | R | makes every draw a hardware draw of its own, with a draw table of its own, instead of one `vkCmdDrawIndexed` for a run of indexed draws that change no state: what merging saves, measured on the device ([rendering.md](rendering.md#the-recorder-thread)) |
 | `MW2_TIME_RENDER=1` | | where the ring consumer's time goes, and how long it waits on the GPU |
 | `MW2_DRIVER_ENV="NAME=value;NAME=value"` | R | variables for the graphics driver, set before Vulkan starts (Mesa's `TU_DEBUG`, `IR3_SHADER_DEBUG` and the like): `.env` passes only `MW2_` switches, and on a phone the app's process environment is not otherwise reachable |
