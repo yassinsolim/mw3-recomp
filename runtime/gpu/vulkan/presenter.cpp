@@ -1030,7 +1030,7 @@ namespace
         VkResult submitRes = VK_SUCCESS;
         {
             std::lock_guard queueLock(vk::pipeline::QueueMutex());
-            submitRes = vk::gpu_time::Submit(g.queue, submit, frame.inFlight);
+            submitRes = vk::gpu_time::Submit(g.queue, submit, frame.inFlight, vk::gpu_time::Source::kPresent);
         }
         if (submitRes != VK_SUCCESS)
         {

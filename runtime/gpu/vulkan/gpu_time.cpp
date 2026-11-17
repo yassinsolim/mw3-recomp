@@ -34,6 +34,10 @@ namespace
         // A pair's results from its last round stay readable until the GPU
         // reaches its reset; seeing them again is "not written yet".
         uint64_t seen[kPairs][2]{};
+        // Each pair's submitter, written as it is taken, and the busy ticks
+        // counted for each (Collect's thread only).
+        uint8_t source[kPairs]{};
+        uint64_t bySource[uint32_t(vk::gpu_time::Source::kCount)]{};
         uint64_t lastEnd = 0;
         bool anyEnd = false;
         std::vector<VkCommandBuffer> batch;   // under the queue's lock
@@ -124,7 +128,17 @@ void vk::gpu_time::Start(VkPhysicalDevice physical, VkDevice device, VkQueue que
 
 void vk::gpu_time::Stop()
 {
-    if (g.on.load(std::memory_order_acquire)) Collect();
+    if (g.on.load(std::memory_order_acquire))
+    {
+        Collect();
+        static const char* const kNames[] = { "the renderer's frames", "copies to the screen" };
+        const double total = double(g.bySource[0] + g.bySource[1]);
+        for (uint32_t s = 0; s < uint32_t(Source::kCount); s++)
+            if (total > 0)
+                LOGI("report: the graphics chip's busy time: %4.1f%% %s (%.0f ms)",
+                     100.0 * double(g.bySource[s]) / total, kNames[s],
+                     double(g.bySource[s]) * g.nanosecondsPerTick / 1e6);
+    }
     g.on.store(false, std::memory_order_release);
     if (g.commands) vkDestroyCommandPool(g.device, g.commands, nullptr);
     if (g.pool) vkDestroyQueryPool(g.device, g.pool, nullptr);
@@ -132,7 +146,7 @@ void vk::gpu_time::Stop()
     g.pool = VK_NULL_HANDLE;
 }
 
-VkResult vk::gpu_time::Submit(VkQueue queue, const VkSubmitInfo& submit, VkFence fence)
+VkResult vk::gpu_time::Submit(VkQueue queue, const VkSubmitInfo& submit, VkFence fence, Source source)
 {
     if (!g.on.load(std::memory_order_acquire)) return vkQueueSubmit(queue, 1, &submit, fence);
     uint32_t pair;
@@ -142,6 +156,7 @@ VkResult vk::gpu_time::Submit(VkQueue queue, const VkSubmitInfo& submit, VkFence
             return vkQueueSubmit(queue, 1, &submit, fence);
         pair = uint32_t(g.taken % kPairs);
         g.live[pair].store(true, std::memory_order_relaxed);
+        g.source[pair] = uint8_t(source);
         g.taken++;
     }
     g.batch.clear();
@@ -183,7 +198,11 @@ void vk::gpu_time::Collect()
         // reaches it, which can be while the last one's draws are still on --
         // so only the part past the last end is new.
         const uint64_t from = g.anyEnd && Before(start, g.lastEnd) ? g.lastEnd : start;
-        if (Before(from, end)) busy += (end - from) & g.mask;
+        if (Before(from, end))
+        {
+            busy += (end - from) & g.mask;
+            g.bySource[g.source[pair]] += (end - from) & g.mask;
+        }
         if (!g.anyEnd || Before(g.lastEnd, end)) g.lastEnd = end;
         g.anyEnd = true;
     }

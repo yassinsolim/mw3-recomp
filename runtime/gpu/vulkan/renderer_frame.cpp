@@ -223,7 +223,8 @@ namespace vk::renderer::detail
             vkResetFences(device, 1, &fence);
             // Whatever happens the fence is signalled, or whoever waits for
             // this slot waits for ever.
-            if (!ended || vk::pipeline::Failed(vk::gpu_time::Submit(queue, submit, fence),
+            if (!ended || vk::pipeline::Failed(vk::gpu_time::Submit(queue, submit, fence,
+                                                                    vk::gpu_time::Source::kFrame),
                                                "a frame's submission"))
             {
                 VkSubmitInfo emptySubmit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };

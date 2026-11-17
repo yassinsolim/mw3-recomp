@@ -15,10 +15,13 @@ namespace vk::gpu_time
     void Start(VkPhysicalDevice physical, VkDevice device, VkQueue queue, uint32_t family);
     // With the device idle: what is left is counted first.
     void Stop();
+    // Who a submission is from, so the report can say where the GPU's time
+    // went: the renderer's frames, or the window's copies to the screen.
+    enum class Source : uint8_t { kFrame, kPresent, kCount };
     // vkQueueSubmit of one batch, between the two timestamps. Under
     // vk::pipeline::QueueMutex like any submission: the order the pairs are
     // taken in is the order the queue runs them.
-    VkResult Submit(VkQueue queue, const VkSubmitInfo& submit, VkFence fence);
+    VkResult Submit(VkQueue queue, const VkSubmitInfo& submit, VkFence fence, Source source);
     // Adds to the report the time the GPU took over the submissions it has
     // finished since the last call. One thread at a time.
     void Collect();
