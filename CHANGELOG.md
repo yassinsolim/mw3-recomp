@@ -2,6 +2,20 @@
 
 All notable changes to the Modern Warfare 2 Android native recompilation project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **Consecutive draws that change no state are one hardware draw**
+  (`runtime/gpu/vulkan/renderer_draw.cpp`, `renderer_arena.cpp`,
+  `shader_translator.cpp`): the GPU's cost on Adreno is per hardware draw, and
+  an entry of a `vkCmdDrawMultiIndexedEXT` was one. A run of indexed draws is
+  now one `vkCmdDrawIndexed` over 32-bit indices that name each draw's entry in
+  a draw table, through which a vertex finds its draw's record
+  ([docs/rendering.md](docs/rendering.md#the-recorder-thread)). The renderer
+  now needs non-uniform indexing of sampled images instead of subgroup ballot
+  in pixel shaders. `MW2_NO_MERGE=1` makes every draw a hardware draw of its
+  own. Cached shaders of earlier builds are not reused.
+
 ## [v0.0.2-alpha] - 2026-10-18
 
 ### Highlights

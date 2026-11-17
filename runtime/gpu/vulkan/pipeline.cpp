@@ -383,9 +383,12 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     if (dynamicStateExtension) extensions.push_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
 
     // Every texture in one set that stays bound, written as textures are
-    // made, and a draw's record found through its base vertex and handed to
-    // the pixel stage (bindings.h). Vulkan 1.2 has all of it; a 1.1 device
-    // on the render pass fallback needs the descriptor indexing extension.
+    // made, and a draw's record found through the draw table its base vertex
+    // names and handed to the pixel stage (bindings.h). One hardware draw is
+    // many of the title's, each with its own textures, so the index into the
+    // set is not the same across the draw. Vulkan 1.2 has all of it; a 1.1
+    // device on the render pass fallback needs the descriptor indexing
+    // extension.
     VkPhysicalDeviceDescriptorIndexingFeatures indexing{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
     VkPhysicalDeviceShaderDrawParametersFeatures drawParameters{
@@ -402,9 +405,6 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
 
         VkPhysicalDeviceDescriptorIndexingProperties limits{
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES };
-        VkPhysicalDeviceSubgroupProperties subgroup{
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES };
-        limits.pNext = &subgroup;
         VkPhysicalDeviceProperties2 properties2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
         properties2.pNext = &limits;
         vkGetPhysicalDeviceProperties2(physical, &properties2);
@@ -425,8 +425,7 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
               !indexing.descriptorBindingUpdateUnusedWhilePending ? "descriptor indexing"
             : !supported.shaderSampledImageArrayDynamicIndexing ? "dynamically indexed textures"
             : !drawParameters.shaderDrawParameters ? "shader draw parameters"
-            : !(subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) ||
-              !(subgroup.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT) ? "subgroup ballot in pixel shaders"
+            : !indexing.shaderSampledImageArrayNonUniformIndexing ? "non-uniformly indexed textures"
             : limits.maxPerStageDescriptorUpdateAfterBindSampledImages < bindings::kImageCount ||
               limits.maxDescriptorSetUpdateAfterBindSampledImages < bindings::kImageCount ||
               limits.maxPerStageDescriptorUpdateAfterBindSamplers < bindings::kSamplerCount ||
@@ -451,6 +450,7 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         indexing.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
         indexing.descriptorBindingPartiallyBound = VK_TRUE;
         indexing.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+        indexing.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
         indexing.pNext = &drawParameters;
         drawParameters.shaderDrawParameters = VK_TRUE;
     }
@@ -504,8 +504,9 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         dynamicRendering.pNext = chain;
         chain = &dynamicRendering;
     }
-    // Draws in a row that change nothing between them are made with one call
-    // (renderer_draw.cpp); without it each is made on its own.
+    // Draws without indices in a row that change nothing between them are
+    // made with one call (renderer_draw.cpp); without it each is made on its
+    // own.
     VkPhysicalDeviceMultiDrawFeaturesEXT multiDraw{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT };
     g.multiDraw = 0;

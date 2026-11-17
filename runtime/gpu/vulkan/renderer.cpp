@@ -170,6 +170,13 @@ bool vk::renderer::Initialise()
     g.uniformAlignment = uint32_t(std::max<VkDeviceSize>(
         std::max(properties.limits.minUniformBufferOffsetAlignment,
                  properties.limits.minStorageBufferOffsetAlignment), 256));
+    // An index names its draw table entry above its low kTableIndexBits
+    // (bindings.h), so the largest index the device takes says how many
+    // entries a table may have: all of them where it is 2^32 - 1, 256 where
+    // it is the 2^24 - 1 a device without full 32-bit indices has.
+    g.mostTableEntries = std::min(
+        kMostTableEntries,
+        (properties.limits.maxDrawIndexedIndexValue >> bindings::kTableIndexBits) + 1);
 
     // AMD has no D24_UNORM_S8_UINT, so the depth format is whichever 24-bit-ish
     // combined format the device actually has.
@@ -420,6 +427,8 @@ bool vk::renderer::Initialise()
     g.command = g.slots[g.slot].buffers[0];
     g.arenaBase = g.slots[g.slot].arenaBase;
     LOGI("renderer: %u frame slots of %u KB of arena each", kFrameSlots, g.arenaSlotBytes / 1024);
+    if (!MergingDraws())
+        LOGI("renderer: MW2_NO_MERGE: every draw is a hardware draw of its own");
 
     // Before any command is recorded: the recorder thread only reads these.
     // On Vulkan 1.3 core devices (Mali, Tensor, etc.), the commands may be exported
@@ -442,8 +451,7 @@ bool vk::renderer::Initialise()
     if ((dispatch.multiDraw = vk::pipeline::MultiDraw()))
     {
         dispatch.drawMulti = PFN_vkCmdDrawMultiEXT(command("vkCmdDrawMultiEXT"));
-        dispatch.drawMultiIndexed = PFN_vkCmdDrawMultiIndexedEXT(command("vkCmdDrawMultiIndexedEXT"));
-        if (!dispatch.drawMulti || !dispatch.drawMultiIndexed) dispatch.multiDraw = 0;
+        if (!dispatch.drawMulti) dispatch.multiDraw = 0;
     }
     if (!dispatch.beginRendering || !dispatch.endRendering || !dispatch.setCullMode ||
         !dispatch.setStencilOp)

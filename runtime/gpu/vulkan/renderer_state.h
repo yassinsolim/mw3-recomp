@@ -44,8 +44,18 @@ namespace vk::renderer::detail
     constexpr uint32_t kArenaLeast  = 32u << 20;
 
     // Split, because the total only says a frame ran out of room, not on what.
-    enum ArenaKind { kArenaConstants, kArenaVertices, kArenaIndices, kArenaKinds };
-    constexpr const char* kArenaNames[kArenaKinds] = { "constants", "vertex data", "indices" };
+    enum ArenaKind { kArenaConstants, kArenaVertices, kArenaIndices, kArenaTables, kArenaKinds };
+    constexpr const char* kArenaNames[kArenaKinds] = { "constants", "vertex data", "indices",
+                                                       "draw tables" };
+    // The chunks of a slot's share the index and draw table streams are handed
+    // out from (State::Stream): 262,144 indices and 8,192 table entries. A
+    // run of merged draws ends where a chunk does, so a chunk is many runs.
+    constexpr uint32_t kIndexChunk = 1u << 20;
+    constexpr uint32_t kTableChunk = 64u << 10;
+    // The most entries one draw table has: an index names its entry above
+    // its low kTableIndexBits (bindings.h), and stays below 2^31 with this
+    // many.
+    constexpr uint32_t kMostTableEntries = 1u << (31 - bindings::kTableIndexBits);
     // Four rather than two: the window shows every frame, a blank each, and
     // each image is kept intact until the window has copied it out. Four let
     // the renderer run up to three frames ahead of the screen before it waits.
@@ -329,6 +339,24 @@ namespace vk::renderer::detail
         uint32_t arenaBase = 0;        // where the current slot's share starts
         uint32_t arenaUsed = 0;        // and how much of that share is spent
 
+        // The two streams a merged draw reads (bindings.h): encoded indices,
+        // and draw table entries. Each is handed out in order from a chunk
+        // of the slot's share, so what consecutive draws put in one lies in
+        // a row -- which the arena's own allocations, with every draw's
+        // constants and vertex data between them, do not. Bytes, relative to
+        // the slot; dropped at the reset.
+        struct Stream { uint32_t at = 0, end = 0; };
+        Stream indexStream, tableStream;
+        // The draw table being filled: where it starts, in dwords, and how
+        // many entries draws have taken. Draws go on taking entries of one
+        // table whatever state changes between them, until it is full or
+        // its chunk is (PlaceInTable).
+        uint32_t drawTable = 0, drawTableEntries = 0;
+        bool drawTableOpen = false;
+        // kMostTableEntries, or fewer where the device's largest index value
+        // (maxDrawIndexedIndexValue) is smaller than 2^31.
+        uint32_t mostTableEntries = kMostTableEntries;
+
         // What is already in the arena this frame, so a draw that reads the same
         // thing as the last one does not copy it again. Dropped at the reset.
         struct Cached
@@ -429,8 +457,13 @@ namespace vk::renderer::detail
             uint32_t depthControl = 0;   // RB_DEPTHCONTROL: the depth and stencil tests
             bool depthTestsValid = false;
             VkBuffer indexBuffer = VK_NULL_HANDLE;
-            uint32_t indexOffset = 0;
-            int indexType = -1;
+            // Where the last draw's indices end in the index buffer, and the
+            // draw table they are for: the next draw joins it in one
+            // hardware draw when its own start there, for the same table,
+            // and it changes no state. UINT32_MAX after a draw nothing may
+            // join: one without indices, or whose primitives run on into
+            // the next draw's indices (a strip, a fan, a list cut short).
+            uint32_t runEnd = UINT32_MAX, runTable = 0;
         };
         Bound bound;
 
@@ -556,6 +589,9 @@ namespace vk::renderer::detail
         g.skipped[why]++;
         if (g.drawRecord && !g.drawRecord->skipped) g.drawRecord->skipped = why;
     }
+    // A reason more than one file skips for. A reason's address is its key
+    // (State::skipped), and a literal's is its own file's.
+    inline constexpr char kArenaFull[] = "frame arena full";
 
     // Where draws read and write an attachment: colour at the output stage,
     // depth and stencil at both tests -- the late one for a shader that can
@@ -627,7 +663,6 @@ namespace vk::renderer::detail
         PFN_vkCmdSetStencilTestEnableEXT setStencilTestEnable = nullptr;
         PFN_vkCmdSetStencilOpEXT setStencilOp = nullptr;
         PFN_vkCmdDrawMultiEXT drawMulti = nullptr;   // null without VK_EXT_multi_draw
-        PFN_vkCmdDrawMultiIndexedEXT drawMultiIndexed = nullptr;
         uint32_t multiDraw = 0;                      // the most one call may make
     };
     inline Dispatch dispatch;
@@ -656,6 +691,15 @@ namespace vk::renderer::detail
     {
         if constexpr (!diag::kOn) return false;
         static const bool on = diag::Flag("MW2_TIME_RENDER");
+        return on;
+    }
+
+    // MW2_NO_MERGE=1 makes every draw a hardware draw of its own, with a draw
+    // table of its own: what merging saves, measured on the device. Read
+    // through env::, because the device it is measured on runs a release build.
+    inline bool MergingDraws()
+    {
+        static const bool on = !env::Flag("MW2_NO_MERGE");
         return on;
     }
 
@@ -764,8 +808,24 @@ namespace vk::renderer::detail
                                    const shader::Translation& pixelProgram,
                                    uint32_t lowestVertex, uint32_t highestVertex,
                                    uint32_t rectangles);
-    uint32_t WriteIndices(uint32_t address, uint32_t count, bool wide,
-                          uint32_t& lowest, uint32_t& highest);
+    // Where a draw is in the index and draw table streams (bindings.h).
+    struct DrawPlace
+    {
+        uint32_t indices = 0;   // its first index, in bytes from the slot's base
+        uint32_t table = 0;     // the dword its draw table starts at
+        uint32_t slot = 0;      // its first entry there
+        uint32_t entries = 0;   // how many it has: one for every 65,536 vertices it spans
+        uint32_t base = 0;      // the guest index its first entry starts from
+        const char* refused = nullptr;   // why it has no place, for Skip
+    };
+    // `entries` of the draw table for a draw whose index values, less `base`,
+    // go up to `span`.
+    DrawPlace PlaceInTable(uint32_t span, uint32_t base);
+    // The place's entries, once the draw's record is in the arena.
+    void WriteDrawTable(const DrawPlace& place, uint32_t record);
+    DrawPlace WriteIndices(uint32_t address, uint32_t count, bool wide,
+                           uint32_t& lowest, uint32_t& highest);
+    DrawPlace WriteRectangleIndices(uint32_t rectangles);
 
     // ---- renderer_pipelines.cpp ----
     const Shader* ShaderFor(shader::Type type, uint64_t hash, const uint32_t* code, size_t words);

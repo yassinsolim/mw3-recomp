@@ -7,10 +7,11 @@
 // Nothing in it changes from one draw to the next but where the draw's record
 // is (kRecord*): both sets are bound once a command buffer, and the layout has
 // no push constants. Per draw, the driver is handed a pipeline when it changes,
-// the dynamic state that changed, and the draw itself. A push constant range
-// written at every draw was a third of the recorder thread's time in RADV,
-// which re-reads every bound shader's description to place the values; a
-// texture set bound at every draw was another tenth.
+// the dynamic state that changed, and the draw itself -- or nothing at all,
+// when the draw goes into the hardware draw before it (kTableWords). A push
+// constant range written at every draw was a third of the recorder thread's
+// time in RADV, which re-reads every bound shader's description to place the
+// values; a texture set bound at every draw was another tenth.
 #include <cstdint>
 
 namespace vk::bindings
@@ -59,24 +60,44 @@ namespace vk::bindings
     // Set 2: the frame arena as an array of dwords, where the constant blocks
     // are, and what the draw's vertex fetches read: a vertex fetch constant
     // holds a guest physical address; the renderer copies what the draw reads
-    // into the arena and rewrites the constant to point at the copy.
+    // into the arena and rewrites the constant to point at the copy. The
+    // draw tables are there too, and the indices, which the GPU reads as the
+    // index buffer.
     constexpr uint32_t kArenaSet = 2;
     constexpr uint32_t kArenaBinding = 0;
     // The same buffer as vec4, for the float constants.
     constexpr uint32_t kArenaFloats = 1;
 
-    // A draw's record: what is register state rather than shader state, in the
-    // arena, at the dword its draw names as its base vertex (vertexOffset, or
-    // firstVertex for a draw without indices). The vertex stage reads it
-    // through BaseVertex, which is the same for the whole draw and so is one
-    // scalar register on the GPU, and takes it away from the vertex index; it
+    // A draw table: what a hardware draw names as its base vertex
+    // (vertexOffset, or firstVertex for a draw without indices), as a dword
+    // offset into the arena. The GPU's cost is per hardware draw whatever its
+    // size, so the title's draws that follow one another with the same state
+    // are made as one, and the table is how each vertex of it still finds
+    // its own draw: an entry is { where the draw's record is, a guest index },
+    // and an index in the index buffer is
+    //
+    //     (entry << kTableIndexBits) + (the guest's index - the entry's guest index)
+    //
+    // always 32 bits wide. The vertex stage takes the base vertex away from
+    // the vertex index, which leaves that; the high bits pick the entry, the
+    // low bits added to the entry's guest index are the index the title's
+    // draw named. A draw whose indices span more than 2^kTableIndexBits
+    // vertices has an entry for each 2^kTableIndexBits of them, one after
+    // the other, and its indices carry on into them by themselves. A draw
+    // without indices has entries of its own and names the first as its
+    // first vertex, so its vertices count up through them the same way.
+    constexpr uint32_t kTableWords = 2;
+    constexpr uint32_t kTableIndexBits = 16;
+
+    // A draw's record: what is register state rather than shader state, in
+    // the arena, at the dword its draw table entries hold. The vertex stage
     // hands it to the pixel stage as a flat value (location kRecordLocation),
-    // which the pixel stage makes uniform again across its subgroup. A
-    // subgroup holds one draw's invocations -- an index into the texture
-    // arrays without NonUniform already counts on that -- and without it every
-    // constant read in a pixel shader would be a load per pixel. The base
-    // vertex rather than the first instance, because a run of draws made with
-    // one vkCmdDrawMulti*EXT shares its first instance and not its offsets.
+    // which the pixel stage reads as it comes: one hardware draw is many
+    // records, so neither a subgroup nor anything wider can be taken to hold
+    // one, and the texture arrays are indexed NonUniform for the same reason.
+    // The base vertex rather than the first instance, because a run of draws
+    // without indices made with one vkCmdDrawMultiEXT shares its first
+    // instance and not its first vertices.
     //
     // { uint x5 } the dword offset of each constant block, in the order above.
     constexpr uint32_t kRecordOffsets = 0;

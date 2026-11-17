@@ -84,7 +84,7 @@ arena, builds the pipeline, finds each sampled texture's place in the texture
 set, and writes the draw's record: where its constants are, its textures, and
 the register state its shaders apply. It queues a `DrawOp` holding only the
 dynamic state that differs from what the command buffer has bound, and the
-draw, which names its record as its base vertex. Draws that cannot be made
+draw, whose entries in a draw table name its record. Draws that cannot be made
 are counted by reason (`Skip`).
 
 Primitives 1-6 map to Vulkan's point, line and triangle topologies, and 12 (line
@@ -144,6 +144,21 @@ arena held, which nothing reads.
 A draw's record says where each of its five constant blocks is in the arena
 ([shaders.md](shaders.md#the-module-interface)). Consecutive draws whose
 records would be the same share one.
+
+Indices and draw table entries are two streams of their own, each handed out
+in order from a chunk of the share (1 MB of indices, 64 KB of entries; a new
+chunk when one is used up), so that what consecutive draws write lies in a
+row. Indices are always 32 bits wide: an index's high sixteen bits name the
+draw's entry in the draw table, an entry is the dword offset of the draw's
+record and a guest index, and the low sixteen bits count from that guest
+index. A draw whose indices span more than 65,536 vertices takes an entry for
+each 65,536. A table has at most 32,768 entries, so an index stays below
+2^31, and fewer where the device's `maxDrawIndexedIndexValue` is smaller.
+The title's 16-bit indices are written in one pass with a base of zero; its
+32-bit indices take a pass to find the lowest and highest and a pass to
+write. No pipeline has primitive restart on: a 16-bit 0xFFFF is vertex 65,535
+as it always was, and a 32-bit 0xFFFFFFFF, which would name an entry outside
+the table, becomes the draw's lowest vertex.
 
 - **Float constants.** Each stage reads 256 from its `SQ_VS_CONST` /
   `SQ_PS_CONST` base. A pixel program's window is copied as far as the shader
@@ -453,19 +468,28 @@ microseconds and the recorder is faster than that, so a recorder that spun
 until the next one never slept, and held a core; one that waited on the queue
 position itself woke at every call, because the wait spins first.
 
-Draws are made in runs. A draw that changes no state since the last one is
-held back, and a run of them is made with one `vkCmdDrawMultiIndexedEXT` (or
-`vkCmdDrawMultiEXT`), each with its record as its own vertex offset: the
-driver checks and emits the state once a run, and each draw is then a base
-vertex and a draw packet. A run ends at a draw that changes any state, and at
-any other call: the recorder runs `MakeGatheredDraws` before every call not
-queued as `Joining`. With four players in split screen 97% of draws are made
-this way, about thirty to a call. Without `VK_EXT_multi_draw` each draw is
-made on its own.
+Draws are made in runs. On the Adreno 740 the GPU pays about 5 us for every
+hardware draw whatever its size, and each entry of a
+`vkCmdDrawMultiIndexedEXT` is one, which is most of a frame of 6,600 draws.
+So a draw with indices that changes no state since the last one is held back,
+and the run is made as one `vkCmdDrawIndexed`: the first index of the first
+draw, the count of them all, and the draw table as the base vertex. The
+consumer says whether a draw joins the one before it (`DrawOp::joins`): it
+changes no state, its indices follow that draw's in the index stream for the
+same table, and that draw was a list of whole primitives (a strip or a fan
+would run on into the next draw's vertices). The recorder joins it if the run
+is still open. A run ends at a draw that changes any state, and at any other
+call: the recorder runs `MakeGatheredDraws` before every call not queued as
+`Joining`. `MW2_NO_MERGE=1` makes every draw a hardware draw of its own.
+
+Draws without indices have no indices to lay in a row. A run of them is one
+`vkCmdDrawMultiEXT`, each with its own draw table entries as its first
+vertex; without `VK_EXT_multi_draw` each is made on its own.
 
 An indirect draw over commands the consumer writes into the arena does as much
 for the recorder, but it puts twenty more bytes a draw on the consumer, which
-is what four players wait on; the multi-draw keeps all of it on the recorder.
+is what four players wait on, and each of its commands is a hardware draw
+still.
 
 - A queued call must copy what it uses. It must never point at a local or read
   `g.`, which will have moved on by the time the call runs.
@@ -552,9 +576,9 @@ update-after-bind and partially bound sampled images, room for 65,536 of them
 and 4,096 samplers in one set (counted, with set 2's two storage buffers and
 the colour target, against each per-stage, per-set and pool limit as the
 specification sums it), shader
-draw parameters, subgroup ballot in pixel shaders and seventeen interpolators.
-A device without one says which at the start. `VK_EXT_multi_draw` is used where
-there is one.
+draw parameters, non-uniform indexing of sampled images and seventeen
+interpolators. A device without one says which at the start.
+`VK_EXT_multi_draw` is used where there is one.
 
 On the console a shader is ready as soon as it is loaded. With
 `VK_EXT_graphics_pipeline_library` the runtime compiles it at that point too

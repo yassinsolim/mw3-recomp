@@ -1,5 +1,6 @@
-// What a draw reads besides its textures -- constants, vertex data, indices --
-// copied out of guest memory and the register file into the frame arena.
+// What a draw reads besides its textures -- constants, vertex data, indices,
+// its entries in the draw table -- copied out of guest memory and the register
+// file into the frame arena.
 #include "renderer_state.h"
 #include "../memory_watch.h"
 #include "../../guest.h"
@@ -28,6 +29,28 @@ namespace vk::renderer::detail
         g.arenaWritten[kind] += bytes;
         // Relative to the slot: set 2 is bound at the slot's base (renderer.cpp).
         return aligned;
+    }
+
+    // The next `bytes` of a stream (State::Stream): straight after what it
+    // handed out last, for as long as its chunk lasts.
+    uint32_t AllocateFrom(State::Stream& stream, uint32_t bytes, uint32_t chunk, ArenaKind kind)
+    {
+        if (stream.end - stream.at < bytes)
+        {
+            // A whole chunk while the share has room for one; near its end,
+            // only what is asked for.
+            uint32_t size = std::max(bytes, chunk);
+            if (uint64_t(g.arenaUsed) + g.uniformAlignment + size > g.arenaSlotBytes) size = bytes;
+            const uint32_t at = Allocate(size, kind);
+            if (at == UINT32_MAX) return at;
+            // Counted as it is handed out below, not as it is set aside.
+            g.arenaWritten[kind] -= size;
+            stream = { at, at + size };
+        }
+        const uint32_t at = stream.at;
+        stream.at += bytes;
+        g.arenaWritten[kind] += bytes;
+        return at;
     }
 
     uint32_t CopyIntoArena(const void* bytes, uint32_t size, ArenaKind kind)
@@ -367,83 +390,200 @@ namespace vk::renderer::detail
         return out;
     }
 
-    // Byte-swapped into the arena, and the lowest and highest vertex named on
-    // the way through. A list of nothing but restarts comes out lowest above
-    // highest, which WriteIndices turns into vertex 0. Written
-    // without a branch -- the restart index counts as
-    // zero toward the highest, and as the largest value it can never be the
-    // lowest -- so the loop vectorises; cloned for AVX2, picked at run time.
-    // Nothing is read back from `out`, which is write-combined memory.
-    template <typename T>
-    __attribute__((always_inline)) inline
-    void SwapIndices(const uint8_t* source, T* out, uint32_t count, T& lowest, T& highest)
+    // A hardware draw names a draw table as its base vertex, and each of its
+    // indices names an entry of that table in its high sixteen bits
+    // (bindings.h). A draw takes the entries after the last draw's in the
+    // open table, so the two can be one hardware draw if nothing else stands
+    // between them (vk::renderer::Draw decides); a table ends when it is
+    // full, when its chunk of the stream is, and under MW2_NO_MERGE at every
+    // draw.
+    DrawPlace PlaceInTable(uint32_t span, uint32_t base)
     {
-        typedef T Unaligned __attribute__((aligned(1), may_alias));
+        DrawPlace place;
+        place.entries = 1 + (span >> bindings::kTableIndexBits);
+        place.base = base;
+        if (place.entries > g.mostTableEntries)
+        {
+            place.refused = "index range too wide for a draw table";
+            return place;
+        }
+        const uint32_t bytes = place.entries * bindings::kTableWords * 4;
+        const bool goesOn = MergingDraws() && g.drawTableOpen &&
+                            g.drawTableEntries + place.entries <= g.mostTableEntries &&
+                            g.tableStream.end - g.tableStream.at >= bytes;
+        const uint32_t at = AllocateFrom(g.tableStream, bytes, kTableChunk, kArenaTables);
+        if (at == UINT32_MAX)
+        {
+            place.refused = kArenaFull;
+            return place;
+        }
+        if (!goesOn)
+        {
+            g.drawTable = at / 4;
+            g.drawTableEntries = 0;
+            g.drawTableOpen = true;
+        }
+        place.table = g.drawTable;
+        place.slot = g.drawTableEntries;
+        g.drawTableEntries += place.entries;
+        return place;
+    }
+
+    // Entry k is { the draw's record, the guest index its 65,536 start from }.
+    // Put together here and copied across: the arena is not memory to build
+    // something in piece by piece.
+    void WriteDrawTable(const DrawPlace& place, uint32_t record)
+    {
+        uint8_t* out = ArenaAt((place.table + place.slot * bindings::kTableWords) * 4);
+        for (uint32_t k = 0; k < place.entries; k++)
+        {
+            const uint32_t entry[bindings::kTableWords] = {
+                record, place.base + (k << bindings::kTableIndexBits) };
+            std::memcpy(out + k * sizeof entry, entry, sizeof entry);
+        }
+    }
+
+    // The index stream holds 32-bit indices whatever the title's are: the
+    // entry in the high half, and below it the guest's index less the base
+    // its entry holds. `first` is the draw's first entry, shifted into place.
+    //
+    // The title's 16-bit indices: byte-swapped, with a base of zero, so one
+    // entry reaches all of them and one pass does it, finding the lowest and
+    // highest vertex named on the way through. A list of nothing but restarts
+    // comes out lowest above highest, which WriteIndices turns into vertex 0.
+    // Written without a branch -- the restart index counts as zero toward the
+    // highest, and as the largest value it can never be the lowest -- so the
+    // loop vectorises; cloned for AVX2, picked at run time. Nothing is read
+    // back from `out`, which is write-combined memory.
+    //
+    // No pipeline here has primitive restart on, so the restart index is a
+    // vertex like any other to the GPU, as it was before the indices were
+    // encoded: 65535, which stays inside the draw's one entry.
+#if !defined(_WIN32)
+    __attribute__((target_clones("avx2", "default")))
+#endif
+    void EncodeIndices16(const uint8_t* source, uint32_t* out, uint32_t count, uint32_t first,
+                         uint16_t& lowest, uint16_t& highest)
+    {
+        typedef uint16_t Unaligned __attribute__((aligned(1), may_alias));
         const Unaligned* in = reinterpret_cast<const Unaligned*>(source);
-        constexpr T restart = T(~T(0));
-        T low = restart, high = 0;
+        constexpr uint16_t restart = 0xFFFF;
+        uint16_t low = restart, high = 0;
         for (uint32_t i = 0; i < count; i++)
         {
-            T value;
-            if constexpr (sizeof(T) == 2) value = T(__builtin_bswap16(in[i]));
-            else                          value = T(__builtin_bswap32(in[i]));
-            out[i] = value;
+            const uint16_t value = __builtin_bswap16(in[i]);
+            out[i] = first + value;
             low = value < low ? value : low;
-            const T counted = value == restart ? T(0) : value;
+            const uint16_t counted = value == restart ? uint16_t(0) : value;
             high = counted > high ? counted : high;
         }
         lowest = low;
         highest = high;
     }
 
+    // The title's 32-bit indices take two passes over guest memory: how many
+    // entries the draw needs, and what its indices are taken from, is only
+    // known once the lowest and the highest are.
 #if !defined(_WIN32)
     __attribute__((target_clones("avx2", "default")))
 #endif
-    void SwapIndices16(const uint8_t* source, uint16_t* out, uint32_t count, uint16_t& lowest,
-                       uint16_t& highest)
+    void ScanIndices32(const uint8_t* source, uint32_t count, uint32_t& lowest, uint32_t& highest)
     {
-        SwapIndices(source, out, count, lowest, highest);
+        typedef uint32_t Unaligned __attribute__((aligned(1), may_alias));
+        const Unaligned* in = reinterpret_cast<const Unaligned*>(source);
+        constexpr uint32_t restart = 0xFFFFFFFF;
+        uint32_t low = restart, high = 0;
+        for (uint32_t i = 0; i < count; i++)
+        {
+            const uint32_t value = __builtin_bswap32(in[i]);
+            low = value < low ? value : low;
+            const uint32_t counted = value == restart ? 0u : value;
+            high = counted > high ? counted : high;
+        }
+        lowest = low;
+        highest = high;
     }
 
+    // The restart index is outside the range the draw's entries were counted
+    // for, and encoded as it stands would name an entry that is not this
+    // draw's, or not an entry at all. It becomes the draw's lowest vertex.
 #if !defined(_WIN32)
     __attribute__((target_clones("avx2", "default")))
 #endif
-    void SwapIndices32(const uint8_t* source, uint32_t* out, uint32_t count, uint32_t& lowest,
-                       uint32_t& highest)
+    void EncodeIndices32(const uint8_t* source, uint32_t* out, uint32_t count, uint32_t first,
+                         uint32_t lowest)
     {
-        SwapIndices(source, out, count, lowest, highest);
+        typedef uint32_t Unaligned __attribute__((aligned(1), may_alias));
+        const Unaligned* in = reinterpret_cast<const Unaligned*>(source);
+        constexpr uint32_t restart = 0xFFFFFFFF;
+        for (uint32_t i = 0; i < count; i++)
+        {
+            const uint32_t value = __builtin_bswap32(in[i]);
+            out[i] = value == restart ? first : first + (value - lowest);
+        }
     }
 
     // Indices are big-endian in guest memory and the hardware reads them that
     // way; Vulkan does not. `lowest` and `highest` bound the window of the vertex
     // buffer the draw can reach.
-    uint32_t WriteIndices(uint32_t address, uint32_t count, bool wide,
-                          uint32_t& lowest, uint32_t& highest)
+    DrawPlace WriteIndices(uint32_t address, uint32_t count, bool wide,
+                           uint32_t& lowest, uint32_t& highest)
     {
         // Copied afresh for every draw. One call is one draw, so a cache here
         // could only ever serve a later draw from an earlier draw's bytes, and
         // an index buffer the title rewrites within the frame -- its dynamic
         // geometry does -- would then be drawn twice from the first version.
-        const uint32_t bytes = count * (wide ? 4 : 2);
-        const uint32_t at = Allocate(bytes, kArenaIndices);
-        if (at == UINT32_MAX) return at;
         const uint8_t* source = guest::Base() + address;
-        if (g.drawRecord) NoteIndices(source, bytes);
+        if (g.drawRecord) NoteIndices(source, count * (wide ? 4 : 2));
         if (wide)
         {
-            SwapIndices32(source, reinterpret_cast<uint32_t*>(ArenaAt(at)), count,
-                          lowest, highest);
+            ScanIndices32(source, count, lowest, highest);
+            if (lowest > highest) lowest = highest;
         }
+        DrawPlace place = wide ? PlaceInTable(highest - lowest, lowest) : PlaceInTable(0, 0);
+        if (place.refused) return place;
+        place.indices = AllocateFrom(g.indexStream, count * 4, kIndexChunk, kArenaIndices);
+        if (place.indices == UINT32_MAX)
+        {
+            place.refused = kArenaFull;
+            return place;
+        }
+        uint32_t* out = reinterpret_cast<uint32_t*>(ArenaAt(place.indices));
+        const uint32_t first = place.slot << bindings::kTableIndexBits;
+        if (wide) EncodeIndices32(source, out, count, first, lowest);
         else
         {
             uint16_t low, high;
-            SwapIndices16(source, reinterpret_cast<uint16_t*>(ArenaAt(at)), count,
-                          low, high);
+            EncodeIndices16(source, out, count, first, low, high);
             lowest = low;
             highest = high;
+            if (lowest > highest) lowest = highest;
         }
-        if (lowest > highest) lowest = highest;
-        return at;
+        return place;
+    }
+
+    // A rectangle list's indices, made here: `a b c a c d` a rectangle, where
+    // d is the corner WriteConstants puts after the vertices the title gave.
+    DrawPlace WriteRectangleIndices(uint32_t rectangles)
+    {
+        DrawPlace place = PlaceInTable(rectangles * 4 - 1, 0);
+        if (place.refused) return place;
+        place.indices = AllocateFrom(g.indexStream, rectangles * 6 * 4, kIndexChunk, kArenaIndices);
+        if (place.indices == UINT32_MAX)
+        {
+            place.refused = kArenaFull;
+            return place;
+        }
+        uint8_t* list = ArenaAt(place.indices);
+        const uint32_t first = place.slot << bindings::kTableIndexBits;
+        for (uint32_t rect = 0; rect < rectangles; rect++)
+        {
+            const uint32_t a = first + rect * 3, b = a + 1, c = a + 2;
+            const uint32_t d = first + rectangles * 3 + rect;   // the corner made here
+            const uint32_t six[6] = { a, b, c, a, c, d };
+            std::memcpy(list + rect * 24, six, sizeof six);
+        }
+        return place;
     }
 }
 

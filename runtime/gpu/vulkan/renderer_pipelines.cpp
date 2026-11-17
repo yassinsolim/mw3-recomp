@@ -696,8 +696,8 @@ namespace vk::renderer::detail
     }
 
     constexpr uint32_t kCacheMagic = 0x32574D53;   // 'SMW2'
-    constexpr uint32_t kCacheVersion = 3;   // 3: a vertex program ends by turning
-                                            // window coordinates into clip space
+    constexpr uint32_t kCacheVersion = 4;   // 4: a draw's record is found through
+                                            // a draw table, not its base vertex
 
     void WriteShaderCache()
     {

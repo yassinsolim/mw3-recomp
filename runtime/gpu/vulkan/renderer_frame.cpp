@@ -60,6 +60,8 @@ namespace vk::renderer::detail
         BeginSegmentBuffer();
         PassTimesBegin(g.slot);
         g.arenaUsed = 0;
+        g.indexStream = g.tableStream = {};
+        g.drawTableOpen = false;
         g.pixelWindow.valid = false;
         for (State::ConstantBlock& block : g.constantBlocks) block.valid = false;
         g.constantTable.valid = false;

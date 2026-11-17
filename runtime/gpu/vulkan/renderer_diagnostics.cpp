@@ -863,7 +863,7 @@ void vk::renderer::Report()
     if (g.frames)
     {
         // Per frame, because the arena is per frame: what matters is whether a
-        // frame's copies fit, and which of the three does not.
+        // frame's copies fit, and which kind does not.
         LOGI("renderer: frame arena peak %u KB of %u KB, per frame:",
              g.arenaPeak >> 10, g.arenaBytes >> 10);
         for (uint32_t kind = 0; kind < kArenaKinds; kind++)

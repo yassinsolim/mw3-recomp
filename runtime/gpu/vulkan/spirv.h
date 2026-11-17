@@ -20,7 +20,7 @@ namespace spirv
     // Only what the translator needs; the values are from the specification.
     enum class Op : uint16_t
     {
-        Nop = 0, Name = 5, MemberName = 6, ExtInstImport = 11, ExtInst = 12,
+        Nop = 0, Name = 5, MemberName = 6, Extension = 10, ExtInstImport = 11, ExtInst = 12,
         MemoryModel = 14, EntryPoint = 15, ExecutionMode = 16, Capability = 17,
         TypeVoid = 19, TypeBool = 20, TypeInt = 21, TypeFloat = 22,
         TypeVector = 23, TypeMatrix = 24, TypeImage = 25, TypeSampler = 26,
@@ -55,7 +55,6 @@ namespace spirv
         LoopMerge = 246, SelectionMerge = 247,
         Label = 248, Branch = 249, BranchConditional = 250, Switch = 251, Kill = 252,
         Return = 253, Unreachable = 255,
-        GroupNonUniformBroadcastFirst = 338,
     };
 
     enum class Glsl : uint32_t
@@ -78,7 +77,7 @@ namespace spirv
     {
         Invariant = 0, Block = 2, BufferBlock = 3, ArrayStride = 6, BuiltIn = 11, Flat = 14,
         NonWritable = 24, Location = 30, Binding = 33, DescriptorSet = 34,
-        Offset = 35, NoContraction = 42,
+        Offset = 35, NoContraction = 42, NonUniform = 5300,
     };
 
     enum class BuiltIn : uint32_t
@@ -98,6 +97,9 @@ namespace spirv
 
         std::vector<uint32_t>& Capabilities()  { return m_capabilities; }
         void RequireCapability(uint32_t capability);
+        // OpExtension, once for each name: where a capability that is not in
+        // this version's core comes from.
+        void RequireExtension(const std::string& name);
         std::vector<uint32_t>& Preamble()      { return m_preamble; }
         std::vector<uint32_t>& EntryPoints()   { return m_entryPoints; }
         std::vector<uint32_t>& ExecutionModes(){ return m_executionModes; }
@@ -146,6 +148,7 @@ namespace spirv
     private:
         Id m_nextId = 1;
         Id m_glslSet = 0;
+        std::vector<std::string> m_extensions;
         std::vector<uint32_t> m_capabilities, m_preamble, m_entryPoints,
                               m_executionModes, m_debug, m_decorations,
                               m_declarations, m_code;

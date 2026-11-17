@@ -7,10 +7,9 @@ using namespace spirv;
 
 namespace
 {
-    // 1.3 is Vulkan 1.1's, the first with BaseVertex and subgroup operations
-    // in the core, which the translated shaders read a draw's record with
-    // (bindings.h). Still before 1.4, so an entry point lists only its Input
-    // and Output variables.
+    // 1.3 is Vulkan 1.1's, the first with BaseVertex in the core, which the
+    // translated shaders find a draw's record through (bindings.h). Still
+    // before 1.4, so an entry point lists only its Input and Output variables.
     constexpr uint32_t kMagic = 0x07230203u;
     constexpr uint32_t kVersion = 0x00010300u;
     // Registered generator ids are handed out by Khronos; 0 is "unknown".
@@ -79,6 +78,12 @@ void Module::RequireCapability(uint32_t capability)
     for (size_t i = 0; i + 1 < m_capabilities.size(); i += 2)
         if (m_capabilities[i + 1] == capability) return;
     Emit(m_capabilities, Op::Capability, { capability });
+}
+
+void Module::RequireExtension(const std::string& name)
+{
+    if (std::find(m_extensions.begin(), m_extensions.end(), name) == m_extensions.end())
+        m_extensions.push_back(name);
 }
 
 Id Module::Image(Id sampledType, uint32_t dim, bool arrayed)
@@ -190,7 +195,10 @@ std::vector<uint32_t> Module::Finish() const
     out.push_back(m_nextId);          // id bound: ids are 1..bound-1
     out.push_back(0);                 // reserved
 
-    for (const auto* section : { &m_capabilities, &m_preamble, &m_entryPoints,
+    // The extensions come after every capability and before the import.
+    out.insert(out.end(), m_capabilities.begin(), m_capabilities.end());
+    for (const std::string& name : m_extensions) EmitString(out, Op::Extension, {}, name);
+    for (const auto* section : { &m_preamble, &m_entryPoints,
                                  &m_executionModes, &m_debug, &m_decorations,
                                  &m_declarations, &m_code })
         out.insert(out.end(), section->begin(), section->end());

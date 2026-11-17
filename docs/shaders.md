@@ -124,8 +124,13 @@ set 1  binding 0  texture2D[65536]    every texture the cache holds, at its id +
 set 2  binding 0  uint[]   the frame arena, as dwords
        binding 1  vec4[]   the same, as vec4
 no push constants
-the draw's record, in the arena at the dword the draw passes as its base vertex
-(vertexOffset, or firstVertex for a draw without indices):
+a draw table, in the arena at the dword the hardware draw passes as its base
+vertex (vertexOffset, or firstVertex for a draw without indices), two words an
+entry:
+  0              where the draw's record is in the arena, in dwords
+  1              the guest index the entry's 65,536 indices count from
+an index, always 32 bits: (entry << 16) + (guest index - the entry's)
+the draw's record:
   0   (5 words)  where each constant block is in the arena, in dwords:
                    0  the vertex constant table
                    1  vertex fetch constants (96 pairs of dwords, each padded to four)
@@ -143,18 +148,22 @@ the draw's record, in the arena at the dword the draw passes as its base vertex
                  stage's own because the two may declare a slot as different kinds
 ```
 
-- **Finding the record.** The vertex shader reads `BaseVertex`, the same for
-  the whole draw, which the GPU keeps in one scalar register, and takes it
-  away from `VertexIndex` before `r0.x` is made from it. It passes the value
-  to the pixel shader as a flat output at location 16, after the sixteen
-  interpolators. The base vertex rather than the first instance, because a run
-  of draws made with one `vkCmdDrawMultiIndexedEXT` shares its first instance
-  but not its vertex offsets. The compiler cannot know a flat input is the same
-  in every pixel, so the pixel shader takes it from the subgroup's first
-  invocation (`OpGroupNonUniformBroadcastFirst`). Without that, every
-  constant read in a pixel shader would be a load per pixel. A subgroup never
-  spans two draws: a texture index without `NonUniform` already relies on
-  that.
+- **Finding the record.** One hardware draw is a run of the title's draws
+  ([rendering.md](rendering.md#the-recorder-thread)), so a vertex finds its
+  own draw's record through the draw table. The vertex shader takes
+  `BaseVertex`, where the table is, away from `VertexIndex`; the high sixteen
+  bits of what is left are the entry, whose first word is the record's offset,
+  and the low sixteen added to the entry's second word are the title's index,
+  from which `r0.x` is made. It passes the record's offset to the pixel
+  shader as a flat output at location 16, after the sixteen interpolators.
+  The base vertex rather than the first instance, because a run of draws
+  without indices made with one `vkCmdDrawMultiEXT` shares its first instance
+  but not its first vertices. The pixel shader reads the flat input as it
+  comes. It once took it from the subgroup's first invocation
+  (`OpGroupNonUniformBroadcastFirst`), which made every constant's address one
+  scalar register rather than one a pixel, but a subgroup now may hold pixels
+  of two of the title's draws. For the same reason the texture and sampler
+  arrays are indexed `NonUniform` (`SPV_EXT_descriptor_indexing`).
 - **Each record word is loaded once**, where a driver would sink the load:
   in the narrowest block that dominates every read of it, ahead of the first
   (`RecordWord`, `PlaceRecordLoads`). A straight-line program is one block,
@@ -182,9 +191,8 @@ the draw's record, in the arena at the dword the draw passes as its base vertex
   another tenth. Both are gone: the two sets are bound once a command buffer,
   and a draw is a pipeline when it changes, the dynamic state that changed,
   and the draw.
-- **Modules are SPIR-V 1.3**, the first version with `BaseVertex` and the
-  subgroup operations in the core. Before 1.4 an entry point lists only its
-  Input and Output variables.
+- **Modules are SPIR-V 1.3**, the first version with `BaseVertex` in the
+  core. Before 1.4 an entry point lists only its Input and Output variables.
 
 - Every constant is in the frame arena, copied there from the register file,
   and found by the offset the draw's record holds for its block. Binding five
@@ -313,7 +321,9 @@ Xenos has no vertex input stage. The sequencer writes the vertex index into
 pipeline declares no vertex input state and the shader does the same
 computation:
 
-- `r0.x` is `gl_VertexIndex - gl_BaseVertex`, converted to float at entry.
+- `r0.x` is the title's index, converted to float at entry: `gl_VertexIndex -
+  gl_BaseVertex` names a draw table entry in its high sixteen bits, and its
+  low sixteen are added to the guest index the entry holds.
 - A full `vfetch` reads its fetch constant from binding 1: dword 0 is the
   buffer address in dwords with a two-bit type below it (`>> 2`), dword 1's low
   two bits are the endianness. The address is

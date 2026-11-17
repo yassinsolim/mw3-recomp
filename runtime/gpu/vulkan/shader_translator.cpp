@@ -31,10 +31,9 @@ namespace
     constexpr uint32_t kSelectionControlNone = 0;
     constexpr uint32_t kLoopStackDepth = 4;      // what the sequencer provides
     constexpr uint32_t kCapabilityImageQuery = 50;
-    constexpr uint32_t kCapabilityGroupNonUniform = 61;
-    constexpr uint32_t kCapabilityGroupNonUniformBallot = 64;
     constexpr uint32_t kCapabilityDrawParameters = 4427;
-    constexpr uint32_t kScopeSubgroup = 3;
+    constexpr uint32_t kCapabilityShaderNonUniform = 5301;
+    constexpr uint32_t kCapabilitySampledImageArrayNonUniformIndexing = 5307;
     constexpr uint32_t kImageOperandBias = 0x1;
     constexpr uint32_t kImageOperandLod = 0x2;
 
@@ -135,10 +134,12 @@ namespace
         // addressed relative to aL, which needs a computed index.
         Id m_temps = 0;
 
-        // Where the draw's record is (bindings.h): BaseVertex in a vertex
-        // shader, which passes it on through m_recordOutput, and that in a
-        // pixel shader. m_record is the dword offset itself, loaded in the
+        // Where the draw's record is (bindings.h). A vertex shader finds it
+        // through the draw table BaseVertex names (m_baseVertex) and passes
+        // it on through m_recordOutput, which a pixel shader takes as
+        // m_recordInput. m_record is the dword offset itself, loaded in the
         // entry block so every block can use it.
+        Id m_baseVertex = 0;
         Id m_recordInput = 0;
         Id m_recordOutput = 0;
         Id m_record = 0;
@@ -504,8 +505,9 @@ namespace
         // Then two to the power of RB_COLOR_INFO's exponent bias, and non-zero
         // when the colour target is 8_8_8_8_GAMMA.
         //
-        // The record is found through the draw's base vertex, which the
-        // vertex stage passes on flat (bindings.h).
+        // The record is found through the draw table the hardware draw's
+        // base vertex names, and the vertex stage passes it on flat
+        // (bindings.h).
         {
             const Id pointerUint = m_module.Pointer(
                 m_type == shader::Type::Vertex ? StorageClass::Output : StorageClass::Input, m_uint);
@@ -523,22 +525,20 @@ namespace
             if (m_type == shader::Type::Vertex)
             {
                 m_module.RequireCapability(kCapabilityDrawParameters);
-                m_recordInput = m_module.Allocate();
+                m_baseVertex = m_module.Allocate();
                 Module::Emit(m_module.Declarations(), Op::Variable,
-                             { m_module.Pointer(StorageClass::Input, m_int), m_recordInput,
+                             { m_module.Pointer(StorageClass::Input, m_int), m_baseVertex,
                                uint32_t(StorageClass::Input) });
                 Module::Emit(m_module.Decorations(), Op::Decorate,
-                             { m_recordInput, uint32_t(Decoration::BuiltIn),
+                             { m_baseVertex, uint32_t(Decoration::BuiltIn),
                                uint32_t(BuiltIn::BaseVertex) });
-                Module::EmitString(m_module.Debug(), Op::Name, { m_recordInput }, "base_vertex");
-                m_entryInterface.push_back(m_recordInput);
+                Module::EmitString(m_module.Debug(), Op::Name, { m_baseVertex }, "base_vertex");
+                m_entryInterface.push_back(m_baseVertex);
                 m_recordOutput = m_module.Allocate();
                 flat(m_recordOutput, false);
             }
             else
             {
-                m_module.RequireCapability(kCapabilityGroupNonUniform);
-                m_module.RequireCapability(kCapabilityGroupNonUniformBallot);
                 m_recordInput = m_module.Allocate();
                 flat(m_recordInput, true);
             }
@@ -724,7 +724,9 @@ namespace
     }
 
     // Word `index` of the draw's record: one value for the whole program,
-    // loaded where PlaceRecordLoads puts it once every read is known.
+    // loaded where PlaceRecordLoads puts it once every read is known. One
+    // value an invocation, that is: a hardware draw is many of the title's
+    // draws, each with a record of its own.
     Id Translator::RecordWord(uint32_t index)
     {
         Id& word = m_recordWords[index];
@@ -1719,6 +1721,18 @@ namespace
         // unnormalised coordinates are texels of it.
         m_module.RequireCapability(kCapabilityImageQuery);
         // The slot's image and sampler, by the indices the record holds for it.
+        // A hardware draw is many of the title's, each with its own record, so
+        // the indices are not the same in every invocation a GPU runs
+        // together, and it has to be told so: without NonUniform a driver may
+        // take one invocation's texture for all of them.
+        m_module.RequireExtension("SPV_EXT_descriptor_indexing");
+        m_module.RequireCapability(kCapabilityShaderNonUniform);
+        m_module.RequireCapability(kCapabilitySampledImageArrayNonUniformIndexing);
+        const auto nonUniform = [this](Id id) {
+            Module::Emit(m_module.Decorations(), Op::Decorate,
+                         { id, uint32_t(Decoration::NonUniform) });
+            return id;
+        };
         Id handle = RecordWord((m_type == shader::Type::Vertex ? bindings::kRecordVertexTextures
                                                                 : bindings::kRecordTextures) + slot);
         Id imageIndex = Emit(Op::BitwiseAnd, m_uint,
@@ -1726,15 +1740,15 @@ namespace
         Id samplerIndex = Emit(Op::ShiftRightLogical, m_uint,
                                { handle, m_module.ConstantU(bindings::kHandleImageBits) });
         const uint32_t kind = m_result.textureKinds[slot];
-        Id bare = Emit(Op::Load, m_textureImageTypes[slot],
-                       { Emit(Op::AccessChain,
+        Id bare = nonUniform(Emit(Op::Load, m_textureImageTypes[slot],
+                       { nonUniform(Emit(Op::AccessChain,
                               m_module.Pointer(StorageClass::UniformConstant, m_textureImageTypes[slot]),
-                              { m_imageArrays[kind], imageIndex }) });
-        Id samplerObject = Emit(Op::Load, m_module.Sampler(),
-                                { Emit(Op::AccessChain,
+                              { m_imageArrays[kind], imageIndex })) }));
+        Id samplerObject = nonUniform(Emit(Op::Load, m_module.Sampler(),
+                                { nonUniform(Emit(Op::AccessChain,
                                        m_module.Pointer(StorageClass::UniformConstant, m_module.Sampler()),
-                                       { m_samplers, samplerIndex }) });
-        Id sampler = Emit(Op::SampledImage, m_textureTypes[slot], { bare, samplerObject });
+                                       { m_samplers, samplerIndex })) }));
+        Id sampler = nonUniform(Emit(Op::SampledImage, m_textureTypes[slot], { bare, samplerObject }));
         const uint32_t sizeCount = dimension == FetchDimension::D3 ? 3 : 2;
         Id size = Emit(Op::ConvertSToF, sizeCount == 3 ? m_module.Float3() : m_module.Float2(),
                        { Emit(Op::ImageQuerySizeLod, m_module.IntVector(sizeCount),
@@ -2178,34 +2192,44 @@ namespace
 
         EmitSequencerState();
 
-        // The record's offset, for every block below. The pixel stage's comes
-        // in as a flat value, the same for every invocation of the draw, which
-        // the compiler cannot know: taken from the first invocation, it is one
-        // scalar register again rather than one per pixel, and so is every
-        // address computed from it.
-        Id baseVertex = 0;
+        // The record's offset, for every block below. A vertex's index is two
+        // things (bindings.h): less the base vertex, which is where the
+        // hardware draw's draw table is, its high half is the entry of that
+        // table the vertex's own draw has, and its low half counts from the
+        // guest index that entry holds beside the record's offset. One
+        // hardware draw is many of the title's, so the record is a value per
+        // vertex here, and per primitive in the pixel stage, which takes the
+        // flat value as it comes: a subgroup may hold pixels of two draws,
+        // and none of them may answer for the rest.
         if (m_type == shader::Type::Vertex)
         {
-            baseVertex = Emit(Op::Load, m_int, { m_recordInput });
-            m_record = Emit(Op::Bitcast, m_uint, { baseVertex });
+            const Id baseVertex = Emit(Op::Load, m_int, { m_baseVertex });
+            const Id encoded = Emit(Op::Bitcast, m_uint,
+                                    { Emit(Op::ISub, m_int,
+                                           { Emit(Op::Load, m_int, { m_vertexIndex }), baseVertex }) });
+            static_assert(bindings::kTableWords == 2, "an entry is found with a shift");
+            const Id slot = Emit(Op::ShiftRightLogical, m_uint,
+                                 { encoded, m_module.ConstantU(bindings::kTableIndexBits) });
+            const Id entry = Emit(Op::IAdd, m_uint,
+                                  { Emit(Op::Bitcast, m_uint, { baseVertex }),
+                                    Emit(Op::ShiftLeftLogical, m_uint, { slot, m_module.ConstantU(1) }) });
+            m_record = ArenaWord(entry);
             Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
-        }
-        else
-            m_record = Emit(Op::GroupNonUniformBroadcastFirst, m_uint,
-                            { m_module.ConstantU(kScopeSubgroup),
-                              Emit(Op::Load, m_uint, { m_recordInput }) });
 
-        if (m_type == shader::Type::Vertex && m_vertexIndex)
-        {
-            // Less the base vertex, which is the record's offset and not the
-            // title's: the index the title's draw names.
-            Id index = Emit(Op::ISub, m_int, { Emit(Op::Load, m_int, { m_vertexIndex }), baseVertex });
-            Id asFloat = Emit(Op::ConvertSToF, m_float, { index });
+            // The index the title's draw names, which the sequencer puts in r0.x.
+            const Id base = ArenaWord(Emit(Op::IAdd, m_uint, { entry, m_module.ConstantU(1) }));
+            const Id index = Emit(Op::IAdd, m_uint,
+                                  { base, Emit(Op::BitwiseAnd, m_uint,
+                                               { encoded, m_module.ConstantU(
+                                                              (1u << bindings::kTableIndexBits) - 1) }) });
+            Id asFloat = Emit(Op::ConvertSToF, m_float, { Emit(Op::Bitcast, m_int, { index }) });
             Id zero = m_module.ConstantF(0.0f);
             Id value = Emit(Op::CompositeConstruct, m_float4, { asFloat, zero, zero, zero });
             Module::Emit(m_module.Code(), Op::Store,
                          { TempPointer(m_module.ConstantS(0)), value });
         }
+        else
+            m_record = Emit(Op::Load, m_uint, { m_recordInput });
 
         if (m_type == shader::Type::Vertex)
         {

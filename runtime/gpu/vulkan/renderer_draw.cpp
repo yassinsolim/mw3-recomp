@@ -216,15 +216,17 @@ namespace vk::renderer::detail
     }
 
     // The draws the recorder holds back, to be made with one call; on the
-    // recorder thread only. Whichever of the two arrays the run's kind uses.
-    // A call makes fewer draws than maxMultiDrawCount, never as many.
+    // recorder thread only. A run of indexed draws is one hardware draw, over
+    // the indices of all of them; a run of draws without indices is an entry
+    // each of one vkCmdDrawMultiEXT, which makes fewer draws than
+    // maxMultiDrawCount, never as many.
     constexpr uint32_t kLongestRun = 2048;   // RADV's maxMultiDrawCount
     struct Gathering
     {
         VkCommandBuffer command = VK_NULL_HANDLE;
         uint32_t count = 0;
         bool indexed = false;
-        VkMultiDrawIndexedInfoEXT indexedDraws[kLongestRun];
+        uint32_t firstIndex = 0, indexCount = 0, table = 0;
         VkMultiDrawInfoEXT draws[kLongestRun];
         GatheredCounts counts;
     };
@@ -233,14 +235,23 @@ namespace vk::renderer::detail
     // A draw as the recorder thread makes it: the state that changed since the
     // last draw in the command buffer, and the draw. Which state changed is
     // decided here, on the consumer, against State::Bound. Everything else the
-    // draw needs is in its record (bindings.h), which it names as its base
-    // vertex.
+    // draw needs is in its record, which its entries in a draw table name;
+    // the table is the hardware draw's base vertex, and each index says which
+    // entry is its own (bindings.h).
     //
-    // The draw itself is held back while the draws after it change nothing,
-    // and a run of them is made with one vkCmdDrawMulti(Indexed)EXT: the
-    // driver checks and emits the state once for the run, and then each draw
-    // is its base vertex and its draw packet. A run ends at a draw that changes
-    // any state and at any other call (MakeGatheredDraws, vk::record::Joining).
+    // The draw itself is held back while the draws after it change nothing.
+    // The GPU's cost is per hardware draw, whatever its size -- on Adreno
+    // about 5 us each, most of a frame of 6,600 -- and an entry of a
+    // vkCmdDrawMultiIndexedEXT is one. So a run of indexed draws is one
+    // vkCmdDrawIndexed: their indices lie in a row in the index stream, each
+    // draw's naming its own entries of the one table, and the run is the
+    // first index of the first and the count of them all. Whether a draw
+    // joins is the consumer's to say (`joins`, vk::renderer::Draw), which
+    // knows where the indices lie; the recorder knows whether the run is
+    // still open. Draws without indices have no indices to put in a row: a
+    // run of them is one vkCmdDrawMultiEXT, each with its own entries as its
+    // first vertex. A run ends at a draw that changes any state and at any
+    // other call (MakeGatheredDraws, vk::record::Joining).
     struct DrawOp
     {
         enum : uint32_t
@@ -258,8 +269,10 @@ namespace vk::renderer::detail
         VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         DepthTests depthTests{};
         VkBuffer indexBuffer = VK_NULL_HANDLE;
-        VkIndexType indexType = VK_INDEX_TYPE_UINT16;
-        uint32_t count = 0, firstIndex = 0, record = 0;
+        // The draw table: its start for a draw with indices, the draw's own
+        // first entry for one without.
+        uint32_t count = 0, firstIndex = 0, table = 0;
+        bool joins = false;
 
         void operator()(VkCommandBuffer command) const
         {
@@ -270,7 +283,8 @@ namespace vk::renderer::detail
             // held back before one that does were made under the state before
             // its own.
             if (!(set & ~uint32_t(kIndexed)) && run.count && run.command == command &&
-                run.indexed == indexed && run.count + 1 < std::min(dispatch.multiDraw, kLongestRun))
+                run.indexed == indexed &&
+                (indexed ? joins : run.count + 1 < std::min(dispatch.multiDraw, kLongestRun)))
             {
                 Join(run);
                 return;
@@ -313,7 +327,8 @@ namespace vk::renderer::detail
                     vkCmdSetStencilReference(command, faces[i], state.Reference());
                 }
             }
-            if (set & kIndexBuffer) vkCmdBindIndexBuffer(command, indexBuffer, 0, indexType);
+            // The whole arena, as 32-bit indices (EncodeIndices16).
+            if (set & kIndexBuffer) vkCmdBindIndexBuffer(command, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
             run.command = command;
             run.indexed = indexed;
             Join(run);
@@ -321,10 +336,14 @@ namespace vk::renderer::detail
 
         void Join(Gathering& run) const
         {
-            // The record goes in as the base vertex, which the vertex shader
-            // takes away from the vertex index again.
-            if (run.indexed) run.indexedDraws[run.count] = { firstIndex, count, int32_t(record) };
-            else             run.draws[run.count] = { record, count };
+            if (!run.indexed) run.draws[run.count] = { table, count };
+            else if (run.count) run.indexCount += count;
+            else
+            {
+                run.firstIndex = firstIndex;
+                run.indexCount = count;
+                run.table = table;
+            }
             run.count++;
         }
     };
@@ -334,26 +353,20 @@ void vk::renderer::detail::MakeGatheredDraws()
 {
     Gathering& run = gathering;
     if (!run.count) return;
-    if (run.count == 1)
-    {
-        GatheredCounts::Add(run.counts.alone);
-        if (run.indexed)
-        {
-            const VkMultiDrawIndexedInfoEXT& draw = run.indexedDraws[0];
-            vkCmdDrawIndexed(run.command, draw.indexCount, 1, draw.firstIndex, draw.vertexOffset, 0);
-        }
-        else vkCmdDraw(run.command, run.draws[0].vertexCount, 1, run.draws[0].firstVertex, 0);
-    }
+    if (run.count == 1) GatheredCounts::Add(run.counts.alone);
     else
     {
         GatheredCounts::Add(run.counts.runs);
         GatheredCounts::Add(run.counts.inRuns, run.count);
-        if (run.indexed)
-            dispatch.drawMultiIndexed(run.command, run.count, run.indexedDraws, 1, 0,
-                                      sizeof(VkMultiDrawIndexedInfoEXT), nullptr);
-        else
-            dispatch.drawMulti(run.command, run.count, run.draws, 1, 0, sizeof(VkMultiDrawInfoEXT));
     }
+    // The table goes in as the base vertex, which the vertex shader takes
+    // away from the vertex index again.
+    if (run.indexed)
+        vkCmdDrawIndexed(run.command, run.indexCount, 1, run.firstIndex, int32_t(run.table), 0);
+    else if (run.count == 1)
+        vkCmdDraw(run.command, run.draws[0].vertexCount, 1, run.draws[0].firstVertex, 0);
+    else
+        dispatch.drawMulti(run.command, run.count, run.draws, 1, 0, sizeof(VkMultiDrawInfoEXT));
     run.count = 0;
 }
 
@@ -564,16 +577,16 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
 
     // Before the constants, because the highest index in the run is what says how
     // much of the vertex buffer the fetch constants have to bring across.
-    uint32_t indexOffset = 0;
+    DrawPlace place;
     uint32_t lowestVertex = 0;
     uint32_t highestVertex = call.indexCount ? call.indexCount - 1 : 0;
     if (call.indexed)
     {
         if (!call.indexAddress || !call.indexCount) { Skip("indexed draw with no indices"); return; }
         Stopwatch indices(g.indexNanoseconds);
-        indexOffset = WriteIndices(call.indexAddress, call.indexCount, call.index32,
-                                   lowestVertex, highestVertex);
-        if (indexOffset == UINT32_MAX) { Skip("frame arena full"); return; }
+        place = WriteIndices(call.indexAddress, call.indexCount, call.index32,
+                             lowestVertex, highestVertex);
+        if (place.refused) { Skip(place.refused); return; }
     }
 
     // Three vertices a rectangle, and the fourth corner is written into the arena
@@ -587,25 +600,18 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         [&] { Stopwatch watch(g.constantsNanoseconds);
               return WriteConstants(r, vertex->translation, pixel->translation,
                                     lowestVertex, highestVertex, rectangles); }();
-    if (!constants.ok) { Skip("frame arena full"); return; }
+    if (!constants.ok) { Skip(kArenaFull); return; }
     // From here to the first command recorded: the pipeline key, the texture
     // handles and the viewport.
     const auto stateFrom = Timing() ? std::chrono::steady_clock::now()
                                     : std::chrono::steady_clock::time_point{};
 
-    if (rectangles)
+    // A rectangle list's indices are made here, and a draw without indices
+    // counts its vertices from its own first entry of the draw table.
+    if (!call.indexed)
     {
-        indexOffset = Allocate(rectangles * 6 * 2, kArenaIndices);
-        if (indexOffset == UINT32_MAX) { Skip("frame arena full"); return; }
-        uint16_t* list = reinterpret_cast<uint16_t*>(ArenaAt(indexOffset));
-        for (uint32_t rect = 0; rect < rectangles; rect++)
-        {
-            const uint16_t a = uint16_t(rect * 3), b = uint16_t(rect * 3 + 1);
-            const uint16_t c = uint16_t(rect * 3 + 2);
-            const uint16_t d = uint16_t(rectangles * 3 + rect);   // the corner made here
-            const uint16_t six[6] = { a, b, c, a, c, d };
-            std::memcpy(list + rect * 6, six, sizeof six);
-        }
+        place = rectangles ? WriteRectangleIndices(rectangles) : PlaceInTable(highestVertex, 0);
+        if (place.refused) { Skip(place.refused); return; }
     }
 
     // MW2_TRACE_SHADER_VERTS=<hex> dumps what a draw actually hands the GPU: the
@@ -884,14 +890,14 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
             std::memcmp(bound.record, values, words * 4))
         {
             const uint32_t at = Allocate(words * 4, kArenaConstants);
-            if (at == UINT32_MAX) { Skip("frame arena full"); return; }
+            if (at == UINT32_MAX) { Skip(kArenaFull); return; }
             std::memcpy(ArenaAt(at), values, words * 4);
             std::memcpy(bound.record, values, words * 4);
             bound.recordWords = words;
             bound.recordAt = at / 4;
             bound.recordValid = true;
         }
-        op.record = bound.recordAt;
+        WriteDrawTable(place, bound.recordAt);
     }
 
     if (Timing())
@@ -1033,28 +1039,43 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
 
     if (call.indexed || rectangles)
     {
-        // The whole arena is bound once per index size and each draw names
-        // where its indices start: a new binding every draw made the driver
-        // emit it again every draw. The arena allocator's alignment keeps
-        // every offset a whole number of indices.
-        const bool wide = call.indexed && call.index32;
-        const int indexType = wide ? int(VK_INDEX_TYPE_UINT32) : int(VK_INDEX_TYPE_UINT16);
-        if (bound.indexBuffer != g.arena || bound.indexOffset != 0 ||
-            bound.indexType != indexType)
+        // The whole arena is bound once, and each draw names where its
+        // indices start: a new binding every draw made the driver emit it
+        // again every draw. The index stream's chunks are the arena
+        // allocator's, whose alignment keeps every offset a whole number of
+        // indices.
+        if (bound.indexBuffer != g.arena)
         {
             op.set |= DrawOp::kIndexBuffer;
             op.indexBuffer = g.arena;
-            op.indexType = VkIndexType(indexType);
             bound.indexBuffer = g.arena;
-            bound.indexOffset = 0;
-            bound.indexType = indexType;
         }
         op.set |= DrawOp::kIndexed;
         op.count = rectangles ? rectangles * 6 : call.indexCount;
         // The index buffer is the whole arena, so its offsets are whole-buffer ones.
-        op.firstIndex = (g.arenaBase + indexOffset) / (wide ? 4 : 2);
+        op.firstIndex = (g.arenaBase + place.indices) / 4;
+        op.table = place.table;
+        // One hardware draw with the draw before (DrawOp): it changes no
+        // state, and its indices follow that draw's, for the same table. A
+        // draw skipped between the two after its indices were written left
+        // a gap, and a new command buffer has every state to set.
+        op.joins = MergingDraws() && !(op.set & ~uint32_t(DrawOp::kIndexed)) &&
+                   bound.runEnd == op.firstIndex && bound.runTable == op.table;
+        // Only a list of whole primitives can be run on from: a strip or a
+        // fan would go on into the next draw's vertices, and a list cut
+        // short would take its last corners from them.
+        const uint32_t corners = topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST ? 3
+                               : topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST ? 2
+                               : topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST ? 1 : 0;
+        bound.runEnd = corners && op.count % corners == 0 ? op.firstIndex + op.count : UINT32_MAX;
+        bound.runTable = op.table;
     }
-    else op.count = call.indexCount;
+    else
+    {
+        op.count = call.indexCount;
+        op.table = place.table + place.slot * bindings::kTableWords;
+        bound.runEnd = UINT32_MAX;
+    }
     if (vk::pipeline::ShaderStats()) NoteVertexWeight(call.vertexHash, op.count);
     gpu::detail::SetCurrentDrawStage("Draw_Record");
     vk::record::Joining(op);
