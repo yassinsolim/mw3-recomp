@@ -31,9 +31,12 @@ namespace
     constexpr uint32_t kSelectionControlNone = 0;
     constexpr uint32_t kLoopStackDepth = 4;      // what the sequencer provides
     constexpr uint32_t kCapabilityImageQuery = 50;
+    constexpr uint32_t kCapabilityGroupNonUniform = 61;
+    constexpr uint32_t kCapabilityGroupNonUniformBallot = 64;
     constexpr uint32_t kCapabilityDrawParameters = 4427;
     constexpr uint32_t kCapabilityShaderNonUniform = 5301;
     constexpr uint32_t kCapabilitySampledImageArrayNonUniformIndexing = 5307;
+    constexpr uint32_t kScopeSubgroup = 3;
     constexpr uint32_t kImageOperandBias = 0x1;
     constexpr uint32_t kImageOperandLod = 0x2;
 
@@ -137,8 +140,10 @@ namespace
         // Where the draw's record is (bindings.h). A vertex shader finds it
         // through the draw table BaseVertex names (m_baseVertex) and passes
         // it on through m_recordOutput, which a pixel shader takes as
-        // m_recordInput. m_record is the dword offset itself, loaded in the
-        // entry block so every block can use it.
+        // m_recordInput. m_record is the dword offset itself: loaded in the
+        // entry block of a vertex shader, and in a pixel shader the one the
+        // subgroup's invocations share in a pass of the waterfall (EmitBody),
+        // so every block of the program can use it.
         Id m_baseVertex = 0;
         Id m_recordInput = 0;
         Id m_recordOutput = 0;
@@ -154,7 +159,9 @@ namespace
         // block, the loop header, the block that switches on the counter, a
         // block per case (kInCase + the case) and the block after the loop.
         // Each case is one block too: predication is a select, not a branch.
-        // Code that opens a block of its own has to say so here.
+        // Code that opens a block of its own has to say so here. A pixel
+        // program is the body of the waterfall's pass, and its entry block
+        // here is the block that pass opens, where m_record is known.
         enum : uint32_t { kInEntry, kInLoopHeader, kInDispatch, kAfterLoop, kInCase };
         uint32_t m_block = kInEntry;
         // A place in the entry block, the loop header and the dispatch block
@@ -539,6 +546,10 @@ namespace
             }
             else
             {
+                // What the waterfall takes one record for a pass with
+                // (EmitBody).
+                m_module.RequireCapability(kCapabilityGroupNonUniform);
+                m_module.RequireCapability(kCapabilityGroupNonUniformBallot);
                 m_recordInput = m_module.Allocate();
                 flat(m_recordInput, true);
             }
@@ -725,8 +736,9 @@ namespace
 
     // Word `index` of the draw's record: one value for the whole program,
     // loaded where PlaceRecordLoads puts it once every read is known. One
-    // value an invocation, that is: a hardware draw is many of the title's
-    // draws, each with a record of its own.
+    // value a vertex, that is, and one a pass of a pixel shader's waterfall:
+    // a hardware draw is many of the title's draws, each with a record of
+    // its own.
     Id Translator::RecordWord(uint32_t index)
     {
         Id& word = m_recordWords[index];
@@ -1721,16 +1733,25 @@ namespace
         // unnormalised coordinates are texels of it.
         m_module.RequireCapability(kCapabilityImageQuery);
         // The slot's image and sampler, by the indices the record holds for it.
-        // A hardware draw is many of the title's, each with its own record, so
-        // the indices are not the same in every invocation a GPU runs
-        // together, and it has to be told so: without NonUniform a driver may
-        // take one invocation's texture for all of them.
-        m_module.RequireExtension("SPV_EXT_descriptor_indexing");
-        m_module.RequireCapability(kCapabilityShaderNonUniform);
-        m_module.RequireCapability(kCapabilitySampledImageArrayNonUniformIndexing);
-        const auto nonUniform = [this](Id id) {
-            Module::Emit(m_module.Decorations(), Op::Decorate,
-                         { id, uint32_t(Decoration::NonUniform) });
+        // A hardware draw is many of the title's, each with its own record. In
+        // a vertex shader the indices are therefore not the same in every
+        // invocation a GPU runs together, and it has to be told so: without
+        // NonUniform a driver may take one invocation's texture for all of
+        // them. A pixel shader's are the same in all of them, because the
+        // waterfall runs the program for one record at a time (EmitBody), and
+        // saying otherwise makes the driver fetch each pixel's texture on its
+        // own: three milliseconds a frame on Adreno.
+        const bool perInvocation = m_type == shader::Type::Vertex;
+        if (perInvocation)
+        {
+            m_module.RequireExtension("SPV_EXT_descriptor_indexing");
+            m_module.RequireCapability(kCapabilityShaderNonUniform);
+            m_module.RequireCapability(kCapabilitySampledImageArrayNonUniformIndexing);
+        }
+        const auto nonUniform = [this, perInvocation](Id id) {
+            if (perInvocation)
+                Module::Emit(m_module.Decorations(), Op::Decorate,
+                             { id, uint32_t(Decoration::NonUniform) });
             return id;
         };
         Id handle = RecordWord((m_type == shader::Type::Vertex ? bindings::kRecordVertexTextures
@@ -2198,9 +2219,7 @@ namespace
         // table the vertex's own draw has, and its low half counts from the
         // guest index that entry holds beside the record's offset. One
         // hardware draw is many of the title's, so the record is a value per
-        // vertex here, and per primitive in the pixel stage, which takes the
-        // flat value as it comes: a subgroup may hold pixels of two draws,
-        // and none of them may answer for the rest.
+        // vertex here, and per primitive in the pixel stage (below).
         if (m_type == shader::Type::Vertex)
         {
             const Id baseVertex = Emit(Op::Load, m_int, { m_baseVertex });
@@ -2228,8 +2247,6 @@ namespace
             Module::Emit(m_module.Code(), Op::Store,
                          { TempPointer(m_module.ConstantS(0)), value });
         }
-        else
-            m_record = Emit(Op::Load, m_uint, { m_recordInput });
 
         if (m_type == shader::Type::Vertex)
         {
@@ -2242,7 +2259,34 @@ namespace
                 Module::Emit(m_module.Code(), Op::Store, { m_pointSize, m_module.ConstantF(1.0f) });
         }
 
+        // A pixel shader takes the record as a flat value, and a subgroup may
+        // hold pixels of two of the title's draws. Read as it comes, the record
+        // is a value a pixel, and so is every address made from it and every
+        // texture index: on Adreno that nearly doubled the pixel work of a
+        // frame. So the program runs in a waterfall, once for each record the
+        // subgroup holds:
+        //
+        //   loop { r = first(record); if (record == r) { program; break; } }
+        //
+        // A pass takes the record of the first invocation still in the loop
+        // and runs the whole program for the invocations that share it, which
+        // then leave; the rest go round again. Inside a pass the record is
+        // one value for the subgroup, which the driver keeps in one scalar
+        // register. Nearly every subgroup holds one draw and makes one pass.
+        //
+        // The four pixels of a quad are rasterised from one primitive, helper
+        // invocations included, so they carry one flat value, make the same
+        // pass and stay together for the derivatives a texture fetch or
+        // getGradients takes. A driver that gave a helper invocation some
+        // other flat value would split the quad, and the level of detail
+        // chosen along that primitive's edge would be wrong.
+        //
+        // The loop ends because the first invocation always equals itself. It
+        // would not on a driver whose broadcast answered with an invocation
+        // that had already left.
+        Id waterfallHeader = 0, waterfallSkip = 0, waterfallContinue = 0, waterfallMerge = 0;
         if (m_type == shader::Type::Pixel)
+        {
             for (uint32_t i = 0; i < kInterpolatorCount; i++)
                 if (m_interpolators[i])
                 {
@@ -2250,6 +2294,35 @@ namespace
                     Module::Emit(m_module.Code(), Op::Store,
                                  { TempPointer(m_module.ConstantS(int32_t(i))), value });
                 }
+
+            const Id flat = Emit(Op::Load, m_uint, { m_recordInput });
+            waterfallHeader = m_module.Allocate();
+            // The test needs a block of its own, a block having one merge
+            // instruction, and a merge block that is not the loop's continue
+            // target, as the dispatcher's switch does.
+            const Id test = m_module.Allocate();
+            const Id pass = m_module.Allocate();
+            waterfallSkip = m_module.Allocate();
+            waterfallContinue = m_module.Allocate();
+            waterfallMerge = m_module.Allocate();
+            Module::Emit(m_module.Code(), Op::Branch, { waterfallHeader });
+            Module::Emit(m_module.Code(), Op::Label, { waterfallHeader });
+            Module::Emit(m_module.Code(), Op::LoopMerge,
+                         { waterfallMerge, waterfallContinue, kLoopControlNone });
+            Module::Emit(m_module.Code(), Op::Branch, { test });
+
+            Module::Emit(m_module.Code(), Op::Label, { test });
+            m_record = Emit(Op::GroupNonUniformBroadcastFirst, m_uint,
+                            { m_module.ConstantU(kScopeSubgroup), flat });
+            const Id mine = Emit(Op::IEqual, m_bool, { flat, m_record });
+            Module::Emit(m_module.Code(), Op::SelectionMerge, { waterfallSkip, kSelectionControlNone });
+            Module::Emit(m_module.Code(), Op::BranchConditional, { mine, pass, waterfallSkip });
+
+            // The program's entry block (m_block is kInEntry): every block
+            // from here to the end of the program is dominated by it, and the
+            // record words are loaded no earlier (PlaceRecordLoads).
+            Module::Emit(m_module.Code(), Op::Label, { pass });
+        }
 
         // The sequencer is a program counter over the control flow list, and Xenos
         // jumps, calls and loops move it arbitrarily. Rather than recover structured
@@ -2543,6 +2616,19 @@ namespace
             Module::Emit(m_module.Code(), Op::Label, { carryOn });
         }
 
+        // A pixel that has run the program leaves the waterfall; one whose
+        // record this pass was not for goes round. The discard above is
+        // inside the pass, where OpKill ends the invocation and with it its
+        // part in the loop.
+        if (m_type == shader::Type::Pixel)
+        {
+            Module::Emit(m_module.Code(), Op::Branch, { waterfallMerge });
+            Module::Emit(m_module.Code(), Op::Label, { waterfallSkip });
+            Module::Emit(m_module.Code(), Op::Branch, { waterfallContinue });
+            Module::Emit(m_module.Code(), Op::Label, { waterfallContinue });
+            Module::Emit(m_module.Code(), Op::Branch, { waterfallHeader });
+            Module::Emit(m_module.Code(), Op::Label, { waterfallMerge });
+        }
         Module::Emit(m_module.Code(), Op::Return, {});
         Module::Emit(m_module.Code(), Op::FunctionEnd, {});
         PlaceRecordLoads();

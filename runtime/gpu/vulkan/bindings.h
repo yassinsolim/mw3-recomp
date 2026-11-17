@@ -91,10 +91,11 @@ namespace vk::bindings
 
     // A draw's record: what is register state rather than shader state, in
     // the arena, at the dword its draw table entries hold. The vertex stage
-    // hands it to the pixel stage as a flat value (location kRecordLocation),
-    // which the pixel stage reads as it comes: one hardware draw is many
-    // records, so neither a subgroup nor anything wider can be taken to hold
-    // one, and the texture arrays are indexed NonUniform for the same reason.
+    // hands it to the pixel stage as a flat value (location kRecordLocation).
+    // One hardware draw is many records, so the vertex stage indexes its
+    // texture arrays NonUniform; the pixel stage takes one record at a time
+    // across the wave (a loop over the records it holds, docs/shaders.md), so
+    // its record and texture handles are uniform within each pass of it.
     // The base vertex rather than the first instance, because a run of draws
     // without indices made with one vkCmdDrawMultiEXT shares its first
     // instance and not its first vertices.

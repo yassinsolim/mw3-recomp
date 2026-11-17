@@ -15,7 +15,7 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Guest code executing on the Thor | verified: start-up, menus, Survival and the campaign (Black Tuesday) run |
 | Graphics driver | **Turnip v27.0.0-R2 is the default** on Qualcomm devices (bundled, downloaded at build time). On the Thor's campaign helicopter scene: 51 FPS and clean textures on Turnip against 21 FPS with blocky, missing texture blocks on the stock Qualcomm driver. On Turnip, whole pipelines are built, not pipeline libraries (its compiler faulted building libraries) |
 | Menus on the Thor | verified: title, first-run setup, main menu, Special Ops, Survival map list at 60 FPS; no flicker (black frames 0% in a 7 s recording, was 40%) |
-| Survival on the Thor | **near 60 FPS**: Resistance loads in about 15 s; everything drawn and textured. On Turnip R2, 10 minutes kept in play: 58.5 world frames a second on average, 83% of frames within 17.5 ms, most seconds at 60, heavier moments 46-58; GPU busy 90% (15.2 ms a frame), so the GPU is the remaining limit. Temperatures flat over the 10 minutes (hottest CPU zone 88-90 C, GPU 80-82 C) |
+| Survival on the Thor | **60 FPS nearly locked**: Resistance loads in about 15 s; everything drawn and textured. On Turnip R2, 10 minutes kept in play: 59.1 world frames a second on average, 87.6% of frames within 17.5 ms, 289 of 325 sampled seconds at 59-60 and the worst at 53; GPU 79% busy (13.2 ms a frame). Temperatures flat over the 10 minutes (hottest CPU zone 88-90 C, GPU 80-81 C) |
 | Campaign on the Thor | Black Tuesday plays; about 45 FPS at its opening (short run); four minutes without fault on an earlier build |
 | Enemies, AI, damage | observed: enemies spawn, approach and shoot, armour and health fall, last stand triggers |
 | Player movement, aiming, shooting | verified with the touch overlay (move, look, fire); a wave played by hand by the owner |
@@ -161,6 +161,19 @@ Status words: **verified** (observed on the device or by a run), **built**
   world FPS average, dips to 46-58 in heavy moments with the GPU 90% busy.
   A first 11-minute run that left the game-over screen up most of the time
   read 59.9 and is not counted as play.
+- The GPU's busy time is 98.5% the renderer's frames, 1.5% the copies to
+  the screen (new report split). With no pixel shaded the GPU took 8.1 of
+  15.0 ms: merging had doubled the pixel cost (about 4 -> 7 ms), because the
+  pixel stage read its record and indexed textures per pixel. It now takes
+  one record at a time across the wave (a loop over the records a wave
+  holds; one pass in nearly every wave), with uniform texture handles:
+  GPU 15.0 -> 13.2 ms a frame, and 10 minutes in play at 59.1 world FPS
+  (87.6% of frames within 17.5 ms, worst second 53).
+- Tried and reverted, no measured change: occlusion-query brackets kept
+  inside the open render pass (GPU 15.5 ms against 15.0).
+- Build PC: two unrelated python servers hold most of the PC's memory; the
+  Gradle daemon's heap is lowered in scripts/win_build.ps1 (outside the repo)
+  so builds start beside them.
 
 ## Build (WSL2 Ubuntu 24.04)
 

@@ -158,12 +158,40 @@ the draw's record:
   shader as a flat output at location 16, after the sixteen interpolators.
   The base vertex rather than the first instance, because a run of draws
   without indices made with one `vkCmdDrawMultiEXT` shares its first instance
-  but not its first vertices. The pixel shader reads the flat input as it
-  comes. It once took it from the subgroup's first invocation
-  (`OpGroupNonUniformBroadcastFirst`), which made every constant's address one
-  scalar register rather than one a pixel, but a subgroup now may hold pixels
-  of two of the title's draws. For the same reason the texture and sampler
-  arrays are indexed `NonUniform` (`SPV_EXT_descriptor_indexing`).
+  but not its first vertices.
+- **One record a pass in the pixel shader.** A subgroup may hold pixels of
+  two of the title's draws, so the flat input is not one value across it.
+  Read as it came, every constant's address was a register a pixel rather
+  than one scalar register, and the texture and sampler arrays had to be
+  indexed `NonUniform`: on the AYN Thor (Adreno 740, Turnip) the pixel work of
+  a frame went from about 4 ms to about 7. So the whole program is the body
+  of a waterfall (`EmitBody`):
+
+  ```
+  loop { r = first(record); if (record == r) { program; break; } }
+  ```
+
+  `first` is `OpGroupNonUniformBroadcastFirst`. A pass runs the program for
+  the invocations whose record is that of the first one still in the loop,
+  and they leave; the rest go round. Inside a pass the record, every address
+  made from it and every texture index are the same for the whole subgroup,
+  and nearly every subgroup makes one pass. The loop goes round the program
+  in all three of its forms -- straight-line, forward jumps as selections,
+  and the dispatcher, whose own loop is nested in it -- from after the
+  interpolators are copied into the registers to after the deferred discard,
+  which is an `OpKill` inside the pass. The record words are loaded inside
+  the pass (below). A vertex shader has no waterfall: its record is a value
+  a vertex, and its texture and sampler arrays are indexed `NonUniform`
+  (`SPV_EXT_descriptor_indexing`).
+
+  The four pixels of a quad come from one primitive, helper invocations
+  included, so they share the flat value, make the same pass and the
+  derivatives an implicit-LOD fetch takes are those of the whole quad. That
+  rests on the driver giving helper invocations their primitive's flat
+  value; one that did not would pick the wrong level of detail along that
+  primitive's edges. The loop ends because the first invocation equals
+  itself, which rests on the broadcast answering only with an invocation
+  still in the loop.
 - **Each record word is loaded once**, where a driver would sink the load:
   in the narrowest block that dominates every read of it, ahead of the first
   (`RecordWord`, `PlaceRecordLoads`). A straight-line program is one block,
@@ -191,8 +219,9 @@ the draw's record:
   another tenth. Both are gone: the two sets are bound once a command buffer,
   and a draw is a pipeline when it changes, the dynamic state that changed,
   and the draw.
-- **Modules are SPIR-V 1.3**, the first version with `BaseVertex` in the
-  core. Before 1.4 an entry point lists only its Input and Output variables.
+- **Modules are SPIR-V 1.3**, the first version with `BaseVertex` and the
+  subgroup operations in the core. Before 1.4 an entry point lists only its
+  Input and Output variables.
 
 - Every constant is in the frame arena, copied there from the register file,
   and found by the offset the draw's record holds for its block. Binding five

@@ -12,9 +12,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   now one `vkCmdDrawIndexed` over 32-bit indices that name each draw's entry in
   a draw table, through which a vertex finds its draw's record
   ([docs/rendering.md](docs/rendering.md#the-recorder-thread)). The renderer
-  now needs non-uniform indexing of sampled images instead of subgroup ballot
+  now needs non-uniform indexing of sampled images as well as subgroup ballot
   in pixel shaders. `MW2_NO_MERGE=1` makes every draw a hardware draw of its
   own. Cached shaders of earlier builds are not reused.
+- **A pixel shader runs once for each draw its subgroup holds**
+  (`shader_translator.cpp`, [docs/shaders.md](docs/shaders.md#the-module-interface)):
+  merged draws had made the record, and with it every constant's address and
+  texture index, a value per pixel, which nearly doubled the pixel work of a
+  frame on Adreno. The program is now the body of a loop that takes one
+  record a pass, so they are one value for the subgroup again.
 
 ## [v0.0.2-alpha] - 2026-10-18
 

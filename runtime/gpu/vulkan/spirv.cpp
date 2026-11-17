@@ -7,9 +7,10 @@ using namespace spirv;
 
 namespace
 {
-    // 1.3 is Vulkan 1.1's, the first with BaseVertex in the core, which the
-    // translated shaders find a draw's record through (bindings.h). Still
-    // before 1.4, so an entry point lists only its Input and Output variables.
+    // 1.3 is Vulkan 1.1's, the first with BaseVertex and subgroup operations
+    // in the core, which the translated shaders find and read a draw's record
+    // with (bindings.h). Still before 1.4, so an entry point lists only its
+    // Input and Output variables.
     constexpr uint32_t kMagic = 0x07230203u;
     constexpr uint32_t kVersion = 0x00010300u;
     // Registered generator ids are handed out by Khronos; 0 is "unknown".

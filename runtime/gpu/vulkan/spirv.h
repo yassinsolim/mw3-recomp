@@ -52,6 +52,7 @@ namespace spirv
         ShiftRightLogical = 194, ShiftLeftLogical = 196, BitwiseOr = 197,
         BitwiseXor = 198, BitwiseAnd = 199, Not = 200, BitFieldSExtract = 202,
         UGreaterThanEqual = 175, ULessThan = 176,
+        GroupNonUniformBroadcastFirst = 338,
         LoopMerge = 246, SelectionMerge = 247,
         Label = 248, Branch = 249, BranchConditional = 250, Switch = 251, Kill = 252,
         Return = 253, Unreachable = 255,

@@ -696,8 +696,8 @@ namespace vk::renderer::detail
     }
 
     constexpr uint32_t kCacheMagic = 0x32574D53;   // 'SMW2'
-    constexpr uint32_t kCacheVersion = 4;   // 4: a draw's record is found through
-                                            // a draw table, not its base vertex
+    constexpr uint32_t kCacheVersion = 5;   // 5: a pixel program runs once for
+                                            // each record its subgroup holds
 
     void WriteShaderCache()
     {

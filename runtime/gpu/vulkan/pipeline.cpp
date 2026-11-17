@@ -386,7 +386,9 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     // made, and a draw's record found through the draw table its base vertex
     // names and handed to the pixel stage (bindings.h). One hardware draw is
     // many of the title's, each with its own textures, so the index into the
-    // set is not the same across the draw. Vulkan 1.2 has all of it; a 1.1
+    // set is not the same across the draw: a vertex shader says so, and a
+    // pixel shader runs once for each record its subgroup holds, which takes
+    // the subgroup's first invocation. Vulkan 1.2 has all of it; a 1.1
     // device on the render pass fallback needs the descriptor indexing
     // extension.
     VkPhysicalDeviceDescriptorIndexingFeatures indexing{
@@ -405,6 +407,9 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
 
         VkPhysicalDeviceDescriptorIndexingProperties limits{
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES };
+        VkPhysicalDeviceSubgroupProperties subgroup{
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES };
+        limits.pNext = &subgroup;
         VkPhysicalDeviceProperties2 properties2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
         properties2.pNext = &limits;
         vkGetPhysicalDeviceProperties2(physical, &properties2);
@@ -426,6 +431,8 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             : !supported.shaderSampledImageArrayDynamicIndexing ? "dynamically indexed textures"
             : !drawParameters.shaderDrawParameters ? "shader draw parameters"
             : !indexing.shaderSampledImageArrayNonUniformIndexing ? "non-uniformly indexed textures"
+            : !(subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) ||
+              !(subgroup.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT) ? "subgroup ballot in pixel shaders"
             : limits.maxPerStageDescriptorUpdateAfterBindSampledImages < bindings::kImageCount ||
               limits.maxDescriptorSetUpdateAfterBindSampledImages < bindings::kImageCount ||
               limits.maxPerStageDescriptorUpdateAfterBindSamplers < bindings::kSamplerCount ||
