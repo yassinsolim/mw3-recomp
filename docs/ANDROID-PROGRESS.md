@@ -15,12 +15,12 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Guest code executing on the Thor | verified: start-up, menus, Survival and the campaign (Black Tuesday) run |
 | Graphics driver | **Turnip v27.0.0-R2 is the default** on Qualcomm devices (bundled, downloaded at build time). On the Thor's campaign helicopter scene: 51 FPS and clean textures on Turnip against 21 FPS with blocky, missing texture blocks on the stock Qualcomm driver. On Turnip, whole pipelines are built, not pipeline libraries (its compiler faulted building libraries) |
 | Menus on the Thor | verified: title, first-run setup, main menu, Special Ops, Survival map list at 60 FPS; no flicker (black frames 0% in a 7 s recording, was 40%) |
-| Survival on the Thor | working, slow: Resistance loads in about 15 s; sky, street, buildings, weapon, enemies, HUD and minimap drawn and textured. 10-26 FPS on Turnip in the first minute, the low end while shaders compile on first sight |
-| Campaign on the Thor | Black Tuesday resumes from a save and plays; 32-51 FPS on Turnip; four minutes without fault |
+| Survival on the Thor | **near 60 FPS**: Resistance loads in about 15 s; everything drawn and textured. On Turnip R2, 10 minutes kept in play: 58.5 world frames a second on average, 83% of frames within 17.5 ms, most seconds at 60, heavier moments 46-58; GPU busy 90% (15.2 ms a frame), so the GPU is the remaining limit. Temperatures flat over the 10 minutes (hottest CPU zone 88-90 C, GPU 80-82 C) |
+| Campaign on the Thor | Black Tuesday plays; about 45 FPS at its opening (short run); four minutes without fault on an earlier build |
 | Enemies, AI, damage | observed: enemies spawn, approach and shoot, armour and health fall, last stand triggers |
-| Player movement, aiming, shooting | verified with the touch overlay: the left stick moves the player, the right stick turns the view, the fire button fires (muzzle flash and recoil). A full wave has not been played by hand |
-| Stability | Turnip with pipeline libraries crashed in its compiler (twice); whole pipelines ran four minutes clean. Turnip T26 crashes at renderer start-up; T30 untested. One old abort in `kernel::ObjectAt` not seen since |
-| Audio on the Thor | AAudio stream opens, XMA contexts decode; audible output not checked by ear |
+| Player movement, aiming, shooting | verified with the touch overlay (move, look, fire); a wave played by hand by the owner |
+| Stability | Turnip with pipeline libraries crashed in its compiler (twice), so Turnip builds whole pipelines; 11-minute Survival runs without fault. Turnip T26 crashes at renderer start-up; T30, V32, faux123 and Banners builds run (all within 3% of R2) |
+| Audio on the Thor | verified by ear by the owner |
 | Input on the Thor | touch overlay verified in menus and play (a press must be held about 0.25 s); physical pad detected, not exercised |
 | Launcher branding | verified: MW3 wordmark, MW2-only entries hidden |
 | Profile and saves | profile and campaign saves written and resumed |
@@ -149,6 +149,18 @@ Status words: **verified** (observed on the device or by a run), **built**
 - Render scale 2 is not hung: its first launch compiles about 624 pipelines
   (72 s) before play, which the hang detector reports as hangs. It then
   plays at 18 FPS (GPU 54.5 ms a frame).
+- Draw merging (commit bfc3ace): consecutive draws that change no state are
+  one vkCmdDrawIndexed over 32-bit indices encoding a draw-table slot;
+  Survival 25.3 -> 53.0 world FPS, GPU 38.9 -> 15.3 ms a frame.
+- Ring consumer CPU (commit a47f6cc), guided by simpleperf on the device:
+  batched recorder publication, lock-free heap coverage answers in
+  FromPhysical, a fetch-constant cache in front of the texture map and the
+  rewritten texture's bind-time re-read deferred to its segment's end.
+  53.0 -> 59.8 world FPS in a short run; the consumer 65% -> 48% of a core.
+- 10 minutes kept in play (Y every 20 s restarts after a game over): 58.5
+  world FPS average, dips to 46-58 in heavy moments with the GPU 90% busy.
+  A first 11-minute run that left the game-over screen up most of the time
+  read 59.9 and is not counted as play.
 
 ## Build (WSL2 Ubuntu 24.04)
 
