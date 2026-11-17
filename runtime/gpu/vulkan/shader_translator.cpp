@@ -1953,7 +1953,8 @@ namespace
             auto array = [&](Id& slot, const char* name) {
                 slot = m_module.Allocate();
                 Module::Emit(m_module.Code(), Op::Variable,
-                             { stackPointer, slot, uint32_t(StorageClass::Function) });
+                             { stackPointer, slot, uint32_t(StorageClass::Function),
+                               m_module.ConstantNull(stack) });
                 Module::EmitString(m_module.Debug(), Op::Name, { slot }, name);
             };
             array(m_loopIterators, "loop_iterators");
@@ -2158,11 +2159,15 @@ namespace
 
         // SPIR-V wants every function variable declared in the entry block, and
         // drivers promote them to registers, so this saves building SSA by hand.
+        // The registers start at zero, as Xenia has them: a title's shader may
+        // read components it never wrote (a .xy written, the .xyzw read and the
+        // rest multiplied away). An uninitialised SPIR-V variable is undefined:
+        // llvmpipe happens to zero-fill it, a GPU may leave NaN there.
         Id temps = m_module.ArrayOf(m_float4, kTempRegisterCount);
         Id pointer = m_module.Pointer(StorageClass::Function, temps);
         m_temps = m_module.Allocate();
         Module::Emit(m_module.Code(), Op::Variable,
-                     { pointer, m_temps, uint32_t(StorageClass::Function) });
+                     { pointer, m_temps, uint32_t(StorageClass::Function), m_module.ConstantNull(temps) });
         Module::EmitString(m_module.Debug(), Op::Name, { m_temps }, "r");
 
         Id boolPointer = m_module.Pointer(StorageClass::Function, m_bool);

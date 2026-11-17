@@ -27,7 +27,7 @@ namespace spirv
         TypeSampledImage = 27, TypeArray = 28, TypeRuntimeArray = 29,
         TypeStruct = 30, TypePointer = 32, TypeFunction = 33,
         ConstantTrue = 41, ConstantFalse = 42, Constant = 43,
-        ConstantComposite = 44, Function = 54, FunctionEnd = 56,
+        ConstantComposite = 44, ConstantNull = 46, Function = 54, FunctionEnd = 56,
         FunctionCall = 57, Variable = 59, Load = 61, Store = 62,
         AccessChain = 65, Decorate = 71, MemberDecorate = 72,
         VectorShuffle = 79, CompositeConstruct = 80, CompositeExtract = 81,
@@ -131,6 +131,9 @@ namespace spirv
         Id ConstantU(uint32_t value);
         Id ConstantS(int32_t value);
         Id ConstantSplatF(float value);
+        // Every component zero, for any type: what a variable starts as when the
+        // shader may read it before writing it.
+        Id ConstantNull(Id type);
         Id GlslSet() const { return m_glslSet; }
 
         Id IntVector(uint32_t count) { return Vector(Int(), count); }

@@ -175,6 +175,11 @@ Id Module::ConstantSplatF(float value)
                   Op::ConstantComposite, type, { component, component, component, component });
 }
 
+Id Module::ConstantNull(Id type)
+{
+    return Cached({ uint32_t(Op::ConstantNull), type, 0 }, Op::ConstantNull, type, {});
+}
+
 std::vector<uint32_t> Module::Finish() const
 {
     std::vector<uint32_t> out;

@@ -355,6 +355,23 @@ bool vk::renderer::Initialise()
     const uint32_t shadowBytes = guest::kPhysicalEnd - guest::kPhysicalBase;
     uint32_t wanted = uint32_t(env::Number("MW2_ARENA_MB", kArenaWanted >> 20)) << 20;
     bool withShadow = !noShadow;
+    // Set 2 binds the whole buffer, arena and shadow together, as one storage
+    // buffer, so the whole of it has to be within what one storage buffer
+    // descriptor may reach. Past it the binding is invalid and a driver may
+    // simply cut it short: Adreno did, and with a 384 MB arena the third
+    // frame slot's share lay beyond the cut -- every third frame drew nothing.
+    // The shadow goes first, the arena is halved after.
+    VkPhysicalDeviceProperties limits{};
+    vkGetPhysicalDeviceProperties(g.physical, &limits);
+    const uint64_t reach = limits.limits.maxStorageBufferRange;
+    LOGI("renderer: one storage buffer may reach %llu MB", (unsigned long long)(reach >> 20));
+    if (withShadow && uint64_t(wanted) + shadowBytes > reach)
+    {
+        LOGI("renderer: no shadow of guest memory: %u MB of arena and %u MB of shadow are past"
+             " what one storage buffer reaches", wanted >> 20, shadowBytes >> 20);
+        withShadow = false;
+    }
+    if (uint64_t(wanted) > reach) wanted = uint32_t(reach & ~uint64_t(0xFFFFF));
     for (; wanted >= kArenaLeast; withShadow ? (void)(withShadow = false) : (void)(wanted /= 2))
     {
         VkBufferCreateInfo buffer{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
