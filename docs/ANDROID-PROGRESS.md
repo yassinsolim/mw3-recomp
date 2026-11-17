@@ -23,6 +23,7 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Audio on the Thor | verified by ear by the owner |
 | Input on the Thor | touch overlay verified in menus and play (a press must be held about 0.25 s); physical pad detected, not exercised |
 | Launcher branding | verified: MW3 wordmark, MW2-only entries hidden |
+| MW3 multiplayer on the Thor | **booting and playable locally**: `iw5mp_ship.exe` recompiled (commit c68caf2, app `com.mw3.recomp.mp`); the Multiplayer menu at 60 FPS; Split Screen -> Team Deathmatch on Seatown loads, team select, spawn with the class's weapon, HUD (timer, score, minimap), 60 FPS in the match. Networking deliberately off (loopback only) until the MP hardening is re-found for MW3. No bots on the 360 build, so nothing to shoot yet |
 | Profile and saves | profile and campaign saves written and resumed |
 
 ## 2026-11-16
