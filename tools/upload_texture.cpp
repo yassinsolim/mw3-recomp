@@ -14,6 +14,7 @@
 #include "../runtime/gpu/vulkan/pipeline.h"
 #include "../runtime/gpu/vulkan/texture_formats.h"
 #include "../runtime/gpu/vulkan/texture_cache.h"
+#include "../runtime/gpu/texture_replace.h"
 #include "../runtime/report.h"
 #include "../runtime/stutters.h"
 
@@ -68,6 +69,19 @@ namespace stutters
 // Nor a bug report to time the uploads for.
 report::Timed::Timed(Time what) : time(what) {}
 report::Timed::~Timed() {}
+// Nor a player's folder of replacements, or a dump to key textures for.
+namespace gpu::replace
+{
+    bool On() { return false; }
+    uint64_t KeyOf(const TextureData&, uint32_t) { return 0; }
+    std::shared_ptr<const TextureData> Load(uint64_t, const TextureData&, const TextureFetch&, bool)
+    {
+        return nullptr;
+    }
+    void Refuse(uint64_t, const char*) {}
+    void Applied() {}
+    void Dump(uint64_t, const TextureData&, const TextureFetch&) {}
+}
 
 int main(int argc, char** argv)
 {

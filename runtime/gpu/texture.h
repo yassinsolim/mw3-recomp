@@ -214,7 +214,10 @@ namespace gpu
 
     // Not the upload path -- a driver takes the block formats directly -- but the
     // only way to confirm by eye that untiling, endianness and addressing are all
-    // right at once. One level, its layers one under another.
+    // right at once, and the picture a replacement is edited from: what this
+    // shows in each channel is what texture_replace.cpp turns back into the
+    // host's layout, so the two change together. One level, its layers one
+    // under another.
     bool DecodeToRgba(const TextureData& data, uint32_t format,
                       std::vector<uint8_t>& rgba, uint32_t level = 0);
 }

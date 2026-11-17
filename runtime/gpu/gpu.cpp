@@ -8,6 +8,7 @@
 #include "memory_watch.h"
 #include "internal.h"
 #include "gpu.h"
+#include "texture_replace.h"
 #include "../crash.h"
 #include "../diagnostics.h"
 #include "../guest.h"
@@ -334,6 +335,8 @@ uint64_t gpu::FrameCount() { return g.frames.load(std::memory_order_relaxed); }
 
 void gpu::Report()
 {
+    // A player's own, so in every build.
+    gpu::replace::Report();
     if constexpr (!diag::kOn) return;
     imagepool::Report();
     if (vk::Running())

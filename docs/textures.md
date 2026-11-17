@@ -12,6 +12,7 @@ would sample at the moment a draw executes.
 | The images' memory, in blocks | `runtime/gpu/vulkan/image_memory.{h,cpp}` |
 | Write watch on guest pages | `runtime/gpu/memory_watch.{h,cpp}` |
 | The image pool's block copy | `runtime/image_move.{h,cpp}` |
+| Replacements and the keyed dump | `runtime/gpu/texture_replace.{h,cpp}`, `runtime/png.{h,cpp}` |
 | Upload round-trip test | `tools/upload_texture.cpp` (target `upload-texture`) |
 
 ## The fetch constant
@@ -317,6 +318,73 @@ re-read at segment end until it drops to 25% or less. With diagnostics,
 pass for 60 frames after it is first seen empty, and textures still empty at
 segment end are logged with the pool copies around them.
 
+## Texture replacement (skins)
+
+A player's picture can be uploaded in place of one of the title's textures.
+Nothing in the title changes: the cache reads the texture as always and hands
+the GPU another image.
+
+**The key.** A texture has no name by the time it is bound -- a fetch constant
+is an address, a format and a size -- so a replacement is named by what the
+texture holds. `gpu::replace::KeyOf` is a 64-bit hash of the untiled,
+host-endian bytes of one level as `ReadTexture` returns them, with the format,
+that level's width, height and layers, and the number of levels from it down.
+Tile padding, addresses and sampler state are not in it, so the same picture
+has the same key in every run and on every device, wherever the allocator put
+it. The level is the lowest the sampler may use: the base, unless the title
+has not streamed the base in yet. A streamed texture therefore has a key for
+each state it is drawn in, and a replacement applies to the state it was
+dumped in. A texture the title draws into or builds as it runs has no stable
+key. The function is frozen: changing it orphans every replacement made.
+
+**Making one.**
+
+1. Run with `MW2_DUMP_TEXTURES=<dir>` (in `.env`, as any switch) and play to
+   where the texture is drawn. Every texture the cache reads is written once
+   as `<key>.png`, with a line in `textures.txt`: key, format, size, levels,
+   `gamma` when it is sampled linearised. A texture that is still all zero is
+   left until it has been filled. The files are stored uncompressed.
+2. Find the picture, edit it and save it under the same name, as PNG (8 or 16
+   bits a channel, grey, RGB, RGBA or palette, not interlaced) or as binary
+   PNM (`P5`, `P6`), which has no alpha. Any size: the sampler works in
+   normalised coordinates.
+3. Put it in `replace/` in the game folder, or any folder below that, or in
+   the folder `MW2_TEXTURE_REPLACE` names. Take `MW2_DUMP_TEXTURES` out again.
+
+The picture is edited as the dump shows it. For the one-channel formats (8,
+DXT3A, DXT5A) that is grey and only red is read back; for 8_8 red and green.
+The dump does not decode DXN, so normal maps cannot be made this way yet.
+
+**The swap.** `vk::textures::Upload` keys what it has just read; with a file
+for that key the image is made from the file instead -- `R8G8B8A8`, or its sRGB
+form where the title's own image would have been an sRGB one, at the file's
+size, with a full chain of levels averaged on the CPU (in linear light for a
+gamma texture), under the title's own swizzle and sampler. The fetch constant,
+the write watch and the signature stay the title's, so the texture is still
+followed in guest memory. Cubes, volumes and arrays are not replaced, and a
+file for one is refused with a line in the log; so is a file that does not
+decode, or is larger than the device's largest image, and the title's texture
+is uploaded.
+
+An image is made as the title's texture or as a replacement and cannot become
+the other, since the two differ in size and format. Each re-read
+(`Prepare`, on the reader threads) keys what it read. When that asks for
+something the image is not -- a streamed texture arriving that has a
+replacement, the title putting another texture where a replaced one was -- the
+title's bytes are staged as usual for the segment's draws where the image can
+take them, and the image is orphaned (`Orphan`): its names are forgotten, so
+the next bind makes the right image under a new id, while the old one stays
+untouched for draws already recorded and is released once idle. A replaced
+image whose memory is rewritten with the same picture stages nothing.
+
+**Cost.** With no replacement folder and no dump, one predictable branch an
+upload. With either, a hash of one level at each upload and re-read. A
+replacement is decoded the first time it is wanted, on the ring consumer at a
+first bind or on a reader at a segment's end, and kept: up to 128 MB of
+decoded pictures on desktop and 32 MB on Android, least recently used first to
+go, so an image the cache evicted is usually remade without reading the file
+again. The image itself counts against the texture budget like any other.
+
 ## The image pool's block copy
 
 MW2 keeps streamed images in a compacting pool. To relocate a block, the pool
@@ -365,8 +433,10 @@ whatever it held before, since the image is not streamed again.
   (`--size=17x9`) exercise the copy-region row length.
 - **By eye.** A wrong tiling function produces a buffer of the right size full
   of plausible bytes, so only a picture confirms it. `MW2_DUMP_TEXTURES=<dir>`
-  writes each distinct texture as PNM, each mip level beside it
-  (`gpu::DecodeToRgba`, which exists only for this); `MW2_DUMP_TEXTURES_RAW=1`
+  writes each texture as `<key>.png` (`gpu::DecodeToRgba`, which is also what
+  a replacement's channel order is defined by) and, with diagnostics, each
+  further mip level of every distinct shape bound as `<key>_level<n>.png`;
+  `MW2_DUMP_TEXTURES_RAW=1`
   also writes the guest bytes for offline layout experiments. A reimplemented
   offline untiler must first reproduce a known-good texture before its output
   is trusted.

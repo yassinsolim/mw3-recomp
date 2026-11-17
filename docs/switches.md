@@ -101,7 +101,7 @@ walking to it.
 | switch | effect |
 |---|---|
 | `MW2_DUMP_SHADERS=<dir>` | every distinct shader's microcode, for `tools/xenos_shader.py` and `translate-shader` |
-| `MW2_DUMP_TEXTURES=<dir>` | every distinct bound texture, untiled, as PNM with each mip level, its fetch constant logged. `MW2_DUMP_TEXTURES_RAW=1` also writes the guest bytes; `MW2_DUMP_TEXTURES_AFTER=<seconds>` starts later, since a streamed texture is empty at its first bind |
+| `MW2_DUMP_TEXTURES=<dir>` | read by every build (see Drawing). With diagnostics, also: every distinct texture shape bound at a draw, each further mip level as `<key>_level<n>.png`, its fetch constant logged. `MW2_DUMP_TEXTURES_RAW=1` also writes the guest bytes; `MW2_DUMP_TEXTURES_AFTER=<seconds>` starts later, since a streamed texture is empty at its first bind |
 | end-of-run reports | packets by opcode, frame times, draws and presents per second, arena copies, draws per render target, texture and shader work |
 
 ## Drawing
@@ -118,6 +118,8 @@ walking to it.
 | `MW2_ANISOTROPY=<2, 4, 8 or 16>` | R | the anisotropic filtering every mipmapped texture gets at least: the title's `r_texFilterAnisoMin`, the PC game's setting, registered with it as its default. Unset or 1 is the console's, 1:1 to 4:1 as each material asks. The launcher's ANISOTROPY entry sets it in the settings file ([rendering.md](rendering.md#anisotropic-filtering)) |
 | `MW2_ARENA_MB=<n>` | R | the upload arena for constants, vertices and indices, shared by the frame slots (512) |
 | `MW2_TEXTURE_BUDGET_MB=<n>` | R | the texture cache's budget, past which it lets go of what has not been bound lately, even textures whose memory is unchanged (defaults to half the device-local memory within 256 MB to 2 GB on desktop, and 128 MB on Android) |
+| `MW2_TEXTURE_REPLACE=<dir>` | R | the folder of texture replacements, in place of `replace` in the game folder (used when it exists): `<key>.png` or `<key>.pnm` there, or in any folder below it, is uploaded in place of the texture whose content has that key. The log says how many were found, names each as it is read or refused, and counts them at the end of the run ([textures.md](textures.md#texture-replacement-skins)) |
+| `MW2_DUMP_TEXTURES=<dir>` | R | writes every texture the cache reads as `<key>.png` in that folder (made if it is not there), once a key, with a line in `textures.txt` giving its format, size and levels: the pictures a replacement is made from, and the names it must have. The files are not compressed |
 | `MW2_PIPELINE_CACHE=<file>` | R | keeps the driver's compiled pipelines across runs, in place of a player's `shaders/pipelines.bin` |
 | `MW2_SHADER_CACHE=<file>` | R | records every pipeline a run needed and builds them at the next start-up |
 | `MW2_NO_PIPELINE_LIBRARIES=1` | R | builds each pipeline whole at its first draw instead of linking it from shaders compiled at load ([rendering.md](rendering.md)) |

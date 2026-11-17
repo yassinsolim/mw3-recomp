@@ -6,6 +6,7 @@
 #include "texture_formats.h"
 #include "bc_decoder.h"
 #include "../texture.h"
+#include "../texture_replace.h"
 #include "../memory_watch.h"
 #include "renderer.h"
 #include "../../crash.h"
@@ -137,6 +138,16 @@ namespace
         return xenosFormat == 18 || xenosFormat == 51;
     }
 
+    // Whether the image made for this fetch constant is an sRGB one: the
+    // title asks for the stored value to be linearised, and the format it is
+    // uploaded in has such a form.
+    bool SampledAsGamma(const gpu::TextureFetch& fetch)
+    {
+        return fetch.Linearises() &&
+               vk::formats::SrgbFormatFor(vk::formats::VulkanFormatFor(fetch.Format())) !=
+                   VK_FORMAT_UNDEFINED;
+    }
+
     struct Image
     {
         VkImage image = VK_NULL_HANDLE;
@@ -214,6 +225,12 @@ namespace
         size_t sourceBytes = 0;
         bool borrowed = false;                // the view belongs to someone else
         bool pinned = false;                  // never evicted: the magenta marker
+        // The key of the replacement the image holds in place of the title's
+        // bytes (gpu/texture_replace.h); zero for the title's own.
+        uint64_t skin = 0;
+        // Nothing names it any more (Orphan): it stays as it is for the draws
+        // already recorded with it, and goes once idle.
+        bool orphaned = false;
         uint64_t lastBound = 0;               // the frame, for eviction
     };
 
@@ -955,10 +972,13 @@ namespace
     }
 
     // `signature` and `sourceBytes` describe the guest memory the texture was
-    // read from, for a texture that came from a fetch constant.
+    // read from, for a texture that came from a fetch constant. `replacement`
+    // is the player's picture to upload in place of `data`, which then only
+    // says what the texture is (gpu/texture_replace.h).
     uint64_t UploadOne(const gpu::TextureData& data, uint32_t xenosFormat, uint64_t samplerKey,
                        uint32_t swizzle, bool oneDimensional, const char** error,
-                       uint64_t signature = 0, size_t sourceBytes = 0, bool linearise = false)
+                       uint64_t signature = 0, size_t sourceBytes = 0, bool linearise = false,
+                       const gpu::TextureData* replacement = nullptr)
     {
         if (!g.device) { if (error) *error = "no device"; return vk::textures::kNone; }
 
@@ -971,7 +991,17 @@ namespace
 
         gpu::TextureData& decompressed = DecodeScratch();
         const gpu::TextureData* pData = &data;
-        if (DecodeInSoftware(xenosFormat))
+        if (replacement)
+        {
+            // RGBA8 whatever the title's format is, and linearised only where
+            // the title's own bytes would have been: where its format has an
+            // sRGB form. The swizzle below stays the title's, which is why a
+            // replacement is held in the host layout of the title's format.
+            linearise = linearise && vk::formats::SrgbFormatFor(format) != VK_FORMAT_UNDEFINED;
+            format = VK_FORMAT_R8G8B8A8_UNORM;
+            pData = replacement;
+        }
+        else if (DecodeInSoftware(xenosFormat))
         {
             int decompFormat = 0;
             if (!vk::bc::Decompress(data, xenosFormat, decompressed, decompFormat))
@@ -1336,6 +1366,33 @@ namespace
         if (!image.emptySince) image.emptySince = g.frame ? g.frame : 1;
     }
 
+    // Every name the cache knows the image by, forgotten: the next bind of
+    // any of its fetch constants makes an image anew (Upload).
+    void Unname(uint64_t id, const Image& image)
+    {
+        g.epoch++;
+        g.fetchGeneration++;
+        for (const auto& name : image.names)
+            if (auto entry = g.byFetch.find(name);
+                entry != g.byFetch.end() && (entry->second & kImageBits) == id)
+                g.byFetch.erase(entry);
+        if (auto entry = g.byContent.find(image.content);
+            entry != g.byContent.end() && entry->second == id)
+            g.byContent.erase(entry);
+    }
+
+    // Unnamed, but kept as it is: draws already recorded name it by its id,
+    // and neither it nor its entry in the bindless set may change under
+    // them. SweepImages lets it go once it has been unbound long enough.
+    void Orphan(uint64_t id)
+    {
+        Image& image = g.images[size_t(id - 1)];
+        if (image.orphaned) return;
+        Unname(id, image);
+        image.names.clear();
+        image.orphaned = true;
+    }
+
     // A texture read again as its memory holds it now, through the fetch
     // constant it was uploaded from, in two halves. Prepare is the half that
     // is arithmetic on guest memory -- the signature, the read and its byte
@@ -1357,6 +1414,7 @@ namespace
             format = from.format;
             bytes = from.bytes;
             decode = DecodeInSoftware(from.xenosFormat);
+            skin = wanted = from.skin;
         }
 
         uint64_t id;
@@ -1378,6 +1436,10 @@ namespace
         // A texture that came up empty: measured, wanted only if it no longer
         // is, and signed once read, as what the image then holds.
         bool refill = false;
+        // The replacement the image holds, by its key, and the one that what
+        // Prepare read asks for; zero is the title's own bytes. The same
+        // unless Prepare read something that says otherwise.
+        uint64_t skin = 0, wanted = 0;
 
         // What Prepare leaves.
         gpu::TextureData data;                         // as read
@@ -1430,7 +1492,8 @@ namespace
     }
 
     // On any thread: nothing here reads or writes what another job, the cache
-    // or Vulkan holds.
+    // or Vulkan holds. The replacements are behind a lock of their own
+    // (gpu/texture_replace.h).
     void Prepare(Reread& job)
     {
         if (job.signFirst)
@@ -1450,8 +1513,20 @@ namespace
         if (job.measure || job.refill)
             job.empty = EmptyPercent(job.data.bytes.data(), job.data.bytes.size());
         if (job.refill && job.empty > 25) return;
-        job.payload = PayloadOf(job);
-        if (job.refill && job.payload)
+        if (gpu::replace::On())
+        {
+            const uint64_t key = gpu::replace::KeyOf(job.data, job.xenosFormat);
+            gpu::replace::Dump(key, job.data, job.fetch);
+            // Decoded here -- on a reader, where the batch has one -- for
+            // the image the next bind makes of it (Restage).
+            job.wanted = key == job.skin ? key
+                       : gpu::replace::Load(key, job.data, job.fetch, SampledAsGamma(job.fetch))
+                             ? key : 0;
+        }
+        // A replacement's image is not in the shape of what was read, and
+        // takes none of it.
+        if (!job.skin) job.payload = PayloadOf(job);
+        if (job.refill && (job.payload || job.skin))
             job.signature = SignRanges(job.base, job.baseBytes, job.mips, job.mipBytes);
     }
 
@@ -1461,6 +1536,25 @@ namespace
     {
         return job.payload && StageInto(*job.image, job.payload->bytes.data(),
                                         job.payload->bytes.size(), nullptr);
+    }
+
+    // A re-read staged where the image can take it, and the image left
+    // showing what the read asks for, or let go so that the next bind makes
+    // one that does. An image is made either as the title's texture or as a
+    // replacement, of a size and format of its own (gpu/texture_replace.h),
+    // and cannot become the other. So when the bytes read ask for the other
+    // -- a streamed texture arriving that the player has a replacement for,
+    // the title putting another texture where a replaced one was -- the
+    // image is orphaned; the title's own bytes are staged first all the
+    // same, for the draws of this segment that already name it. False when
+    // the image shows nothing new.
+    bool Restage(const Reread& job)
+    {
+        // Still the replacement it holds: nothing of what was read is shown.
+        if (job.skin && job.wanted == job.skin) return job.data.ok;
+        const bool staged = !job.skin && Stage(job);
+        if (job.wanted != job.skin) Orphan(job.id);
+        return staged;
     }
 
     // MW2_TEXTURE_THREADS=<n>: how many threads besides the consumer prepare
@@ -1598,7 +1692,7 @@ namespace
                             [&](const Reread& job) { return job.id == id; }))
                 flush();
             Image* image = Find(id);
-            if (!image || !image->image || image->borrowed) continue;
+            if (!image || !image->image || image->borrowed || image->orphaned) continue;
             gather(id, *image, batch);
             if (batch.size() == most) flush();
         }
@@ -1672,7 +1766,7 @@ namespace
         Reread job(id, *image);
         job.measure = true;
         PrepareAll(&job, 1);
-        if (!Stage(job)) return;
+        if (!Restage(job)) return;
         image->signature = now;
         g.refreshed++;
         NoteEmptiness(*image, job.data, job.empty);
@@ -1749,15 +1843,7 @@ namespace
     void Release(uint64_t id)
     {
         Image& image = g.images[size_t(id - 1)];
-        g.epoch++;
-        g.fetchGeneration++;
-        for (const auto& name : image.names)
-            if (auto entry = g.byFetch.find(name);
-                entry != g.byFetch.end() && (entry->second & kImageBits) == id)
-                g.byFetch.erase(entry);
-        if (auto entry = g.byContent.find(image.content);
-            entry != g.byContent.end() && entry->second == id)
-            g.byContent.erase(entry);
+        Unname(id, image);
         g.liveBytes -= image.bytes;
         g.doomed.push_back(std::move(image));
         image = Image{};
@@ -1795,7 +1881,10 @@ namespace
         for (size_t i = from; i < to; i++)
         {
             Image& image = g.images[i];
-            if (!Idle(image) || !image.watchStamp || Unchanged(image)) continue;
+            if (!Idle(image)) continue;
+            // Nothing names it (Orphan), and no draw has for long enough.
+            if (image.orphaned) { Release(uint64_t(i + 1)); continue; }
+            if (!image.watchStamp || Unchanged(image)) continue;
             // The watch answers for whole pages, and a neighbour's write is
             // not this texture's: the bytes decide.
             const uint64_t stamp = TrackImage(image);
@@ -2044,8 +2133,12 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         image.boundSegment = g.segment;
         image.names.push_back(key);
         g.shared++;
+        // Named before it is looked at again: a look that orphans the image
+        // takes this name from it with the others.
+        const uint64_t named = g.byFetch[key] =
+            held->second | (uint64_t(sampler) << kSamplerShift);
         RefreshIfChanged(held->second);
-        return g.byFetch[key] = held->second | (uint64_t(sampler) << kSamplerShift);
+        return named;
     }
 
     stutters::Timed timed(stutters::kNewTextures);
@@ -2065,28 +2158,57 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         return kNone;
     }
 
+    // The player's picture for what was read, when there is one
+    // (gpu/texture_replace.h).
+    uint64_t skin = 0;
+    std::shared_ptr<const gpu::TextureData> replacement;
+    if (gpu::replace::On())
+    {
+        skin = gpu::replace::KeyOf(data, fetch.Format());
+        gpu::replace::Dump(skin, data, fetch);
+        replacement = gpu::replace::Load(skin, data, fetch, SampledAsGamma(fetch));
+        if (!replacement) skin = 0;
+    }
+
     // Only the ranges actually read are watched.
     const size_t baseBytes = base ? extents.baseBytes : 0;
     const size_t mipBytes = mips && data.levels.size() > 1 ? extents.mipBytes : 0;
-    const uint64_t id =
-        UploadOne(data, fetch.Format(), SamplerKey(fetch, data.minLevel), fetch.Swizzle(),
-                  fetch.Dimension() == gpu::TextureDimension::D1, error,
-                  SignSource(extents.baseAddress, baseBytes, extents.mipAddress, mipBytes),
-                  baseBytes, fetch.Linearises());
+    const uint64_t signature =
+        SignSource(extents.baseAddress, baseBytes, extents.mipAddress, mipBytes);
+    // `picture` is the replacement, or null for the title's own bytes. A
+    // replacement has every level, whichever of the title's have arrived.
+    const auto make = [&](const gpu::TextureData* picture) {
+        return UploadOne(data, fetch.Format(), SamplerKey(fetch, picture ? 0 : data.minLevel),
+                         fetch.Swizzle(), fetch.Dimension() == gpu::TextureDimension::D1, error,
+                         signature, baseBytes, fetch.Linearises(), picture);
+    };
+    uint64_t id = make(replacement.get());
+    if (id == kNone && replacement)
+    {
+        // Too large for the device, or no memory for it: the title's own
+        // texture then, rather than none.
+        gpu::replace::Refuse(skin, g.lastError.c_str());
+        replacement.reset();
+        skin = 0;
+        id = make(nullptr);
+    }
+    const uint32_t minLevel = skin ? 0 : data.minLevel;
     uint64_t named = id;
     if (Image* uploaded = Find(id))
     {
-        uploaded->minLevel = data.minLevel;
+        uploaded->minLevel = minLevel;
         uploaded->content = content;
         uploaded->names.push_back(key);
         g.byContent[content] = id;
-        named |= uint64_t(SamplerIndexFor(SamplerKey(fetch, data.minLevel))) << kSamplerShift;
+        named |= uint64_t(SamplerIndexFor(SamplerKey(fetch, minLevel))) << kSamplerShift;
         uploaded->address = baseBytes ? extents.baseAddress : 0;
         uploaded->mipAddress = mipBytes ? extents.mipAddress : 0;
         uploaded->mipBytes = mipBytes;
         uploaded->xenosFormat = fetch.Format();
         uploaded->watchStamp = watchStamp;
         std::memcpy(uploaded->fetchWords, fetch.d, sizeof uploaded->fetchWords);
+        uploaded->skin = skin;
+        if (skin) gpu::replace::Applied();
         NoteEmptiness(*uploaded, data, EmptyPercent(data.bytes.data(), data.bytes.size()));
     }
     // A failure is cached too: the same six dwords fail the same way, and a
@@ -2131,7 +2253,7 @@ namespace
             [](Reread& job) {
                 Image& image = *job.image;
                 g.signNanos += job.signNanos;
-                if (job.signature == image.signature || !Stage(job)) return;
+                if (job.signature == image.signature || !Restage(job)) return;
                 image.signature = job.signature;
                 if (job.measure)
                 {
@@ -2160,7 +2282,7 @@ namespace
                 Image& image = *job.image;
                 if (job.data.ok && job.empty <= 25)
                 {
-                    if (!Stage(job)) return;
+                    if (!Restage(job)) return;
                     if constexpr (diag::kOn) g.lateRestages.push_back(job.id);
                     image.signature = job.signature;
                     image.fromAnEmptyBlock = false;

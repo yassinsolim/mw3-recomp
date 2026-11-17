@@ -5,15 +5,18 @@
 #include "internal.h"
 #include "gpu.h"
 #include "texture.h"
+#include "texture_replace.h"
 #include "../diagnostics.h"
 #include "../guest.h"
 #include "../log.h"
+#include "../png.h"
 #include "../kernel/kernel.h"
 
 #if MW2_DIAGNOSTICS
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <unordered_set>
 
@@ -185,28 +188,25 @@ namespace
              " %08X %08X %08X", fetch.MinMipLevel(), fetch.MaxMipLevel(), fetch.MipAddress(),
              fetch.PackedMips() ? ", packed" : "", fetch.d[0], fetch.d[1], fetch.d[2],
              fetch.d[3], fetch.d[4], fetch.d[5]);
-        // Every slice, stacked: a volume whose first slice is blank and whose
-        // rest is not looks exactly like a volume that read as nothing. Each
-        // level of a chain after the first goes in a file of its own.
+        // Named by the key a replacement is named with (texture_replace.h): the
+        // level the key is taken over as <key>.png, with its line in
+        // textures.txt, and each other level of the chain in a file of its own
+        // beside it. Every slice, stacked: a volume whose first slice is blank
+        // and whose rest is not looks exactly like a volume that read as nothing.
+        const uint64_t key = gpu::replace::On() ? gpu::replace::KeyOf(data, fetch.Format()) : 0;
+        gpu::replace::Dump(key, data, fetch);
+        LOGI("texture:   key %016llx", (unsigned long long)key);
         for (uint32_t level = 0; level < data.levels.size(); level++)
         {
-            if (level && !gpu::DecodeToRgba(data, fetch.Format(), rgba, level)) break;
+            if (level == gpu::replace::KeyedLevel(data)) continue;
+            if (!gpu::DecodeToRgba(data, fetch.Format(), rgba, level)) break;
             const gpu::TextureData::Level& l = data.levels[level];
-            char path[512];
-            if (level)
-                std::snprintf(path, sizeof path, "%s/%s_%ux%u_at_%08X_level%u.pnm",
-                              DumpTextureDirectory(), name, data.width, data.height,
-                              fetch.BaseAddress(), level);
-            else
-                std::snprintf(path, sizeof path, "%s/%s_%ux%u_at_%08X.pnm",
-                              DumpTextureDirectory(), name, data.width, data.height,
-                              fetch.BaseAddress());
-            std::FILE* f = std::fopen(path, "wb");
-            if (!f) break;
-            std::fprintf(f, "P6\n%u %u\n255\n", l.width, l.height * l.layers);
-            for (size_t i = 0; i < rgba.size(); i += 4) std::fwrite(rgba.data() + i, 1, 3, f);
-            std::fclose(f);
-            if (!level) LOGI("texture: wrote %s", path);
+            char file[64];
+            std::snprintf(file, sizeof file, "/%016llx_level%u.png", (unsigned long long)key, level);
+            const std::string path = std::string(DumpTextureDirectory()) + file;
+            if (!png::Write(std::filesystem::path(std::u8string(path.begin(), path.end())),
+                            rgba.data(), l.width, l.height * l.layers))
+                break;
         }
     }
 }

@@ -11,6 +11,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   yet run, and without a network
   ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md)). The recompiler patch
   gained the nine VMX halfword instructions that executable uses.
+- **MW3 multiplayer network hardening** (`runtime/title.h`, the fix files of
+  [docs/security.md](docs/security.md#modern-warfare-3-multiplayer)): MW2's
+  multiplayer fixes located in `iw5mp_ship.exe` and wired, three shown absent
+  in IW5, and two IW5-only fixes (`runtime/partystate_fragment_index.cpp`, the
+  snapshot glass state in `runtime/glass_piece_count.cpp`). Compiled, not yet
+  run; the title's network stays off.
+- **Texture replacement (skins)** (`runtime/gpu/texture_replace.cpp`,
+  `runtime/png.cpp`, `runtime/gpu/vulkan/texture_cache.cpp`): a PNG or PNM
+  named by a texture's content key, in `replace/` in the game folder or
+  `MW2_TEXTURE_REPLACE=<dir>`, is uploaded in that texture's place.
+  `MW2_DUMP_TEXTURES=<dir>` now works in every build and names its files by
+  that key, as PNG ([docs/textures.md](docs/textures.md#texture-replacement-skins)).
 
 ### Changed
 - **Consecutive draws that change no state are one hardware draw**

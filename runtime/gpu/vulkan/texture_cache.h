@@ -58,7 +58,9 @@ namespace vk::textures
     // The texture a fetch constant describes, uploaded the first time it is
     // seen and handed back, re-staged if its memory changed, after that.
     // The id is the image and the sampler the constant asks for: one image
-    // serves every sampler state the texture is bound with.
+    // serves every sampler state the texture is bound with. Where the player
+    // has a replacement for what the texture holds (gpu/texture_replace.h),
+    // the image is made from that instead.
     uint64_t Upload(const gpu::TextureFetch& fetch, const char** error);
 
     // A render target the title resolved out to memory and samples back. The
