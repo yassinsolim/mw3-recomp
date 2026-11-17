@@ -60,7 +60,8 @@ namespace vk::textures
     // The id is the image and the sampler the constant asks for: one image
     // serves every sampler state the texture is bound with. Where the player
     // has a replacement for what the texture holds (gpu/texture_replace.h),
-    // the image is made from that instead.
+    // the image is made from that instead; an animated one is given the frame
+    // the clock has reached at its first bind of each frame after.
     uint64_t Upload(const gpu::TextureFetch& fetch, const char** error);
 
     // A render target the title resolved out to memory and samples back. The

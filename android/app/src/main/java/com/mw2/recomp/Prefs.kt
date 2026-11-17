@@ -234,6 +234,14 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_ASYNC_PIPELINES, value).apply()
 
     /**
+     * Modern Warfare 3's multiplayer: every item reads as unlocked
+     * (MW2_UNLOCK_ALL, runtime/mw3_unlock_all.cpp). The stats are not changed.
+     */
+    var unlockAllItems: Boolean
+        get() = store.getBoolean(KEY_UNLOCK_ALL_ITEMS, true)
+        set(value) = store.edit().putBoolean(KEY_UNLOCK_ALL_ITEMS, value).apply()
+
+    /**
      * Keep the driver's pipeline blob on disk between runs on Mali
      * (MW2_PERSIST_PIPELINE_CACHE). Off by default: it may be unstable.
      */
@@ -295,6 +303,7 @@ class Prefs(context: Context) {
         private const val KEY_PAD_WARNING = "seenPadWarning"
         private const val KEY_PREWARM_ALL = "prewarmAllShaders"
         private const val KEY_ASYNC_PIPELINES = "asyncPipelines"
+        private const val KEY_UNLOCK_ALL_ITEMS = "unlockAllItems"
         private const val KEY_PERSIST_PIPELINE = "persistPipelineCache"
         private const val KEY_PLAYER_NAME = "playerName"
         private const val KEY_LAN_ACCEPT = "lanAccept"

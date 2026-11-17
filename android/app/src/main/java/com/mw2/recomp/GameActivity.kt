@@ -746,6 +746,11 @@ val mode60 = modes
         // Settings; otherwise the tiered instant-boot budget + background warmup.
         NativeBridge.nativeSetOption("MW2_SHADER_PREWARM_ALL", if (prefs.prewarmAllShaders) "1" else "")
         NativeBridge.nativeSetOption("MW2_ASYNC_PIPELINES", if (prefs.asyncPipelines) "1" else "0")
+        // Modern Warfare 3's multiplayer: every item unlocked (the other
+        // titles do not read it).
+        if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
+            NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
+        }
         // Mali drivers have had trouble reloading persisted Vulkan pipeline blobs.
         // Respect the user's setting; the safe default is off on this device class.
         NativeBridge.nativeSetOption(

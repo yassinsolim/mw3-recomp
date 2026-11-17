@@ -385,6 +385,123 @@ decoded pictures on desktop and 32 MB on Android, least recently used first to
 go, so an image the cache evicted is usually remade without reading the file
 again. The image itself counts against the texture budget like any other.
 
+**Animated replacements.** A replacement given as frames moves. Either
+`<key>.0.png`, `<key>.1.png`, ... beside each other, or numbered pictures
+(`0.png`, `1.png`, ...) in a folder named by the key's sixteen digits; the
+frames are shown in the order of their numbers, which need not be contiguous,
+and must all be one size. `<key>.txt` anywhere in the replacement folder may
+hold a line `fps=<n>` (0.1 to 120, a fraction allowed); without it the rate is
+twelve a second. Frames win over a single `<key>.png`, and one frame alone is
+a single picture. The frame shown is `floor(seconds since start * fps)` modulo
+the count, by the steady clock, so it does not depend on the frame rate and
+every image of one animation shows the same frame.
+
+The texture keeps its one image, id and view. At an animated image's first
+bind of a presented frame (`Animate`, from `Upload`) the cache asks
+`gpu::replace::Due` for the frame the clock is at; when that is not the one
+the image shows, its bytes are staged over the image through `StageInto`, into
+the upload commands that run ahead of the binding segment's draws, exactly as
+a texture the title rewrote is. So there is at most one re-stage per animated
+image per presented frame, none for an image nothing binds, and none in a
+frame the clock has not moved the animation in: at 12 fps and 60 frames a
+second, one frame in five.
+
+It cannot stall, because nothing but a copy happens after the first use. All
+the frames, with their levels, are decoded where a single picture is: when
+the replacement is first wanted. `Due` takes a lock, reads the clock and
+returns a pointer; it never opens a file. A re-stage is one `memcpy` of the
+frame into the slot's mapped staging buffer and one `vkCmdCopyBufferToImage`
+-- for a 256x256 frame, 350 KB. When uploads are not open the frame is left
+for the next bind rather than submitted alone and waited for.
+
+The frames count against the bound on decoded pictures like any other, and an
+animation is never decoded past it: where its frames together would pass the
+bound, only the first that fit are shown, with a line in the log (a frame with
+its levels is `width * height * 16 / 3` bytes; 32 MB on Android is 23 frames
+of 512x512, or 95 of 256x256). An animation that advances is the most recently
+used, so single pictures go first; one that is let go all the same -- several
+large animations on screen at once -- is logged and stands still on the frame
+it shows until its image is made again, rather than being decoded again in
+the middle of a frame. The end-of-run line counts the animated replacements
+and the frames staged for them.
+
+### Making skins
+
+Two tools in `tools/` (Python 3 with Pillow and numpy, nothing else) take the
+work out of steps 2 and 3 above. Neither ships, fetches or reads any third-party
+art: `iwi_match.py` only reads files **you** supply from your own PC copy of
+the game and from mods you chose to install, and `camo_gen.py` draws original
+procedural patterns from a seed. Both have `--help` and a `--self-test` that
+runs on synthetic data.
+
+**Reusing your own modded images: `tools/iwi_match.py`.** A dump has a key, not
+a name. The tool finds the stock PC image a dump is a copy of, then writes the
+image from your modded `.iwi` of the same name under the dump's key:
+
+```
+python tools/iwi_match.py --stock "D:/MW3/main" --dumps dumps --mod my_mods        # dry run: the report
+python tools/iwi_match.py --stock "D:/MW3/main" --dumps dumps --mod my_mods --apply --out replace
+```
+
+`--stock` and `--mod` take folders (searched recursively) and `.iwd` files
+(zips of `.iwi`); `--stock` is your unmodified install and `--mod` holds
+modded files named as the originals they replace. `--dumps` is the
+`MW2_DUMP_TEXTURES` folder. The report lists each dump with its score, the
+lead over the runner-up, the stock name and a status: `replace` (a modded
+image exists for it), `unchanged` (the match has no modded image, or the same
+bytes as stock), `ambiguous`, `weak`. `--apply` writes only `replace` rows, as
+`<out>/<key>.png` decoded from the modded `.iwi`; a dump is never copied. For
+the one-channel dump formats (`8`, `DXT3A`, `DXT5A`) the picture is written
+grey, as those textures are read back.
+
+*Reading IWI.* IW5 files (version 8): a 32-byte header (flags, format,
+dimensions), mip levels smallest first, the largest last; BGRA, BGR,
+luminance-alpha, luminance, alpha, DXT1, DXT3 and DXT5 are decoded.
+Wavelet-coded, DXN, cube and volume images are skipped and counted. The
+layout follows public format notes and has been checked only on synthetic
+files, so a real install that fails to read says why in the "skipped" lines.
+
+*Matching, and how far to trust it.* A picture is reduced to a 32x32 luma
+thumbnail and 8x8 colour and alpha thumbnails (from a mip of about 64x64, so
+scanning an install is fast); two pictures score a weighted normalised
+correlation after an aspect-ratio gate, and flat pictures compare by mean
+colour. A match needs `--min-score` (0.90) and a lead of `--min-margin` (0.02)
+over the next candidate, unless the close candidates would all give the same
+output (`--allow-ambiguous` takes the best regardless). Expect good results on
+textures that are the same picture on both platforms, which is most colour
+maps. Expect misses or `ambiguous` for: solid-colour and near-flat textures
+(many stock images look alike), normal maps (the console and PC pack them
+differently, and DXN is not dumped), textures the console builds or tiles
+differently, decals with large transparent areas, images that exist only
+inside the PC fastfiles and not as `.iwi`, and a dump taken while a streamed
+texture was at a low mip (it still matches by aspect and thumbnail, but with
+a lower score). Check the first run's report by eye (`-v` shows weak
+matches) before trusting `--apply`; a wrong match puts a good picture on the
+wrong surface.
+
+**Drawing a new one: `tools/camo_gen.py`.** Given a dump, it writes a picture
+for that key at the dump's size (capped by `--max-dim`, 1024 for a picture and
+256 for an animation), optionally with the dump's alpha as the mask:
+
+```
+python tools/camo_gen.py dumps/0123456789abcdef.png --style carbon --out replace
+python tools/camo_gen.py dumps/0123456789abcdef.png --style digital --palette 1e2a1c,3a4a2a,6b7a4a,a89a6a
+python tools/camo_gen.py dumps/0123456789abcdef.png --style marble --keep-alpha --seed 12
+python tools/camo_gen.py dumps/0123456789abcdef.png --style iridescent --frames 24 --fps 15
+```
+
+Styles: `carbon` (woven fibre), `voronoi` (scales), `marble` (domain-warped
+noise with veins), `digital` (pixel camo in four colours), `iridescent`
+(thin-film colours) and `plasma`. `marble`, `iridescent` and `plasma` also
+animate with `--frames N`, writing `<key>.0.png` ... `<key>.<N-1>.png` and
+`<key>.txt` (`fps=`) in the form of *Animated replacements* above; the loop is
+seamless. Keep frames times size inside the decoded-picture bound (the tool
+warns). The same seed, style and size give the same picture. `--keep-alpha`
+matters for textures whose alpha is a cut-out; a dump that is opaque leaves
+the output opaque. Pick the dump of a texture the game draws as a colour map:
+a skin on a normal, specular or other data texture is read by the shaders as
+data and will look wrong.
+
 ## The image pool's block copy
 
 MW2 keeps streamed images in a compacting pool. To relocate a block, the pool

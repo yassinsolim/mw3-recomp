@@ -13,6 +13,12 @@
 // hexadecimal digits the dump names its files with, in the folder or any
 // folder below it. MW2_DUMP_TEXTURES=<dir> writes every texture read as
 // `<key>.png` there, with a line for each in `textures.txt`.
+//
+// A replacement may move: frames `<key>.0.png`, `<key>.1.png`, ... or numbered
+// pictures in a folder named by the key's sixteen digits, all of one size,
+// shown in turn by the clock at the `fps=<n>` of `<key>.txt`, or twelve a
+// second. Every frame is decoded when the first is, so showing the next is a
+// copy into the image the texture already has (Due).
 #include <cstdint>
 #include <memory>
 
@@ -20,6 +26,9 @@
 
 namespace gpu::replace
 {
+    // The frame of a replacement that has only the one picture.
+    constexpr uint32_t kStill = ~uint32_t(0);
+
     // Whether there is anything to do: replacements were found, or textures
     // are being dumped. A run with neither never hashes a texture.
     bool On();
@@ -45,10 +54,22 @@ namespace gpu::replace
     // Null when there is none, when its file would not decode, or when
     // `original` is a cube, a volume or an array, which are not replaced.
     //
+    // For an animation that is the frame the clock is at, and `frame` receives
+    // its number; kStill otherwise.
+    //
     // Decoded on first use and kept, the least recently used going once the
-    // decoded pictures pass a bound. Callable from any thread.
+    // decoded pictures pass a bound; an animation's frames are decoded
+    // together, as many as the bound has room for. Callable from any thread.
     std::shared_ptr<const TextureData> Load(uint64_t key, const TextureData& original,
-                                            const TextureFetch& fetch, bool gamma);
+                                            const TextureFetch& fetch, bool gamma,
+                                            uint32_t* frame = nullptr);
+
+    // The frame the animation `key` is at now, when that is not `shown`, which
+    // then becomes it; null when the image need not change. Never reads a
+    // file: frames that have been let go stay gone until Load is next asked.
+    // The same size and layout as the frame Load gave. Callable from any
+    // thread.
+    std::shared_ptr<const TextureData> Due(uint64_t key, uint32_t& shown);
 
     // The caller could not use what Load gave it: counted as failed, logged
     // with `why`, and not offered again.
@@ -62,6 +83,7 @@ namespace gpu::replace
     // any thread.
     void Dump(uint64_t key, const TextureData& data, const TextureFetch& fetch);
 
-    // The end-of-run line: replacements indexed, applied and failed.
+    // The end-of-run line: replacements indexed, how many of them animated,
+    // applied and failed, and how many times an animation moved on a frame.
     void Report();
 }

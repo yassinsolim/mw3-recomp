@@ -161,6 +161,9 @@
     <string name="prewarm_all_hint">Compiles every recorded pipeline before the title screen instead of warming them up during play. Boot takes minutes on a cold cache and the phone gets warm, but there is almost no in-game shader stutter left afterwards. Off means the quick 2-second boot with background warmup.</string>
     <string name="async_pipelines">Compile shaders in the background</string>
     <string name="async_pipelines_hint">Avoids freezes the first time a map is played; some objects may appear a few seconds late while their shaders compile. Off compiles each shader the moment it is first drawn, which can freeze the game briefly.</string>
+    <string name="section_multiplayer">Multiplayer</string>
+    <string name="unlock_all_items">Unlock all camos and items</string>
+    <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, killstreak, title and emblem can be chosen whatever the rank. Nothing is written to the stats: off shows what was really earned again. Takes effect the next time the game starts.</string>
 
     <!-- network play -->
     <string name="player_name">Network player name</string>

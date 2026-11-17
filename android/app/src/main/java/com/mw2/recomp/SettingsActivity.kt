@@ -109,6 +109,12 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         switch(R.id.prewarm_all, prefs.prewarmAllShaders) { prefs.prewarmAllShaders = it }
         switch(R.id.async_pipelines, prefs.asyncPipelines) { prefs.asyncPipelines = it }
         switch(R.id.persist_pipeline, prefs.persistPipelineCache) { prefs.persistPipelineCache = it }
+        // The unlock switch is for Modern Warfare 3's multiplayer, the only
+        // title that reads it.
+        if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
+            findViewById<android.view.View>(R.id.unlock_all_items_group).visibility = android.view.View.VISIBLE
+            switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
+        }
 
         val fovLabel: TextView = findViewById(R.id.fov_label)
         val fovSlider: SeekBar = findViewById(R.id.fov_slider)

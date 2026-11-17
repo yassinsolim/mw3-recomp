@@ -5,6 +5,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Skin tools** (`tools/iwi_match.py`, `tools/camo_gen.py`): match texture
+  dumps to the user's own PC `.iwi` files and write the user's modded images
+  under the dumps' keys; draw original procedural camos (carbon, voronoi,
+  marble, digital, iridescent, plasma, animated variants)
+  ([docs/textures.md](docs/textures.md#making-skins)).
+- **MW3 multiplayer: unlock everything** (`MW2_UNLOCK_ALL=1`,
+  `runtime/mw3_unlock_all.cpp`; the app's "Unlock all camos and items", on by
+  default): the title's unlock checks answer yes, and the stats are not
+  changed ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#everything-unlocked)).
 - **Modern Warfare 3's multiplayer executable builds as a title of its own**
   (`MW2_TITLE=mw3mp`, `config/MW3MP.toml`, `runtime/title.h`, the `mw3mp`
   Android flavour, `com.mw3.recomp.mp`): recompiled, linked and packaged, not

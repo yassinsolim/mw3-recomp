@@ -9,11 +9,13 @@
 #include <algorithm>
 #include <bit>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -49,12 +51,20 @@ namespace
 
     struct Entry
     {
+        // The picture's file; an animation's first frame.
         fs::path file;
+        // An animation's frames in the order they are shown; empty for a
+        // single picture. Settled in Start.
+        std::vector<fs::path> frames;
+        double fps = 12.0;
         // Would not decode, or is for a texture that is not replaced: said
         // once, and not tried again.
         bool failed = false;
-        std::shared_ptr<const gpu::TextureData> decoded;
-        bool gamma = false;   // how `decoded`'s levels were averaged
+        // Decoded: one picture, or an animation's frames, all of one size.
+        // Empty until first wanted, and again once let go (Trim).
+        std::vector<std::shared_ptr<const gpu::TextureData>> pictures;
+        size_t bytes = 0;     // of `pictures`
+        bool gamma = false;   // how the pictures' levels were averaged
         uint64_t used = 0;    // State::clock when it was last asked for
     };
 
@@ -70,19 +80,59 @@ namespace
         size_t held = 0;       // bytes of decoded pictures in `index`
         uint64_t clock = 0;
         uint64_t applied = 0, failed = 0;
+        size_t animated = 0;   // entries of more than one frame
+        uint64_t advanced = 0; // frames handed out to be staged over another (Due)
+        // What an animation's frame is counted from.
+        std::chrono::steady_clock::time_point started;
     };
     State s;
 
+    bool AllOf(const std::string& text, int (*is)(int))
+    {
+        return !text.empty() &&
+               std::all_of(text.begin(), text.end(), [is](char c) { return is(uint8_t(c)) != 0; });
+    }
+
+    // A key as the dump writes it; zero for anything else.
+    uint64_t KeyNamed(const std::string& text)
+    {
+        if (text.size() > 16 || !AllOf(text, std::isxdigit)) return 0;
+        return std::strtoull(text.c_str(), nullptr, 16);
+    }
+
+    // `fps=<n>` from an animation's `<key>.txt`; zero when it has none.
+    double RateIn(const fs::path& file)
+    {
+        std::ifstream in(file);
+        std::string line;
+        while (std::getline(in, line))
+        {
+            line.erase(std::remove_if(line.begin(), line.end(),
+                                      [](char c) { return std::isspace(uint8_t(c)) != 0; }),
+                       line.end());
+            for (char& c : line) c = char(std::tolower(uint8_t(c)));
+            if (line.rfind("fps=", 0) != 0) continue;
+            const double rate = std::strtod(line.c_str() + 4, nullptr);
+            if (rate > 0.0) return std::clamp(rate, 0.1, 120.0);
+        }
+        return 0.0;
+    }
+
     // The folder's files by the key in their names. PNG is preferred where a
-    // key has both, as the one that can hold alpha.
+    // key has both, as the one that can hold alpha. `<key>.<n>.png`, and
+    // `<n>.png` in a folder named by the sixteen digits of a key, are frame n
+    // of that key's animation; `<key>.txt` holds its rate.
     bool Start()
     {
         std::error_code ec;
+        s.started = std::chrono::steady_clock::now();
         if (const char* named = env::Text("MW2_TEXTURE_REPLACE")) s.folder = FromUtf8(named);
         else if (const fs::path beside = install::GameFolder() / "replace"; fs::is_directory(beside, ec))
             s.folder = beside;
         if (!s.folder.empty())
         {
+            std::unordered_map<uint64_t, std::map<uint32_t, fs::path>> frames;
+            std::unordered_map<uint64_t, double> rates;
             const fs::recursive_directory_iterator end;
             for (fs::recursive_directory_iterator at(
                      s.folder, fs::directory_options::skip_permission_denied, ec);
@@ -92,20 +142,56 @@ namespace
                 const fs::path file = at->path();
                 std::string extension = Utf8(file.extension());
                 for (char& c : extension) c = char(std::tolower(uint8_t(c)));
+                const std::string stem = Utf8(file.stem());
+                if (extension == ".txt")
+                {
+                    if (const uint64_t key = KeyNamed(stem))
+                        if (const double rate = RateIn(file); rate > 0.0) rates[key] = rate;
+                    continue;
+                }
                 const bool png = extension == ".png";
                 if (!png && extension != ".pnm") continue;
-                const std::string stem = Utf8(file.stem());
-                if (stem.empty() || stem.size() > 16 ||
-                    !std::all_of(stem.begin(), stem.end(),
-                                 [](char c) { return std::isxdigit(uint8_t(c)) != 0; }))
+
+                // A frame: by a number after the key, or by a number alone in
+                // the key's folder. Nine digits keep it clear of a key.
+                uint64_t of = 0;
+                std::string number;
+                if (const size_t dot = stem.rfind('.'); dot != std::string::npos)
+                {
+                    of = KeyNamed(stem.substr(0, dot));
+                    number = stem.substr(dot + 1);
+                }
+                else if (const std::string parent = Utf8(file.parent_path().filename());
+                         parent.size() == 16 && at.depth() > 0)
+                {
+                    of = KeyNamed(parent);
+                    number = stem;
+                }
+                if (of && number.size() <= 9 && AllOf(number, std::isdigit))
+                {
+                    fs::path& frame = frames[of][uint32_t(std::strtoul(number.c_str(), nullptr, 10))];
+                    if (frame.empty() || png) frame = file;
                     continue;
-                const uint64_t key = std::strtoull(stem.c_str(), nullptr, 16);
+                }
+
+                const uint64_t key = KeyNamed(stem);
                 if (!key) continue;
                 Entry& entry = s.index[key];
                 if (entry.file.empty() || png) entry.file = file;
             }
-            LOGI("textures: %zu replacements in %s", s.index.size(),
-                 Utf8(fs::absolute(s.folder, ec)).c_str());
+            // Frames win over a single picture of the same key; one frame is
+            // a single picture.
+            for (auto& [key, numbered] : frames)
+            {
+                Entry& entry = s.index[key];
+                entry.file = numbered.begin()->second;
+                if (numbered.size() < 2) continue;
+                for (auto& [number, file] : numbered) entry.frames.push_back(std::move(file));
+                if (const auto rate = rates.find(key); rate != rates.end()) entry.fps = rate->second;
+                s.animated++;
+            }
+            LOGI("textures: %zu replacements in %s, %zu of them animated", s.index.size(),
+                 Utf8(fs::absolute(s.folder, ec)).c_str(), s.animated);
         }
         if (const char* dumps = env::Text("MW2_DUMP_TEXTURES"))
         {
@@ -116,14 +202,17 @@ namespace
         return s.dumping || !s.index.empty();
     }
 
-    // Called with the lock held.
-    void Fail(Entry& entry, const char* why)
+    // Called with the lock held. `file` is the one at fault, where that is
+    // not the entry's first.
+    void Fail(Entry& entry, const char* why, const fs::path* file = nullptr)
     {
         entry.failed = true;
-        if (entry.decoded) s.held -= entry.decoded->bytes.size();
-        entry.decoded.reset();
+        s.held -= entry.bytes;
+        entry.bytes = 0;
+        entry.pictures.clear();
         s.failed++;
-        LOGW("textures: replacement %s is not used: %s", Utf8(entry.file).c_str(), why);
+        LOGW("textures: replacement %s is not used: %s", Utf8(file ? *file : entry.file).c_str(),
+             why);
     }
 
     // What is replaced: one flat picture. A cube's six faces, a volume's
@@ -312,18 +401,35 @@ namespace
     // The decoded pictures back under the bound, the least recently asked for
     // going first; never `keep`, which is the one just decoded. Called with
     // the lock held. An image being made from one that goes still holds it.
+    // An animation is asked for at every frame it advances (Due), so one on
+    // screen is the last to go; one that does go stays on the frame its
+    // image shows until that image is made again.
     void Trim(uint64_t keep)
     {
         while (s.held > kHeldMost)
         {
             Entry* oldest = nullptr;
             for (auto& [key, entry] : s.index)
-                if (entry.decoded && key != keep && (!oldest || entry.used < oldest->used))
+                if (!entry.pictures.empty() && key != keep && (!oldest || entry.used < oldest->used))
                     oldest = &entry;
             if (!oldest) return;
-            s.held -= oldest->decoded->bytes.size();
-            oldest->decoded.reset();
+            if (oldest->pictures.size() > 1)
+                LOGW("textures: animation %s let go to keep decoded replacements under %zu MB; it"
+                     " stands still until its texture is made again",
+                     Utf8(oldest->file).c_str(), kHeldMost >> 20);
+            s.held -= oldest->bytes;
+            oldest->bytes = 0;
+            oldest->pictures.clear();
         }
+    }
+
+    // The frame of an animation the clock is at. Called with the lock held.
+    uint32_t FrameNow(const Entry& entry)
+    {
+        if (entry.pictures.size() < 2) return 0;
+        const double seconds =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - s.started).count();
+        return uint32_t(uint64_t(seconds * entry.fps) % entry.pictures.size());
     }
 }
 
@@ -380,8 +486,10 @@ uint64_t gpu::replace::KeyOf(const TextureData& data, uint32_t format)
 
 std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
                                                            const TextureData& original,
-                                                           const TextureFetch& fetch, bool gamma)
+                                                           const TextureFetch& fetch, bool gamma,
+                                                           uint32_t* frame)
 {
+    if (frame) *frame = kStill;
     if (!key) return nullptr;
     // An entry is never removed, so it stays where it is while the file is
     // decoded outside the lock: two textures decode side by side.
@@ -396,33 +504,91 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
             Fail(*entry, "cube, volume and array textures are not replaced");
             return nullptr;
         }
-        if (entry->decoded && entry->gamma == gamma)
+        if (!entry->pictures.empty() && entry->gamma == gamma)
         {
             entry->used = ++s.clock;
-            return entry->decoded;
+            const uint32_t now = FrameNow(*entry);
+            if (frame && entry->pictures.size() > 1) *frame = now;
+            return entry->pictures[now];
         }
     }
 
+    // Every frame now, so that showing the next one later is a copy and no
+    // more; but no more frames than the bound has room for, which the first
+    // says, as they are all its size.
     const char* error = nullptr;
-    const auto decoded = std::make_shared<TextureData>();
-    const bool ok = Decode(entry->file, fetch.Format(), gamma, *decoded, error);
+    const fs::path* at = &entry->file;
+    const size_t files = entry->frames.empty() ? 1 : entry->frames.size();
+    size_t count = files;
+    std::vector<std::shared_ptr<const TextureData>> pictures;
+    size_t bytes = 0;
+    bool ok = true;
+    for (size_t i = 0; ok && i < count; i++)
+    {
+        if (!entry->frames.empty()) at = &entry->frames[i];
+        const auto decoded = std::make_shared<TextureData>();
+        ok = Decode(*at, fetch.Format(), gamma, *decoded, error);
+        if (!ok) break;
+        if (i == 0)
+            count = std::clamp<size_t>(kHeldMost / decoded->bytes.size(), 1, files);
+        else if (decoded->width != pictures[0]->width || decoded->height != pictures[0]->height)
+        {
+            error = "it is not the size of the animation's first frame";
+            ok = false;
+            break;
+        }
+        bytes += decoded->bytes.size();
+        pictures.push_back(decoded);
+    }
 
     std::lock_guard lock(s.lock);
     if (entry->failed) return nullptr;
     if (!ok)
     {
-        Fail(*entry, error ? error : "it does not decode");
+        Fail(*entry, error ? error : "it does not decode", at);
         return nullptr;
     }
-    LOGI("textures: replacement %s read, %ux%u", Utf8(entry->file).c_str(), decoded->width,
-         decoded->height);
-    if (entry->decoded) s.held -= entry->decoded->bytes.size();
-    entry->decoded = decoded;
+    if (pictures.size() > 1)
+    {
+        LOGI("textures: replacement %s read, %ux%u, %zu frames at %g a second",
+             Utf8(entry->file).c_str(), pictures[0]->width, pictures[0]->height,
+             pictures.size(), entry->fps);
+    }
+    else
+    {
+        LOGI("textures: replacement %s read, %ux%u", Utf8(entry->file).c_str(),
+             pictures[0]->width, pictures[0]->height);
+    }
+    if (count < files)
+        LOGW("textures: animation %s shows the first %zu of its %zu frames: more would pass the"
+             " %zu MB kept of decoded replacements", Utf8(entry->file).c_str(), count, files,
+             kHeldMost >> 20);
+    s.held -= entry->bytes;
+    entry->pictures = std::move(pictures);
+    entry->bytes = bytes;
     entry->gamma = gamma;
     entry->used = ++s.clock;
-    s.held += decoded->bytes.size();
+    s.held += bytes;
     Trim(key);
-    return decoded;
+    const uint32_t now = FrameNow(*entry);
+    if (frame && entry->pictures.size() > 1) *frame = now;
+    return entry->pictures[now];
+}
+
+std::shared_ptr<const gpu::TextureData> gpu::replace::Due(uint64_t key, uint32_t& shown)
+{
+    std::lock_guard lock(s.lock);
+    const auto found = s.index.find(key);
+    if (found == s.index.end()) return nullptr;
+    Entry& entry = found->second;
+    // Let go, or decoded again as fewer frames: never decoded here.
+    if (entry.pictures.size() < 2) return nullptr;
+    const uint32_t now = FrameNow(entry);
+    if (now == shown) return nullptr;
+    shown = now;
+    entry.used = ++s.clock;
+    s.advanced++;
+    return entry.pictures[now];
 }
 
 void gpu::replace::Refuse(uint64_t key, const char* why)
@@ -475,7 +641,9 @@ void gpu::replace::Report()
     std::lock_guard lock(s.lock);
     if (s.index.empty()) return;
     std::error_code ec;
-    LOGI("textures: %zu replacements indexed in %s; images made from them %llu times, %llu"
-         " failed", s.index.size(), Utf8(fs::absolute(s.folder, ec)).c_str(),
-         (unsigned long long)s.applied, (unsigned long long)s.failed);
+    LOGI("textures: %zu replacements indexed in %s, %zu of them animated; images made from them"
+         " %llu times, %llu failed; an animated image was given its next frame %llu times",
+         s.index.size(), Utf8(fs::absolute(s.folder, ec)).c_str(), s.animated,
+         (unsigned long long)s.applied, (unsigned long long)s.failed,
+         (unsigned long long)s.advanced);
 }

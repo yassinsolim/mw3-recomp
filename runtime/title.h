@@ -273,6 +273,24 @@
 #define T_UI_LookupDirective    82304080
 #define T_I_strncpyz            8232BC08
 
+// The unlock checks (mw3_unlock_all.cpp, MW2_UNLOCK_ALL). The first decides a
+// row of mp/unlocktable.csv by its type: it is the only function that compares
+// the strings "weaponAttachment", "weaponCamo", "weaponBuff" and
+// "weaponReticle", and has 15 callers. The second fetches a controller's stats
+// for it. The last three are leaves that load "iconUnlocked", "titleUnlocked"
+// and "unlock" and jump to the profile's bit reader, sub_82182610.
+#define T_Unlock_RowUnlocked    8228FA68   // (stats, table, row) -> bool
+#define T_Unlock_RowUnlockedForController 8228FE60   // (controller, table, row) -> bool
+#define T_Profile_IconUnlocked  821829A0   // (localClient, index) -> bool
+#define T_Profile_TitleUnlocked 821829B0
+#define T_Profile_ItemUnlocked  82182AA8
+// The menu's getPlayerData, which is how the create-a-class menus read a
+// weapon's level; the string table lookup (DB_FindXAssetHeader(0x26, name));
+// and the table's name, which sub_8228AC18 loads.
+#define T_UI_GetPlayerData      822D6120   // (controller, operands, first, result)
+#define T_StringTable_GetAsset  82315A68   // (name, StringTable**)
+#define T_STR_WeaponRankTable   0x82022610u   // "mp/weaponRankTable.csv"
+
 // Not here, with the evidence in docs/security.md: the joinParty count (IW5's
 // pa_joinrequest, sub_821978C0, bounds it to 18), the map name command (no
 // "map %s" line is built: sub_822EC8A0 queues a call), the command time print

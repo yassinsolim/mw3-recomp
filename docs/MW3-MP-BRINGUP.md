@@ -143,6 +143,39 @@ Do not lift any of these before the hooks have been run: a local match first
 them on the loopback, and the log's `online:` warnings should stay silent),
 then two copies on one LAN.
 
+## Everything unlocked
+
+`MW2_UNLOCK_ALL=1` (the app's "Unlock all camos and items", Settings →
+Graphics → Multiplayer, on by default) makes every item read as unlocked.
+`runtime/mw3_unlock_all.cpp` hooks the title's own checks and what the menus
+read of a weapon's level; the stats (rank, prestige, weapon levels,
+challenges) are not written, and a match counts experience from what was
+earned, so switching it off shows that again.
+
+| function | what it is | evidence |
+|---|---|---|
+| `8228FA68` (stats, table, row) | decides a row of `mp/unlocktable.csv` | reads the row's type (column 1) and compares it with `title`, `icon`, `weaponAttachment`, `weaponCamo`, `weaponBuff`, `weaponReticle`; the weapon ones go to `8228AC18`, which compares the stats' `weaponRank` of the weapon with `mp/weaponRankTable.csv` (columns 2 to 5); the rest compare the rank from `experience` and a challenge. 15 callers: the menu's four functions below, the script's `isItemUnlocked` (`82255688`), the challenge and custom class checks, and the copies into the profile's bits (`82182748`, `821829C0`) |
+| `8228FE60` (controller, table, row) | the menu's way into it | fetches the controller's stats (`82289F88`) and answers 0 without them. Called by `isItemUnlocked` (`822D6B10`), `isCardIconUnlocked` (`822D6D38`), `isCardTitleUnlocked` (`822D6E60`), `isProfileItemUnlocked` (`822D73B0`) |
+| `821829A0`, `821829B0`, `82182AA8` | the profile's `iconUnlocked`, `titleUnlocked` and `unlock` bits | three-instruction leaves that load the name and jump to `82182610`; the menu functions call them when the stats are not the source (`82288968` returns 0) |
+| `822D6120` (controller, operands, first, result) | the menu's `getPlayerData` | for a path starting with `weaponRank` the result is raised to the highest level in `mp/weaponRankTable.csv` (the largest number of its column 4, which `8228AC18` compares the stats' `weaponRank` with), for `weaponXP` to the largest number in the table. The table is read at the first such call (`82315A68`), and the log says `unlock: the menus read every weapon at level N` |
+
+The menu's `isItemUnlocked` already answers 1 for everything in a private match
+(`xblive_privatematch`, tested at `822D6B74`), and 1 for a name the table does
+not have. A camouflage is asked for as `iw5_<weapon> <camo>` (`8228AD68` splits
+the row's name, and raises "Incorrect format for unlockable weapon item"
+otherwise).
+
+On the device the first three rows opened Create a Class at rank 1 and left an
+M4A1's attachments and proficiencies locked: the menus compare the weapon's
+level themselves, and the executable has no menu function for it, so they read
+it with `getPlayerData`. That reader is the fourth row; it has not been run.
+The weapon level a menu shows is therefore the highest for every weapon, and
+the script's reader (`8225A710`) still gives the earned one.
+
+Not covered: a menu that reads the bits an entitlement sets (`unlockedCamo`,
+`unlockedReticles`, written by `823C6980` and `823C6AC8`; no unlock check in
+the executable names them). The rank and prestige shown are the real ones.
+
 ## Installing and starting
 
 The app copies `default_mp.xex` (checked against the hash above) and the game

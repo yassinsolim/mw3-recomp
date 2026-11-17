@@ -269,6 +269,34 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/audio_on" />
+
+                <!-- Modern Warfare 3 multiplayer only (SettingsActivity shows it). -->
+                <LinearLayout
+                    android:id="@+id/unlock_all_items_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/SectionHeading"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/section_multiplayer" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/unlock_all_items"
+                        style="@style/SettingSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/unlock_all_items" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/unlock_all_items_hint" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- CONTROLS -->

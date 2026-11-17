@@ -228,6 +228,9 @@ namespace
         // The key of the replacement the image holds in place of the title's
         // bytes (gpu/texture_replace.h); zero for the title's own.
         uint64_t skin = 0;
+        // The frame of that replacement the image shows, when it is an
+        // animation (Animate); kStill for a single picture.
+        uint32_t frame = gpu::replace::kStill;
         // Nothing names it any more (Orphan): it stays as it is for the draws
         // already recorded with it, and goes once idle.
         bool orphaned = false;
@@ -701,6 +704,23 @@ namespace
         g.uploadsAlone++;
         if (!ok) return Fail("upload submission failed", error);
         return true;
+    }
+
+    // An animated replacement's image at its first bind of a frame: the frame
+    // the clock has reached staged over the one it shows, when that is
+    // another. The image, its id and its view stay; only its bytes change,
+    // ahead of the draws of the segment that binds it, as a rewritten
+    // texture's do. Every frame was decoded when the image was made, so this
+    // is a copy into staging and a copy command, and it is left for the next
+    // frame when uploads are not open rather than submitted alone and waited
+    // for. An image nothing binds is never looked at.
+    void Animate(Image& image)
+    {
+        if (!g.open) return;
+        const std::shared_ptr<const gpu::TextureData> picture =
+            gpu::replace::Due(image.skin, image.frame);
+        if (!picture || picture->bytes.size() != image.bytes) return;
+        StageInto(image, picture->bytes.data(), picture->bytes.size(), nullptr);
     }
 
     VkSamplerAddressMode AddressMode(gpu::TextureClamp clamp)
@@ -2115,6 +2135,8 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         const uint64_t named = recent.id;
         if (Image* image = Find(named))
         {
+            if (image->frame != gpu::replace::kStill && image->lastBound != g.frame)
+                Animate(*image);
             image->lastBound = g.frame;
             image->boundSegment = g.segment;
         }
@@ -2129,6 +2151,7 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         Image& image = g.images[size_t(held->second - 1)];
         const uint32_t sampler = SamplerIndexFor(SamplerKey(fetch, image.minLevel));
         if (!sampler) { Fail("no sampler", error); return kNone; }
+        if (image.frame != gpu::replace::kStill && image.lastBound != g.frame) Animate(image);
         image.lastBound = g.frame;
         image.boundSegment = g.segment;
         image.names.push_back(key);
@@ -2161,12 +2184,13 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
     // The player's picture for what was read, when there is one
     // (gpu/texture_replace.h).
     uint64_t skin = 0;
+    uint32_t frame = gpu::replace::kStill;
     std::shared_ptr<const gpu::TextureData> replacement;
     if (gpu::replace::On())
     {
         skin = gpu::replace::KeyOf(data, fetch.Format());
         gpu::replace::Dump(skin, data, fetch);
-        replacement = gpu::replace::Load(skin, data, fetch, SampledAsGamma(fetch));
+        replacement = gpu::replace::Load(skin, data, fetch, SampledAsGamma(fetch), &frame);
         if (!replacement) skin = 0;
     }
 
@@ -2190,6 +2214,7 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         gpu::replace::Refuse(skin, g.lastError.c_str());
         replacement.reset();
         skin = 0;
+        frame = gpu::replace::kStill;
         id = make(nullptr);
     }
     const uint32_t minLevel = skin ? 0 : data.minLevel;
@@ -2208,6 +2233,7 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
         uploaded->watchStamp = watchStamp;
         std::memcpy(uploaded->fetchWords, fetch.d, sizeof uploaded->fetchWords);
         uploaded->skin = skin;
+        uploaded->frame = frame;
         if (skin) gpu::replace::Applied();
         NoteEmptiness(*uploaded, data, EmptyPercent(data.bytes.data(), data.bytes.size()));
     }
