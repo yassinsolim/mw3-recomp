@@ -55,6 +55,14 @@ namespace vk::pipeline
     // Whether a pipeline's creation can say if it came out of the cache
     // (VK_EXT_pipeline_creation_feedback).
     bool CreationFeedback();
+    // Whether MW2_SHADER_STATS=1 is set and the device took
+    // VK_KHR_pipeline_executable_properties: pipelines are then created with
+    // VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR and handed to LogShaderStats.
+    bool ShaderStats();
+    // Logs the driver's statistics for each executable of a pipeline (a
+    // VkPipeline) made with the capture bit, one "shaderstats:" line per stage,
+    // tagged with the vertex and pixel shader hashes it was built from.
+    void LogShaderStats(void* pipeline, uint64_t vertexHash, uint64_t pixelHash);
 
     const char* DeviceName();
     // Opaque, so this header stays free of the Vulkan headers: a VkInstance,

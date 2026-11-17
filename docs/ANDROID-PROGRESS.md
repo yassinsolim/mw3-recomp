@@ -117,11 +117,22 @@ Status words: **verified** (observed on the device or by a run), **built**
   (removed): every draw with zero instances takes the GPU to 3.7 ms a frame
   and the game to 59.8 world frames a second, so the CPU side can already
   reach 60; an empty scissor on every draw (vertices only, no pixels) still
-  costs 35.4 ms. **Survival is bound by vertex shading.** Not the register
-  zeroing (39.8 ms with or without it). Next: the vertex shaders' form
-  (sequencer loop vs straight-line) and their vertex fetch from the arena.
-- Open defect: render scale 2 (launcher setting) hangs the GPU ring while
-  Survival loads (repeated "GPU ring batch hang") and never reaches play.
+  costs 35.4 ms; and every draw cut to one triangle (draws and state kept,
+  vertices gone) still costs 34.6 ms. **Survival is bound by a fixed GPU
+  cost per draw**, about 5 us across some 6,600 draws a world frame, not by
+  vertices or pixels. Not the register zeroing (39.8 ms with or without).
+  MW2_SHADER_STATS=1 (new, kept): the busiest vertex shader is 90
+  instructions, 12 registers, no loads in its per-vertex body; its 200-260
+  instruction preamble reads the draw's constants through a chain of
+  dependent arena loads (record, table, block copy, value), which every draw
+  pays before its first vertex [inference, not yet measured alone].
+- Drivers, same Survival run (GPU ms a world frame / world FPS): faux123
+  v1.2.10 38.7/25.5, v27.0.0-R2 38.9/25.3, Banners 2026-11-17 39.2/25.2,
+  mainline V32 39.4/25.0, MrPurple T30 39.8/24.8. All within 3%; R2 stays
+  the default. A driver cannot buy the factor of two the per-draw cost needs.
+- Render scale 2 is not hung: its first launch compiles about 624 pipelines
+  (72 s) before play, which the hang detector reports as hangs. It then
+  plays at 18 FPS (GPU 54.5 ms a frame).
 
 ## Build (WSL2 Ubuntu 24.04)
 

@@ -83,7 +83,7 @@ namespace
                                             nullptr, info, &state.rendering);
     }
 
-    VkPipeline Link(const VkPipeline (&libraries)[4], bool optimise)
+    VkPipeline Link(const PipelineKey& key, const VkPipeline (&libraries)[4], bool optimise)
     {
         VkPipelineLibraryCreateInfoKHR linked{ VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR };
         linked.libraryCount = 4;
@@ -91,6 +91,8 @@ namespace
         VkGraphicsPipelineCreateInfo info{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         info.pNext = &linked;
         info.flags = optimise ? VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT : 0;
+        // On the link, not the libraries: the executables are the linked pipeline's.
+        if (vk::pipeline::ShaderStats()) info.flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
         info.layout = Layout();
         VkPipeline made = VK_NULL_HANDLE;
 #ifdef MW2_ANDROID
@@ -103,6 +105,7 @@ namespace
 #endif
         if (vkCreateGraphicsPipelines(g.device, Cache(), 1, &info, nullptr, &made) != VK_SUCCESS)
             return VK_NULL_HANDLE;
+        vk::pipeline::LogShaderStats((void*)made, key.vertexShader, key.pixelShader);
         return made;
     }
 
@@ -225,7 +228,7 @@ namespace
             const Optimising::Job job = o.jobs.front();
             o.jobs.pop_front();
             lock.unlock();
-            const VkPipeline optimised = Link(job.libraries, true);
+            const VkPipeline optimised = Link(job.key, job.libraries, true);
             lock.lock();
             if (optimised)
             {
@@ -294,7 +297,7 @@ namespace vk::renderer::detail
         const VkPipeline output = OutputLibrary(key);
         if (!input || !output) return VK_NULL_HANDLE;
         const VkPipeline libraries[4] = { input, vertex.library, pixel.library, output };
-        const VkPipeline linked = Link(libraries, false);
+        const VkPipeline linked = Link(key, libraries, false);
         if (!linked) return VK_NULL_HANDLE;
         g.pipelinesLinked++;
         std::lock_guard lock(o.lock);

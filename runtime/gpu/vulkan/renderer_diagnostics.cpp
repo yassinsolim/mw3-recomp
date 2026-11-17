@@ -748,6 +748,36 @@ namespace vk::renderer::detail
     }
 }
 
+namespace vk::renderer::detail
+{
+    namespace
+    {
+        struct VertexWeight { uint64_t draws = 0, vertices = 0; };
+        // The ring consumer's alone, so no lock.
+        std::unordered_map<uint64_t, VertexWeight> g_vertexWeight;
+    }
+
+    void NoteVertexWeight(uint64_t vertexHash, uint32_t vertices)
+    {
+        VertexWeight& weight = g_vertexWeight[vertexHash];
+        weight.draws++;
+        weight.vertices += vertices;
+    }
+
+    void ReportVertexWeight()
+    {
+        if (g_vertexWeight.empty()) return;
+        std::vector<std::pair<uint64_t, VertexWeight>> ranked(g_vertexWeight.begin(), g_vertexWeight.end());
+        const size_t shown = std::min<size_t>(ranked.size(), 40);
+        std::partial_sort(ranked.begin(), ranked.begin() + shown, ranked.end(),
+                          [](const auto& a, const auto& b) { return a.second.vertices > b.second.vertices; });
+        for (size_t i = 0; i < shown; ++i)
+            LOGI("shaderstats: weight vs %016llx: %llu draws, %llu vertices",
+                 (unsigned long long)ranked[i].first, (unsigned long long)ranked[i].second.draws,
+                 (unsigned long long)ranked[i].second.vertices);
+    }
+}
+
 using namespace vk::renderer::detail;
 
 // From the window thread on F7, or the input poll on the pad's Y. Logged here,
@@ -761,6 +791,7 @@ void vk::renderer::FlashSeen(const char* how)
 
 void vk::renderer::Report()
 {
+    ReportVertexWeight();
     if constexpr (!diag::kOn) return;
     vk::capture::Report();
     vk::display::Report();

@@ -809,6 +809,11 @@ namespace vk::renderer::detail
     void StartPreparing();
     void StopPreparing();
     void ReportPreparing();
+    // MW2_SHADER_STATS=1: what each vertex shader was drawn for, to read beside
+    // the driver's statistics for it. Noted on the ring consumer by every draw
+    // that reaches the recorder; reported at the end of the run.
+    void NoteVertexWeight(uint64_t vertexHash, uint32_t vertices);
+    void ReportVertexWeight();
 
     // The depth and stencil tests RB_DEPTHCONTROL asks for, as dynamic state.
     struct DepthTests

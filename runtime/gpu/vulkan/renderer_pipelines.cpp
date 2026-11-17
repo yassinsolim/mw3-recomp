@@ -330,6 +330,8 @@ namespace vk::renderer::detail
         info.pDynamicState = &state.dynamic;
         info.layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
 
+        if (vk::pipeline::ShaderStats()) info.flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+
         gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline_vkCreateGraphicsPipelines");
         const auto compileStart = std::chrono::steady_clock::now();
         LOGI("renderer: building pipeline %016llX/%016llX (c=%d, d=%d, topo=%u, s=%u, blend=%08X, mask=%X, depth=%08X, mode=%08X, pass=%p, cache=%p)...",
@@ -360,6 +362,7 @@ namespace vk::renderer::detail
                  res, key.colourFormat, key.depthFormat, key.topology, key.samples, (unsigned long long)tookMs);
             return VK_NULL_HANDLE;
         }
+        vk::pipeline::LogShaderStats((void*)built, key.vertexShader, key.pixelShader);
         LOGI("renderer: built pipeline %016llX/%016llX in %llu ms (handle=%p)",
              (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
              (unsigned long long)tookMs, (void*)built);

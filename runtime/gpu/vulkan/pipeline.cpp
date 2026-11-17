@@ -47,6 +47,8 @@ void vk::pipeline::SetDevice(const std::string&) {}
 std::string vk::pipeline::DeviceId(void*) { return {}; }
 void* vk::pipeline::ChooseDevice(void*, const std::string&, uint32_t*) { return nullptr; }
 bool vk::pipeline::CreationFeedback() { return false; }
+bool vk::pipeline::ShaderStats() { return false; }
+void vk::pipeline::LogShaderStats(void*, uint64_t, uint64_t) {}
 bool vk::pipeline::CreateDevice(void*, uint32_t, const char* const*, uint32_t, void**, void**, void*)
 {
     return false;
@@ -98,6 +100,11 @@ namespace
         uint32_t samplers = 0;    // the most samplers the texture cache may make
         bool pipelineLibraries = false, fastLinking = false;
         bool creationFeedback = false;
+        // MW2_SHADER_STATS=1 on a device that has VK_KHR_pipeline_executable_properties:
+        // the driver's own statistics for every pipeline built (LogShaderStats).
+        bool shaderStats = false;
+        PFN_vkGetPipelineExecutablePropertiesKHR getExecutableProperties = nullptr;
+        PFN_vkGetPipelineExecutableStatisticsKHR getExecutableStatistics = nullptr;
         bool cacheLoaded = false;
         bool hasDynamicRendering = false;
         bool hasExtendedDynamicState = false;
@@ -526,6 +533,32 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         multiDraw.pNext = chain;
         chain = &multiDraw;
     }
+    // Asked for only by MW2_SHADER_STATS=1: capturing statistics makes the
+    // driver keep what it would otherwise drop, so a normal run neither
+    // enables the extension nor the feature.
+    VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR executables{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR };
+    g.shaderStats = false;
+    if (env::Flag("MW2_SHADER_STATS") &&
+        DeviceHasExtension(physical, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME))
+    {
+        VkPhysicalDeviceFeatures2 query{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+        query.pNext = &executables;
+        vkGetPhysicalDeviceFeatures2(physical, &query);
+        if (executables.pipelineExecutableInfo)
+        {
+            extensions.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
+            g.shaderStats = true;
+        }
+    }
+    executables = VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR };
+    executables.pipelineExecutableInfo = VK_TRUE;
+    if (g.shaderStats)
+    {
+        executables.pNext = chain;
+        chain = &executables;
+    }
     drawParameters.pNext = chain;
     chain = &indexing;
 
@@ -545,6 +578,15 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     // rather than through the loader's dispatch (loader.h).
     vk::loader::LoadDevice(device);
 #endif
+    if (g.shaderStats)
+    {
+        g.getExecutableProperties = PFN_vkGetPipelineExecutablePropertiesKHR(
+            vkGetDeviceProcAddr(device, "vkGetPipelineExecutablePropertiesKHR"));
+        g.getExecutableStatistics = PFN_vkGetPipelineExecutableStatisticsKHR(
+            vkGetDeviceProcAddr(device, "vkGetPipelineExecutableStatisticsKHR"));
+        if (!g.getExecutableProperties || !g.getExecutableStatistics) g.shaderStats = false;
+        else LOGI("vulkan: MW2_SHADER_STATS: the driver's statistics for every pipeline built");
+    }
     VkQueue made = VK_NULL_HANDLE;
     vkGetDeviceQueue(device, family, 0, &made);
     *deviceOut = device;
@@ -921,6 +963,66 @@ void vk::pipeline::SetCachePath(const char* path) { g_cachePath = path ? path : 
 bool vk::pipeline::CacheLoaded() { return g.cacheLoaded; }
 void vk::pipeline::SetDevice(const std::string& id) { g_wantedDevice = id; }
 bool vk::pipeline::CreationFeedback() { return g.creationFeedback; }
+bool vk::pipeline::ShaderStats() { return g.shaderStats; }
+
+void vk::pipeline::LogShaderStats(void* pipeline, uint64_t vertexHash, uint64_t pixelHash)
+{
+    if (!g.shaderStats || !pipeline || !g.device) return;
+    const VkPipeline handle = static_cast<VkPipeline>(pipeline);
+    VkPipelineInfoKHR pipelineInfo{ VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR };
+    pipelineInfo.pipeline = handle;
+    uint32_t count = 0;
+    if (g.getExecutableProperties(g.device, &pipelineInfo, &count, nullptr) != VK_SUCCESS || !count) return;
+    const VkPipelineExecutablePropertiesKHR emptyProperties{ VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_PROPERTIES_KHR };
+    std::vector<VkPipelineExecutablePropertiesKHR> executables(count, emptyProperties);
+    if (g.getExecutableProperties(g.device, &pipelineInfo, &count, executables.data()) < 0) return;
+    // A name is one token on the line, so a log reader can split on spaces.
+    const auto token = [](std::string& out, const char* text) {
+        for (; *text; ++text) out += (*text == ' ') ? '_' : *text;
+    };
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        VkPipelineExecutableInfoKHR which{ VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR };
+        which.pipeline = handle;
+        which.executableIndex = i;
+        uint32_t statCount = 0;
+        if (g.getExecutableStatistics(g.device, &which, &statCount, nullptr) != VK_SUCCESS || !statCount) continue;
+        const VkPipelineExecutableStatisticKHR emptyStatistic{ VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_STATISTIC_KHR };
+        std::vector<VkPipelineExecutableStatisticKHR> statistics(statCount, emptyStatistic);
+        if (g.getExecutableStatistics(g.device, &which, &statCount, statistics.data()) < 0) continue;
+
+        // Turnip has a binning vertex shader beside the vertex shader, both of
+        // the vertex stage: the executable's own name tells them apart.
+        const VkShaderStageFlags stages = executables[i].stages;
+        std::string stage = stages == VK_SHADER_STAGE_VERTEX_BIT ? "vertex"
+                          : stages == VK_SHADER_STAGE_FRAGMENT_BIT ? "fragment" : "stage" + std::to_string(stages);
+        stage += '/';
+        token(stage, executables[i].name);
+        std::string line;
+        char value[40];
+        for (uint32_t s = 0; s < statCount; ++s)
+        {
+            const VkPipelineExecutableStatisticKHR& statistic = statistics[s];
+            switch (statistic.format)
+            {
+            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
+                std::snprintf(value, sizeof value, "%u", unsigned(statistic.value.b32)); break;
+            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
+                std::snprintf(value, sizeof value, "%lld", (long long)statistic.value.i64); break;
+            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
+                std::snprintf(value, sizeof value, "%llu", (unsigned long long)statistic.value.u64); break;
+            default:
+                std::snprintf(value, sizeof value, "%g", statistic.value.f64); break;
+            }
+            line += ' ';
+            token(line, statistic.name);
+            line += '=';
+            line += value;
+        }
+        LOGI("shaderstats: vs %016llx ps %016llx stage %s:%s", (unsigned long long)vertexHash,
+             (unsigned long long)pixelHash, stage.c_str(), line.c_str());
+    }
+}
 
 std::string vk::pipeline::DeviceId(void* physical)
 {

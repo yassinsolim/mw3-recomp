@@ -1055,6 +1055,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         op.firstIndex = (g.arenaBase + indexOffset) / (wide ? 4 : 2);
     }
     else op.count = call.indexCount;
+    if (vk::pipeline::ShaderStats()) NoteVertexWeight(call.vertexHash, op.count);
     gpu::detail::SetCurrentDrawStage("Draw_Record");
     vk::record::Joining(op);
     colourTarget->draws++;
