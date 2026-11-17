@@ -107,6 +107,15 @@ Status words: **verified** (observed on the device or by a run), **built**
   unchanged at about 22 a second; the consumer now mostly finishes a frame in
   under 12 ms of CPU and waits on the GPU (49 s of 150 s), so the next limit
   is GPU work, which has not been profiled yet.
+- GPU profile of Survival on Turnip (MW2_REPORT=1, MW2_TIME_PASSES=1): the
+  chip is busy 87-98% of play, about 40 ms a world frame, 86% of it in the
+  passes on the 1040x2048 scene surface (about 63 passes and 6,600 draws a
+  world frame). Ruled out, each by a device run: render area (passes cut to
+  their draws' scissors: no change, reverted), tile load/store (TU_DEBUG=sysmem
+  and TU_DEBUG=gmem both 39.6 ms). What is left is the draws' own work, the
+  translated shaders or per-draw cost; not yet split.
+- Open defect: render scale 2 (launcher setting) hangs the GPU ring while
+  Survival loads (repeated "GPU ring batch hang") and never reaches play.
 
 ## Build (WSL2 Ubuntu 24.04)
 
