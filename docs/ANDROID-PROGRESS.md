@@ -23,7 +23,8 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Audio on the Thor | verified by ear by the owner |
 | Input on the Thor | touch overlay verified in menus and play (a press must be held about 0.25 s); physical pad detected, not exercised |
 | Launcher branding | verified: MW3 wordmark, MW2-only entries hidden |
-| MW3 multiplayer on the Thor | **booting and playable locally**: `iw5mp_ship.exe` recompiled (commit c68caf2, app `com.mw3.recomp.mp`); the Multiplayer menu at 60 FPS; Split Screen -> Team Deathmatch on Seatown loads, team select, spawn with the class's weapon, HUD (timer, score, minimap), 60 FPS in the match. Networking deliberately off (loopback only) until the MP hardening is re-found for MW3. No bots on the 360 build, so nothing to shoot yet |
+| MW3 multiplayer on the Thor | **booting and playable locally**: `iw5mp_ship.exe` recompiled (app `com.mw3.recomp.mp`); Split Screen Team Deathmatch on Seatown at 60 FPS. 15 of MW2's 18 network fixes located and wired, 3 absent in IW5, 2 IW5-only bugs fixed (commit 5a308a8); a local match plays through them unchanged. **Everything unlocked** (MW2_UNLOCK_ALL, default on): Create a Class at rank 1, every weapon at level 41, all attachments and proficiencies, all camos up to Gold; the save is not written. Networking still off (loopback only) until LAN play is built and tested. No bots on the 360 build |
+| Skins | texture replacement by content key (`replace/<key>.png`, dumps named by key), verified on the multiplayer menu art; **animated** replacements (`<key>.N.png` + fps) verified cycling at 6 fps. Tools: `camo_gen.py` (original procedural camos), `iwi_match.py` (a player's own PC .iwi mods mapped onto this port's keys). No third-party art bundled |
 | Profile and saves | profile and campaign saves written and resumed |
 
 ## 2026-11-16
