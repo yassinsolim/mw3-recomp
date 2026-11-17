@@ -68,6 +68,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         prefs = Prefs(this)
+        // Before anything reads the driver choice (refresh() applies it, and
+        // the :game process reads it when the run starts): on a Qualcomm
+        // phone whose player has not picked a driver, the one this build
+        // carries becomes the default.
+        DriverStore(this).installBundledDefault(prefs)
 
         status = findViewById(R.id.status)
         footer = findViewById(R.id.footer)

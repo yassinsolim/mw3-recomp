@@ -102,6 +102,9 @@ class DriverActivity : AppCompatActivity() {
     }
 
     private fun chooseSystem() {
+        // Picking the system's driver is a decision too: the bundled default
+        // must not come back over it.
+        prefs.driverChoiceMade = true
         prefs.driverDirectory = ""
         prefs.driverLibrary = ""
         if (NativeBridge.isLoaded()) NativeBridge.nativeSelectDriver("", "")
@@ -109,6 +112,7 @@ class DriverActivity : AppCompatActivity() {
     }
 
     private fun choose(driver: DriverStore.Driver) {
+        prefs.driverChoiceMade = true
         prefs.driverDirectory = driver.directory.absolutePath
         prefs.driverLibrary = driver.library
         if (NativeBridge.isLoaded()) {

@@ -447,11 +447,27 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         indexing.pNext = &drawParameters;
         drawParameters.shaderDrawParameters = VK_TRUE;
     }
+    // Turnip (Mesa's Adreno driver, the one players import on Snapdragon
+    // handhelds) faulted in its shader compiler building graphics pipeline
+    // libraries -- v27.0.0-R2 on the AYN Thor, twice, within a minute or two
+    // of play -- and ran three minutes of the same campaign without fault
+    // building whole pipelines. MW2_FORCE_PIPELINE_LIBRARIES=1 asks for them
+    // anyway, to try a newer build.
+    VkPhysicalDeviceDriverProperties driver{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES };
+    {
+        VkPhysicalDeviceProperties2 properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+        properties.pNext = &driver;
+        vkGetPhysicalDeviceProperties2(physical, &properties);
+    }
+    const bool turnip = driver.driverID == VK_DRIVER_ID_MESA_TURNIP;
     g.pipelineLibraries =
         !g.legacyMode &&
+        (!turnip || env::Flag("MW2_FORCE_PIPELINE_LIBRARIES")) &&
         DeviceHasExtension(physical, VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME) &&
         DeviceHasExtension(physical, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME) &&
         libraries.graphicsPipelineLibrary;
+    if (turnip && !g.pipelineLibraries)
+        LOGI("vulkan: Turnip: whole pipelines, not libraries (MW2_FORCE_PIPELINE_LIBRARIES=1 to try them)");
     if (g.pipelineLibraries)
     {
         extensions.push_back(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);

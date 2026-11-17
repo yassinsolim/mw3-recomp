@@ -154,6 +154,30 @@ class Prefs(context: Context) {
         get() = store.getString(KEY_DRIVER_LIB, "") ?: ""
         set(value) = store.edit().putString(KEY_DRIVER_LIB, value).apply()
 
+    /**
+     * Set once the player has picked a driver themselves, the system's
+     * included. Until then the build's bundled driver (DriverStore) may be
+     * chosen for them; afterwards nothing but the player changes it.
+     */
+    var driverChoiceMade: Boolean
+        get() = store.getBoolean(KEY_DRIVER_CHOICE_MADE, false)
+        set(value) = store.edit().putBoolean(KEY_DRIVER_CHOICE_MADE, value).apply()
+
+    /**
+     * SHA-256 of the bundled driver package that was last unpacked, so a
+     * newer one in an app update is noticed. Empty until the default has
+     * been installed, which is also how an install that predates it, with a
+     * driver the player picked, is told apart from one holding our default.
+     */
+    var bundledDriverSha: String
+        get() = store.getString(KEY_BUNDLED_DRIVER_SHA, "") ?: ""
+        set(value) = store.edit().putString(KEY_BUNDLED_DRIVER_SHA, value).apply()
+
+    /** Where the bundled driver was unpacked, whether or not it is selected. */
+    var bundledDriverDirectory: String
+        get() = store.getString(KEY_BUNDLED_DRIVER_DIR, "") ?: ""
+        set(value) = store.edit().putString(KEY_BUNDLED_DRIVER_DIR, value).apply()
+
     // ---- where the game lives ------------------------------------------------
 
     /** Set once the files are in place; empty means "not installed yet". */
@@ -249,6 +273,9 @@ class Prefs(context: Context) {
         private const val KEY_LOOK_SATURATION = "lookSaturation"
         private const val KEY_DRIVER_DIR = "driverDirectory"
         private const val KEY_DRIVER_LIB = "driverLibrary"
+        private const val KEY_DRIVER_CHOICE_MADE = "driverChoiceMade"
+        private const val KEY_BUNDLED_DRIVER_SHA = "bundledDriverSha"
+        private const val KEY_BUNDLED_DRIVER_DIR = "bundledDriverDirectory"
         private const val KEY_GAME_DIR = "gameDirectory"
         private const val KEY_LAST_BROWSED = "lastBrowsed"
         private const val KEY_WELCOME = "seenWelcome"

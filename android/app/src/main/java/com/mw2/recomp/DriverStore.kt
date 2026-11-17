@@ -2,9 +2,11 @@ package com.mw2.recomp
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
+import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 
 /**
@@ -67,17 +69,28 @@ class DriverStore(private val context: Context) {
     }
 
     /**
-     * Unpacks a zip the player picked. Everything is written into a folder
-     * of its own and only moved into place once meta.json has been read and
-     * makes sense, so a half-unpacked archive never becomes a driver the
-     * runtime then fails to load.
+     * Unpacks a zip the player picked.
      */
     fun import(uri: Uri, suggestedName: String): Outcome {
+        val stream = try {
+            context.contentResolver.openInputStream(uri)
+        } catch (error: Throwable) {
+            return Outcome.Failed(error.message ?: context.getString(R.string.driver_bad_zip))
+        } ?: return Outcome.Failed(context.getString(R.string.driver_bad_zip))
+        return import(stream, suggestedName)
+    }
+
+    /**
+     * Unpacks a driver zip from any stream: the picked file above, or the
+     * package a build carries in its assets. Everything is written into a
+     * folder of its own and only moved into place once meta.json has been
+     * read and makes sense, so a half-unpacked archive never becomes a
+     * driver the runtime then fails to load. The stream is closed here.
+     */
+    fun import(stream: InputStream, suggestedName: String): Outcome {
         val staging = File(context.cacheDir, "driver-import-${System.currentTimeMillis()}")
         staging.mkdirs()
         try {
-            val stream = context.contentResolver.openInputStream(uri)
-                ?: return Outcome.Failed(context.getString(R.string.driver_bad_zip))
             stream.use { unzip(it, staging) }
 
             // Some archives hold one folder with everything inside it.
@@ -143,6 +156,98 @@ class DriverStore(private val context: Context) {
         }
     }
 
+    /**
+     * Makes the driver the build carries (assets/drivers/turnip_v27_r2.zip,
+     * fetched at build time by android/fetch_deps.sh, never committed) the
+     * default on Qualcomm phones, where the stock driver renders this game
+     * slowly and with corrupted textures and Turnip does not.
+     *
+     * It only ever fills a gap. Once the player has picked anything, the
+     * system's driver included (Prefs.driverChoiceMade), it is never
+     * selected for them again; a newer bundled package after an app update
+     * is still unpacked over the old one so the list does not go stale.
+     * Called from the launcher before the run starts, so the :game process
+     * finds the choice already written. A failure here leaves the system's
+     * driver in use, which is what the app did before.
+     */
+    fun installBundledDefault(prefs: Prefs) {
+        try {
+            installBundled(prefs)
+        } catch (error: Throwable) {
+            Trail.note(context, "driver: bundled default failed: ${error.message}")
+        }
+    }
+
+    private fun installBundled(prefs: Prefs) {
+        // A build without the asset (the download was skipped) has nothing
+        // to offer, and everything below is then left exactly as it was.
+        val sha = bundledSha() ?: return
+
+        // An install that predates this has a driver the player picked
+        // (the default records its hash the moment it is installed, so a
+        // non-empty folder with no hash cannot be ours): that is a choice.
+        if (!prefs.driverChoiceMade && prefs.driverDirectory.isNotEmpty() && prefs.bundledDriverSha.isEmpty()) {
+            prefs.driverChoiceMade = true
+        }
+        if (!isQualcomm()) return
+
+        val previousDirectory = prefs.bundledDriverDirectory
+        val previous = if (previousDirectory.isNotEmpty()) read(File(previousDirectory)) else null
+        if (prefs.bundledDriverSha == sha && previous != null) {
+            val path = previous.directory.absolutePath
+            if (!prefs.driverChoiceMade && prefs.driverDirectory != path) select(prefs, previous)
+            return
+        }
+        // The player decided against it (or never had it) and nothing
+        // says it should come back.
+        if (prefs.driverChoiceMade && previous == null) return
+
+        val outcome = context.assets.open(BUNDLED_ASSET).use { import(it, "Turnip") }
+        val driver = (outcome as? Outcome.Imported)?.driver
+        if (driver == null) {
+            Trail.note(context, "driver: bundled package rejected: ${(outcome as? Outcome.Failed)?.reason}")
+            return
+        }
+
+        val wasSelected = previous != null && prefs.driverDirectory == previous.directory.absolutePath
+        prefs.bundledDriverSha = sha
+        prefs.bundledDriverDirectory = driver.directory.absolutePath
+        // A package that renamed itself lands in a new folder; the old one
+        // is only ours to delete because we made it.
+        if (previous != null && previous.directory.canonicalPath != driver.directory.canonicalPath) remove(previous)
+        if (!prefs.driverChoiceMade || wasSelected) select(prefs, driver)
+        Trail.note(context, "driver: bundled ${driver.name} (${driver.version}) installed")
+    }
+
+    /** Selecting is not choosing: the choice flag is left alone. */
+    private fun select(prefs: Prefs, driver: Driver) {
+        prefs.driverDirectory = driver.directory.absolutePath
+        prefs.driverLibrary = driver.library
+    }
+
+    /** The asset's SHA-256, or null when this build does not carry one. */
+    private fun bundledSha(): String? {
+        val stream = try {
+            context.assets.open(BUNDLED_ASSET)
+        } catch (_: java.io.IOException) {
+            return null
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        stream.use {
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = it.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /** The stock Qualcomm driver is the one that misrenders; others are left alone. */
+    private fun isQualcomm(): Boolean =
+        Build.VERSION.SDK_INT >= 31 && Build.SOC_MANUFACTURER == "QTI"
+
     private fun safeName(name: String): String {
         val cleaned = name
             .map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
@@ -207,5 +312,9 @@ class DriverStore(private val context: Context) {
                 zip.closeEntry()
             }
         }
+    }
+
+    private companion object {
+        const val BUNDLED_ASSET = "drivers/turnip_v27_r2.zip"
     }
 }

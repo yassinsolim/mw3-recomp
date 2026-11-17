@@ -77,6 +77,9 @@ android/local.properties
 
 # ---- fetched by android/fetch_deps.sh, somebody else's code ----
 third_party/libadrenotools/
+# The Turnip driver the mw3 app bundles, downloaded by the same script (and
+# by scripts/win_build.ps1); a binary of somebody else's, never committed.
+android/app/src/mw3/assets/drivers/
 
 # ---- the native build's scratch directory ----
 android/app/.cxx/

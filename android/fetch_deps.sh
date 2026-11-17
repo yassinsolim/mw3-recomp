@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# The one dependency the Android build has that is not fetched by CMake:
+# The dependencies the Android build has that are not fetched by CMake:
 # libadrenotools, which is what lets a driver the player imported be loaded
-# on a phone that has not been rooted.
+# on a phone that has not been rooted, and the Turnip driver the mw3 app
+# bundles (last step below).
 #
-# It is not vendored here -- it is somebody else's code, under its own
-# licence, and it carries submodules. Without it the app still builds and
-# still runs; it simply uses the driver the phone shipped with, and says so
-# on the driver screen.
+# Neither is vendored here -- they are somebody else's code, under their own
+# licences, and libadrenotools carries submodules. Without them the app still
+# builds and still runs; it simply uses the driver the phone shipped with, and
+# says so on the driver screen.
 set -euo pipefail
 
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,6 +28,36 @@ fi
 # Its own dependency: the linker shim it loads the driver through.
 git -C "${TARGET}" submodule update --init --recursive --depth 1
 
+# The Turnip (Mesa, MIT) Vulkan driver the Modern Warfare 3 app unpacks and
+# uses by default on Qualcomm phones, where the stock driver is slow and draws
+# corrupted textures. Downloaded, never committed (THIRD_PARTY.md); only the
+# mw3 flavor packages it, and a build without it simply has no bundled driver.
+TURNIP_URL="${TURNIP_URL:-https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip}"
+TURNIP_SHA256="8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781"
+TURNIP_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_v27_r2.zip"
+
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+    else shasum -a 256 "$1" | cut -d' ' -f1
+    fi
+}
+
+if [ -f "${TURNIP_ASSET}" ] && [ "$(sha256_of "${TURNIP_ASSET}")" = "${TURNIP_SHA256}" ]; then
+    echo "The bundled Turnip driver is already there."
+else
+    echo "Downloading the bundled Turnip driver"
+    mkdir -p "$(dirname "${TURNIP_ASSET}")"
+    # Into a temporary name first: a download that fails the check must not
+    # be left where Gradle would package it.
+    curl -fsSL -o "${TURNIP_ASSET}.part" "${TURNIP_URL}"
+    if [ "$(sha256_of "${TURNIP_ASSET}.part")" != "${TURNIP_SHA256}" ]; then
+        rm -f "${TURNIP_ASSET}.part"
+        echo "The Turnip download does not match the expected SHA-256; not using it." >&2
+        exit 1
+    fi
+    mv "${TURNIP_ASSET}.part" "${TURNIP_ASSET}"
+fi
+
 echo
-echo "Done. The next Gradle build will find it (cmake/android.cmake) and the"
-echo "app's driver screen will be able to load an imported driver."
+echo "Done. The next Gradle build will find libadrenotools (cmake/android.cmake)"
+echo "and the mw3 app will carry the Turnip driver."
