@@ -113,7 +113,13 @@ Status words: **verified** (observed on the device or by a run), **built**
   world frame). Ruled out, each by a device run: render area (passes cut to
   their draws' scissors: no change, reverted), tile load/store (TU_DEBUG=sysmem
   and TU_DEBUG=gmem both 39.6 ms). What is left is the draws' own work, the
-  translated shaders or per-draw cost; not yet split.
+  translated shaders or per-draw cost. Split with temporary switches
+  (removed): every draw with zero instances takes the GPU to 3.7 ms a frame
+  and the game to 59.8 world frames a second, so the CPU side can already
+  reach 60; an empty scissor on every draw (vertices only, no pixels) still
+  costs 35.4 ms. **Survival is bound by vertex shading.** Not the register
+  zeroing (39.8 ms with or without it). Next: the vertex shaders' form
+  (sequencer loop vs straight-line) and their vertex fetch from the arena.
 - Open defect: render scale 2 (launcher setting) hangs the GPU ring while
   Survival loads (repeated "GPU ring batch hang") and never reaches play.
 
