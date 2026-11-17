@@ -16,6 +16,17 @@
 // whole core spinning, which on a four-core machine is a core the consumer
 // and the title's threads are short of. A wake is a system call, so it is not
 // made per call either.
+//
+// Nor is a call published as it is queued. Moving `written` and looking at
+// the recorder's sleep flag are two sequentially consistent accesses to lines
+// the recorder reads, and done per call they were a seventh of the consumer's
+// time for a recorder that only looks once a burst has gathered. So calls are
+// published kPublishBytes at a time, and at once for a call that is due now.
+// Everything that hands out a position or waits publishes first (Position,
+// Flush, Drain, the wait for room in Reserve), so a position any thread holds
+// is one the recorder can see and reach, and `urgent` never names a call it
+// cannot see. Only the queuing thread publishes; Wake and WaitMade, which any
+// thread may run, read `written` and never `reserved`.
 #include "recorder.h"
 #include "../../diagnostics.h"
 #include "../../crash.h"
@@ -58,6 +69,12 @@ namespace
     constexpr uint32_t kSpins = 4000;
     // Queued bytes that wake a sleeping recorder: a hundred or so draws.
     constexpr uint64_t kWakeBytes = 64u << 10;
+    // Queued bytes that are published together: a dozen or so draws, some tens
+    // of microseconds of the consumer's work. Large enough that the cost of
+    // publishing is spread over many calls, and an eighth of kWakeBytes, so the
+    // recorder's bursts start within an eighth of where they did; what is left
+    // unpublished when the stream stops is published by Flush.
+    constexpr uint64_t kPublishBytes = 8u << 10;
 
     // Each side's own fields on lines of their own, so neither side's writes
     // take the other's cache line away from it on every call.
@@ -65,7 +82,8 @@ namespace
     {
         // The producer's.
         uint8_t* ring = nullptr;
-        uint64_t reserved = 0;      // queued, not yet published
+        uint64_t reserved = 0;      // queued, not all of it published
+        uint64_t published = 0;     // `written` as last stored
         uint64_t madeSeen = 0;      // `made` as last read, which only grows
         uint64_t wokenFrom = ~0ull; // the sleep (its sleptAt) already woken for gathered calls
         uint64_t roomWaits = 0, waits = 0;
@@ -146,12 +164,33 @@ namespace
         q.wakes.notify_one();
     }
 
-    // Everything queued so far is due now, and a sleeping recorder is woken
+    // Everything published so far is due now, and a sleeping recorder is woken
     // for it. Any thread.
     void Wake()
     {
         RaiseUrgent(q.written.load(std::memory_order_seq_cst));
         if (q.recorderAsleep.load(std::memory_order_seq_cst)) Ring();
+    }
+
+    // Publishes everything queued, and wakes a sleeping recorder if that is
+    // enough for a burst or `now` says it is due. The queuing thread only.
+    void PublishAll(bool now)
+    {
+        // Published before the sleep flag is looked at, both sequentially
+        // consistent: the recorder sets its flag before it looks at `written`
+        // once more, so one of the two sees the other.
+        q.published = q.reserved;
+        q.written.store(q.reserved, std::memory_order_seq_cst);
+        if (now) RaiseUrgent(q.reserved);
+        if (!q.recorderAsleep.load(std::memory_order_seq_cst)) return;
+        const uint64_t slept = q.sleptAt.load(std::memory_order_relaxed);
+        if (now || (q.reserved - slept >= kWakeBytes && q.wokenFrom != slept))
+        {
+            // Until it clears its flag the recorder still looks asleep: one wake
+            // a sleep is enough.
+            q.wokenFrom = slept;
+            Ring();
+        }
     }
 
     void WaitMade(uint64_t position)
@@ -187,6 +226,9 @@ void* vk::record::detail::Reserve(uint32_t bytes)
         {
             q.roomWaits++;
             report::Timed spent(report::kRecorderWait);
+            // The room may be behind calls not published yet, which the
+            // recorder would never reach.
+            PublishAll(false);
             WaitMade(end - kBytes);
             q.madeSeen = q.made.load(std::memory_order_acquire);
         }
@@ -203,22 +245,14 @@ void* vk::record::detail::Reserve(uint32_t bytes)
 
 void vk::record::detail::Publish(bool now)
 {
-    q.written.store(q.reserved, std::memory_order_seq_cst);
-    if (now) RaiseUrgent(q.reserved);
-    if (!q.recorderAsleep.load(std::memory_order_seq_cst)) return;
-    const uint64_t slept = q.sleptAt.load(std::memory_order_relaxed);
-    if (now || (q.reserved - slept >= kWakeBytes && q.wokenFrom != slept))
-    {
-        // Until it clears its flag the recorder still looks asleep: one wake
-        // a sleep is enough.
-        q.wokenFrom = slept;
-        Ring();
-    }
+    // The producer's own fields only, on all but one call in some dozens.
+    if (!now && q.reserved - q.published < kPublishBytes) return;
+    PublishAll(now);
 }
 
 void vk::record::Flush()
 {
-    if (detail::threaded) Wake();
+    if (detail::threaded) PublishAll(true);
 }
 
 void vk::record::Start(void (*settle)())
@@ -233,7 +267,7 @@ void vk::record::Start(void (*settle)())
         return;
     }
     q.ring = static_cast<uint8_t*>(::operator new(kBytes, std::align_val_t(64)));
-    q.reserved = q.madeSeen = 0;
+    q.reserved = q.published = q.madeSeen = 0;
     q.written.store(0);
     q.made.store(0);
     q.urgent.store(0);
@@ -260,7 +294,11 @@ void vk::record::Into(VkCommandBuffer command) { detail::into = command; }
 
 uint64_t vk::record::Position()
 {
-    return detail::threaded ? q.written.load(std::memory_order_acquire) : 0;
+    if (!detail::threaded) return 0;
+    // Published first: a position is waited for, perhaps by another thread,
+    // and the recorder only reaches what it can see.
+    PublishAll(false);
+    return q.reserved;
 }
 
 bool vk::record::Done(uint64_t position)

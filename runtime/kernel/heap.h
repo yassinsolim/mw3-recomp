@@ -23,6 +23,10 @@ namespace kernel
         std::mutex lock;
         std::map<uint32_t, uint32_t> live, free;   // address -> size
         uint64_t allocations = 0, reused = 0, liveBytes = 0;
+        // Moves whenever `live` changes, under the lock: an answer about what
+        // is live that was read at one value still holds while it reads the
+        // same, so readers can keep answers without taking the lock (Covers).
+        std::atomic<uint64_t> generation{ 0 };
 
         Heap(const char* heapName, uint32_t base, uint32_t limit)
             : name(heapName), end(limit), top(base) {}
@@ -56,6 +60,7 @@ namespace kernel
         {
             live[at] = size;
             liveBytes += size;
+            generation.fetch_add(1, std::memory_order_release);
             return at;
         }
 
@@ -67,6 +72,7 @@ namespace kernel
             uint32_t start = address, length = it->second;
             liveBytes -= length;
             live.erase(it);
+            generation.fetch_add(1, std::memory_order_release);
             if (auto after = free.find(start + length); after != free.end())
             {
                 length += after->second;

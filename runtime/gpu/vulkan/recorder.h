@@ -39,6 +39,11 @@ namespace vk::record
     // Done says whether the recorder has made every call before a position,
     // WaitFor waits until it has, Drain until it has made them all. Positions
     // are all 0, and everything done, when there is no thread.
+    //
+    // Queued calls are shown to the recorder some at a time (recorder.cpp),
+    // and Position, Flush and Drain show it all of them first: they are for
+    // the thread that queues. Done and WaitFor, with a position that thread
+    // handed over, are for any thread.
     uint64_t Position();
     // Wakes the recorder for whatever is queued, which it otherwise lets
     // gather (recorder.cpp): for when nothing more is coming for a while.
@@ -62,8 +67,9 @@ namespace vk::record
         extern bool threaded;
         extern VkCommandBuffer into;
         extern void (*settle)();
-        // Room for `bytes` at the end of the queue, and making it visible:
-        // `now` wakes the recorder for it whatever else is queued.
+        // Room for `bytes` at the end of the queue, and making it visible,
+        // which is left until enough has gathered unless `now`: that wakes
+        // the recorder for it whatever else is queued.
         void* Reserve(uint32_t bytes);
         void Publish(bool now);
     }

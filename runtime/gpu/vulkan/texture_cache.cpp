@@ -61,6 +61,7 @@ void vk::textures::BeginUploads(uint32_t) {}
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cstring>
 #include <map>
@@ -180,6 +181,12 @@ namespace
         uint64_t boundSegment = ~0ull;   // the last segment a draw of which bound it
         bool rewritten = false;
         uint32_t address = 0, xenosFormat = 0;   // physical
+        // Found rewritten at a bind while uploads are open: the read is left
+        // to the end of the segment (RefreshRewritten), which looks at it again
+        // anyway and whose staging is the one the segment's draws see.
+        // `dueSignature` is what its memory signed as when that was found.
+        bool restageDue = false;
+        uint64_t dueSignature = 0;
         // The mip chain's memory, signed together with the base's; zero for a
         // texture with no chain.
         uint32_t mipAddress = 0;
@@ -293,6 +300,20 @@ namespace
         // held once.
         std::unordered_map<std::array<uint32_t, 6>, uint64_t, WordsHash> byFetch;
         std::unordered_map<std::array<uint32_t, 6>, uint64_t, WordsHash> byContent;
+        // In front of byFetch, which was 3.6% of the ring consumer on its own:
+        // a segment asks for the same few hundred constants over and over, so
+        // most lookups are answered here by one multiply and a compare of the
+        // six dwords. An entry is good while `fetchGeneration` is the one it
+        // was written under; that moves whenever byFetch loses an entry
+        // (Release, Shutdown), the only way a key's id there ever changes.
+        struct RecentFetch
+        {
+            std::array<uint32_t, 6> key{};
+            uint64_t id = 0, generation = 0;
+        };
+        static constexpr size_t kRecentFetches = 1024;
+        RecentFetch recentFetches[kRecentFetches];
+        uint64_t fetchGeneration = 1;
         std::vector<uint64_t> freeIds;                // slots of g.images to use again
         // A sampler and its slot in the bindless set.
         struct Sampler { VkSampler sampler = VK_NULL_HANDLE; uint32_t slot = 0; };
@@ -1163,6 +1184,7 @@ void vk::textures::Shutdown()
     g.images.clear();
     g.freeIds.clear();
     g.byFetch.clear();
+    g.fetchGeneration++;
     g.byContent.clear();
     g.samplerList.clear();
     g.samplerIndex.clear();
@@ -1387,12 +1409,28 @@ namespace
             if (!image->rewritten && !image->fromAnEmptyBlock &&
                 image->signPeriod < kSignPeriodMax)
                 image->signPeriod *= 2;
+            // Written back to what the image holds: nothing is owed any more.
+            image->restageDue = false;
             return;
         }
         image->rewritten = true;
         image->signPeriod = 1;
         queueForSegment();
 
+        // On the segment's list with its uploads open, the end of the segment
+        // signs it again and stages it over whatever is staged here, in the
+        // same command buffer, ahead of the same draws -- and a texture the
+        // title is in the middle of rewriting has usually moved again by then,
+        // which made this read, its decode and its copy work nothing ever
+        // sampled (the read alone was 5.5% of the ring consumer). So it is
+        // left to that point, which reads it once.
+        if (g.open && image->queuedSegment == g.segment)
+        {
+            image->restageDue = true;
+            image->dueSignature = now;
+            return;
+        }
+        image->restageDue = false;
         const gpu::TextureData data = ReadAgain(*image);
         if (!Restage(*image, data)) return;
         image->signature = now;
@@ -1467,6 +1505,7 @@ namespace
     {
         Image& image = g.images[size_t(id - 1)];
         g.epoch++;
+        g.fetchGeneration++;
         for (const auto& name : image.names)
             if (auto entry = g.byFetch.find(name);
                 entry != g.byFetch.end() && (entry->second & kImageBits) == id)
@@ -1709,6 +1748,18 @@ namespace
         words[5] &= ~0x3u;             // BorderColour
         return words;
     }
+
+    // Where a fetch constant's answer goes in State::recentFetches. The words
+    // that tell two textures apart are spread over all six, so each is folded
+    // in before the one multiply.
+    size_t RecentFetchOf(const std::array<uint32_t, 6>& key)
+    {
+        static_assert(State::kRecentFetches == size_t(1) << 10, "the index is the hash's top ten bits");
+        uint64_t words[3];
+        std::memcpy(words, key.data(), sizeof words);
+        const uint64_t mixed = words[0] ^ std::rotl(words[1], 23) ^ std::rotl(words[2], 47);
+        return size_t((mixed * 0x9E3779B97F4A7C15ull) >> 54);
+    }
 }
 
 uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error)
@@ -1717,16 +1768,24 @@ uint64_t vk::textures::Upload(const gpu::TextureFetch& fetch, const char** error
 
     std::array<uint32_t, 6> key{};
     for (uint32_t i = 0; i < 6; i++) key[i] = fetch.d[i];
-    auto found = g.byFetch.find(key);
-    if (found != g.byFetch.end())
+    State::RecentFetch& recent = g.recentFetches[RecentFetchOf(key)];
+    bool known = recent.generation == g.fetchGeneration && recent.key == key;
+    if (!known)
+        if (auto found = g.byFetch.find(key); found != g.byFetch.end())
+        {
+            recent = { key, found->second, g.fetchGeneration };
+            known = true;
+        }
+    if (known)
     {
-        if (Image* image = Find(found->second))
+        const uint64_t named = recent.id;
+        if (Image* image = Find(named))
         {
             image->lastBound = g.frame;
             image->boundSegment = g.segment;
         }
-        RefreshIfChanged(found->second & kImageBits);
-        return found->second;
+        RefreshIfChanged(named & kImageBits);
+        return named;
     }
 
     // The same texture under another sampler state: the image is held already.
@@ -1803,13 +1862,36 @@ namespace
             if (!image || !image->image || image->borrowed ||
                 (!image->sourceBytes && !image->mipBytes))
                 continue;
-            if (Unchanged(*image)) { g.unchangedByWatch++; continue; }
-            g.rereadRewritten++;
-            image->watchStamp = TrackImage(*image);
-            const uint64_t now = SignImage(*image, true);
+            // What a bind of this segment found rewritten and left to here
+            // (RefreshIfChanged). Not written since, its signature is the one
+            // taken then and only the read is still owed.
+            const bool due = image->restageDue;
+            image->restageDue = false;
+            const bool unchanged = Unchanged(*image);
+            if (unchanged)
+            {
+                g.unchangedByWatch++;
+                if (!due) continue;
+            }
+            uint64_t now = image->dueSignature;
+            if (!unchanged)
+            {
+                g.rereadRewritten++;
+                image->watchStamp = TrackImage(*image);
+                now = SignImage(*image, true);
+            }
             if (now == image->signature) continue;
-            if (!Restage(*image, ReadAgain(*image))) continue;
+            const gpu::TextureData data = ReadAgain(*image);
+            if (!Restage(*image, data)) continue;
             image->signature = now;
+            if (due)
+            {
+                // The bind's own read, made late: counted and looked over as
+                // it would have been there.
+                g.refreshed++;
+                NoteEmptiness(*image, data);
+                if (now == image->dueSignature) continue;
+            }
             if constexpr (diag::kOn) g.lateRestages.push_back(id);
             g.lateReads.push_back({ id, g.frame });
             g.changedAfterFirstBind++;

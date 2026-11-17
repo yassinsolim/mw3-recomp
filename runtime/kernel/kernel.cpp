@@ -22,16 +22,46 @@ namespace
 
     // Whether something live in this arena covers `va`. FromPhysical needs
     // this to tell two arenas apart that answer to the same physical
-    // address. It waits for the heap's lock: an answer that depended on
-    // whether the lock happened to be free would resolve the same address
+    // address. The answer is exact, never a guess made because the lock was
+    // busy: an answer that depended on that would resolve the same address
     // to different windows from one call to the next.
+    //
+    // The command processor asks this for every texture and vertex address,
+    // millions of times a minute, and the heap's lock and map walk were a
+    // seventh of its thread on a phone. So each thread keeps its last few
+    // answers -- a live block, or the gap between two -- with the heap's
+    // generation they were read at; while the generation has not moved, the
+    // blocks have not, and the answer stands without the lock.
     bool Covers(kernel::Heap& heap, uint32_t va)
     {
+        struct Answer
+        {
+            const kernel::Heap* heap = nullptr;
+            uint64_t generation = 0;
+            uint64_t from = 0, to = 0;   // [from, to)
+            bool covered = false;
+        };
+        constexpr uint32_t kKept = 8;
+        thread_local Answer kept[kKept];
+        thread_local uint32_t next = 0;
+
+        const uint64_t now = heap.generation.load(std::memory_order_acquire);
+        for (const Answer& a : kept)
+            if (a.heap == &heap && a.generation == now && va >= a.from && va < a.to) return a.covered;
+
         std::lock_guard held(heap.lock);
+        Answer a{ &heap, heap.generation.load(std::memory_order_relaxed), 0, uint64_t(UINT32_MAX) + 1, false };
         auto it = heap.live.upper_bound(va);
-        if (it == heap.live.begin()) return false;
-        --it;
-        return uint64_t(va) < uint64_t(it->first) + it->second;
+        if (it != heap.live.end()) a.to = it->first;
+        if (it != heap.live.begin())
+        {
+            --it;
+            const uint64_t blockEnd = uint64_t(it->first) + it->second;
+            if (uint64_t(va) < blockEnd) { a.from = it->first; a.to = blockEnd; a.covered = true; }
+            else a.from = blockEnd;
+        }
+        kept[next++ % kKept] = a;
+        return a.covered;
     }
 
     // How often FromPhysical resolved an address to the general heap that the

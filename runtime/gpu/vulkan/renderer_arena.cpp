@@ -225,22 +225,6 @@ namespace vk::renderer::detail
         }
         out.fetch = Allocate(96 * 16, kArenaConstants);
         if (out.fetch == UINT32_MAX) return out;
-        // Assembled here and copied across: the arena is write-combined
-        // memory, and the rewriting below reads back what it has just written.
-        // Only the pairs the programs read: a draw reads two or three of the
-        // 96, and assembling and copying the whole window was a kilobyte and
-        // a half a draw. The rest of the block is whatever the arena held.
-        alignas(64) uint32_t fetch[96 * 4];
-        for (uint32_t i = 0; i < 3; i++)
-            for (uint32_t bits = pairs[i]; bits; bits &= bits - 1)
-            {
-                const uint32_t pair = i * 32 + uint32_t(std::countr_zero(bits));
-                const uint32_t* source = &r.values[gpu::kConstantBaseFetch + pair * 2];
-                uint32_t* entry = fetch + pair * 4;
-                entry[0] = source[0];
-                entry[1] = source[1];
-                entry[2] = entry[3] = 0;
-            }
 
         // A vertex fetch constant holds a physical address. Rather than making all of
         // guest memory addressable by the GPU, the data each fetch names is copied
@@ -252,99 +236,120 @@ namespace vk::renderer::detail
         struct Made { uint32_t address, base, first, dwords; };
         Made made[kFetchSlots];          // every entry is written before it is read
         uint32_t madeCount = 0;
-        for (uint32_t i = 0; i < 3; i++)
-            for (uint32_t bits = program.vertexFetchPairs[i]; bits; bits &= bits - 1)
+        // Points the entry of a slot the vertex program fetches through at its
+        // data; false when the arena has no room for the copy.
+        const auto pointAtCopy = [&](uint32_t slot, uint32_t* entry) -> bool
+        {
+            const uint32_t type = entry[0] & 3;
+            if (type != 3) return true;                        // not a vertex fetch
+            const uint32_t declared = (entry[1] >> 2) & 0xFFFFFF;
+            if (!declared) { entry[0] = 0; return true; }
+            const uint32_t va = kernel::FromPhysical(entry[0] & ~3u);
+            if (!va) { entry[0] = 0; return true; }
+            if (g.drawRecord) NoteVertexBuffer(entry[0] & ~3u);
+
+            // The window the program reaches, not the extent the constant spans:
+            // a model near the end of a shared vertex heap is indexed from the
+            // heap's base, so the prefix below it is as large as the buffer.
+            const uint32_t stride = program.vertexFetchStride[slot];
+
+            if (rectangles && stride)
             {
-                const uint32_t slot = i * 32 + uint32_t(std::countr_zero(bits));
-                uint32_t* entry = fetch + slot * 4;
-                const uint32_t type = entry[0] & 3;
-                if (type != 3) continue;                       // not a vertex fetch
-                const uint32_t declared = (entry[1] >> 2) & 0xFFFFFF;
-                if (!declared) { entry[0] = 0; continue; }
-                const uint32_t va = kernel::FromPhysical(entry[0] & ~3u);
-                if (!va) { entry[0] = 0; continue; }
-                if (g.drawRecord) NoteVertexBuffer(entry[0] & ~3u);
+                const uint32_t given = rectangles * 3;
+                const uint32_t total = given + rectangles;
+                const uint32_t at = Allocate(total * stride * 4, kArenaVertices);
+                if (at == UINT32_MAX) return false;
+                // The fourth corners are worked out from the other three, so
+                // the vertices are put together here and not in the arena,
+                // which is not memory to read back from.
+                static std::vector<uint32_t> corners;
+                corners.assign(size_t(total) * stride, 0);
+                uint32_t* vertices = corners.data();
+                const uint32_t have = std::min(given * stride, declared);
+                std::memcpy(vertices, guest::Base() + va, have * 4);
+                for (uint32_t rect = 0; rect < rectangles; rect++)
+                    BuildFourthCorner(vertices, stride, rect, given + rect);
+                std::memcpy(ArenaAt(at), vertices, corners.size() * 4);
+                if (g.drawRecord) NoteVertexWindow(guest::Base() + va, have * 4);
+                entry[0] = at | type;
+                return true;
+            }
 
-                // The window the program reaches, not the extent the constant spans:
-                // a model near the end of a shared vertex heap is indexed from the
-                // heap's base, so the prefix below it is as large as the buffer.
-                const uint32_t stride = program.vertexFetchStride[slot];
+            const uint64_t from = uint64_t(lowestVertex) * stride;
+            const uint64_t to = uint64_t(highestVertex) * stride +
+                                program.vertexFetchTail[slot];
+            // The copy stops at the end of the buffer the fetch constant
+            // declares; a window that starts past it has nothing to copy.
+            if (from >= declared) { entry[0] = 0; return true; }
+            const uint32_t first = uint32_t(from);
+            const uint32_t last = uint32_t(std::min<uint64_t>(to, declared));
+            if (last <= first) { entry[0] = 0; return true; }
+            const uint32_t words = last - first;
+            if (g.drawRecord) NoteVertexWindow(guest::Base() + va + first * 4, words * 4);
 
-                if (rectangles && stride)
-                {
-                    const uint32_t given = rectangles * 3;
-                    const uint32_t total = given + rectangles;
-                    const uint32_t at = Allocate(total * stride * 4, kArenaVertices);
-                    if (at == UINT32_MAX) return out;
-                    // The fourth corners are worked out from the other three, so
-                    // the vertices are put together here and not in the arena,
-                    // which is not memory to read back from.
-                    static std::vector<uint32_t> corners;
-                    corners.assign(size_t(total) * stride, 0);
-                    uint32_t* vertices = corners.data();
-                    const uint32_t have = std::min(given * stride, declared);
-                    std::memcpy(vertices, guest::Base() + va, have * 4);
-                    for (uint32_t rect = 0; rect < rectangles; rect++)
-                        BuildFourthCorner(vertices, stride, rect, given + rect);
-                    std::memcpy(ArenaAt(at), vertices, corners.size() * 4);
-                    if (g.drawRecord) NoteVertexWindow(guest::Base() + va, have * 4);
-                    entry[0] = at | type;
-                    continue;
-                }
+            // Pages the title has not written since the shadow copied them
+            // are read there, at the guest's own address, and not copied.
+            const uint32_t physical = entry[0] & ~3u;
+            if (g.shadowBase && va == guest::kPhysicalBase + physical &&
+                gpu::watch::Serve(physical + first * 4, words * 4, g.submissionSerial + 1,
+                                  CompletedSerial, g.frames))
+            {
+                g.arenaReused[kArenaVertices] += words * 4;
+                entry[0] = (g.shadowBase - g.arenaBase + physical) | type;
+                return true;
+            }
 
-                const uint64_t from = uint64_t(lowestVertex) * stride;
-                const uint64_t to = uint64_t(highestVertex) * stride +
-                                    program.vertexFetchTail[slot];
-                // The copy stops at the end of the buffer the fetch constant
-                // declares; a window that starts past it has nothing to copy.
-                if (from >= declared) { entry[0] = 0; continue; }
-                const uint32_t first = uint32_t(from);
-                const uint32_t last = uint32_t(std::min<uint64_t>(to, declared));
-                if (last <= first) { entry[0] = 0; continue; }
-                const uint32_t words = last - first;
-                if (g.drawRecord) NoteVertexWindow(guest::Base() + va + first * 4, words * 4);
+            // One copy serves the other fetch slots of THIS draw that name
+            // the same buffer, and no draw after it. Nothing stamps a write
+            // to guest memory the way the register file stamps its own, so a
+            // copy made earlier in the frame cannot be told apart from one
+            // the title has overwritten since -- and it does overwrite, into
+            // a ring of dynamic geometry it reuses within the frame. Serving
+            // that stale copy draws one mesh through another's indices,
+            // which is a triangle stretched across the screen. Measured:
+            // holding the copies for a whole frame saved 3 MB of the 12 MB
+            // copied per frame here, and cost correctness for it.
+            Made* found = nullptr;
+            for (uint32_t i = 0; i < madeCount; i++)
+                if (made[i].address == physical) { found = &made[i]; break; }
+            const bool covered = found && found->dwords && found->first <= first &&
+                                 found->first + found->dwords >= last;
+            if (covered)
+                g.arenaReused[kArenaVertices] += words * 4;
+            else
+            {
+                // Never the union with what was cached: draws reaching into a
+                // shared heap from both ends would ratchet it out to the whole
+                // buffer, and every later miss would copy all of it.
+                const uint32_t at = CopyIntoArena(guest::Base() + va + first * 4,
+                                                  words * 4, kArenaVertices);
+                if (at == UINT32_MAX) return false;
+                if (!found) found = &made[madeCount++];
+                *found = { physical, at - first * 4, first, words };
+            }
+            entry[0] = found->base | type;
+            return true;
+        };
 
-                // Pages the title has not written since the shadow copied them
-                // are read there, at the guest's own address, and not copied.
-                const uint32_t physical = entry[0] & ~3u;
-                if (g.shadowBase && va == guest::kPhysicalBase + physical &&
-                    gpu::watch::Serve(physical + first * 4, words * 4, g.submissionSerial + 1,
-                                      CompletedSerial, g.frames))
-                {
-                    g.arenaReused[kArenaVertices] += words * 4;
-                    entry[0] = (g.shadowBase - g.arenaBase + physical) | type;
-                    continue;
-                }
-
-                // One copy serves the other fetch slots of THIS draw that name
-                // the same buffer, and no draw after it. Nothing stamps a write
-                // to guest memory the way the register file stamps its own, so a
-                // copy made earlier in the frame cannot be told apart from one
-                // the title has overwritten since -- and it does overwrite, into
-                // a ring of dynamic geometry it reuses within the frame. Serving
-                // that stale copy draws one mesh through another's indices,
-                // which is a triangle stretched across the screen. Measured:
-                // holding the copies for a whole frame saved 3 MB of the 12 MB
-                // copied per frame here, and cost correctness for it.
-                Made* found = nullptr;
-                for (uint32_t i = 0; i < madeCount; i++)
-                    if (made[i].address == (entry[0] & ~3u)) { found = &made[i]; break; }
-                const bool covered = found && found->dwords && found->first <= first &&
-                                     found->first + found->dwords >= last;
-                if (covered)
-                    g.arenaReused[kArenaVertices] += words * 4;
-                else
-                {
-                    // Never the union with what was cached: draws reaching into a
-                    // shared heap from both ends would ratchet it out to the whole
-                    // buffer, and every later miss would copy all of it.
-                    const uint32_t at = CopyIntoArena(guest::Base() + va + first * 4,
-                                                      words * 4, kArenaVertices);
-                    if (at == UINT32_MAX) return out;
-                    if (!found) found = &made[madeCount++];
-                    *found = { entry[0] & ~3u, at - first * 4, first, words };
-                }
-                entry[0] = found->base | type;
+        // Only the pairs the programs read: a draw reads two or three of the
+        // 96, and assembling and copying the whole window was a kilobyte and
+        // a half a draw. The rest of the block is whatever the arena held.
+        // Each pair is taken from the register file, rewritten and stored
+        // once: the arena is write-combined memory, so nothing is read back
+        // from it, and a block put together on the stack first was every
+        // pair written and read a second time.
+        uint32_t written = 0;
+        for (uint32_t i = 0; i < 3; i++)
+            for (uint32_t bits = pairs[i]; bits; bits &= bits - 1)
+            {
+                const uint32_t bit = uint32_t(std::countr_zero(bits));
+                const uint32_t pair = i * 32 + bit;
+                const uint32_t* source = &r.values[gpu::kConstantBaseFetch + pair * 2];
+                uint32_t entry[4] = { source[0], source[1], 0, 0 };
+                if (((program.vertexFetchPairs[i] >> bit) & 1) && !pointAtCopy(pair, entry))
+                    return out;
+                std::memcpy(ArenaAt(out.fetch + pair * 16), entry, sizeof entry);
+                written += 16;
             }
 
         const uint64_t boolStamp = r.StampOf(gpu::kConstantBaseBool, 8);
@@ -373,14 +378,6 @@ namespace vk::renderer::detail
             g.loops = { loopStamp, 0, out.loops, true };
         }
 
-        uint32_t written = 0;
-        for (uint32_t i = 0; i < 3; i++)
-            for (uint32_t bits = pairs[i]; bits; bits &= bits - 1)
-            {
-                const uint32_t pair = i * 32 + uint32_t(std::countr_zero(bits));
-                std::memcpy(ArenaAt(out.fetch + pair * 16), fetch + pair * 4, 16);
-                written += 16;
-            }
         // Allocate counted the whole block.
         g.arenaWritten[kArenaConstants] -= 96 * 16 - written;
         g.fetchBlock = { fetchStamp, VertexRange(lowestVertex, highestVertex), out.fetch, true };
