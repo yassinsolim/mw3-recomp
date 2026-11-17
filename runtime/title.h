@@ -38,7 +38,60 @@
 // multiplayer's is. The ones located and left out are listed below, with what
 // stops them: a hook is the same function in both games, but its body reads
 // the title's structures at MW2's offsets, and those moved.
-#if defined(MW3_TITLE)
+//
+// Its multiplayer (iw5mp_ship.exe, ppc_mw3_mp/, -DMW3_TITLE=1 -DMW3_TITLE_MP=1;
+// docs/MW3-MP-BRINGUP.md) comes first. It has the campaign block's entries and
+// no others: each was found in the multiplayer executable by the masked
+// instructions of the campaign's function, matched once, and compared over
+// the whole function. None is a campaign address, and none of MW2's
+// multiplayer hooks (network hardening, party, map list) is here.
+#if defined(MW3_TITLE) && defined(MW3_TITLE_MP)
+
+#define MW2_TITLE_NAME  "MW3 multiplayer"
+#define T_ENTRY_POINT   0x824DBAE0u          // the XEX header's ENTRY_POINT
+
+// the engine
+// The campaign's sub_8229D688: the first 136 instructions are equal, and the
+// multiplayer's makes one call fewer before it leaves (560 bytes against 564).
+#define T_Com_Error            8229BAE0
+
+// D3D9 is the same library build in both executables (D3D9LTCG 2.0.20500.64):
+// the flip packet writer (sub_820B15C8 here) reads the device at the campaign's
+// offsets (11028, 13872, 12156, 11069), and the arena wait's first load is
+// [r3+11024].
+#define T_DEV_PresentInterval  13872u   // D3DRS_PRESENTINTERVAL
+#define T_DEV_ProgressBlock    11024u   // the arena progress block
+
+// the D3D9 library's hooks: each equal to the campaign's function, instruction
+// for instruction, but for linker-filled immediates and branch targets
+#define T_D3D_Present          820B1B00   // 1972 bytes in both
+#define T_D3D_ArenaWait        820AB948   // 180 bytes in both
+#define T_D3D_InitPixelShader  820A8578
+#define T_D3D_PatchVertexFetches 820B4898 // 1572 bytes in both
+#define T_Image_FlushMove      823F7A30   // 592 bytes in both; the hook only wraps it
+#define T_Cbuf_AddText         82282908   // 276 bytes in both
+
+// Located, not enabled, for the campaign's reason (MW2 structure offsets):
+//   T_Memcard_InitializeSystem   82355E60
+// Not located: T_CG_CullZoom (the campaign's sub_821067A8 has no twin by its
+// first 8 instructions), and everything the campaign block lists as not located.
+
+// the kernel's data imports, by their (library, ordinal) words as the campaign's
+#define T_DATA_TimeStampBundlePtr 0x820007B8u   // the KeTimeStampBundle import record
+#define T_DATA_DebugMonitorPtr    0x82000960u   // the KeDebugMonitorData import record
+// XexExecutableModuleHandle's import record (ordinal 0x193, present once): the
+// three functions that load it are the campaign's three, with this offset.
+#define T_DATA_ModuleHandlePtr    0x8200089Cu
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(MW3_TITLE)
 
 #define MW2_TITLE_NAME  "MW3 campaign"
 #define T_ENTRY_POINT   0x82459E58u          // the XEX header's ENTRY_POINT
@@ -87,6 +140,9 @@
 // (library, ordinal) words, 0x000100AD and 0x00010059, each present once
 #define T_DATA_TimeStampBundlePtr 0x820007B0u   // the KeTimeStampBundle import record
 #define T_DATA_DebugMonitorPtr    0x8200093Cu   // the KeDebugMonitorData import record
+// XexExecutableModuleHandle's import record (ordinal 0x193, present once), which
+// the CRT start-up (sub_82462E50) and two more functions load.
+#define T_DATA_ModuleHandlePtr    0x8200087Cu
 
 // Not derived for this title: the code that reads each of these checks for zero.
 // The MW2 gameplay code (player.cpp's route trace) is the only reader of the

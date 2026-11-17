@@ -3,7 +3,7 @@
 
 MW2_TITLE=sp (the default) is default.xex, the campaign and special ops;
 MW2_TITLE=mp is default_mp.xex, the multiplayer; MW2_TITLE=mw3 is Modern Warfare
-3's campaign. Everything derived from one
+3's campaign and MW2_TITLE=mw3mp its multiplayer. Everything derived from one
 of them -- the flat image, the recompiled C++, the switch tables, the build
 directory -- lives beside the other's under its own name, so both builds can
 exist at once.
@@ -35,6 +35,10 @@ TITLES = {
 MW3 = dict(xex="mw3/tu0/default.xex", image="mw3/tu0/default.pe", ppc="ppc_mw3",
            toml="config/MW3.toml", tables="config/mw3_switch_tables.toml", build="build-mw3",
            syms="config/mw3_symbols.txt")
+# And its multiplayer (iw5mp_ship.exe, docs/MW3-MP-BRINGUP.md).
+MW3MP = dict(xex="mw3/tu0/default_mp.xex", image="mw3/tu0/default_mp.pe", ppc="ppc_mw3_mp",
+             toml="config/MW3MP.toml", tables="config/mw3mp_switch_tables.toml", build="build-mw3mp",
+             syms="config/mw3mp_symbols.txt")
 
 VERSIONS = ("tu6", "tu0")
 VERSION = os.environ.get("MW2_VERSION", "tu6")
@@ -51,6 +55,7 @@ if VERSION != "tu6":
               for name, t in TITLES.items()}
 
 TITLES["mw3"] = MW3
+TITLES["mw3mp"] = MW3MP
 
 NAME = os.environ.get("MW2_TITLE", "sp")
 if NAME not in TITLES:

@@ -552,6 +552,12 @@ PPC_FUNC(__imp__NetDll_bind)
     if (s == socket_t(INVALID_SOCKET) || !ReadSockAddr(ctx.r5.u32, addr))
     { t_lastError = 10022; ctx.r3.u64 = uint32_t(-1); return; }
 
+#if defined(MW3_TITLE_MP)
+    // MW3's multiplayer has none of MW2's network hardening yet
+    // (docs/MW3-MP-BRINGUP.md): its sockets are bound to the loopback address,
+    // so nothing on the network reaches the title's packet parsers.
+    addr.sin_addr.s_addr = htonl(kLoopback);
+#endif
     bool bound = true;
     if (!online::Get() && ::bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0)
     {
@@ -582,6 +588,10 @@ PPC_FUNC(__imp__NetDll_connect)
     if (s == socket_t(INVALID_SOCKET) || !ReadSockAddr(ctx.r5.u32, addr))
     { t_lastError = 10022; ctx.r3.u64 = uint32_t(-1); return; }
     // Only the socket for Xbox Live's servers connects, and there are none.
+    // MW3's multiplayer connects to nothing (see NetDll_bind).
+#if defined(MW3_TITLE_MP)
+    { t_lastError = 10061; ctx.r3.u64 = uint32_t(-1); return; }
+#endif
     if (online::Get()) { t_lastError = 10061; ctx.r3.u64 = uint32_t(-1); return; }
     ctx.r3.u64 = ::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0 ? 0 : uint32_t(-1);
     if (ctx.r3.u64) t_lastError = LastHostError();
@@ -661,6 +671,15 @@ PPC_FUNC(__imp__NetDll_sendto)
         ctx.r3.u64 = ctx.r6.u32;
         return;
     }
+#if defined(MW3_TITLE_MP)
+    // Only what the title sends itself leaves the socket (see NetDll_bind);
+    // like UDP, the rest is lost, not an error.
+    if (ntohl(addr.sin_addr.s_addr) != kLoopback)
+    {
+        ctx.r3.u64 = ctx.r6.u32;
+        return;
+    }
+#endif
     ssize_t sent = ::sendto(s, buffer, ctx.r6.u32, 0,
                             reinterpret_cast<sockaddr*>(&addr), sizeof addr);
     if (sent < 0) { t_lastError = LastHostError(); ctx.r3.u64 = uint32_t(-1); return; }

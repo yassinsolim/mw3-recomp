@@ -49,7 +49,7 @@ namespace fs = std::filesystem;
 // version -- has other code at other addresses, so it is not run.
 namespace
 {
-#ifdef MW2_TITLE_MP
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP)
     constexpr const char* kXex = "default_mp.xex";
     constexpr const char* kSha256 = MW2_XEX_SHA256_MP;
 #else
@@ -161,12 +161,17 @@ namespace
 #ifdef MW2_ANDROID
     struct Title { const char* xex; const char* sha256; const char* disc; };
 #ifdef MW3_TITLE
-    // MW3: only the single-player executable (campaign and Special Ops) is
-    // recompiled; the disc's default_mp.xex is neither checked nor copied.
+    // MW3: each app is one executable of the disc, the campaign's (default.xex,
+    // with Special Ops) or the multiplayer's (default_mp.xex); the other is
+    // neither checked nor copied.
     constexpr uint32_t kTitleId = 0x415608CB;
     constexpr const char* kTitleName = "Modern Warfare 3";
     constexpr Title kTitles[] = {
+#ifdef MW3_TITLE_MP
+        { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
+#else
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
+#endif
     };
 #else
     constexpr uint32_t kTitleId = 0x41560817;
@@ -650,7 +655,7 @@ bool install::CompileShaders(const std::string& device, const std::string& why)
         return false;
     }
     LOGI("shaders: %s The launcher compiles them for device %s, then starts the game.", why.c_str(), device.c_str());
-#ifdef MW2_TITLE_MP
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP)
     const char* title = "multiplayer";
 #else
     const char* title = "campaign";

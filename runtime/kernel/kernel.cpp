@@ -100,10 +100,10 @@ namespace
             return;
         }
 
-        // The audited MW3 caller loads this global from 0x82000000 + 0x87C.
-        // A unique marker elsewhere is not sufficient: it would leave the
-        // actual startup pointer unresolved.
-        constexpr uint32_t kModuleHandleGlobal = PPC_IMAGE_BASE + 0x87C;
+        // The audited MW3 callers load this global from the image's own import
+        // record (title.h). A unique marker elsewhere is not sufficient: it
+        // would leave the actual startup pointer unresolved.
+        constexpr uint32_t kModuleHandleGlobal = T_DATA_ModuleHandlePtr;
         if (importRecord != kModuleHandleGlobal)
         {
             LOGW("XexExecutableModuleHandle: ordinal 0x193 is at %08X, MW3 caller reads %08X",

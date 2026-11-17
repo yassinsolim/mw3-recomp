@@ -20,8 +20,13 @@ namespace
     constexpr Backend kNone[] = { { nullptr, nullptr } };
 
     // MW2_NETWORK: what the player chose; none when unset or unknown.
+    // MW3's multiplayer has no choice yet: MW2's network hardening has not
+    // been found in it, so it plays without a network whatever is set.
     const Backend* Chosen()
     {
+#if defined(MW3_TITLE_MP)
+        return kNone;
+#else
         const char* network = env::Text("MW2_NETWORK");
         if (!network || !*network || std::strcmp(network, "none") == 0) return kNone;
         if (std::strcmp(network, "lan") == 0) return kLan;
@@ -29,6 +34,7 @@ namespace
         if (std::strcmp(network, "steam") == 0) return kSteam;
         LOGW("online: MW2_NETWORK=%s is none of none, lan, server, steam; playing without a network", network);
         return kNone;
+#endif
     }
 }
 

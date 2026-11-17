@@ -4,6 +4,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Modern Warfare 3's multiplayer executable builds as a title of its own**
+  (`MW2_TITLE=mw3mp`, `config/MW3MP.toml`, `runtime/title.h`, the `mw3mp`
+  Android flavour, `com.mw3.recomp.mp`): recompiled, linked and packaged, not
+  yet run, and without a network
+  ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md)). The recompiler patch
+  gained the nine VMX halfword instructions that executable uses.
+
 ### Changed
 - **Consecutive draws that change no state are one hardware draw**
   (`runtime/gpu/vulkan/renderer_draw.cpp`, `renderer_arena.cpp`,

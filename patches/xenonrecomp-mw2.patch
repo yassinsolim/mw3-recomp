@@ -269,7 +269,7 @@ index f5db6d1..9c3d7b6 100644
      "recompiler_config.cpp")
  
 diff --git a/XenonRecomp/recompiler.cpp b/XenonRecomp/recompiler.cpp
-index fa91527..2e5274d 100644
+index fa91527..56ec222 100644
 --- a/XenonRecomp/recompiler.cpp
 +++ b/XenonRecomp/recompiler.cpp
 @@ -1,5 +1,6 @@
@@ -460,7 +460,53 @@ index fa91527..2e5274d 100644
          break;
  
      case PPC_INST_TDLGEI:
-@@ -1995,9 +2011,30 @@ bool Recompiler::Recompile(
+@@ -1785,6 +1801,45 @@ bool Recompiler::Recompile(
+         println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_avg_epu8(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
+         break;
+ 
++    // The halfword forms MW3's multiplayer uses (its voice codec), each element
++    // for element, so the register's reversed element order does not matter.
++    case PPC_INST_VAVGUH:
++        println("\tsimde_mm_store_si128((simde__m128i*){}.u16, simde_mm_avg_epu16(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_load_si128((simde__m128i*){}.u16)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
++        break;
++
++    case PPC_INST_VSUBSHS:
++        println("\tsimde_mm_store_si128((simde__m128i*){}.s16, simde_mm_subs_epi16(simde_mm_load_si128((simde__m128i*){}.s16), simde_mm_load_si128((simde__m128i*){}.s16)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
++        break;
++
++    case PPC_INST_VMAXSB:
++        println("\tsimde_mm_store_si128((simde__m128i*){}.s8, simde_mm_max_epi8(simde_mm_load_si128((simde__m128i*){}.s8), simde_mm_load_si128((simde__m128i*){}.s8)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
++        break;
++
++    case PPC_INST_VCMPEQUH:
++        println("\tsimde_mm_store_si128((simde__m128i*){}.u16, simde_mm_cmpeq_epi16(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_load_si128((simde__m128i*){}.u16)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
++        if (strchr(insn.opcode->name, '.'))
++            println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u8), 0xFFFF);", cr(6), v(insn.operands[0]));
++        break;
++
++    case PPC_INST_VSPLTISH:
++        println("\tsimde_mm_store_si128((simde__m128i*){}.u16, simde_mm_set1_epi16(short(0x{:X})));", v(insn.operands[0]), insn.operands[1]);
++        break;
++
++    case PPC_INST_VSLH:
++        for (size_t i = 0; i < 8; i++)
++            println("\t{}.u16[{}] = uint16_t({}.u16[{}] << ({}.u16[{}] & 0xF));", v(insn.operands[0]), i, v(insn.operands[1]), i, v(insn.operands[2]), i);
++        break;
++
++    case PPC_INST_VSRH:
++        for (size_t i = 0; i < 8; i++)
++            println("\t{}.u16[{}] = uint16_t({}.u16[{}] >> ({}.u16[{}] & 0xF));", v(insn.operands[0]), i, v(insn.operands[1]), i, v(insn.operands[2]), i);
++        break;
++
++    case PPC_INST_VSRAH:
++        for (size_t i = 0; i < 8; i++)
++            println("\t{}.s16[{}] = int16_t({}.s16[{}] >> ({}.u16[{}] & 0xF));", v(insn.operands[0]), i, v(insn.operands[1]), i, v(insn.operands[2]), i);
++        break;
++
+     case PPC_INST_VCTSXS:
+     case PPC_INST_VCFPSXWS128:
+         printSetFlushMode(true);
+@@ -1995,9 +2050,30 @@ bool Recompiler::Recompile(
      }
  
      case PPC_INST_VPKD3D128:
@@ -491,7 +537,7 @@ index fa91527..2e5274d 100644
          switch (insn.operands[2])
          {
          case 0: // D3D color
-@@ -2014,26 +2051,40 @@ bool Recompiler::Recompile(
+@@ -2014,26 +2090,40 @@ bool Recompiler::Recompile(
              println("\t{}.u32[{}] = {}.u32;", v(insn.operands[0]), insn.operands[4], temp());
              break;
  
@@ -547,7 +593,7 @@ index fa91527..2e5274d 100644
              break;
  
          default:
-@@ -2041,6 +2092,7 @@ bool Recompiler::Recompile(
+@@ -2041,12 +2131,18 @@ bool Recompiler::Recompile(
              break;
          }
          break;
@@ -555,7 +601,18 @@ index fa91527..2e5274d 100644
  
      case PPC_INST_VPKSHUS:
      case PPC_INST_VPKSHUS128:
-@@ -2088,6 +2140,7 @@ bool Recompiler::Recompile(
+         println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_packus_epi16(simde_mm_load_si128((simde__m128i*){}.s16), simde_mm_load_si128((simde__m128i*){}.s16)));", v(insn.operands[0]), v(insn.operands[2]), v(insn.operands[1]));
+         break;
+ 
++    case PPC_INST_VPKSHSS:
++    case PPC_INST_VPKSHSS128:
++        println("\tsimde_mm_store_si128((simde__m128i*){}.s8, simde_mm_packs_epi16(simde_mm_load_si128((simde__m128i*){}.s16), simde_mm_load_si128((simde__m128i*){}.s16)));", v(insn.operands[0]), v(insn.operands[2]), v(insn.operands[1]));
++        break;
++
+     case PPC_INST_VREFP:
+     case PPC_INST_VREFP128:
+         // TODO: see if we can use rcp safely
+@@ -2088,6 +2184,7 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_VSEL:
@@ -563,7 +620,7 @@ index fa91527..2e5274d 100644
          println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_or_si128(simde_mm_andnot_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)), simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8))));", v(insn.operands[0]), v(insn.operands[3]), v(insn.operands[1]), v(insn.operands[3]), v(insn.operands[2]));
          break;
  
-@@ -2212,6 +2265,31 @@ bool Recompiler::Recompile(
+@@ -2212,6 +2309,31 @@ bool Recompiler::Recompile(
              println("\t{} = {};", v(insn.operands[0]), vTemp());
              break;
  
@@ -595,7 +652,7 @@ index fa91527..2e5274d 100644
          default:
              println("\t__builtin_debugtrap();");
              break;
-@@ -2263,6 +2341,212 @@ bool Recompiler::Recompile(
+@@ -2263,6 +2385,212 @@ bool Recompiler::Recompile(
          println("\t{}.u64 = {}.u64 ^ {};", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2] << 16);
          break;
  
@@ -808,7 +865,7 @@ index fa91527..2e5274d 100644
      default:
          return false;
      }
-@@ -2381,6 +2665,11 @@ bool Recompiler::Recompile(const Function& fn)
+@@ -2381,6 +2709,11 @@ bool Recompiler::Recompile(const Function& fn)
          name = fmt::format("sub_{}", fn.base);
      }
  
@@ -820,7 +877,7 @@ index fa91527..2e5274d 100644
  #ifdef XENON_RECOMP_USE_ALIAS
      println("__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
  #endif
-@@ -2512,20 +2801,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2512,20 +2845,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
  
          if (config.skipLr)
              println("#define PPC_CONFIG_SKIP_LR");      
@@ -843,7 +900,7 @@ index fa91527..2e5274d 100644
  
          println("");
  
-@@ -2602,6 +2881,12 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2602,6 +2925,12 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
          SaveCurrentOutData("ppc_func_mapping.cpp");
      }
  
@@ -874,10 +931,10 @@ index 8242db5..b6a1f92 100644
  
 diff --git a/XenonRecomp/register_flow.cpp b/XenonRecomp/register_flow.cpp
 new file mode 100644
-index 0000000..c8983fd
+index 0000000..1f7e840
 --- /dev/null
 +++ b/XenonRecomp/register_flow.cpp
-@@ -0,0 +1,1600 @@
+@@ -0,0 +1,1610 @@
 +#include "register_flow.h"
 +#include "recompiler.h"
 +
@@ -1457,11 +1514,13 @@ index 0000000..c8983fd
 +        case PPC_INST_VAVGSB:
 +        case PPC_INST_VAVGSH:
 +        case PPC_INST_VAVGUB:
++        case PPC_INST_VAVGUH:
 +        case PPC_INST_VCMPGTUB:
 +        case PPC_INST_VCMPGTUH:
 +        case PPC_INST_VMAXFP:
 +        case PPC_INST_VMAXFP128:
 +        case PPC_INST_VMAXSW:
++        case PPC_INST_VMAXSB:
 +        case PPC_INST_VMINFP:
 +        case PPC_INST_VMINFP128:
 +        case PPC_INST_VMRGHB:
@@ -1479,20 +1538,26 @@ index 0000000..c8983fd
 +        case PPC_INST_VOR128:
 +        case PPC_INST_VPKSHUS:
 +        case PPC_INST_VPKSHUS128:
++        case PPC_INST_VPKSHSS:
++        case PPC_INST_VPKSHSS128:
 +        case PPC_INST_VPKSWSS:
 +        case PPC_INST_VPKSWSS128:
 +        case PPC_INST_VSLB:
++        case PPC_INST_VSLH:
 +        case PPC_INST_VSLDOI:
 +        case PPC_INST_VSLDOI128:
 +        case PPC_INST_VSLW:
 +        case PPC_INST_VSLW128:
 +        case PPC_INST_VSR:
++        case PPC_INST_VSRAH:
++        case PPC_INST_VSRH:
 +        case PPC_INST_VSRAW:
 +        case PPC_INST_VSRAW128:
 +        case PPC_INST_VSRW:
 +        case PPC_INST_VSRW128:
 +        case PPC_INST_VSUBFP:
 +        case PPC_INST_VSUBFP128:
++        case PPC_INST_VSUBSHS:
 +        case PPC_INST_VSUBSWS:
 +        case PPC_INST_VSUBUBS:
 +        case PPC_INST_VSUBUHM:
@@ -1540,6 +1605,7 @@ index 0000000..c8983fd
 +        case PPC_INST_VCMPEQFP:
 +        case PPC_INST_VCMPEQFP128:
 +        case PPC_INST_VCMPEQUB:
++        case PPC_INST_VCMPEQUH:
 +        case PPC_INST_VCMPEQUW:
 +        case PPC_INST_VCMPEQUW128:
 +        case PPC_INST_VCMPGEFP:
@@ -1562,6 +1628,7 @@ index 0000000..c8983fd
 +            break;
 +
 +        case PPC_INST_VSPLTISB:
++        case PPC_INST_VSPLTISH:
 +        case PPC_INST_VSPLTISW:
 +        case PPC_INST_VSPLTISW128:
 +            defV(0);

@@ -1,0 +1,87 @@
+# MW3 multiplayer (iw5mp_ship.exe) recompiler config; the campaign's is MW3.toml.
+# Every address was found in this executable by the masked instruction signature
+# of the campaign's function (docs/MW3-MP-BRINGUP.md): each matches once, and the
+# whole function is equal to the campaign's except for linker-filled immediates
+# and branch targets. None is a campaign or an MW2 address.
+# Executable SHA-256: 0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c
+
+[main]
+file_path = "../mw3/tu0/default_mp.xex"
+out_directory_path = "../ppc_mw3_mp"
+switch_table_file_path = "mw3mp_switch_tables.toml"
+
+skip_lr = false
+skip_msr = false
+ctr_as_local = true
+xer_as_local = true
+reserved_as_local = true
+cr_as_local = true
+non_argument_as_local = true
+non_volatile_as_local = true
+
+# The C runtime's register save/restore helpers.
+restgprlr_14_address = 0x825424F0
+savegprlr_14_address = 0x825424A0
+restfpr_14_address   = 0x8254263C
+savefpr_14_address   = 0x825425F0
+restvmx_14_address   = 0x82543D48
+savevmx_14_address   = 0x82543AB0
+restvmx_64_address   = 0x82543DDC
+savevmx_64_address   = 0x82543B44
+
+# The C runtime's setjmp and longjmp (Com_Error leaves an error by longjmp).
+setjmp_address  = 0x82544510
+longjmp_address = 0x825452B0
+
+# Leaf functions (no stack frame, hence absent from .pdata) that contain jump
+# tables. The analyser ends them early because a table dispatch looks like a
+# tail call. Extents derived by tools/fixbounds.py (MW2_TITLE=mw3mp) from bl
+# targets, padding runs and the tables' own case labels. One is by hand:
+# 0x823B2178 follows a .pdata function's tail branch with no padding and is
+# reached only through a pointer, so the tool took the function before it.
+functions = [
+    { address = 0x820C99F0, size = 0xA8 },
+    { address = 0x820F9590, size = 0x60 },
+    { address = 0x820F95F0, size = 0x70 },
+    # No jump table: a leaf that picks one of four strings with bdzf branches,
+    # which the analyser ended at its first unconditional branch, leaving the
+    # branch targets outside it (the generated code did not compile).
+    { address = 0x82134648, size = 0x44 },
+    { address = 0x82143F50, size = 0x9C },
+    { address = 0x8219AAB8, size = 0x68 },
+    { address = 0x821A0EC8, size = 0x118 },
+    { address = 0x821A1068, size = 0x114 },
+    { address = 0x821A1268, size = 0x3C0 },
+    { address = 0x82271600, size = 0x70 },
+    { address = 0x822A6EA0, size = 0x64 },
+    { address = 0x822FC658, size = 0x88 },
+    { address = 0x823006C0, size = 0xD4 },
+    { address = 0x823077D0, size = 0xE0 },
+    { address = 0x823094D0, size = 0x94 },
+    { address = 0x82315BB8, size = 0xD0 },
+    { address = 0x82316088, size = 0x64 },
+    { address = 0x823160F0, size = 0x64 },
+    { address = 0x82316158, size = 0x74 },
+    { address = 0x823161D8, size = 0x60 },
+    { address = 0x82316238, size = 0x78 },
+    { address = 0x82320E78, size = 0x11C },
+    { address = 0x82323330, size = 0x20C },
+    { address = 0x82323540, size = 0x1E8 },
+    { address = 0x82326750, size = 0x1B0 },
+    { address = 0x823B2178, size = 0xD0 },
+    { address = 0x823CE208, size = 0x80 },
+    { address = 0x8241C2A8, size = 0x14C },
+    { address = 0x824C06C0, size = 0xCC },
+    { address = 0x824D22B0, size = 0xAC },
+    { address = 0x8252A668, size = 0xC04 },
+    { address = 0x82559508, size = 0x4D8 },
+    { address = 0x82563CE8, size = 0x4E8 },
+
+    # The 8 bytes of exception-handler data (a pointer to 0x82548880 and one to
+    # the function's own record) ahead of the last three functions above, as in
+    # the campaign's config: the analyser reads them as instructions and starts
+    # a function there.
+    { address = 0x8252A660, size = 0x8 },
+    { address = 0x82559500, size = 0x8 },
+    { address = 0x82563CE0, size = 0x8 },
+]

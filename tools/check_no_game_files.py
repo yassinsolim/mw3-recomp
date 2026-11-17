@@ -18,7 +18,7 @@ FORBIDDEN_SUFFIXES = {
     ".ff", ".ffm", ".pak", ".bik", ".xma", ".xwb", ".xsb", ".xpr",
     ".ppc_dump",
 }
-FORBIDDEN_DIRS = {"mw2", "mw3", "ppc", "ppc_mw3", "ppc_mp", "ppc_tu0", "ppc_mp_tu0"}
+FORBIDDEN_DIRS = {"mw2", "mw3", "ppc", "ppc_mw3", "ppc_mw3_mp", "ppc_mp", "ppc_tu0", "ppc_mp_tu0"}
 LFS_MAGIC = b"version https://git-lfs.github.com/spec/"
 # Directories where a name like "mw3" is a legitimate source directory.
 ALLOWED_PREFIXES = ("docs/", "tools/", "tests/", "config/", "runtime/", ".github/")

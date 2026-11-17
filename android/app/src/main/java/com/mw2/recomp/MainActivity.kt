@@ -407,7 +407,7 @@ class MainActivity : AppCompatActivity() {
         detailText.text = text
     }
 
-    /** com.mw2.recomp.mp and com.mw2.recomp.mp.tu6 are both multiplayer. */
+    /** com.mw2.recomp.mp, com.mw2.recomp.mp.tu6 and com.mw3.recomp.mp are multiplayer. */
     private fun isMp(): Boolean = packageName.contains(".mp")
 
     /** com.mw2.recomp.sp.tu6 / .mp.tu6 run title update 6. */
@@ -415,9 +415,13 @@ class MainActivity : AppCompatActivity() {
 
     /** The other flavor's package, or null when it is not installed. */
     private fun otherApp(): Pair<String, String>? {
-        // Same game version on both ends: TU6 cross-launches the TU6 sibling.
-        val base = if (isMp()) ".sp" else ".mp"
-        val pkg = "com.mw2.recomp$base" + if (isTu6()) ".tu6" else ""
+        // Same game and version on both ends: TU6 cross-launches the TU6
+        // sibling, and MW3's two apps (com.mw3.recomp, .mp) each other.
+        val pkg = if (isMw3()) {
+            if (isMp()) "com.mw3.recomp" else "com.mw3.recomp.mp"
+        } else {
+            "com.mw2.recomp" + (if (isMp()) ".sp" else ".mp") + if (isTu6()) ".tu6" else ""
+        }
         val label = getString(
             R.string.launch_other,
             getString(if (isMp()) R.string.other_name_campaign else R.string.other_name_multiplayer),

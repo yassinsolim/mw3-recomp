@@ -106,20 +106,31 @@ endif()
 # default_mp.xex (the multiplayer). Each is recompiled into its own tree by
 # build.sh (TITLE=sp|mp), and the runtime names the title's functions through
 # runtime/title.h, which this definition selects.
-set(MW2_TITLE "sp" CACHE STRING "Which executable to build: sp, mp, or mw3")
+set(MW2_TITLE "sp" CACHE STRING "Which executable to build: sp, mp, mw3, or mw3mp")
+# Modern Warfare 3's two executables are titles of their own: mw3 is its
+# campaign (default.xex) and mw3mp its multiplayer (default_mp.xex,
+# docs/MW3-MP-BRINGUP.md). MW2_IS_MW3 is set for both.
+set(MW2_IS_MW3 OFF)
 if(MW2_TITLE STREQUAL "sp")
     set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc")
 elseif(MW2_TITLE STREQUAL "mp")
     set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_mp")
     add_compile_definitions(MW2_TITLE_MP=1)
-elseif(MW2_TITLE STREQUAL "mw3")
-    set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_mw3")
+elseif(MW2_TITLE STREQUAL "mw3" OR MW2_TITLE STREQUAL "mw3mp")
+    set(MW2_IS_MW3 ON)
     if(NOT MW3_RECOMP_ONLY)
         message(FATAL_ERROR "MW3 runtime integration is incomplete; configure with -DMW3_RECOMP_ONLY=ON to validate generated PPC code")
     endif()
     add_compile_definitions(MW3_TITLE=1)
+    if(MW2_TITLE STREQUAL "mw3mp")
+        # Not MW2_TITLE_MP: that selects MW2's multiplayer fixes and network.
+        set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_mw3_mp")
+        add_compile_definitions(MW3_TITLE_MP=1)
+    else()
+        set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_mw3")
+    endif()
 else()
-    message(FATAL_ERROR "MW2_TITLE must be sp, mp, or mw3, not '${MW2_TITLE}'")
+    message(FATAL_ERROR "MW2_TITLE must be sp, mp, mw3, or mw3mp, not '${MW2_TITLE}'")
 endif()
 # And which version of it: the one title update 6 makes of the disc's (tu6),
 # or the disc's own (tu0), recompiled into ppc_tu0/ and ppc_mp_tu0/.
@@ -129,7 +140,7 @@ endif()
 # runner (build.sh VERSION=tu6 regenerates ppc//ppc_mp/, or ppc_tu6//ppc_mp_tu6/
 # when those names are used); a tu6 configure without a TU6 tree fails below
 # at the empty-tree check rather than miscompiling the disc's tree as TU6.
-if(ANDROID AND NOT MW2_TITLE STREQUAL "mw3")
+if(ANDROID AND NOT MW2_IS_MW3)
     set(MW2_VERSION "tu0" CACHE STRING "Which version of the executable: tu6 (title update 6) or tu0 (the disc's)")
     if(MW2_VERSION STREQUAL "tu0")
         add_compile_definitions(MW2_VERSION_TU0=1)
@@ -154,7 +165,7 @@ else()
         message(FATAL_ERROR "MW2_VERSION must be tu6 or tu0, not '${MW2_VERSION}'")
     endif()
 endif()
-if(MW2_TITLE STREQUAL "mw3" AND NOT MW2_VERSION STREQUAL "tu6")
+if(MW2_IS_MW3 AND NOT MW2_VERSION STREQUAL "tu6")
     message(FATAL_ERROR "MW3 currently uses its disc executable; leave MW2_VERSION at its default")
 endif()
 
@@ -273,8 +284,8 @@ endif()
 # addresses have been identified. This deliberately stops before compiling
 # MW2-specific runtime sources or linking an executable with fabricated hooks.
 if(MW3_RECOMP_ONLY AND NOT MW3_LINK_PROBE)
-    if(NOT MW2_TITLE STREQUAL "mw3")
-        message(FATAL_ERROR "MW3_RECOMP_ONLY requires -DMW2_TITLE=mw3")
+    if(NOT MW2_IS_MW3)
+        message(FATAL_ERROR "MW3_RECOMP_ONLY requires -DMW2_TITLE=mw3 or mw3mp")
     endif()
 
     # Compile the shared kernel implementation as object files against the
@@ -343,8 +354,8 @@ if(MW3_RECOMP_ONLY AND NOT MW3_LINK_PROBE)
     return()
 endif()
 
-if(MW3_LINK_PROBE AND NOT MW2_TITLE STREQUAL "mw3")
-    message(FATAL_ERROR "MW3_LINK_PROBE requires -DMW2_TITLE=mw3")
+if(MW3_LINK_PROBE AND NOT MW2_IS_MW3)
+    message(FATAL_ERROR "MW3_LINK_PROBE requires -DMW2_TITLE=mw3 or mw3mp")
 endif()
 
 # ---- runtime ---------------------------------------------------------------
@@ -449,8 +460,8 @@ else()
     add_executable(mw2 ${RUNTIME_SOURCES}
         ${MW2_ONLINE_SOURCES}
         "${MW2_PPC_DIR}/stubs_generated.cpp")
-    if(MW2_TITLE STREQUAL "mw3")
-        set_target_properties(mw2 PROPERTIES OUTPUT_NAME "mw3")
+    if(MW2_IS_MW3)
+        set_target_properties(mw2 PROPERTIES OUTPUT_NAME "${MW2_TITLE}")
     endif()
 endif()
 target_link_libraries(mw2 PRIVATE ppc_recomp)
@@ -498,25 +509,38 @@ function(mw2_sha256 variable path)
     file(SHA256 "${path}" hash)
     set(${variable} "${hash}" PARENT_SCOPE)
 endfunction()
-if(MW2_TITLE STREQUAL "mw3")
+if(MW2_IS_MW3)
     # An MW3 build runs the executable it was recompiled from: the one in
     # mw3/tu0 when it is there (tools/check_mw3_xex.py has already accepted it
     # before any code was generated), -DMW3_XEX_SHA256 for a build that has
     # the generated sources but not the disc, or the first executable the
-    # bring-up was done on. MW2_XEX_SHA256_SP is not read here: the Android
-    # build always passes MW2's.
-    if(MW3_XEX_SHA256)
-        set(mw3_xex_hash "${MW3_XEX_SHA256}")
-    elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw3/tu0/default.xex")
-        mw2_sha256(mw3_xex_hash "${CMAKE_SOURCE_DIR}/mw3/tu0/default.xex")
+    # bring-up was done on. MW2_XEX_SHA256_SP/MP are not read here: the Android
+    # build always passes MW2's. Each title names only its own executable.
+    if(MW2_TITLE STREQUAL "mw3mp")
+        set(mw3_xex_file "default_mp.xex")
+        set(mw3_xex_hash "0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c")
     else()
+        set(mw3_xex_file "default.xex")
         set(mw3_xex_hash "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912")
     endif()
-    set(MW2_HASH_DEFINITIONS
-        MW2_XEX_SHA256_SP="${mw3_xex_hash}"
-        MW2_XEX_SHA256_MP="unsupported"
-        MW2_DISC_SHA256_SP="${mw3_xex_hash}"
-        MW2_DISC_SHA256_MP="unsupported")
+    if(MW3_XEX_SHA256)
+        set(mw3_xex_hash "${MW3_XEX_SHA256}")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw3/tu0/${mw3_xex_file}")
+        mw2_sha256(mw3_xex_hash "${CMAKE_SOURCE_DIR}/mw3/tu0/${mw3_xex_file}")
+    endif()
+    if(MW2_TITLE STREQUAL "mw3mp")
+        set(MW2_HASH_DEFINITIONS
+            MW2_XEX_SHA256_SP="unsupported"
+            MW2_XEX_SHA256_MP="${mw3_xex_hash}"
+            MW2_DISC_SHA256_SP="unsupported"
+            MW2_DISC_SHA256_MP="${mw3_xex_hash}")
+    else()
+        set(MW2_HASH_DEFINITIONS
+            MW2_XEX_SHA256_SP="${mw3_xex_hash}"
+            MW2_XEX_SHA256_MP="unsupported"
+            MW2_DISC_SHA256_SP="${mw3_xex_hash}"
+            MW2_DISC_SHA256_MP="unsupported")
+    endif()
 elseif(MW2_XEX_SHA256_SP AND MW2_XEX_SHA256_MP)
     # CMake's regexes have no {n} repetition -- "{64}" would be matched as
     # those four characters -- so the length is counted separately.

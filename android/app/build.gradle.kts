@@ -163,6 +163,28 @@ android {
                 }
             }
         }
+        // Its multiplayer: the disc's default_mp.xex, recompiled into
+        // ppc_mw3_mp/ (docs/MW3-MP-BRINGUP.md). Beside the campaign app, as
+        // MW2's two are. It plays without a network: MW2's network hardening
+        // has not been found in this executable, and the runtime gives this
+        // title no backend and no socket off the device.
+        create("mw3mp") {
+            dimension = "title"
+            applicationId = "com.mw3.recomp.mp"
+            versionNameSuffix = "-multiplayer"
+            resValue("string", "app_name", "CoD: MW3 Multiplayer")
+            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            externalNativeBuild {
+                cmake {
+                    arguments += listOf(
+                        "-DMW2_TITLE=mw3mp", "-DMW3_RECOMP_ONLY=ON", "-DMW3_LINK_PROBE=ON",
+                        "-DMW2_ONLINE=none",
+                    )
+                    setting("MW3_XEX_SHA256_MP")?.let { arguments += listOf("-DMW3_XEX_SHA256=$it") }
+                    setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
+                }
+            }
+        }
         create("tu0") {
             dimension = "tu"
             buildConfigField("String", "MW2_TU", "\"tu0\"")
@@ -188,7 +210,15 @@ android {
     androidComponents {
         beforeVariants { variant ->
             val flavors = variant.productFlavors.toMap()
-            if (flavors["title"] == "mw3" && flavors["tu"] == "tu6") variant.enable = false
+            if (flavors["title"] in setOf("mw3", "mw3mp") && flavors["tu"] == "tu6") variant.enable = false
+        }
+    }
+
+    // The MW3 wording and the bundled driver (src/mw3) are for both MW3 apps.
+    sourceSets {
+        getByName("mw3mp") {
+            res.srcDir("src/mw3/res")
+            assets.srcDir("src/mw3/assets")
         }
     }
 

@@ -13,8 +13,24 @@ SUPPORTED_SHA256 = (
     "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1",
 )
 
+# The multiplayer executable, iw5mp_ship.exe (default_mp.xex), of the same
+# disc as the second entry above (media id 30775D59): title id 415608CB,
+# version 0x00000002, entry 0x824DBAE0, image size 0x1FA0000. Recompiled with
+# config/MW3MP.toml: 156 jump tables, no boundary errors
+# (docs/MW3-MP-BRINGUP.md). Checked by file name, so neither executable
+# passes for the other.
+SUPPORTED_SHA256_MP = (
+    "0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c",
+)
 
-def verify(path: Path, expected: tuple[str, ...] = SUPPORTED_SHA256) -> None:
+
+def supported(path: Path) -> tuple[str, ...]:
+    return SUPPORTED_SHA256_MP if path.name.lower() == "default_mp.xex" else SUPPORTED_SHA256
+
+
+def verify(path: Path, expected: tuple[str, ...] | None = None) -> None:
+    if expected is None:
+        expected = supported(path)
     with path.open("rb") as stream:
         prefix = stream.read(128)
         if prefix.startswith(b"version https://git-lfs.github.com/spec/v1"):
