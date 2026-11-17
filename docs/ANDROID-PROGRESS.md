@@ -74,9 +74,9 @@ Status words: **verified** (observed on the device or by a run), **built**
   right for a prepass but did not change the picture. Not yet tried: a frame
   capture on the device, depth-texture sampling for the sun shadow, and the
   sky's own technique.
-- In play the title sends about 6,500 draws a frame (it renders the scene in
-  two EDRAM tiles, replaying its command list for each); the ring consumer is
-  busy 43% of the run.
+- In play the title sends about 6,500 draws a frame; the ring consumer is
+  busy 43% of the run. (Corrected 2026-11-17: these are not two EDRAM tiles
+  replayed. A census found every draw unpredicated, window offset 0.)
 
 ## 2026-11-17
 
@@ -111,8 +111,11 @@ Status words: **verified** (observed on the device or by a run), **built**
   chip is busy 87-98% of play, about 40 ms a world frame, 86% of it in the
   passes on the 1040x2048 scene surface (about 63 passes and 6,600 draws a
   world frame). Ruled out, each by a device run: render area (passes cut to
-  their draws' scissors: no change, reverted), tile load/store (TU_DEBUG=sysmem
-  and TU_DEBUG=gmem both 39.6 ms). What is left is the draws' own work, the
+  their draws' scissors: no change, reverted). The first TU_DEBUG runs never
+  reached the driver (.env passes only MW2_ switches); MW2_DRIVER_ENV (new)
+  does, and then: TU_DEBUG=sysmem 39.6 ms (Turnip already draws this frame
+  direct to memory), TU_DEBUG=gmem 64.9 ms, IR3_SHADER_DEBUG=nopreamble
+  38.8 ms. What is left is the draws' own work, the
   translated shaders or per-draw cost. Split with temporary switches
   (removed): every draw with zero instances takes the GPU to 3.7 ms a frame
   and the game to 59.8 world frames a second, so the CPU side can already
@@ -125,7 +128,13 @@ Status words: **verified** (observed on the device or by a run), **built**
   instructions, 12 registers, no loads in its per-vertex body; its 200-260
   instruction preamble reads the draw's constants through a chain of
   dependent arena loads (record, table, block copy, value), which every draw
-  pays before its first vertex [inference, not yet measured alone].
+  pays before its first vertex. Not the cause: no preambles cost the same,
+  and one base vertex for a whole multi-draw run (no per-draw parameter
+  change) 38.3 ms.
+- Draws in one in-play frame by target (census, removed): 4,861 at 1024x600
+  on the lit scene's target, about 900 at 1024x600 on a colour-masked target
+  (the depth prepass, by its mask), 703 at 1024x1024 (the shadow map), about
+  250 others. All unpredicated: the title's own, not tile replays.
 - Drivers, same Survival run (GPU ms a world frame / world FPS): faux123
   v1.2.10 38.7/25.5, v27.0.0-R2 38.9/25.3, Banners 2026-11-17 39.2/25.2,
   mainline V32 39.4/25.0, MrPurple T30 39.8/24.8. All within 3%; R2 stays

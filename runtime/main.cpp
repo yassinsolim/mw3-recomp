@@ -190,6 +190,29 @@ int mw2::Run(int argc, char** argv)
 
     LOGI("--- MW2 recompilation runtime (%s) ---", MW2_TITLE_NAME);
     if (!kept.empty()) LOGI("settings: %s", kept.c_str());
+    // MW2_DRIVER_ENV="NAME=value;NAME=value": variables for the graphics
+    // driver (Mesa's TU_DEBUG, IR3_SHADER_DEBUG, ...), set before Vulkan is.
+    // .env holds only this runtime's own switches, and on a phone the app's
+    // process environment is not otherwise reachable.
+    if (const char* list = env::Text("MW2_DRIVER_ENV"))
+    {
+        std::string all = list;
+        for (size_t at = 0; at < all.size();)
+        {
+            const size_t end = std::min(all.find(';', at), all.size());
+            const std::string one = all.substr(at, end - at);
+            if (const size_t equals = one.find('='); equals != std::string::npos && equals)
+            {
+#ifdef _WIN32
+                _putenv_s(one.substr(0, equals).c_str(), one.substr(equals + 1).c_str());
+#else
+                setenv(one.substr(0, equals).c_str(), one.substr(equals + 1).c_str(), 1);
+#endif
+                LOGI("settings: driver %s", one.c_str());
+            }
+            at = end + 1;
+        }
+    }
 
     // Before any thread exists: a Flatpak's Steam is reached from its own
     // process namespace, which a process of more than one thread cannot join.
