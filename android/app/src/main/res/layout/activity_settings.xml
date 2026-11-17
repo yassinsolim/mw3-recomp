@@ -244,6 +244,19 @@
                     android:layout_height="wrap_content"
                     android:text="@string/prewarm_all_hint" />
 
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/async_pipelines"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/async_pipelines" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/async_pipelines_hint" />
+
                 <TextView
                     style="@style/SectionHeading"
                     android:layout_width="match_parent"

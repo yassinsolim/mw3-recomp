@@ -737,6 +737,7 @@ val mode60 = modes
         // Full synchronous precompile at boot when the player asked for it in
         // Settings; otherwise the tiered instant-boot budget + background warmup.
         NativeBridge.nativeSetOption("MW2_SHADER_PREWARM_ALL", if (prefs.prewarmAllShaders) "1" else "")
+        NativeBridge.nativeSetOption("MW2_ASYNC_PIPELINES", if (prefs.asyncPipelines) "1" else "0")
         // Mali drivers have had trouble reloading persisted Vulkan pipeline blobs.
         // Respect the user's setting; the safe default is off on this device class.
         NativeBridge.nativeSetOption(

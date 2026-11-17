@@ -223,6 +223,17 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_PREWARM_ALL, value).apply()
 
     /**
+     * Compile a pipeline the game has not drawn with before on a background
+     * thread, skipping its draws until it is ready (MW2_ASYNC_PIPELINES).
+     * On by default: on the AYN Thor a first play of Survival lost 146 frames
+     * to compiling at the draw, 25 with this, and the map was whole within
+     * the intro and the first seconds of play. Off compiles at the draw.
+     */
+    var asyncPipelines: Boolean
+        get() = store.getBoolean(KEY_ASYNC_PIPELINES, true)
+        set(value) = store.edit().putBoolean(KEY_ASYNC_PIPELINES, value).apply()
+
+    /**
      * Keep the driver's pipeline blob on disk between runs on Mali
      * (MW2_PERSIST_PIPELINE_CACHE). Off by default: it may be unstable.
      */
@@ -283,6 +294,7 @@ class Prefs(context: Context) {
         private const val KEY_UPDATE_TAG = "seenUpdateTag"
         private const val KEY_PAD_WARNING = "seenPadWarning"
         private const val KEY_PREWARM_ALL = "prewarmAllShaders"
+        private const val KEY_ASYNC_PIPELINES = "asyncPipelines"
         private const val KEY_PERSIST_PIPELINE = "persistPipelineCache"
         private const val KEY_PLAYER_NAME = "playerName"
         private const val KEY_LAN_ACCEPT = "lanAccept"

@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <unordered_set>
 #ifdef MW2_ANDROID
@@ -31,6 +32,31 @@ namespace vk::renderer::detail
         std::mutex g_shadersMutex;
         // Set on the warm-up worker, which builds pipelines beside the consumer.
         thread_local bool t_warmupThread = false;
+        // How many entries g.pipelines has been given, counted after each is
+        // in the map. A draw waiting for the worker (PipelineWhenReady)
+        // looks in the map again only when this has moved.
+        std::atomic<uint64_t> g_pipelinesPublished{ 0 };
+        // The pipelines the worker built because a draw was waiting for them.
+        std::atomic<uint64_t> g_pipelinesBuiltForDraws{ 0 };
+
+        PipelineKey KeyOf(const Recorded& recorded)
+        {
+            PipelineKey key;
+            key.vertexShader = recorded.vertexShader;
+            key.pixelShader = recorded.pixelShader;
+            key.colourFormat = recorded.colourFormat;
+            key.depthFormat = recorded.depthFormat;
+            key.topology = recorded.topology;
+            key.blendControl = recorded.blendControl;
+            key.colourMask = recorded.colourMask;
+            key.samples = recorded.samples;
+            if (vk::pipeline::LegacyMode())
+            {
+                key.depthControl = recorded.depthControl;
+                key.modeCntl = recorded.modeCntl;
+            }
+            return key;
+        }
     }
 
     // A shader the title has not drawn with before here: taken from the ones
@@ -369,15 +395,6 @@ namespace vk::renderer::detail
         return built;
     }
 
-    VkPipeline FindPipeline(const PipelineKey& key)
-    {
-        TakeOptimisedPipelines();
-        std::lock_guard lock(g_pipelinesMutex);
-        auto found = g.pipelines.find(key);
-        if (found != g.pipelines.end()) return found->second;
-        return VK_NULL_HANDLE;
-    }
-
     VkPipeline EnsurePipeline(const PipelineKey& key, const Shader& vertex, const Shader& pixel,
                               bool* made)
     {
@@ -408,7 +425,10 @@ namespace vk::renderer::detail
              key.blendControl, key.colourMask, key.depthControl, key.modeCntl);
 
         const auto compileStart = std::chrono::steady_clock::now();
-        stutters::Timed timed(stutters::kPipelines);
+        // A stutter's cost only on the consumer: the worker's compiling holds
+        // no frame up.
+        std::optional<stutters::Timed> timed;
+        if (!t_warmupThread) timed.emplace(stutters::kPipelines);
         // Linked from the two shaders' libraries, compiled when the title
         // loaded them, in well under a millisecond; or the whole pipeline
         // compiled here, on a device that cannot.
@@ -426,6 +446,9 @@ namespace vk::renderer::detail
             std::lock_guard lock(g_pipelinesMutex);
             g.pipelines[key] = built;   // a failure is remembered, so it fails once
         }
+        // After the map has it, and the handle is whole before either: a
+        // draw that sees the count moved finds a pipeline it can record.
+        g_pipelinesPublished.fetch_add(1, std::memory_order_release);
         return built;
     }
 
@@ -438,8 +461,16 @@ namespace vk::renderer::detail
 
         std::mutex g_warmupMutex;
         std::condition_variable g_warmupCv;
+        // A previous run's pipelines, built when there is time for them.
         std::deque<QueueItem> g_warmupQueue;
-        std::thread g_warmupThread;
+        // The pipelines draws are being skipped for (PipelineWhenReady), in
+        // the order they were first asked for.
+        std::deque<QueueItem> g_demandQueue;
+        // One thread for each queue. A thread that has lowered its priority
+        // cannot be given it back (platform.h), and a draw is lost every
+        // frame its pipeline is not there: the demand queue's thread keeps
+        // the priority it was made with, on a performance core.
+        std::thread g_warmupThread, g_demandThread;
         std::atomic<bool> g_warmupRunning{ false };
         std::atomic<bool> g_warmupStopping{ false };
         std::atomic<bool> g_cutsceneActive{ false };
@@ -477,46 +508,35 @@ namespace vk::renderer::detail
             return (nowMs - lastMs) < 150;
         }
 
-        void Worker()
+        void Worker(bool demanded)
         {
             t_warmupThread = true;
-            platform::LowerThreadPriority();
-            platform::SetThreadAffinity(platform::ThreadAffinityRole::WorkerCore);
-            LOGI("warmup: scheduler worker thread started");
+            if (demanded)
+                platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
+            else
+            {
+                platform::LowerThreadPriority();
+                platform::SetThreadAffinity(platform::ThreadAffinityRole::WorkerCore);
+            }
+            std::deque<QueueItem>& queue = demanded ? g_demandQueue : g_warmupQueue;
+            LOGI("warmup: %s worker thread started", demanded ? "demand" : "scheduler");
             while (!g_warmupStopping.load(std::memory_order_relaxed))
             {
                 QueueItem item{};
                 {
                     std::unique_lock lock(g_warmupMutex);
-                    g_warmupCv.wait(lock, [] {
-                        return g_warmupStopping.load(std::memory_order_relaxed) ||
-                               !g_warmupQueue.empty();
+                    g_warmupCv.wait(lock, [&queue] {
+                        return g_warmupStopping.load(std::memory_order_relaxed) || !queue.empty();
                     });
 
                     if (g_warmupStopping.load(std::memory_order_relaxed))
                         break;
 
-                    if (g_warmupQueue.empty())
-                        continue;
-
-                    item = g_warmupQueue.front();
-                    g_warmupQueue.pop_front();
+                    item = queue.front();
+                    queue.pop_front();
                 }
 
-                PipelineKey key;
-                key.vertexShader = item.recorded.vertexShader;
-                key.pixelShader = item.recorded.pixelShader;
-                key.colourFormat = item.recorded.colourFormat;
-                key.depthFormat = item.recorded.depthFormat;
-                key.topology = item.recorded.topology;
-                key.blendControl = item.recorded.blendControl;
-                key.colourMask = item.recorded.colourMask;
-                key.samples = item.recorded.samples;
-                if (vk::pipeline::LegacyMode())
-                {
-                    key.depthControl = item.recorded.depthControl;
-                    key.modeCntl = item.recorded.modeCntl;
-                }
+                const PipelineKey key = KeyOf(item.recorded);
 
                 // Check if already created
                 {
@@ -549,6 +569,24 @@ namespace vk::renderer::detail
                 VkPipeline built = EnsurePipeline(key, vertexCopy, pixelCopy, &made);
                 const uint32_t tookMs = uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - start).count());
+
+                // No pause after a pipeline a draw is waiting for, and the
+                // driver's cache is not written out between them: the
+                // consumer would have compiled it at this same moment itself.
+                // The pauses below pace the ones nothing is waiting for.
+                if (demanded)
+                {
+                    if (built && made)
+                    {
+                        g_pipelinesBuiltForDraws.fetch_add(1, std::memory_order_relaxed);
+                        g_statCompleted.fetch_add(1, std::memory_order_relaxed);
+                        g_statLastCompileMs.store(tookMs, std::memory_order_relaxed);
+                        LOGI("warmup: pipeline %016llX/%016llX a draw waited for built in %u ms",
+                             (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
+                             tookMs);
+                    }
+                    continue;
+                }
 
                 if (built && made)
                 {
@@ -608,7 +646,7 @@ namespace vk::renderer::detail
                     LOGI("warmup: render-active backpressure -- slept %d ms after %u ms compile",
                          sleepMs, tookMs);
             }
-            LOGI("warmup: scheduler worker thread exiting");
+            LOGI("warmup: %s worker thread exiting", demanded ? "demand" : "scheduler");
         }
     }
 
@@ -618,36 +656,96 @@ namespace vk::renderer::detail
         if (warmup::g_warmupRunning.load()) return;
         warmup::g_warmupStopping.store(false);
         warmup::g_warmupRunning.store(true);
-        warmup::g_warmupThread = std::thread(warmup::Worker);
+        warmup::g_warmupThread = std::thread(warmup::Worker, false);
+        if (AsyncPipelines()) warmup::g_demandThread = std::thread(warmup::Worker, true);
     }
 
-    void EnqueuePipelineWarmup(const Recorded& rec, bool highPriority)
+    // MW2_ASYNC_PIPELINES: the pipeline for a draw if it is built, and
+    // otherwise null with `compiling` set, once the worker has been asked
+    // for it. Null without `compiling` is a pipeline the driver refused. The
+    // consumer's alone, and on its path for every draw: a run of draws with a
+    // built pipeline stops at the first comparison, a run waiting for one at
+    // the second, and only a change of pipeline takes the lock.
+    VkPipeline PipelineWhenReady(const PipelineKey& key, uint32_t depthControl, uint32_t modeCntl,
+                                 bool& compiling)
     {
+        compiling = false;
+        TakeOptimisedPipelines();
+        if (g.lastPipeline && g.lastPipelineSwaps == g.pipelinesOptimised && key == g.lastPipelineKey)
+            return g.lastPipeline;
+
+        State::Awaited& awaited = g.awaited;
+        // Read before the map is: a pipeline published after this is either
+        // found below or moves the count past what is remembered here.
+        const uint64_t published = g_pipelinesPublished.load(std::memory_order_acquire);
+        if (!awaited.lastValid || awaited.lastPublished != published || key != awaited.lastKey)
         {
-            std::lock_guard lock(warmup::g_warmupMutex);
-            for (const auto& item : warmup::g_warmupQueue)
             {
-                if (item.recorded.vertexShader == rec.vertexShader &&
-                    item.recorded.pixelShader == rec.pixelShader &&
-                    item.recorded.colourFormat == rec.colourFormat &&
-                    item.recorded.depthFormat == rec.depthFormat &&
-                    item.recorded.topology == rec.topology &&
-                    item.recorded.blendControl == rec.blendControl &&
-                    item.recorded.colourMask == rec.colourMask &&
-                    item.recorded.modeCntl == rec.modeCntl &&
-                    item.recorded.depthControl == rec.depthControl)
+                std::lock_guard lock(g_pipelinesMutex);
+                if (awaited.settledAt != published)
                 {
-                    return;
+                    // Something was published: the waits that ended with it.
+                    awaited.settledAt = published;
+                    for (auto waiting = awaited.since.begin(); waiting != awaited.since.end();)
+                    {
+                        if (!g.pipelines.contains(waiting->first)) { ++waiting; continue; }
+                        g.longestPipelineWait = std::max(g.longestPipelineWait, g.frames - waiting->second);
+                        waiting = awaited.since.erase(waiting);
+                    }
+                }
+                auto found = g.pipelines.find(key);
+                if (found != g.pipelines.end())
+                {
+                    g.lastPipelineKey = key;
+                    g.lastPipeline = found->second;
+                    g.lastPipelineSwaps = g.pipelinesOptimised;
+                    return found->second;
                 }
             }
-            if (highPriority)
-                warmup::g_warmupQueue.push_front({ rec });
-            else
-                warmup::g_warmupQueue.push_back({ rec });
-            warmup::g_statQueued.fetch_add(1, std::memory_order_relaxed);
+            if (awaited.since.emplace(key, g.frames).second)
+            {
+                const Recorded recorded{ key.vertexShader, key.pixelShader, key.colourFormat, key.depthFormat,
+                                         key.topology, depthControl, key.blendControl, key.colourMask,
+                                         modeCntl, key.samples };
+                if (ShaderCachePath())
+                {
+                    // Once in the cache each, the ones a previous run left
+                    // there and the worker has not reached included.
+                    if (!awaited.recordedSeeded)
+                    {
+                        awaited.recordedSeeded = true;
+                        for (const Recorded& known : g.recorded) awaited.recorded.insert(KeyOf(known));
+                    }
+                    if (awaited.recorded.insert(key).second)
+                    {
+                        g.recorded.push_back(recorded);
+                        if (++awaited.unsaved >= 25) { awaited.unsaved = 0; WriteShaderCache(); }
+                    }
+                }
+                {
+                    std::lock_guard lock(warmup::g_warmupMutex);
+                    warmup::g_demandQueue.push_back({ recorded });
+                    warmup::g_statQueued.fetch_add(1, std::memory_order_relaxed);
+                }
+                StartWarmupScheduler();
+                warmup::g_warmupCv.notify_all();
+            }
+            awaited.lastKey = key;
+            awaited.lastPublished = published;
+            awaited.lastValid = true;
         }
-        StartWarmupScheduler();
-        warmup::g_warmupCv.notify_all();
+        compiling = true;
+        g.drawsAwaitingPipelines++;
+        return VK_NULL_HANDLE;
+    }
+
+    void ReportAsyncPipelines()
+    {
+        if (!AsyncPipelines()) return;
+        LOGI("renderer: MW2_ASYNC_PIPELINES: %llu pipelines built in the background, %llu draws skipped"
+             " while waiting for one, the longest wait %llu frames",
+             (unsigned long long)g_pipelinesBuiltForDraws.load(std::memory_order_relaxed),
+             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.longestPipelineWait);
     }
 
     void StopWarmupScheduler()
@@ -660,6 +758,8 @@ namespace vk::renderer::detail
         }
         if (warmup::g_warmupThread.joinable())
             warmup::g_warmupThread.join();
+        if (warmup::g_demandThread.joinable())
+            warmup::g_demandThread.join();
         warmup::g_warmupRunning.store(false);
     }
 
@@ -853,20 +953,7 @@ namespace vk::renderer::detail
             if (vertex == g.shaders.end() || pixel == g.shaders.end() ||
                 !vertex->second.module || !pixel->second.module)
                 continue;
-            PipelineKey key;
-            key.vertexShader = want.vertexShader;
-            key.pixelShader = want.pixelShader;
-            key.colourFormat = want.colourFormat;
-            key.depthFormat = want.depthFormat;
-            key.topology = want.topology;
-            key.blendControl = want.blendControl;
-            key.colourMask = want.colourMask;
-            key.samples = want.samples;
-            if (vk::pipeline::LegacyMode())
-            {
-                key.depthControl = want.depthControl;
-                key.modeCntl = want.modeCntl;
-            }
+            const PipelineKey key = KeyOf(want);
 
             g.recorded.push_back(want);
 

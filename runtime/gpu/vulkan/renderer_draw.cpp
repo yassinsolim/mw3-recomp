@@ -1,6 +1,5 @@
 // A draw: the render target and pass it goes into, its constants and
 // textures, the fixed-function state, and the command itself.
-#include <unordered_set>
 #include "renderer_state.h"
 #include "../../diagnostics.h"
 #include "texture_cache.h"
@@ -716,48 +715,31 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     }
     gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline");
     bool newPipeline = false;
-    // The MW2 phone build only: a draw whose pipeline is not built yet is
-    // skipped while a worker compiles it. Every other build, MW3 on Android
-    // included, builds it here, so the draw is never lost.
-#if defined(MW2_ANDROID) && !defined(MW3_TITLE)
-    VkPipeline built = FindPipeline(key);
-    if (!built)
+    VkPipeline built = VK_NULL_HANDLE;
+    // MW2_ASYNC_PIPELINES: a draw whose pipeline is not built yet is skipped
+    // while a worker compiles it. A pair with libraries is linked here all
+    // the same: that takes well under a millisecond, and loses no draw.
+    //
+    // The skip leaves nothing behind for the draws after it. No command was
+    // queued and nothing in g.bound was touched, so the next draw sets what
+    // it would have set anyway; and the indices this draw wrote lie between
+    // bound.runEnd and the next draw's, so the next cannot join the run
+    // before as though it followed it.
+    if (AsyncPipelines() && !(vertex->library && pixel->library))
     {
-        Recorded rec{ key.vertexShader, key.pixelShader,
-                      uint32_t(colourTarget->format), uint32_t(depthTarget->format),
-                      key.topology, depthControl, key.blendControl,
-                      key.colourMask, modeCntl, key.samples };
-        if (ShaderCachePath())
+        bool compiling = false;
         {
-            static std::unordered_set<uint64_t> s_seen;
-            static bool s_seeded = false;
-            auto keyOf = [](const Recorded& r) {
-                uint64_t h = 1469598103934665603ull;
-                for (uint64_t v : { uint64_t(r.vertexShader), uint64_t(r.pixelShader),
-                                    uint64_t(r.colourFormat), uint64_t(r.depthFormat),
-                                    uint64_t(r.topology), uint64_t(r.depthControl),
-                                    uint64_t(r.blendControl), uint64_t(r.colourMask),
-                                    uint64_t(r.modeCntl), uint64_t(r.samples) })
-                    h = (h ^ v) * 1099511628211ull;
-                return h;
-            };
-            if (!s_seeded) { s_seeded = true; for (const auto& r : g.recorded) s_seen.insert(keyOf(r)); }
-            if (s_seen.insert(keyOf(rec)).second)
-            {
-                g.recorded.push_back(rec);
-                static uint32_t s_sinceSave = 0;
-                if (++s_sinceSave >= 25) { s_sinceSave = 0; WriteShaderCache(); }
-            }
+            Stopwatch watch(g.pipelineNanoseconds);
+            built = PipelineWhenReady(key, depthControl, modeCntl, compiling);
         }
-        EnqueuePipelineWarmup(rec, /*highPriority=*/true);
-        Skip("pipeline compiling asynchronously in background");
-        return;
+        if (compiling) { Skip("pipeline compiling in the background"); return; }
     }
-#else
-    VkPipeline built = [&] { Stopwatch watch(g.pipelineNanoseconds);
-                             return EnsurePipeline(key, *vertex, *pixel, &newPipeline); }();
+    else
+    {
+        Stopwatch watch(g.pipelineNanoseconds);
+        built = EnsurePipeline(key, *vertex, *pixel, &newPipeline);
+    }
     if (!built) { Skip("pipeline rejected"); return; }
-#endif
     if (newPipeline && ShaderCachePath())
     {
         g.recorded.push_back({ key.vertexShader, key.pixelShader,

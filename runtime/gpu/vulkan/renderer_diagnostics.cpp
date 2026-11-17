@@ -856,6 +856,7 @@ void vk::renderer::Report()
          (unsigned long long)(g.translateMicroseconds / 1000),
          (unsigned long long)(g.compileMicroseconds / 1000),
          (unsigned long long)(g.pipelineCount ? g.compileMicroseconds / g.pipelineCount : 0));
+    ReportAsyncPipelines();
     for (const std::string& line : g.targetSummary) LOGI("renderer: %s", line.c_str());
     if (g.resolveImagesMade)
         LOGI("renderer: %llu resolve destination images made (each after the first costs"

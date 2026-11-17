@@ -575,6 +575,7 @@ void vk::renderer::Shutdown()
     for (auto& [key, target] : g.targets) DestroyTarget(target);
     g.pipelines.clear();
     g.lastPipeline = VK_NULL_HANDLE;
+    g.awaited = {};
     g.shaders.clear();
     for (auto& last : g.lastShader) last = {};
     g.targets.clear();

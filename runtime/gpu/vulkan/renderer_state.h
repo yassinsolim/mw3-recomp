@@ -418,6 +418,29 @@ namespace vk::renderer::detail
         PipelineKey lastPipelineKey{};
         VkPipeline lastPipeline = VK_NULL_HANDLE;
         uint64_t lastPipelineSwaps = 0;
+        // MW2_ASYNC_PIPELINES: the pipelines draws are being skipped for
+        // while the demand worker builds them (PipelineWhenReady). The
+        // consumer's alone.
+        struct Awaited
+        {
+            // Each one, and the frame its first draw was skipped in.
+            std::unordered_map<PipelineKey, uint64_t, WordsHash> since;
+            // How many pipelines had been published when `since` was last
+            // checked against them.
+            uint64_t settledAt = 0;
+            // The last key answered "not yet", and how many pipelines had
+            // been published then: the draws after it with the same key ask
+            // nothing more until that number moves.
+            PipelineKey lastKey{};
+            uint64_t lastPublished = 0;
+            bool lastValid = false;
+            // The keys of `recorded` below, so that one waited for is not
+            // put there twice; and how many were since the cache was written.
+            std::unordered_set<PipelineKey, WordsHash> recorded;
+            bool recordedSeeded = false;
+            uint32_t unsaved = 0;
+        };
+        Awaited awaited;
         std::unordered_map<uint64_t, Shader> shaders;
         // The last usable shader of each type ShaderFor answered with: draws
         // come in runs with the same pair, and an entry stays where it is
@@ -526,6 +549,9 @@ namespace vk::renderer::detail
         uint64_t translateMicroseconds = 0, compileMicroseconds = 0;
         uint64_t prewarmMicroseconds = 0;
         uint32_t prewarmed = 0, prewarmWanted = 0;
+        // MW2_ASYNC_PIPELINES: draws skipped for a pipeline still compiling,
+        // and the longest any pipeline was waited for, in frames.
+        uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0;
         uint64_t arenaOverflows = 0;
         uint64_t arenaWritten[kArenaKinds]{}, arenaReused[kArenaKinds]{};
         uint32_t arenaPeak = 0;
@@ -700,6 +726,16 @@ namespace vk::renderer::detail
     inline bool MergingDraws()
     {
         static const bool on = !env::Flag("MW2_NO_MERGE");
+        return on;
+    }
+
+    // MW2_ASYNC_PIPELINES=1: a pipeline never built before is compiled by a
+    // worker and its draws are skipped until it is there, instead of the
+    // consumer stopping for it. The Android app turns it on by default (its
+    // setting); unset, as on the desktop, pipelines are compiled at the draw.
+    inline bool AsyncPipelines()
+    {
+        static const bool on = env::Number("MW2_ASYNC_PIPELINES") != 0;
         return on;
     }
 
@@ -887,8 +923,10 @@ namespace vk::renderer::detail
     void FacesFor(uint32_t modeCntl, VkCullModeFlags& cull, VkFrontFace& front);
     VkPipeline EnsurePipeline(const PipelineKey& key, const Shader& vertex, const Shader& pixel,
                               bool* made = nullptr);
-    VkPipeline FindPipeline(const PipelineKey& key);
-    void EnqueuePipelineWarmup(const Recorded& rec, bool highPriority = false);
+    // The pipeline of a draw that can wait for it (renderer_pipelines.cpp).
+    VkPipeline PipelineWhenReady(const PipelineKey& key, uint32_t depthControl, uint32_t modeCntl,
+                                 bool& compiling);
+    void ReportAsyncPipelines();
     const char* ShaderCachePath();
     void WriteShaderCache();
     void PrewarmFromCache();

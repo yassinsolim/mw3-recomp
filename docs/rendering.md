@@ -610,6 +610,19 @@ On the console a shader is ready as soon as it is loaded. With
 Without pipeline libraries, or under `MW2_NO_PIPELINE_LIBRARIES=1`, whole
 pipelines are built at their first draw.
 
+Built there, a pipeline holds the frame up for as long as the driver takes
+over it: up to 46 ms each on Turnip, and some 510 of them the first time a
+map is played. `MW2_ASYNC_PIPELINES=1` is the option of not waiting, which
+the Android app turns on by default (unset on the desktop): a thread of its own, at normal priority on a performance core,
+builds the pipeline instead (`PipelineWhenReady`), and the draws that need
+it are skipped until it is in the map, so what they draw appears late. The
+warm-up worker keeps to the pipelines it is rebuilding from a previous run,
+at low priority and with its pauses. A skipped draw queues no command and
+changes none of the bound state, and the indices it wrote keep the next draw
+from joining the run before it. Creation stays one at a time
+(`vk::pipeline::CreationMutex`). The run's log counts the pipelines built
+this way, the draws skipped and the longest wait in frames.
+
 ### Every shader compiled before play
 
 The workers compile a level's shaders as it loads, but a driver with a cold
