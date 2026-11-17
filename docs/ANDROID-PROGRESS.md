@@ -135,6 +135,13 @@ Status words: **verified** (observed on the device or by a run), **built**
   on the lit scene's target, about 900 at 1024x600 on a colour-masked target
   (the depth prepass, by its mask), 703 at 1024x1024 (the shadow map), about
   250 others. All unpredicated: the title's own, not tile replays.
+- The stock Qualcomm driver in the same Survival run: GPU 58.1 ms a world
+  frame, 16.1 world FPS (Turnip R2: 38.9 ms, 25.3). The large fixed cost per
+  draw is there on both drivers, so it is in how this renderer drives the
+  Adreno, not in Turnip.
+- Hardware counters: Turnip on the Thor offers no VK_KHR_performance_query,
+  with or without TU_DEBUG=perfc, so a counter diagnostic was written,
+  found unusable here and removed.
 - Drivers, same Survival run (GPU ms a world frame / world FPS): faux123
   v1.2.10 38.7/25.5, v27.0.0-R2 38.9/25.3, Banners 2026-11-17 39.2/25.2,
   mainline V32 39.4/25.0, MrPurple T30 39.8/24.8. All within 3%; R2 stays
