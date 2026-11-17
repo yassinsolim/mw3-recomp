@@ -10,18 +10,20 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Architecture selected | done, see [ANDROID-ARCHITECTURE.md](ANDROID-ARCHITECTURE.md) |
 | Recompilation of this disc's `default.xex` | verified: 128 jump tables, 0 boundary errors, no unrecognised instructions |
 | Desktop reference (x86-64 Linux, llvmpipe) | verified: start-up, first-run setup, main menu and CAMPAIGN menu render, 1280x720 captures |
-| Android arm64 build (`assembleMw3Tu0Debug`) | verified: 17 MB debug APK, installs on the Thor |
+| Android arm64 build (`assembleMw3Tu0Debug`) | verified: debug APK (27 MB with the bundled driver), installs on the Thor; builds natively on Windows (`scripts/win_build.ps1`, outside the repo) as well as in WSL |
 | On-device install from the ISO | verified: title id and hash check pass, 184 files copied |
-| Guest code executing on the Thor | verified: start-up, menus and a Survival map load run |
-| Menus on the Thor | verified: title, first-run setup, main menu, Special Ops, Survival map list, all at 60 FPS (HUD counter) on the stock Adreno driver. Campaign and Multiplayer thumbnails on the main menu are blurred |
-| Survival on the Thor | partially working: Resistance (`so_survival_mp_paris`) loads in about 15 s; models, props, most buildings, the view weapon, enemies, HUD and minimap are drawn. **Open defect, device only:** the sky and the street and other large world surfaces are black (the desktop build draws them). **29-37 FPS** in play (app counter and the runtime's own 32.9 world frames a second; 1024x600 scene at scale 1, title's 2x MSAA drawn at 1x), 59-69 C within two minutes, CPU 30-40% |
+| Guest code executing on the Thor | verified: start-up, menus, Survival and the campaign (Black Tuesday) run |
+| Graphics driver | **Turnip v27.0.0-R2 is the default** on Qualcomm devices (bundled, downloaded at build time). On the Thor's campaign helicopter scene: 51 FPS and clean textures on Turnip against 21 FPS with blocky, missing texture blocks on the stock Qualcomm driver. On Turnip, whole pipelines are built, not pipeline libraries (its compiler faulted building libraries) |
+| Menus on the Thor | verified: title, first-run setup, main menu, Special Ops, Survival map list at 60 FPS; no flicker (black frames 0% in a 7 s recording, was 40%) |
+| Survival on the Thor | working, slow: Resistance loads in about 15 s; sky, street, buildings, weapon, enemies, HUD and minimap drawn and textured. 10-26 FPS on Turnip in the first minute, the low end while shaders compile on first sight |
+| Campaign on the Thor | Black Tuesday resumes from a save and plays; 32-51 FPS on Turnip; four minutes without fault |
 | Enemies, AI, damage | observed: enemies spawn, approach and shoot, armour and health fall, last stand triggers |
-| Player movement, aiming, shooting | camera look through the touch stick verified; a trigger hold shows the weapon in recoil and a stick push changes the view, but neither firing nor movement is confirmed beyond that; nobody has played a wave by hand |
-| Stability | one abort two minutes into a match (`std::unordered_map` growth inside `kernel::ObjectAt` from `RtlLeaveCriticalSection`), before the merge shortcuts were undone; not seen in the dozen one-to-two-minute matches since. The Turnip T26 driver crashes inside the driver at renderer start-up (stock driver is what works) |
+| Player movement, aiming, shooting | verified with the touch overlay: the left stick moves the player, the right stick turns the view, the fire button fires (muzzle flash and recoil). A full wave has not been played by hand |
+| Stability | Turnip with pipeline libraries crashed in its compiler (twice); whole pipelines ran four minutes clean. Turnip T26 crashes at renderer start-up; T30 untested. One old abort in `kernel::ObjectAt` not seen since |
 | Audio on the Thor | AAudio stream opens, XMA contexts decode; audible output not checked by ear |
-| Input on the Thor | verified for menus through the touch overlay (a press must be held about 0.25 s); physical pad detected, not exercised |
+| Input on the Thor | touch overlay verified in menus and play (a press must be held about 0.25 s); physical pad detected, not exercised |
 | Launcher branding | verified: MW3 wordmark, MW2-only entries hidden |
-| Profile and saves | profile settings are written; a completed first-run setup is remembered |
+| Profile and saves | profile and campaign saves written and resumed |
 
 ## 2026-11-16
 
@@ -75,6 +77,25 @@ Status words: **verified** (observed on the device or by a run), **built**
 - In play the title sends about 6,500 draws a frame (it renders the scene in
   two EDRAM tiles, replaying its command list for each); the ring consumer is
   busy 43% of the run.
+
+## 2026-11-17
+
+- The flicker and the black sky/streets had one cause: the renderer binds its
+  frame arena and the guest-memory shadow as one storage buffer, and the
+  Thor's Adreno 740 reaches 128 MB with one; the buffer was 384 + 512 MB.
+  The third frame slot's share (every third frame black) and the whole shadow
+  (vertex data for much of the world) were past the reach. The arena is now
+  clamped to the reach and the shadow left out when it does not fit. Cost:
+  every draw copies its vertices again. Restoring the shadow in a form that
+  fits (its own binding, or buffer device addresses) is the next performance
+  job.
+- Shader registers start at zero (they were uninitialised SPIR-V variables).
+- Turnip v27.0.0-R2 bundled and selected by default on Qualcomm devices.
+- WSL stopped responding (it needs an administrator to restart), so the APK
+  is now built natively on Windows with portable tools under
+  `mw3-android-work\toolchain\`. Its debug key differs from the WSL one, so
+  the app had to be reinstalled once; game files and saves were moved aside
+  and restored.
 
 ## Build (WSL2 Ubuntu 24.04)
 
