@@ -77,7 +77,7 @@ namespace vk::renderer::detail
         const VkPipelineLayout layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
         static_assert(bindings::kArenaSet == bindings::kTextureSet + 1);
         const VkDescriptorSet sets[2] = { static_cast<VkDescriptorSet>(vk::textures::Set()),
-                                          g.memorySet };
+                                          g.slots[g.slot].memorySet };
         Record([=](VkCommandBuffer command) {
             VkCommandBufferBeginInfo begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
             begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;

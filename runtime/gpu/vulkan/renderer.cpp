@@ -87,7 +87,7 @@ static void RollbackInitialise()
         vkDestroyDescriptorPool(g.device, g.descriptors, nullptr);
         g.descriptors = VK_NULL_HANDLE;
     }
-    g.memorySet = VK_NULL_HANDLE;
+    for (State::Slot& slot : g.slots) slot.memorySet = VK_NULL_HANDLE;
 
     gpu::watch::SetShadow(nullptr, 0);
     g.shadowBase = 0;
@@ -355,12 +355,14 @@ bool vk::renderer::Initialise()
     const uint32_t shadowBytes = guest::kPhysicalEnd - guest::kPhysicalBase;
     uint32_t wanted = uint32_t(env::Number("MW2_ARENA_MB", kArenaWanted >> 20)) << 20;
     bool withShadow = !noShadow;
-    // Set 2 binds the whole buffer, arena and shadow together, as one storage
-    // buffer, so the whole of it has to be within what one storage buffer
-    // descriptor may reach. Past it the binding is invalid and a driver may
-    // simply cut it short: Adreno did, and with a 384 MB arena the third
-    // frame slot's share lay beyond the cut -- every third frame drew nothing.
-    // The shadow goes first, the arena is halved after.
+    // Set 2 is bound per frame slot, from the slot's base on, as one storage
+    // buffer, and what one descriptor covers has to be within what a storage
+    // buffer descriptor may reach. Past it the binding is invalid and a driver
+    // may simply cut it short: Adreno did, and with the whole 384 MB arena in
+    // one binding the third slot's share lay beyond the cut -- every third
+    // frame drew nothing. So each slot's share is held to the reach, and the
+    // shadow, which every slot's binding has to cover, only when the whole
+    // buffer is within it. The shadow goes first, the arena is halved after.
     VkPhysicalDeviceProperties limits{};
     vkGetPhysicalDeviceProperties(g.physical, &limits);
     const uint64_t reach = limits.limits.maxStorageBufferRange;
@@ -371,7 +373,8 @@ bool vk::renderer::Initialise()
              " what one storage buffer reaches", wanted >> 20, shadowBytes >> 20);
         withShadow = false;
     }
-    if (uint64_t(wanted) > reach) wanted = uint32_t(reach & ~uint64_t(0xFFFFF));
+    if (uint64_t(wanted) > reach * kFrameSlots)
+        wanted = uint32_t((reach * kFrameSlots) & ~uint64_t(0xFFFFF));
     for (; wanted >= kArenaLeast; withShadow ? (void)(withShadow = false) : (void)(wanted /= 2))
     {
         VkBufferCreateInfo buffer{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -454,9 +457,9 @@ bool vk::renderer::Initialise()
         LOGI("renderer: running in legacy mode without dynamic rendering / dynamic state commands");
     }
 
-    VkDescriptorPoolSize size{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 };
+    VkDescriptorPoolSize size{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFrameSlots };
     VkDescriptorPoolCreateInfo descriptors{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    descriptors.maxSets = 1;
+    descriptors.maxSets = kFrameSlots;
     descriptors.poolSizeCount = 1;
     descriptors.pPoolSizes = &size;
     if (vkCreateDescriptorPool(g.device, &descriptors, nullptr, &g.descriptors) != VK_SUCCESS)
@@ -467,30 +470,37 @@ bool vk::renderer::Initialise()
 
     VkDescriptorSetLayout memoryLayout =
         static_cast<VkDescriptorSetLayout>(vk::pipeline::SetLayout(bindings::kArenaSet));
-    VkDescriptorSetAllocateInfo allocateSet{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-    allocateSet.descriptorPool = g.descriptors;
-    allocateSet.descriptorSetCount = 1;
-
-    allocateSet.pSetLayouts = &memoryLayout;
-    if (vkAllocateDescriptorSets(g.device, &allocateSet, &g.memorySet) != VK_SUCCESS)
+    const VkDeviceSize bufferSize = VkDeviceSize(g.arenaBytes) +
+                                    (g.shadowBase ? VkDeviceSize(shadowBytes) : 0);
+    for (State::Slot& slot : g.slots)
     {
-        RollbackInitialise();
-        return false;
+        VkDescriptorSetAllocateInfo allocateSet{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+        allocateSet.descriptorPool = g.descriptors;
+        allocateSet.descriptorSetCount = 1;
+        allocateSet.pSetLayouts = &memoryLayout;
+        if (vkAllocateDescriptorSets(g.device, &allocateSet, &slot.memorySet) != VK_SUCCESS)
+        {
+            RollbackInitialise();
+            return false;
+        }
+        // The slot's share and, when there is one, the shadow behind the arena,
+        // as dwords and as vec4. The base is a multiple of uniformAlignment,
+        // which includes the storage-buffer offset alignment.
+        VkDescriptorBufferInfo buffer{ g.arena, slot.arenaBase,
+                                       g.shadowBase ? bufferSize - slot.arenaBase
+                                                    : VkDeviceSize(g.arenaSlotBytes) };
+        VkWriteDescriptorSet writes[2]{};
+        for (uint32_t i = 0; i < 2; i++)
+        {
+            writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[i].dstSet = slot.memorySet;
+            writes[i].dstBinding = i ? bindings::kArenaFloats : bindings::kArenaBinding;
+            writes[i].descriptorCount = 1;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            writes[i].pBufferInfo = &buffer;
+        }
+        vkUpdateDescriptorSets(g.device, 2, writes, 0, nullptr);
     }
-
-    // The whole arena, as dwords and as vec4.
-    VkDescriptorBufferInfo buffer{ g.arena, 0, VK_WHOLE_SIZE };
-    VkWriteDescriptorSet writes[2]{};
-    for (uint32_t i = 0; i < 2; i++)
-    {
-        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[i].dstSet = g.memorySet;
-        writes[i].dstBinding = i ? bindings::kArenaFloats : bindings::kArenaBinding;
-        writes[i].descriptorCount = 1;
-        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writes[i].pBufferInfo = &buffer;
-    }
-    vkUpdateDescriptorSets(g.device, 2, writes, 0, nullptr);
 
     for (uint32_t i = 0; i < kPresentImages; i++)
     {

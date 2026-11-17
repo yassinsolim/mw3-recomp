@@ -597,7 +597,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     {
         indexOffset = Allocate(rectangles * 6 * 2, kArenaIndices);
         if (indexOffset == UINT32_MAX) { Skip("frame arena full"); return; }
-        uint16_t* list = reinterpret_cast<uint16_t*>(g.arenaMapped + indexOffset);
+        uint16_t* list = reinterpret_cast<uint16_t*>(ArenaAt(indexOffset));
         for (uint32_t rect = 0; rect < rectangles; rect++)
         {
             const uint16_t a = uint16_t(rect * 3), b = uint16_t(rect * 3 + 1);
@@ -642,7 +642,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         for (uint32_t row = 0; row < 8; row++)
             LOGK("verts:   c%-2u %9.4f %9.4f %9.4f %9.4f", row,
                  c[row * 4], c[row * 4 + 1], c[row * 4 + 2], c[row * 4 + 3]);
-        const uint32_t* fetch = reinterpret_cast<const uint32_t*>(g.arenaMapped + constants.fetch);
+        const uint32_t* fetch = reinterpret_cast<const uint32_t*>(ArenaAt(constants.fetch));
         for (uint32_t slot = 0; slot < 96; slot++)
         {
             // The arena holds only the pairs the programs read (WriteConstants).
@@ -665,7 +665,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
                 // Hex as well as float: several of a vertex's dwords are packed
                 // attributes, which read as floats are nonsense. The copy holds
                 // the guest's big-endian bytes.
-                const uint32_t* u = reinterpret_cast<const uint32_t*>(g.arenaMapped + at);
+                const uint32_t* u = reinterpret_cast<const uint32_t*>(ArenaAt(at));
                 char line[512];
                 int n = std::snprintf(line, sizeof line, "verts:     v%-3u", v);
                 for (uint32_t w = 0; w < stride && w < 8; w++)
@@ -885,7 +885,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         {
             const uint32_t at = Allocate(words * 4, kArenaConstants);
             if (at == UINT32_MAX) { Skip("frame arena full"); return; }
-            std::memcpy(g.arenaMapped + at, values, words * 4);
+            std::memcpy(ArenaAt(at), values, words * 4);
             std::memcpy(bound.record, values, words * 4);
             bound.recordWords = words;
             bound.recordAt = at / 4;
@@ -1051,7 +1051,8 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         }
         op.set |= DrawOp::kIndexed;
         op.count = rectangles ? rectangles * 6 : call.indexCount;
-        op.firstIndex = indexOffset / (wide ? 4 : 2);
+        // The index buffer is the whole arena, so its offsets are whole-buffer ones.
+        op.firstIndex = (g.arenaBase + indexOffset) / (wide ? 4 : 2);
     }
     else op.count = call.indexCount;
     gpu::detail::SetCurrentDrawStage("Draw_Record");

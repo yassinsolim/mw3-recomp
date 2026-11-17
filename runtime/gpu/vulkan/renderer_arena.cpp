@@ -26,16 +26,15 @@ namespace vk::renderer::detail
         }
         g.arenaUsed = aligned + bytes;
         g.arenaWritten[kind] += bytes;
-        // Offsets are into the whole buffer -- they become descriptor offsets and
-        // storage-buffer indices -- so the slot's base is carried in the answer.
-        return g.arenaBase + aligned;
+        // Relative to the slot: set 2 is bound at the slot's base (renderer.cpp).
+        return aligned;
     }
 
     uint32_t CopyIntoArena(const void* bytes, uint32_t size, ArenaKind kind)
     {
         const uint32_t at = Allocate(size, kind);
         if (at == UINT32_MAX) return at;
-        std::memcpy(g.arenaMapped + at, bytes, size);
+        std::memcpy(ArenaAt(at), bytes, size);
         return at;
     }
 
@@ -72,7 +71,7 @@ namespace vk::renderer::detail
         const uint32_t bytes = needed * 16;
         const uint32_t at = Allocate(bytes, kArenaConstants);
         if (at == UINT32_MAX) return at;
-        std::memcpy(g.arenaMapped + at, &r.values[first], bytes);
+        std::memcpy(ArenaAt(at), &r.values[first], bytes);
         cache = { r.StampOf(first, needed * 4), base, at, true, needed };
         return at;
     }
@@ -264,7 +263,7 @@ namespace vk::renderer::detail
                     std::memcpy(vertices, guest::Base() + va, have * 4);
                     for (uint32_t rect = 0; rect < rectangles; rect++)
                         BuildFourthCorner(vertices, stride, rect, given + rect);
-                    std::memcpy(g.arenaMapped + at, vertices, corners.size() * 4);
+                    std::memcpy(ArenaAt(at), vertices, corners.size() * 4);
                     if (g.drawRecord) NoteVertexWindow(guest::Base() + va, have * 4);
                     entry[0] = at | type;
                     continue;
@@ -290,7 +289,7 @@ namespace vk::renderer::detail
                                       CompletedSerial, g.frames))
                 {
                     g.arenaReused[kArenaVertices] += words * 4;
-                    entry[0] = (g.shadowBase + physical) | type;
+                    entry[0] = (g.shadowBase - g.arenaBase + physical) | type;
                     continue;
                 }
 
@@ -356,7 +355,7 @@ namespace vk::renderer::detail
             for (uint32_t bits = pairs[i]; bits; bits &= bits - 1)
             {
                 const uint32_t pair = i * 32 + uint32_t(std::countr_zero(bits));
-                std::memcpy(g.arenaMapped + out.fetch + pair * 16, fetch + pair * 4, 16);
+                std::memcpy(ArenaAt(out.fetch + pair * 16), fetch + pair * 4, 16);
                 written += 16;
             }
         // Allocate counted the whole block.
@@ -432,13 +431,13 @@ namespace vk::renderer::detail
         if (g.drawRecord) NoteIndices(source, bytes);
         if (wide)
         {
-            SwapIndices32(source, reinterpret_cast<uint32_t*>(g.arenaMapped + at), count,
+            SwapIndices32(source, reinterpret_cast<uint32_t*>(ArenaAt(at)), count,
                           lowest, highest);
         }
         else
         {
             uint16_t low, high;
-            SwapIndices16(source, reinterpret_cast<uint16_t*>(g.arenaMapped + at), count,
+            SwapIndices16(source, reinterpret_cast<uint16_t*>(ArenaAt(at)), count,
                           low, high);
             lowest = low;
             highest = high;

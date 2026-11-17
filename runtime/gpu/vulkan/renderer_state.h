@@ -277,6 +277,10 @@ namespace vk::renderer::detail
             std::vector<VkCommandBuffer> buffers;
             VkFence fence = VK_NULL_HANDLE;
             uint32_t arenaBase = 0;
+            // Set 2 for this slot: the arena from arenaBase on, so a draw's
+            // arena offsets are relative to its slot and each slot alone has to
+            // be within one storage buffer's reach, not all of them together.
+            VkDescriptorSet memorySet = VK_NULL_HANDLE;
             bool inFlight = false;
             uint64_t serial = 0;   // which submission it holds
             // The recorder's queue just past that submission: until the
@@ -372,7 +376,6 @@ namespace vk::renderer::detail
         bool guestQueryOpen = false;    // one is open in the current render pass
 
         VkDescriptorPool descriptors = VK_NULL_HANDLE;
-        VkDescriptorSet memorySet = VK_NULL_HANDLE;     // set 2, the arena
 
         std::map<TargetKey, Target> targets;
         // The last target EnsureTarget answered for colour and for depth: a
@@ -740,7 +743,10 @@ namespace vk::renderer::detail
         uint32_t vertexFloats, fetch, booleans, loops, pixelFloats;
         bool ok;
     };
+    // Offsets are relative to the current slot's share: they are what the
+    // shaders index set 2 with. ArenaAt is where the CPU writes one.
     uint32_t Allocate(uint32_t bytes, ArenaKind kind);
+    inline uint8_t* ArenaAt(uint32_t at) { return g.arenaMapped + g.arenaBase + at; }
     // On the recorder: makes the draws DrawOp held back (vk::record::Joining).
     void MakeGatheredDraws();
     // Written by the recorder alone, read by the report.
