@@ -139,9 +139,10 @@ namespace
             g_armFailures++;
             return false;
         }
-        std::memcpy(g_shadow + size_t(first) * gpu::watch::kPageBytes,
-                    guest::Base() + guest::kPhysicalBase + size_t(first) * gpu::watch::kPageBytes,
-                    size_t(count) * gpu::watch::kPageBytes);
+        if (g_shadow)
+            std::memcpy(g_shadow + size_t(first) * gpu::watch::kPageBytes,
+                        guest::Base() + guest::kPhysicalBase + size_t(first) * gpu::watch::kPageBytes,
+                        size_t(count) * gpu::watch::kPageBytes);
         bool all = true;
         for (uint32_t p = first; p < first + count; p++)
         {
@@ -157,33 +158,32 @@ namespace
     }
 }
 
-void gpu::watch::SetShadow(uint8_t* shadow, uint32_t bytes)
+void gpu::watch::Stop()
 {
-    if (!shadow || bytes < kPhysicalBytes)
-    {
-        // Every page writable again before the handler stops answering for
-        // them, or the title's next write to one is taken for a crash.
-        g_shadow = nullptr;
-        for (uint32_t page = 0; page < kPages; page++) Loosen(page);
-        g_enabled.store(false, std::memory_order_release);
-        return;
-    }
+    // Every page writable again before the handler stops answering for
+    // them, or the title's next write to one is taken for a crash.
+    g_shadow = nullptr;
+    for (uint32_t page = 0; page < kPages; page++) Loosen(page);
+    g_enabled.store(false, std::memory_order_release);
+}
+
+void gpu::watch::Start(uint8_t* shadow, uint32_t bytes)
+{
     // A host page larger than the unit protected here cannot be made to
     // work: the protection would always spill onto pages this code has not
     // recorded, and their next write would be taken for a crash. Better to
-    // draw without the shadow than to die at the first one.
+    // go without the watch than to die at the first one.
 #ifndef _WIN32
     const long hostPage = sysconf(_SC_PAGESIZE);
     if (hostPage > 0 && size_t(hostPage) > kPageBytes)
     {
         LOGW("gpu: the host's pages are %ld bytes and the watch works in %u;"
-             " the shadow of guest memory stays off", hostPage, kPageBytes);
-        g_shadow = nullptr;
-        g_enabled.store(false, std::memory_order_release);
+             " no watch, no shadow of guest memory", hostPage, kPageBytes);
+        Stop();
         return;
     }
 #endif
-    g_shadow = shadow;
+    g_shadow = shadow && bytes >= kPhysicalBytes ? shadow : nullptr;
     g_enabled.store(true, std::memory_order_release);
 }
 
@@ -266,7 +266,7 @@ namespace
 
     bool Pages(uint32_t physical, uint32_t bytes, uint32_t& first, uint32_t& last)
     {
-        if (!g_shadow || !bytes) return false;
+        if (!g_enabled.load(std::memory_order_relaxed) || !bytes) return false;
         if (uint64_t(physical) + bytes > kPhysicalBytes) { g_refusedOutside++; return false; }
         first = physical / gpu::watch::kPageBytes;
         last = uint32_t((uint64_t(physical) + bytes - 1) / gpu::watch::kPageBytes);
@@ -302,7 +302,8 @@ bool gpu::watch::Serve(uint32_t physical, uint32_t bytes, uint64_t recording, ui
                        uint64_t frame)
 {
     uint32_t first, last;
-    if (!Pages(physical, bytes, first, last) || !Ready(first, last, completed, frame, true))
+    if (!g_shadow || !Pages(physical, bytes, first, last) ||
+        !Ready(first, last, completed, frame, true))
         return false;
     for (uint32_t q = first; q <= last; q++) g_lastServed[q] = recording;
     g_served++;
@@ -331,7 +332,7 @@ bool gpu::watch::Unwritten(uint32_t physical, uint32_t bytes, uint64_t since)
 
 void gpu::watch::Report()
 {
-    if (!g_arms) { LOGI("gpu: no shadow of guest memory was used; every draw copied its vertex data"); return; }
+    if (!g_arms) { LOGI("gpu: the watch of guest memory was never used"); return; }
     uint32_t watched = 0, loose = 0;
     for (uint32_t p = 0; p < kPages; p++)
     {

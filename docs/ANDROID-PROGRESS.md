@@ -96,6 +96,17 @@ Status words: **verified** (observed on the device or by a run), **built**
   `mw3-android-work\toolchain\`. Its debug key differs from the WSL one, so
   the app had to be reinstalled once; game files and saves were moved aside
   and restored.
+- Each frame slot now has its own arena descriptor set, bound at the slot's
+  base, so each slot (not all three together) has to fit within the 128 MB
+  storage-buffer reach. Survival had skipped 35,895 draws in 150 s for a full
+  arena; now none.
+- The write watch on guest memory ran only together with the shadow, so on
+  the Thor every texture check hashed the texture's bytes again: 33.6 s of a
+  150 s Survival run on the ring consumer. The watch now runs without the
+  shadow: 2.9 s, and 4.3 million checks answered by it. World frame rate is
+  unchanged at about 22 a second; the consumer now mostly finishes a frame in
+  under 12 ms of CPU and waits on the GPU (49 s of 150 s), so the next limit
+  is GPU work, which has not been profiled yet.
 
 ## Build (WSL2 Ubuntu 24.04)
 

@@ -89,7 +89,7 @@ static void RollbackInitialise()
     }
     for (State::Slot& slot : g.slots) slot.memorySet = VK_NULL_HANDLE;
 
-    gpu::watch::SetShadow(nullptr, 0);
+    gpu::watch::Stop();
     g.shadowBase = 0;
     if (g.arenaMapped)
     {
@@ -397,11 +397,11 @@ bool vk::renderer::Initialise()
                         reinterpret_cast<void**>(&g.arenaMapped)) == VK_SUCCESS)
         {
             g.arenaBytes = wanted;
-            if (withShadow)
-            {
-                g.shadowBase = wanted;
-                gpu::watch::SetShadow(g.arenaMapped + wanted, shadowBytes);
-            }
+            if (withShadow) g.shadowBase = wanted;
+            // The watch runs either way: without the shadow it still tells
+            // texture and constant readers which pages are unwritten.
+            gpu::watch::Start(withShadow ? g.arenaMapped + wanted : nullptr,
+                              withShadow ? shadowBytes : 0);
             break;
         }
         if (g.arenaMemory) vkFreeMemory(g.device, g.arenaMemory, nullptr);
@@ -596,7 +596,7 @@ void vk::renderer::Shutdown()
     g.readBackMemory = VK_NULL_HANDLE;
     g.readBackMapped = nullptr;
     if (g.descriptors) vkDestroyDescriptorPool(g.device, g.descriptors, nullptr);
-    gpu::watch::SetShadow(nullptr, 0);
+    gpu::watch::Stop();
     g.shadowBase = 0;
     if (g.arenaMapped) vkUnmapMemory(g.device, g.arenaMemory);
     if (g.arena) vkDestroyBuffer(g.device, g.arena, nullptr);

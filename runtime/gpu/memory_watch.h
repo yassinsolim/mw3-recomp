@@ -40,9 +40,15 @@ namespace gpu::watch
     constexpr uint32_t kPageBytes = 4096;
 #endif
 
-    // The copy, as mapped for the CPU: physical address N at `shadow + N`.
-    // Null leaves every draw on the per-draw copy (MW2_NO_SHADOW=1 does that).
-    void SetShadow(uint8_t* shadow, uint32_t bytes);
+    // Starts the watch. `shadow` is the copy, as mapped for the CPU: physical
+    // address N at `shadow + N`. Null watches without one: draws stay on the
+    // per-draw copy (Serve refuses), but texture and constant readers still
+    // learn which pages are unwritten (Track, Unwritten) instead of hashing
+    // the bytes again -- on the Thor that hashing was a fifth of the ring
+    // consumer's time. MW2_NO_SHADOW=1 starts it without one.
+    void Start(uint8_t* shadow, uint32_t bytes);
+    // Every page writable again and the watch off, before the renderer goes.
+    void Stop();
     bool Enabled();
 
     // From the fault handler, before anything else sees the fault, for a write
