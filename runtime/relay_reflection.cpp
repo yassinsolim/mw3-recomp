@@ -32,6 +32,13 @@
 // own relay fallback is never needed. The out-of-band dispatcher marks the
 // packet handled regardless of what the receive hook returns, so not forwarding
 // is a clean drop. MP-only: the campaign has no such handler.
+//
+// Modern Warfare 3's multiplayer has the same handler (sub_82171930: argv[1] a
+// flag, argv[2] the target member, forwarded through sub_8217EE68 with nothing
+// asked about the sender) and is closed the same way. Its router
+// (sub_8217EC58) takes the sender's own member index and a flag that allows an
+// intermediary; without the flag it answers the sender itself, which the
+// forwarder sends to directly. So the send side clears the flag.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -78,6 +85,18 @@ GUEST_HOOK(T_CL_RouteToClient)
     const int32_t route = ctx.r3.s32;
     if (route >= 0 && route != self)
         ctx.r3.s64 = -1;   // an intermediary hop -> force the forwarder's direct path
+}
+
+#endif
+
+#ifdef T_CL_RouteToClientVia
+
+// (session = r3, self = r4, target = r5, allow an intermediary = r6) -> next
+// hop. With r6 clear the original answers self, the forwarder's direct send.
+GUEST_HOOK(T_CL_RouteToClientVia)
+{
+    ctx.r6.u64 = 0;
+    GUEST_ORIG(T_CL_RouteToClientVia)(ctx, base);
 }
 
 #endif

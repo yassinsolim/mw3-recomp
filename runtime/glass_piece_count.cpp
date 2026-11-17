@@ -25,10 +25,26 @@
 // they write, is put back before the parse runs.
 //
 // Campaign only: the multiplayer's glass state is other code.
+//
+// Modern Warfare 3's multiplayer is the exception, and there it is a remote
+// fix: CL_ParseSnapshot (sub_82179C20, at 82179EA8) hands the host's own
+// message to its glass state reader (sub_821214A0), which fills 1024 4-byte
+// pieces (0x825F8AA0; sub_82120F08 clears 0x1000 bytes, and the dvar pointers
+// of 0x825F9AAC follow 8 bytes after) in the same two forms, with neither
+// bounded: only an index of exactly 0x400 ends the list, so 0x401..0x7FF
+// writes a piece up to 4 KiB past the table, a run's count goes to 2047, and
+// once the message is read past its end the index is -1 for ever: the loop
+// never ends. The server sends pieces of the table and the 0x400 that ends
+// them, so anything else cannot have come from a host. The reader is small and
+// is redone whole below, the same reads in the same order with the title's own
+// routines, and refuses such a message the way the title refuses a malformed
+// one: marked overflowed, which CL_ParseSnapshot tests on the reader's return
+// and drops the snapshot for.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
 
+#include <atomic>
 #include <cstdint>
 
 #if defined(T_GlassState_Parse) && defined(T_MSG_ReadBit) && defined(T_MSG_ReadBits) \
@@ -92,6 +108,81 @@ GUEST_HOOK(T_GlassState_Parse)
         return;
     }
     GUEST_ORIG(T_GlassState_Parse)(ctx, base);
+}
+
+#endif
+
+#if defined(T_GlassState_ParseSnapshot) && defined(T_GlassState_ReadPiece) && defined(T_DATA_GlassPieces) \
+    && defined(T_MSG_ReadBit) && defined(T_MSG_ReadBits) && defined(T_MSG_Discard)
+
+// (msg = r3)
+GUEST_HOOK(T_GlassState_ParseSnapshot)
+{
+    constexpr int32_t kPieces = 1024;
+    constexpr uint32_t kOverflowed = 0;   // msg_t
+
+    const PPCContext saved = ctx;
+    const uint32_t msg = saved.r3.u32;
+    ctx.r1.u64 = saved.r1.u32 - 0x80;     // a frame of our own, the original's size
+
+    auto bit = [&] {
+        ctx.r3.u64 = msg;
+        GUEST_FUNC(T_MSG_ReadBit)(ctx, base);
+        return ctx.r3.s32;
+    };
+    auto bits = [&](uint32_t count) {
+        ctx.r3.u64 = msg;
+        ctx.r4.u64 = count;
+        GUEST_FUNC(T_MSG_ReadBits)(ctx, base);
+        return ctx.r3.s32;
+    };
+    // One piece: its 2-bit state, the rest of it for state 2, and the old piece
+    // back if the message ran out.
+    auto piece = [&](int32_t index) {
+        const uint32_t entry = T_DATA_GlassPieces + uint32_t(index) * 4;
+        const uint32_t old = PPC_LOAD_U32(entry);
+        const uint8_t state = uint8_t(bits(2));
+        PPC_STORE_U8(entry, state);
+        if (state == 2) {
+            ctx.r3.u64 = msg;
+            ctx.r4.u64 = entry;
+            GUEST_FUNC(T_GlassState_ReadPiece)(ctx, base);
+        }
+        if (PPC_LOAD_U32(msg + kOverflowed) != 0)
+            PPC_STORE_U32(entry, old);
+    };
+    auto refuse = [&](const char* what, int32_t value) {
+        ctx.r3.u64 = msg;
+        GUEST_FUNC(T_MSG_Discard)(ctx, base);
+        // Every power of two, so a flood stays a few lines.
+        static std::atomic<uint32_t> count;
+        const uint32_t n = ++count;
+        if ((n & (n - 1)) == 0)
+            LOGW("online: dropped a snapshot whose glass state has %s %d, past the table's %d pieces (%u so far)",
+                 what, value, kPieces, n);
+    };
+
+    if (PPC_LOAD_U32(msg + kOverflowed) == 0 && bit() != 0) {
+        if (bit() != 0) {
+            // pieces by index, ended by 1024
+            for (int32_t index = bits(11); index != kPieces; index = bits(11)) {
+                if (index < 0 || index > kPieces) {
+                    refuse("a piece index of", index);
+                    break;
+                }
+                piece(index);
+            }
+        } else {
+            // a run of pieces from 0
+            const int32_t count = bits(11);
+            if (count > kPieces)
+                refuse("a run of", count);
+            else
+                for (int32_t index = 0; index < count; ++index)
+                    piece(index);
+        }
+    }
+    ctx = saved;
 }
 
 #endif

@@ -40,11 +40,12 @@
 // the title's structures at MW2's offsets, and those moved.
 //
 // Its multiplayer (iw5mp_ship.exe, ppc_mw3_mp/, -DMW3_TITLE=1 -DMW3_TITLE_MP=1;
-// docs/MW3-MP-BRINGUP.md) comes first. It has the campaign block's entries and
-// no others: each was found in the multiplayer executable by the masked
-// instructions of the campaign's function, matched once, and compared over
-// the whole function. None is a campaign address, and none of MW2's
-// multiplayer hooks (network hardening, party, map list) is here.
+// docs/MW3-MP-BRINGUP.md) comes first. The campaign block's entries were each
+// found in the multiplayer executable by the masked instructions of the
+// campaign's function, matched once, and compared over the whole function.
+// The network hardening entries after them (docs/security.md) were found in
+// this executable by what each function does: MW2's multiplayer executable is
+// not the source of any address here.
 #if defined(MW3_TITLE) && defined(MW3_TITLE_MP)
 
 #define MW2_TITLE_NAME  "MW3 multiplayer"
@@ -90,6 +91,192 @@
 #define T_CLIENT_VALID            0u
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
+
+// ---- network hardening (docs/security.md, "Modern Warfare 3 multiplayer") ----
+// Each entry is the IW5 function with MW2's bug in it, read in this executable.
+
+// msg_t as the readers below use it: +0 overflowed, +8 data, +20 cursize,
+// +28 readcount, +32 bit, +40 the local client a packet is for (4: none); 44
+// bytes. MSG_ReadBit / ReadBits(msg, n) / ReadLong; MSG_Discard marks the
+// message overflowed.
+#define T_MSG_ReadBit           82120D00
+#define T_MSG_ReadBits          82120DC8
+#define T_MSG_ReadLong          8229F728
+#define T_MSG_Discard           8229EDD8
+#define T_MSG_SIZE              44u
+
+// The Huffman decompressor: (from, to, size), one byte a symbol until the input
+// bits are used up, no output bound (cmpw bitpos,total; blt). Its two callers:
+// SV_ParseClientMessage into 0x800 bytes of its own frame, CL_ParseServerMessage
+// into a 0x10000-byte LargeLocal ("Compressed msg overflow in
+// CL_ParseServerMessage" bounds the input only). huffman_overflow.cpp.
+#define T_MSG_ReadBitsCompress  8229F0B0
+#define T_Huffman_DecodeSymbol  8229E558   // (tree, out, from, bitpos); the tree at T_DATA_HuffmanTree+8
+#define T_SV_ParseClientMessage 822C1F18
+#define T_CL_ParseServerMessage 8217A9F0
+#define T_DATA_HuffmanTree      0x83084468u
+
+// CL_PacketEvent (first word -1: the out-of-band wrapper sub_82176610; else
+// Netchan_Process sub_822A31C8 at state >= 5, which takes the channel and the
+// message only) and the out-of-band dispatcher, whose challengeResponse (3),
+// connectResponse (4), statResponse (6) and mruleResponse (7) test the state
+// alone, and whose migration table (sub_82178610: mstart, mhead, mdata, mstate)
+// never looks at the sender. NET_CompareAdr is the one the "disconnect" handler
+// (sub_82171870) calls. A netadr_t is 16 bytes here: type, IP, port, and a
+// local network id at +12. client_packet_sender.cpp.
+#define T_CL_PacketEvent        821766C8
+#define T_CL_ConnectionlessPacket 821759F0
+#define T_NET_CompareAdr        822A3508
+#define T_NETADR_SIZE           16u
+#define T_MSG_LOCAL_CLIENT      40u
+#define T_DATA_CmdArgs            0x82FD0050u   // +0 nesting, +68 argc[], +100 argv[]
+#define T_DATA_ClientConnState    0x826E032Cu
+#define T_CONN_STATE_STRIDE       484u
+#define T_DATA_ClientConnections  0x82643A10u
+#define T_CONNECTION_STRIDE       0x00062670u
+#define T_CONNECTION_SERVER_ADR   16u
+#define T_CONNECTION_NETCHAN_ADR  0x00051248u
+
+// The "relay" handler (argv[1] flag, argv[2] target member, no sender check)
+// and the router its forwarder (sub_8217EE68) asks for the next hop:
+// (session, self, target, allow relay) -> self for a direct send, else an
+// intermediary. relay_reflection.cpp.
+#define T_CL_HandleRelayPacket  82171930
+#define T_CL_RouteToClientVia   8217EC58
+
+// SV_PacketEvent (sub_822C76B8) stores the acknowledge at client+0x20E68 off
+// the wire, with the signed seq - ack >= 128 test alone; these two loops run
+// from ack + 1 to the sequence (client+0x20E64). The third of MW2's, the one
+// that prints, is an empty loop inside sub_822C6568 here, reached only at a
+// difference of 129. sv_reliable_freeze.cpp.
+#define T_SV_UpdateServerCommandsToClient 822CE780
+#define T_SV_ResendReliableCommands       822CE858
+#define T_SVCLIENT_RELIABLE_SEQUENCE      0x20E64u
+#define T_SVCLIENT_RELIABLE_ACKNOWLEDGE   0x20E68u
+
+// The three functions that store a session's slot counts (session+0x60 and
+// +0x64), whose sum (sub_823AFF40) bounds walks over the party's 18 member
+// records (party+0x58, 0x148 bytes each; sub_8218BD78, sub_82191050 and more):
+// the join (counts in r8/r9, from the host's partystate), the modify (r6/r7)
+// and the host's own create (r6/r7). party_slot_count.cpp.
+#define T_Session_Create        823B07A0
+#define T_Session_Modify        823B08C8
+#define T_Session_CreateHost    823B40C0
+
+// CL_RunActiveAction hands activeAction (registered with flags 0 in
+// sub_82172DB0) to Cbuf_AddText and clears it with Dvar_SetString; a dvar's
+// current value is at +8 here. active_action_exec.cpp.
+#define T_CL_RunActiveAction    82165210
+#define T_Dvar_SetString        82325FF8
+#define T_DVAR_CURRENT          8u
+#define T_DATA_ActiveActionDvar   0x82643A40u
+#define T_DATA_EmptyString        0x8206EA30u
+// The client's set-dvar server command: cg_objectiveText, hud_drawHud and
+// g_scriptMainMenu apart, every name goes to Dvar_SetFromStringByName with
+// source 0 (sub_823266D0). The dvars run as commands are com_errorResolveCommand
+// and, new here, com_completionResolveCommand (sub_822FAC08, sub_822FAC80).
+// command_dvars_from_host.cpp.
+#define T_CG_SetClientDvarFromServer 82141250
+
+// (localClient, reason): an unknown reason is localised into
+// EXE_SERVERDISCONNECTREASON and raised as Com_Error's format (821717B0..D8).
+// disconnect_reason_format.cpp.
+#define T_CL_DisconnectReason   82171640
+
+// The playlist rows (0x178 bytes; +0x170 the row's first entry, +0x172 how many)
+// and the functions that take an entry index of the current row from the party
+// host: the "go" message and the partystate's history. An entry is 4 bytes
+// {map, rules, ?, play count} in one table for all rows. playlist_map_index.cpp.
+#define T_Playlist_SetMapEntry  822F3B88   // (localClient, index)
+#define T_Playlist_SetVoteEntry 822F3AC0   // (localClient, index, which)
+#define T_Playlist_UnplayHistory 822F3A18  // (localClient, history, count)
+#define T_Playlist_EntryText    822F3D90   // (localClient, index) -> the entry's rules, a text at +0x20
+#define T_Playlist_EntryText2   822F3E08   // the same, the text at +0x60
+#define T_Playlist_RowOf        822F3610   // (localClient, playlist number) -> row
+#define T_DATA_PlaylistDvar       0x82643A44u
+#define T_DATA_PlaylistRows       0x836FEFD0u
+#define T_PLAYLIST_ROW_STRIDE     0x178u
+#define T_PLAYLIST_ROW_ENTRIES    0x172u    // a u16
+
+// The partystate arrives in up to 6 fragments, stored by a 3-bit index into a
+// staging area with room for 6 (party+0x1E9C: count, 6 ids, 6 messages, 6 x
+// 0x4F0 bytes, ending where the play history begins).
+// partystate_fragment_index.cpp.
+#define T_PartyClient_StoreStateFragment 82188020   // (staging, msg)
+
+// The delta readers' field tables: a pointer to {fields, count} pairs. +0x10 the
+// player state's (224), +0x18 an objective's (5), +0x20 a hud element's (42),
+// +0x28 the entities' (62, the length of all 19 entity type tables).
+#define T_DATA_DeltaTables        0x82585D74u
+// MSG_ReadDeltaHudElems: 6-bit last changed field and gaps, neither compared
+// with the table (hud_elem_field_index.cpp); MSG_ReadDeltaField decodes one
+// field: (msg, time, from, to, field, from zero).
+#define T_MSG_ReadDeltaHudElems 822A2770
+#define T_MSG_ReadDeltaField    822A1940
+// The other three readers and what they share: the gap reader (msg, width) and
+// the entity type's {fields, count}. Each accepts a last changed field one past
+// its table; MSG_ReadDeltaFields loops until an index equals it,
+// MSG_ReadDeltaPlayerState decodes the first index not below it, and
+// MSG_ReadDeltaEntity its first index unchecked. snapshot_delta_field_index.cpp.
+#define T_MSG_ReadDeltaEntity   822A2370
+#define T_MSG_ReadDeltaPlayerState 822A2928
+#define T_MSG_ReadDeltaFields   822A2118
+#define T_MSG_ReadFieldGap      822A2058
+#define T_MSG_EntityTypeFields  822A54B8
+#define T_PLAYER_STATE_SIZE     0x3300u
+// CL_DeltaEntity decodes a baseline snapshot's entities (snapFlags & 8, frame
+// +0x3304) into a 1024-entry array at the count before it, uncapped; the server
+// stops at 0x400 (sub_822CB6F8, sub_822CB840). snapshot_entity_count.cpp.
+#define T_CL_DeltaEntity        82179010
+#define T_CL_ParsePacketEntities 82179310
+#define T_DATA_BaselineEntityCount 0x8269BE80u
+#define T_SNAPSHOT_FLAGS        0x3304u
+#define T_SNAPSHOT_ENTITIES     0x331Cu
+// The snapshot's glass state: 1024 4-byte pieces at 0x825F8AA0, by an 11-bit
+// index (only 0x400 ends the list) or an 11-bit run length, neither compared
+// with the table. glass_piece_count.cpp.
+#define T_GlassState_ParseSnapshot 821214A0   // (msg)
+#define T_GlassState_ReadPiece  821213B0      // (msg, piece), for a piece of state 2
+#define T_DATA_GlassPieces        0x825F8AA0u
+
+// Host migration: the save header mhead fills (0x480 bytes; the file's length at
+// +0x45C) and the 0x180000-byte buffer mdata fills (sub_8229EC00). The load
+// opens the buffer with the header's length unchecked, and the segment opener
+// adds up size words unchecked. migration_state_size.cpp.
+#define T_G_LoadMigratedGame    8224BF90
+#define T_MemFile_BeginSegment  82328790   // (file, segment); reading only
+#define T_DATA_MigrationHeader  0x82FC7D00u
+#define T_STR_CorruptedFile     0x82035230u   // "Trying to read corrupted file"
+// The script restore (sub_822AD700 and below): the object count read at
+// 822AD74C fills a 0x12000-byte table of u16 (0x833E2C60) unchecked;
+// sub_822ACD88 reads a signed object number at 822ACDD8 and indexes the table
+// with it; sub_822AD328 and sub_822AD388 look up a number their callers read;
+// code positions (822AD134, 822ACF74) are added to the program buffer's start,
+// whose size is the word 82329568 sets (0x200000). The entity restore
+// (sub_8224AA28) reads the count of a 256-record list at 8224AB40
+// (sub_822679E8 adds none at 0x100). script_save_ids.cpp. The type name table
+// MW2's object type check protects is not in this executable.
+#define T_MemFile_Read          823283B8   // (file, bytes, destination)
+#define T_Scr_SavedObject       822AD328
+#define T_Scr_ResolveObjectRef  822AD388
+#define T_RET_Scr_ReadObjectRef   0x822ACDDCu
+#define T_RET_Scr_ReadObjectCount 0x822AD750u
+#define T_RET_Scr_ReadCodePos     0x822AD138u
+#define T_RET_Scr_ReadResumePos   0x822ACF78u
+#define T_RET_G_ReadEntityPairCount 0x8224AB44u
+#define T_DATA_ScrProgramStart    0x833D0C5Cu
+#define T_DATA_ScrProgramSize     0x830B15FCu
+
+// UI_ReplaceDirective: the directive name goes into 0x100 bytes of its frame
+// with no bound (stb r10,0(r29) at 8230426C). ui_directive_overflow.cpp.
+#define T_UI_ReplaceDirective   82304170
+#define T_UI_LookupDirective    82304080
+#define T_I_strncpyz            8232BC08
+
+// Not here, with the evidence in docs/security.md: the joinParty count (IW5's
+// pa_joinrequest, sub_821978C0, bounds it to 18), the map name command (no
+// "map %s" line is built: sub_822EC8A0 queues a call), the command time print
+// (sub_822C18A8 drops the command without one).
 
 #elif defined(MW3_TITLE)
 

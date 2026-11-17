@@ -25,12 +25,56 @@
 // I_strnicmp, in the original's order.
 //
 // Multiplayer only: the campaign's disconnect handler raises literal messages.
+//
+// Modern Warfare 3's multiplayer has the same two paths in sub_82171640
+// (localClient, reason): 821717B0..D8 localises the reason, puts it into
+// EXE_SERVERDISCONNECTREASON (sub_822EBA80) and hands the result to Com_Error
+// as its format, and 82171858 raises a reason that equals a migration key as
+// the format itself. The function's order of keys and party calls differs from
+// MW2's, so it is not redone here: the reason is given to the original with
+// every '%' turned into '.', which is what a stock server's own filter leaves
+// of one, so no reason a stock server sends is changed.
 #include <ppc_recomp_shared.h>
 #include "title.h"
+#include "log.h"
 
 #include <cstdint>
+#include <cstring>
 
-#if defined(T_CL_DisconnectReason)
+#if defined(T_CL_DisconnectReason) && defined(MW3_TITLE)
+
+// sub_82171640(localClient = r3, reason = r4)
+GUEST_HOOK(T_CL_DisconnectReason)
+{
+    constexpr size_t kLongest = 1023;   // a server command's length
+    const uint32_t reason = ctx.r4.u32;
+    const uint32_t sp = ctx.r1.u32;
+    const char* text = reinterpret_cast<const char*>(base + reason);
+    if (reason == 0 || sp < 0x2000 || !std::memchr(text, '%', strnlen(text, kLongest + 1))) {
+        GUEST_ORIG(T_CL_DisconnectReason)(ctx, base);
+        return;
+    }
+    static bool logged;
+    if (!logged)
+        LOGW("online: a disconnect reason from the server held print directives; they were taken out");
+    logged = true;
+
+    // The copy goes just below the guest stack pointer, and the original runs
+    // at a stack pointer pushed past it (as map_name_command.cpp does).
+    const size_t length = strnlen(text, kLongest);
+    const uint32_t scratch = (sp - 0x100 - uint32_t(length) - 1) & ~0xFu;
+    for (size_t i = 0; i < length; ++i)
+        base[scratch + i] = text[i] == '%' ? '.' : text[i];
+    base[scratch + length] = 0;
+
+    const PPCContext saved = ctx;
+    ctx.r1.u64 = (scratch - 0x100) & ~0xFull;
+    ctx.r4.u64 = scratch;
+    GUEST_ORIG(T_CL_DisconnectReason)(ctx, base);   // returns only when it raises nothing
+    ctx = saved;
+}
+
+#elif defined(T_CL_DisconnectReason)
 
 namespace
 {

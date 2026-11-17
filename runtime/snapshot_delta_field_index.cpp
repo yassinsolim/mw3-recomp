@@ -49,6 +49,25 @@
 // (hud_elem_field_index.cpp), through their hooks.
 //
 // MP only: no twin in default.xex.
+//
+// Modern Warfare 3's multiplayer (the second block below) has the same three
+// readers with the same three gaps, read in its own code: MSG_ReadDeltaFields
+// (sub_822A2118) loops until an index equals the last changed field (bne at
+// 822A2248), MSG_ReadDeltaPlayerState (sub_822A2928) decodes the first index
+// not below it (blt at 822A2ADC), MSG_ReadDeltaEntity (sub_822A2370) decodes
+// its first index unchecked, and each takes a last changed field one past its
+// table (ble at 822A2190, 822A29E0, 822A2410). The entity type lookup
+// (sub_822A54B8) clamps from above only. Its player state reader does more
+// than MW2's, so the functions are not redone there: the originals run, and
+// the rule is kept at the one routine every index comes from, the gap reader
+// (sub_822A2058). A hook on each reader first reads the last changed field
+// the way the reader will (the message's 44 bytes of read state are put back
+// after), refuses a last changed field that is not a field of the table, and
+// notes the reader's bounds; the gap reader's hook then follows the index the
+// reader forms from each gap. A gap that would take the index anywhere a host
+// could not have sent marks the message overflowed (MSG_Discard, so the
+// snapshot is dropped) and is answered with the gap to the last changed
+// field, which is a field of the table and where each reader's loop ends.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -537,6 +556,274 @@ GUEST_HOOK(T_MSG_ReadDeltaPlayerState)
         Call(ctx, base, GUEST_FUNC(T_MSG_ReadDeltaHudElems), msg, time, from + 2120, to + 2120, 31);
     }
     ctx = saved;
+}
+
+#endif
+
+#if defined(T_DATA_DeltaTables) && defined(T_MSG_ReadDeltaEntity) && defined(T_MSG_ReadDeltaPlayerState) \
+    && defined(T_MSG_ReadDeltaFields) && defined(T_MSG_ReadFieldGap) && defined(T_MSG_EntityTypeFields) \
+    && defined(T_MSG_ReadBit) && defined(T_MSG_ReadBits) && defined(T_MSG_Discard) && defined(T_MSG_SIZE) \
+    && defined(T_PLAYER_STATE_SIZE)
+
+namespace {
+
+// The delta tables: {fields, count} pairs.
+constexpr uint32_t kPlayerStateCount = 0x14;
+constexpr uint32_t kEntityCount = 0x2C;
+
+enum class Kind { Fields, PlayerState, Entity };
+
+// One reader at work: the index it last decoded, the last changed field it
+// read, and whether its message has been refused.
+struct Reader {
+    Kind kind;
+    uint32_t msg;
+    uint32_t sp;         // the reader's stack pointer on entry
+    int32_t previous;
+    int32_t last;
+    bool first;          // the entity reader's first gap is one more than its index
+    bool refused;
+};
+
+// The readers nest two deep (the player state's objectives). An error raised
+// under a reader leaves by longjmp and never comes back here, so a reader whose
+// frame is not above the one being entered is one that was left that way.
+thread_local Reader g_readers[4];
+thread_local int g_depth;
+
+Reader* Enter(Kind kind, uint32_t msg, uint32_t sp, int32_t last)
+{
+    while (g_depth > 0 && g_readers[g_depth - 1].sp <= sp)
+        --g_depth;
+    if (g_depth == 4)
+        g_depth = 0;
+    Reader* reader = &g_readers[g_depth++];
+    *reader = Reader{ kind, msg, sp, -1, last, kind == Kind::Entity, false };
+    return reader;
+}
+
+void Leave(Reader* reader)
+{
+    g_depth = int(reader - g_readers);
+}
+
+uint32_t Tables(uint8_t* base)
+{
+    return PPC_LOAD_U32(T_DATA_DeltaTables);
+}
+
+// The bits that hold 0..n: what 32 - cntlzw(n) gives.
+uint32_t BitsFor(uint32_t n)
+{
+    return 32 - uint32_t(std::countl_zero(n));
+}
+
+// The message's read state, put back when this goes: what the bit readers
+// write is all inside the msg_t.
+struct Peek {
+    uint8_t* base;
+    uint32_t msg;
+    PPCContext& ctx;
+    PPCContext saved;
+    uint8_t state[T_MSG_SIZE];
+
+    Peek(PPCContext& c, uint8_t* b, uint32_t m) : base(b), msg(m), ctx(c), saved(c)
+    {
+        std::memcpy(state, base + msg, sizeof state);
+    }
+    ~Peek()
+    {
+        std::memcpy(base + msg, state, sizeof state);
+        ctx = saved;
+    }
+    int32_t Bit()
+    {
+        ctx.r3.u64 = msg;
+        GUEST_FUNC(T_MSG_ReadBit)(ctx, base);
+        return ctx.r3.s32;
+    }
+    int32_t Bits(uint32_t bits)
+    {
+        ctx.r3.u64 = msg;
+        ctx.r4.u64 = bits;
+        GUEST_FUNC(T_MSG_ReadBits)(ctx, base);
+        return ctx.r3.s32;
+    }
+};
+
+// MSG_Discard is a leaf: it needs no frame of its own.
+void Discard(PPCContext& ctx, uint8_t* base, uint32_t msg)
+{
+    const PPCContext saved = ctx;
+    ctx.r3.u64 = msg;
+    GUEST_FUNC(T_MSG_Discard)(ctx, base);
+    ctx = saved;
+}
+
+void Refuse(PPCContext& ctx, uint8_t* base, uint32_t msg, const char* what, int32_t field, int32_t last)
+{
+    Discard(ctx, base, msg);
+    // Every power of two, so a flood stays a few lines.
+    static std::atomic<uint32_t> count;
+    const uint32_t n = ++count;
+    if (n & (n - 1))
+        return;
+    LOGW("online: dropped a snapshot whose %s field %d (last changed %d) no host sends (%u so far)", what, field,
+         last, n);
+}
+
+const char* Name(Kind kind)
+{
+    return kind == Kind::Fields ? "struct" : kind == Kind::PlayerState ? "player state" : "entity";
+}
+
+} // namespace
+
+// (msg = r3, width = r4) -> the gap to the next changed field
+GUEST_HOOK(T_MSG_ReadFieldGap)
+{
+    const uint32_t msg = ctx.r3.u32;
+    GUEST_ORIG(T_MSG_ReadFieldGap)(ctx, base);
+    Reader* reader = g_depth > 0 ? &g_readers[g_depth - 1] : nullptr;
+    if (!reader || reader->msg != msg)
+        return;
+
+    // The index the reader makes of the gap. The entity reader's first gap is
+    // the index plus one, and anything up to 1 there is the eType, field 0.
+    const int32_t gap = ctx.r3.s32;
+    const bool first = reader->first;
+    reader->first = false;
+    int32_t index = first ? gap - 1 : reader->previous + gap;
+    if (first && index < 0)
+        index = 0;
+
+    // The rule the host's encoders keep: past the previous index and at most
+    // the last changed field, which the reader's hook has found in the table.
+    if (!reader->refused && index > reader->previous && index <= reader->last) {
+        reader->previous = index;
+        return;
+    }
+    if (!reader->refused) {
+        reader->refused = true;
+        Refuse(ctx, base, msg, Name(reader->kind), index, reader->last);
+    }
+    // Straight to the last changed field, where the reader's loop ends.
+    const int32_t rest = reader->last - reader->previous;
+    reader->previous = reader->last;
+    ctx.r3.s64 = first ? rest : (rest > 0 ? rest : 1);
+}
+
+// (eType = r3) -> the type's {fields, count}. The eType is a byte on the wire,
+// negative only once the message is read past its end; the lookup clamps from
+// above only.
+GUEST_HOOK(T_MSG_EntityTypeFields)
+{
+    if (ctx.r3.s32 < 0) {
+        if (g_depth > 0 && !g_readers[g_depth - 1].refused) {
+            Reader& reader = g_readers[g_depth - 1];
+            reader.refused = true;
+            Refuse(ctx, base, reader.msg, "entity type", ctx.r3.s32, reader.last);
+        }
+        ctx.r3.u64 = 0;
+    }
+    GUEST_ORIG(T_MSG_EntityTypeFields)(ctx, base);
+}
+
+// MSG_ReadDeltaFields(msg = r3, time = r4, from = r5, to = r6, count = r7,
+//                     fields = r8, gap width = r9, compare = r10, a byte)
+GUEST_HOOK(T_MSG_ReadDeltaFields)
+{
+    const uint32_t msg = ctx.r3.u32;
+    const int32_t count = ctx.r7.s32;
+    bool changed;
+    int32_t last = -1;
+    {
+        Peek peek(ctx, base, msg);
+        changed = peek.Bit() != 0;
+        if (changed)
+            last = peek.Bits(BitsFor(uint32_t(count)));
+    }
+    // Nothing changed, a message read past its end (-1), or a last changed
+    // field the original refuses itself (above the count): no index is formed.
+    if (!changed || last == -1 || last > count) {
+        GUEST_ORIG(T_MSG_ReadDeltaFields)(ctx, base);
+        return;
+    }
+    if (last >= count) {
+        Refuse(ctx, base, msg, "struct", last, last);
+        return;
+    }
+    Reader* reader = Enter(Kind::Fields, msg, ctx.r1.u32, last);
+    GUEST_ORIG(T_MSG_ReadDeltaFields)(ctx, base);
+    Leave(reader);
+}
+
+// MSG_ReadDeltaEntity(msg = r3, time = r4, from = r5, to = r6, number = r7,
+//                     gap width = r8) -> 1 if the entity is removed
+GUEST_HOOK(T_MSG_ReadDeltaEntity)
+{
+    const uint32_t msg = ctx.r3.u32;
+    const uint32_t count = PPC_LOAD_U32(Tables(base) + kEntityCount);
+    bool fields = false;
+    uint32_t last = 0;
+    {
+        Peek peek(ctx, base, msg);
+        // Removed (1), then unchanged (0): neither reads a field.
+        if (peek.Bit() != 1 && peek.Bit() != 0) {
+            peek.Bit();   // whether two float kinds decode against zero
+            last = uint32_t(peek.Bits(BitsFor(count)));
+            fields = true;
+        }
+    }
+    // Above the count (and the -1 of a message read past its end) the original
+    // refuses itself.
+    if (!fields || last > count) {
+        GUEST_ORIG(T_MSG_ReadDeltaEntity)(ctx, base);
+        return;
+    }
+    if (last >= count) {
+        Refuse(ctx, base, msg, "entity", int32_t(last), int32_t(last));
+        ctx.r3.u64 = 0;
+        return;
+    }
+    Reader* reader = Enter(Kind::Entity, msg, ctx.r1.u32, int32_t(last));
+    GUEST_ORIG(T_MSG_ReadDeltaEntity)(ctx, base);
+    Leave(reader);
+}
+
+// MSG_ReadDeltaPlayerState(localClient = r3, msg = r4, time = r5, from = r6,
+//                          to = r7, predicted = r8, a byte)
+GUEST_HOOK(T_MSG_ReadDeltaPlayerState)
+{
+    const uint32_t msg = ctx.r4.u32;
+    const int32_t count = int32_t(PPC_LOAD_U32(Tables(base) + kPlayerStateCount));
+    // One past the last changed field, 0 for none.
+    int32_t lastChanged;
+    {
+        Peek peek(ctx, base, msg);
+        peek.Bit();
+        peek.Bit();
+        lastChanged = peek.Bits(BitsFor(uint32_t(count + 1)));
+    }
+    // None, or one the original refuses itself (above count + 1).
+    if (lastChanged <= 0 || lastChanged > count + 1) {
+        GUEST_ORIG(T_MSG_ReadDeltaPlayerState)(ctx, base);
+        return;
+    }
+    if (lastChanged > count) {
+        // As the original leaves the state when it refuses: the old one's copy.
+        const uint32_t from = ctx.r6.u32;
+        const uint32_t to = ctx.r7.u32;
+        if (from != 0)
+            std::memmove(base + to, base + from, T_PLAYER_STATE_SIZE);
+        else
+            std::memset(base + to, 0, T_PLAYER_STATE_SIZE);
+        Refuse(ctx, base, msg, "player state", lastChanged - 1, lastChanged - 1);
+        return;
+    }
+    Reader* reader = Enter(Kind::PlayerState, msg, ctx.r1.u32, lastChanged - 1);
+    GUEST_ORIG(T_MSG_ReadDeltaPlayerState)(ctx, base);
+    Leave(reader);
 }
 
 #endif

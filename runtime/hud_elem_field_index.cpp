@@ -32,6 +32,12 @@
 // new.
 //
 // MP only: no twin in default.xex.
+//
+// Modern Warfare 3's multiplayer has the same reader (sub_822A2770: the same
+// reads, the same copies, no compare with the table before the tail copy). Its
+// field table is reached through the delta tables' pointer (T_DATA_DeltaTables:
+// the hud fields at +0x20, their count, 42, at +0x24), as the function loads it
+// on entry.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -66,9 +72,32 @@ int32_t ReadBit(PPCContext& ctx, uint8_t* base, uint32_t msg)
     return ctx.r3.s32;
 }
 
+// The hud field table and its length.
+#ifdef T_DATA_DeltaTables
+uint32_t Fields(uint8_t* base)
+{
+    return PPC_LOAD_U32(PPC_LOAD_U32(T_DATA_DeltaTables) + 0x20);
+}
+
+uint32_t FieldCount(uint8_t* base)
+{
+    return PPC_LOAD_U32(PPC_LOAD_U32(T_DATA_DeltaTables) + 0x24);
+}
+#else
+uint32_t Fields(uint8_t*)
+{
+    return T_DATA_HudElemFields;
+}
+
+uint32_t FieldCount(uint8_t* base)
+{
+    return PPC_LOAD_U32(T_DATA_HudElemFieldCount);
+}
+#endif
+
 uint32_t FieldOffset(uint8_t* base, int32_t field)
 {
-    return PPC_LOAD_U32(T_DATA_HudElemFields + uint32_t(field) * kFieldSize + kFieldOffset);
+    return PPC_LOAD_U32(Fields(base) + uint32_t(field) * kFieldSize + kFieldOffset);
 }
 
 // A field the message leaves unchanged keeps the old element's value.
@@ -87,7 +116,7 @@ void Refuse(uint8_t* base, uint32_t msg, int32_t lastChanged, int32_t field)
     if (n & (n - 1))
         return;
     LOGW("online: dropped a snapshot whose hud element field %d (of %d changed, %u fields) no host sends (%u so far)",
-         field, lastChanged, PPC_LOAD_U32(T_DATA_HudElemFieldCount), n);
+         field, lastChanged, FieldCount(base), n);
 }
 
 } // namespace
@@ -100,7 +129,7 @@ GUEST_HOOK(T_MSG_ReadDeltaHudElems)
     const uint32_t from = ctx.r5.u32;
     const uint32_t to = ctx.r6.u32;
     const int32_t capacity = ctx.r7.s32;
-    const int32_t numFields = int32_t(PPC_LOAD_U32(T_DATA_HudElemFieldCount));
+    const int32_t numFields = int32_t(FieldCount(base));
 
     const int32_t elements = ReadBits(ctx, base, msg, 5);
     for (int32_t e = 0; e < elements; ++e) {
@@ -142,7 +171,7 @@ GUEST_HOOK(T_MSG_ReadDeltaHudElems)
                 ctx.r4.u64 = time;
                 ctx.r5.u64 = fromElem;
                 ctx.r6.u64 = toElem;
-                ctx.r7.u64 = T_DATA_HudElemFields + uint32_t(field) * kFieldSize;
+                ctx.r7.u64 = Fields(base) + uint32_t(field) * kFieldSize;
                 ctx.r8.u64 = 0;
                 ctx.r9.u64 = 0;
                 GUEST_FUNC(T_MSG_ReadDeltaField)(ctx, base);

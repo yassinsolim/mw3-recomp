@@ -32,6 +32,15 @@
 //
 // Multiplayer only: the campaign creates its two-player session with constant
 // counts (sub_8213A430 and sub_8213A4C0 pass 0+2 and 2+0) and never modifies it.
+//
+// Modern Warfare 3's multiplayer keeps the counts at session+0x60 / +0x64, their
+// sum (sub_823AFF40) bounds the same kind of walk over the party's 18 member
+// records (party+0x58, 0x148 bytes each: sub_8218BD78, sub_8218BF20,
+// sub_82191050...), and a party host's partystate still sends them as two
+// bytes (sub_82186FC8 -> sub_823B4330 / sub_823B3C98). Three functions store
+// them there: the join (sub_823B07A0, r8/r9), the modify (sub_823B08C8, r6/r7)
+// and the host's own create (sub_823B40C0, r6/r7), which every caller feeds
+// from sv_privateClients and what is left of the 18.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -79,5 +88,14 @@ GUEST_HOOK(T_Session_Modify)
     ClampSlots(ctx.r6, ctx.r7, "a party session modify");
     GUEST_ORIG(T_Session_Modify)(ctx, base);
 }
+
+#ifdef T_Session_CreateHost
+// (session, controller, flags, counts in r6 and r7, r8: keep them apart)
+GUEST_HOOK(T_Session_CreateHost)
+{
+    ClampSlots(ctx.r6, ctx.r7, "a hosted session create");
+    GUEST_ORIG(T_Session_CreateHost)(ctx, base);
+}
+#endif
 
 #endif

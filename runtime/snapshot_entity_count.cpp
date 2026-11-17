@@ -33,6 +33,12 @@
 //
 // MP only: the campaign's snapshot parser is other code (no twin of these
 // functions in default.xex).
+//
+// Modern Warfare 3's multiplayer: the same two functions (sub_82179010,
+// sub_82179310) and the same array (0x8269BE84, the count before it; the next
+// global follows 1024 entries on), with the snapshot's fields elsewhere
+// (T_SNAPSHOT_FLAGS, T_SNAPSHOT_ENTITIES). Its server stops a baseline snapshot
+// at 0x400 entities too (sub_822CB6F8, sub_822CB840).
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -47,8 +53,13 @@ namespace {
 constexpr uint32_t kMaxBaselineEntities = 1024;   // NUM_NODELTA_ENTITIES
 constexpr uint32_t kBaselineFlag = 0x8;
 // clSnapshot_t fields, as the two functions read them
+#ifdef T_SNAPSHOT_FLAGS
+constexpr uint32_t kSnapFlags = T_SNAPSHOT_FLAGS;
+constexpr uint32_t kNumEntities = T_SNAPSHOT_ENTITIES;
+#else
 constexpr uint32_t kSnapFlags = 12676;
 constexpr uint32_t kNumEntities = 12700;
+#endif
 constexpr uint32_t kOverflowed = 0;   // msg_t
 
 bool Baseline(uint8_t* base, uint32_t frame)

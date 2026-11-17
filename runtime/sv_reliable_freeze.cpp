@@ -33,6 +33,12 @@
 // signed subtraction would be undefined overflow.
 //
 // Multiplayer only: the campaign image has no twin of these functions.
+//
+// Modern Warfare 3's multiplayer: the same store (SV_PacketEvent, sub_822C76B8,
+// with the signed `seq - ack >= 128` test alone) and the first two loops
+// (sub_822CE780, sub_822CE858), the counters at client+0x20E64 / +0x20E68. The
+// printing loop is not a function there: what is left of it is an empty loop
+// inside sub_822C6568, reached only when the difference is exactly 129.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -40,12 +46,17 @@
 #include <cstdint>
 
 #if defined(T_SV_UpdateServerCommandsToClient) && defined(T_SV_ResendReliableCommands) && \
-    defined(T_SV_DumpPendingReliableCommands)
+    (defined(T_SV_DumpPendingReliableCommands) || defined(T_SVCLIENT_RELIABLE_SEQUENCE))
 
 namespace
 {
+#ifdef T_SVCLIENT_RELIABLE_SEQUENCE
+    constexpr uint32_t kReliableSequence = T_SVCLIENT_RELIABLE_SEQUENCE;
+    constexpr uint32_t kReliableAcknowledge = T_SVCLIENT_RELIABLE_ACKNOWLEDGE;
+#else
     constexpr uint32_t kReliableSequence = 0x20E50;      // client->reliableSequence
     constexpr uint32_t kReliableAcknowledge = 0x20E54;   // client->reliableAcknowledge
+#endif
 
     void SanitizeReliableAcknowledge(uint8_t* base, uint32_t client)
     {
@@ -76,10 +87,12 @@ GUEST_HOOK(T_SV_ResendReliableCommands)
     GUEST_ORIG(T_SV_ResendReliableCommands)(ctx, base);
 }
 
+#ifdef T_SV_DumpPendingReliableCommands
 GUEST_HOOK(T_SV_DumpPendingReliableCommands)
 {
     SanitizeReliableAcknowledge(base, ctx.r3.u32);
     GUEST_ORIG(T_SV_DumpPendingReliableCommands)(ctx, base);
 }
+#endif
 
 #endif

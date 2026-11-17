@@ -65,6 +65,15 @@
 // local clients as well. MP-only: the campaign's packet handler
 // (sub_8233C508) looks up the co-op client by the sender's address and answers
 // anyone else with coopDis.
+//
+// Modern Warfare 3's multiplayer has the same three gaps (sub_821766C8,
+// sub_821759F0 and its migration table at sub_82178610), read in its own code.
+// What differs: an address is 16 bytes (a local network id follows the port,
+// and NET_CompareAdr, sub_822A3508, takes each address in two whole registers);
+// a sequenced packet's local client is the message's own field (+40, 4 for
+// none), not r3; and the handshake has one more reply the dispatcher takes at
+// its state alone, mruleResponse (state 7, the match rules a server sends),
+// which is refused from anyone else like the other three.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -92,14 +101,19 @@ uint32_t Connection(uint8_t* base, uint32_t localClient)
 
 // A netadr_t (type, four IP bytes, port) arrives in two registers: bytes 0..7,
 // then bytes 8..11 in the high word of the second, which is also how
-// NET_CompareAdr takes it.
+// NET_CompareAdr takes it. With T_NETADR_SIZE 16 the second register is whole
+// (bytes 8..15).
 bool SameAddress(PPCContext& ctx, uint8_t* base, uint64_t from0, uint64_t from1, uint32_t adr)
 {
     const PPCContext saved = ctx;
     ctx.r3.u64 = from0;
     ctx.r4.u64 = from1;
     ctx.r5.u64 = PPC_LOAD_U64(adr);
+#if defined(T_NETADR_SIZE) && T_NETADR_SIZE == 16
+    ctx.r6.u64 = PPC_LOAD_U64(adr + 8);
+#else
     ctx.r6.u64 = uint64_t(PPC_LOAD_U32(adr + 8)) << 32;
+#endif
     GUEST_FUNC(T_NET_CompareAdr)(ctx, base);
     const bool same = ctx.r3.u32 != 0;
     ctx = saved;
@@ -120,19 +134,30 @@ void Refused(const char* what, uint64_t from0, uint64_t from1, std::atomic<uint3
 }
 
 std::atomic<uint32_t> g_sequenced, g_challenge, g_connect, g_stat, g_migration;
+#ifdef MW3_TITLE
+std::atomic<uint32_t> g_matchRules;
+#endif
 
 } // namespace
 
 // CL_PacketEvent(localClient = r3, from = r4:r5, msg = r6, time = r7) -> handled
 GUEST_HOOK(T_CL_PacketEvent)
 {
-    const uint32_t localClient = ctx.r3.u32;
     const uint32_t msg = ctx.r6.u32;
+#ifdef T_MSG_LOCAL_CLIENT
+    // The original takes a sequenced packet's client from the message, and
+    // answers 0 itself when it names none (4).
+    const uint32_t localClient = PPC_LOAD_U32(msg + T_MSG_LOCAL_CLIENT);
+    const bool forClient = localClient < 4;
+#else
+    const uint32_t localClient = ctx.r3.u32;
+    const bool forClient = true;
+#endif
     // msg->cursize at +20, msg->data at +8, as the original reads them.
     const bool connectionless = PPC_LOAD_U32(msg + 20) >= 4
                              && PPC_LOAD_U32(PPC_LOAD_U32(msg + 8)) == 0xFFFFFFFFu;
     // At a state below 5 the original refuses a sequenced packet itself.
-    if (!connectionless && ConnectionState(base, localClient) >= 5
+    if (!connectionless && forClient && ConnectionState(base, localClient) >= 5
         && !SameAddress(ctx, base, ctx.r4.u64, ctx.r5.u64,
                         Connection(base, localClient) + T_CONNECTION_NETCHAN_ADR)) {
         Refused("a game packet", ctx.r4.u64, ctx.r5.u64, g_sequenced);
@@ -182,6 +207,10 @@ GUEST_HOOK(T_CL_ConnectionlessPacket)
         count = &g_connect;
     else if (state == 6 && SameName(name, "statResponse"))
         count = &g_stat;
+#ifdef MW3_TITLE
+    else if (state == 7 && SameName(name, "mruleResponse"))
+        count = &g_matchRules;
+#endif
     // The migration messages at any state: each handler tests its own stage,
     // and only the server has a reason to send one.
     else if (SameName(name, "mstart") || SameName(name, "mhead") || SameName(name, "mdata")

@@ -83,7 +83,8 @@ checkout deleted. They have not been run.
 
 ## `runtime/title.h`
 
-The multiplayer block has exactly the campaign block's entries.
+The multiplayer block has the campaign block's entries, below, and after them
+the network hardening entries ([security.md](security.md#modern-warfare-3-multiplayer)).
 
 | entry | campaign | multiplayer | compared |
 |---|---|---|---|
@@ -107,14 +108,26 @@ Not enabled, as in the campaign: `T_Memcard_InitializeSystem` (located,
 `82355E60`). Not located: `T_CG_CullZoom` (no match for the campaign's
 `821067A8`), and what the campaign block lists as not located
 (`T_D3D_ReplayRecording`, `T_Job_WaitPredicate`, `T_CG_ViewFov`,
-`T_Dvar_RegisterInt`, `T_DB_MissingAsset`, `T_Com_Printf`). None of MW2's
-multiplayer hooks (the network hardening of [security.md](security.md), party,
-map list, stats) has been looked for: they are compiled out.
+`T_Dvar_RegisterInt`, `T_DB_MissingAsset`, `T_Com_Printf`). MW2's party, map
+list and stats hooks have not been looked for: they are compiled out.
+
+The network hardening entries were not found by matching MW2's code (its
+multiplayer executable is not an input here) but by reading this executable:
+the out-of-band command tables (`0x82014E64` the migration messages,
+`0x82016468` the party client's, `0x820181B8` the party host's, `0x82018550`
+the party migration's), the callers of the message readers, the strings that
+survive in a ship build, and the globals each function reads. The evidence for
+each is in `runtime/title.h` beside the entry and in security.md's table.
 
 ## No network
 
 MW2's multiplayer is safe on a network because of hooks that bound what its
-packet parsers accept. None is found in MW3 yet, so this title has no network:
+packet parsers accept. Their MW3 counterparts are now in place
+([security.md](security.md#modern-warfare-3-multiplayer): wired, or shown not
+to be needed in IW5, with two fixes for code MW2 does not have), and built into
+the APK, but they have only been read and compiled: none has been exercised
+against real traffic, and the title's own network code has had no review
+beyond that list. So this title still has no network:
 
 - `online/service.cpp`: the backend is `none` whatever `MW2_NETWORK` says.
 - `kernel/net.cpp`: the title's sockets are bound to 127.0.0.1, a send to any
@@ -125,7 +138,10 @@ packet parsers accept. None is found in MW3 yet, so this title has no network:
 - The app does not set `MW2_NET_LINK`, and shows none of MW2's network entries
   or stat cheats, for a `com.mw3.` package.
 
-Do not lift any of these before the MW2 hardening hooks are re-found here.
+Do not lift any of these before the hooks have been run: a local match first
+(every snapshot, the HUD strings and the server's command resend pass through
+them on the loopback, and the log's `online:` warnings should stay silent),
+then two copies on one LAN.
 
 ## Installing and starting
 

@@ -35,6 +35,10 @@
 // (a client-state bit it tests first), the dvar is cleared now rather than left
 // for a later call -- which only discards a value that would never be run.
 // MP-only: the campaign has no twin.
+//
+// Modern Warfare 3's multiplayer: the same reader (sub_82165210, the dvar
+// pointer at 0x82643A40, registered with flags 0) and the same setter
+// (sub_82141250); a dvar's current value is at +8 there (T_DVAR_CURRENT).
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -47,7 +51,11 @@ GUEST_HOOK(T_CL_RunActiveAction)
 {
     // Guard both pointers rather than lean on a null read returning 0 here.
     const uint32_t dvar = PPC_LOAD_U32(T_DATA_ActiveActionDvar);
+#ifdef T_DVAR_CURRENT
+    const uint32_t str = dvar ? PPC_LOAD_U32(dvar + T_DVAR_CURRENT) : 0;
+#else
     const uint32_t str = dvar ? PPC_LOAD_U32(dvar + 12) : 0;
+#endif
     if (str && PPC_LOAD_U8(str)) {
         // Log once -- activeAction registers empty, so a value here is
         // normally the host's (an attack or a mod).

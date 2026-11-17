@@ -36,6 +36,11 @@
 // the handler's own compare), ASCII case-folded, since Dvar_FindVar matches
 // without case. MP-only: the campaign's handler (sub_82108090) accepts
 // hud_drawHUD alone.
+//
+// Modern Warfare 3's multiplayer: the same handler (sub_82141250, source 0
+// through sub_823266D0), the same resolveError reader (sub_822FAC08), and one
+// more dvar read the same way beside it, com_completionResolveCommand
+// (sub_822FAC80, flags 0x2000 too), refused there as well.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -48,7 +53,13 @@
 
 namespace {
 
-const char* const kRefused[] = { "com_errorResolveCommand", "nextmap" };
+const char* const kRefused[] = {
+    "com_errorResolveCommand",
+    "nextmap",
+#ifdef MW3_TITLE
+    "com_completionResolveCommand",
+#endif
+};
 
 bool SameName(const char* a, const char* b)
 {

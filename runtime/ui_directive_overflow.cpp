@@ -27,13 +27,18 @@
 // room for the terminator). A legitimate directive name is a short token, so
 // nothing real is truncated; an over-long name simply fails to resolve, which
 // is how the engine already treats a name it cannot find.
+//
+// Modern Warfare 3's multiplayer: the same loop in sub_82304170 (stb r10,0(r29)
+// at 8230426C, the name at r1+0x50, 0x100 bytes, cleared at each "[{"), the
+// same lookup (sub_82304080) and copy (sub_8232BC08). It prints nothing for a
+// malformed directive, so neither does this there.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 
 #include <cstdint>
 
 #if defined(T_UI_ReplaceDirective) && defined(T_UI_LookupDirective) && \
-    defined(T_I_strncpyz) && defined(T_Com_PrintMessage)
+    defined(T_I_strncpyz) && (defined(T_Com_PrintMessage) || defined(MW3_TITLE))
 
 namespace
 {
@@ -43,6 +48,7 @@ namespace
     // called for a malformed directive exactly as the original does. Loop state
     // lives in this function's locals, so clobbering ctx across the call is
     // fine; r1 already sits below our scratch (see the hook).
+#if defined(T_Com_PrintMessage) && defined(T_STR_DirectiveEmpty) && defined(T_STR_DirectiveNoEnd)
     void PrintDirectiveWarning(PPCContext& ctx, uint8_t* base, uint32_t fmt, uint32_t arg)
     {
         ctx.r3.u64 = 13;
@@ -50,6 +56,18 @@ namespace
         ctx.r5.u64 = arg;
         GUEST_FUNC(T_Com_PrintMessage)(ctx, base);
     }
+    void EmptyDirective(PPCContext& ctx, uint8_t* base, uint32_t at)
+    {
+        PrintDirectiveWarning(ctx, base, T_STR_DirectiveEmpty, at);
+    }
+    void UnendedDirective(PPCContext& ctx, uint8_t* base, uint32_t at)
+    {
+        PrintDirectiveWarning(ctx, base, T_STR_DirectiveNoEnd, at);
+    }
+#else
+    void EmptyDirective(PPCContext&, uint8_t*, uint32_t) {}
+    void UnendedDirective(PPCContext&, uint8_t*, uint32_t) {}
+#endif
 }
 
 // UI_ReplaceDirective(ctx = r3, src = r4, dest = r5, destSize = r6).
@@ -99,7 +117,7 @@ GUEST_HOOK(T_UI_ReplaceDirective)
             PPC_STORE_U8(gName + nameLen, 0);
             if (nameLen == 0)
             {
-                PrintDirectiveWarning(ctx, base, T_STR_DirectiveEmpty, p);
+                EmptyDirective(ctx, base, p);
             }
             else
             {
@@ -143,7 +161,7 @@ GUEST_HOOK(T_UI_ReplaceDirective)
     if (out < end)
         PPC_STORE_U8(out, 0);   // terminate the output
     if (inName)                 // reached the end of the string mid-directive
-        PrintDirectiveWarning(ctx, base, T_STR_DirectiveNoEnd, p);
+        UnendedDirective(ctx, base, p);
 
     ctx.r1.u64 = sp0;   // balance the stack the function was entered with
 }

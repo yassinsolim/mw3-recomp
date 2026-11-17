@@ -77,6 +77,20 @@
 // the list. It is refused like the others.
 //
 // MP-only: the campaign's own save loader is not reached from the network.
+//
+// Modern Warfare 3's multiplayer restores a migrated state the same way
+// (sub_8224B8D8 -> sub_822AD700 and sub_8224AA28), with the same reads
+// unchecked: the object count (822AD74C) filling the same 0x12000-byte table
+// (0x833E2C60); a signed object number read and looked up by sub_822ACD88
+// (822ACDD8, with the same 16-entry ring); the lookups sub_822AD328 (its
+// caller sign-extends at 8224BB5C) and sub_822AD388 (a raw u16); code
+// positions added to the program buffer's start (822AD134 a value, 822ACF74 a
+// thread's resume position); and the 256-record entity pair list (the count
+// read at 8224AB40, sub_822679E8 adding none at 0x100). The program buffer
+// there is one allocation whose size sits in a word of its own
+// (T_DATA_ScrProgramSize, 0x200000 as sub_82329568 sets it), so the bound is
+// start + size. The object type check is MW2's alone: this executable has no
+// type name table to read past.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
@@ -85,15 +99,19 @@
 
 #if defined(T_MemFile_Read) && defined(T_Scr_SavedObject) && defined(T_Scr_ResolveObjectRef) \
     && defined(T_RET_Scr_ReadObjectRef) && defined(T_RET_Scr_ReadObjectCount) \
-    && defined(T_RET_Scr_ReadObjectType) && defined(T_RET_Scr_ReadCodePos) \
+    && defined(T_RET_Scr_ReadCodePos) \
     && defined(T_RET_Scr_ReadResumePos) && defined(T_DATA_ScrProgramStart) \
-    && defined(T_DATA_ScrProgramEnd) && defined(T_RET_G_ReadEntityPairCount) \
+    && (defined(T_DATA_ScrProgramEnd) || defined(T_DATA_ScrProgramSize)) \
+    && (defined(T_RET_Scr_ReadObjectType) || defined(T_DATA_ScrProgramSize)) \
+    && defined(T_RET_G_ReadEntityPairCount) \
     && defined(T_Com_Error) && defined(T_STR_CorruptedFile)
 
 namespace {
 
 constexpr uint32_t kTableEntries = 36864;    // 0x12000 bytes of u16
+#ifdef T_RET_Scr_ReadObjectType
 constexpr uint32_t kVariableTypes = 25;      // the VM's types, 0..24
+#endif
 constexpr uint32_t kEntityPairs = 256;       // sub_8225BD88's limit
 
 [[noreturn]] void Corrupted(PPCContext& ctx, uint8_t* base)
@@ -114,6 +132,7 @@ GUEST_HOOK(T_MemFile_Read)
     const uint32_t bytes = ctx.r4.u32;
     const uint32_t dest = ctx.r5.u32;
     GUEST_ORIG(T_MemFile_Read)(ctx, base);
+#ifdef T_RET_Scr_ReadObjectType
     if (bytes == 1 && from == T_RET_Scr_ReadObjectType) {
         const uint32_t byte = PPC_LOAD_U8(dest);
         const uint32_t tag = byte & 7;
@@ -124,10 +143,15 @@ GUEST_HOOK(T_MemFile_Read)
         }
         return;
     }
+#endif
     if (bytes == 4
         && (from == T_RET_Scr_ReadCodePos || from == T_RET_Scr_ReadResumePos)) {
         const uint32_t start = PPC_LOAD_U32(T_DATA_ScrProgramStart);
+#ifdef T_DATA_ScrProgramSize
+        const uint32_t end = start + PPC_LOAD_U32(T_DATA_ScrProgramSize);
+#else
         const uint32_t end = PPC_LOAD_U32(T_DATA_ScrProgramEnd);
+#endif
         const uint32_t offset = PPC_LOAD_U32(dest);
         const uint32_t position = start + offset;    // as the restore adds it
         if (position < start || position >= end) {

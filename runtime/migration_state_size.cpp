@@ -31,6 +31,13 @@
 //
 // Reads only: the console would fault on an unmapped address, this build reads
 // zeros. MP-only: the campaign has no host migration.
+//
+// Modern Warfare 3's multiplayer: the same header (0x82FC7D00, 0x480 bytes read
+// by mhead, sub_82178518; the length at the same +1116), the same 0x180000-byte
+// buffer (sub_8229EC00), a load that opens it with the header's length
+// (sub_8224BF90 -> sub_82328AA0) and a segment opener that adds up size words
+// (sub_82328790, 82328810..20), neither compared with anything. The file
+// object has the same fields at the same offsets.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
