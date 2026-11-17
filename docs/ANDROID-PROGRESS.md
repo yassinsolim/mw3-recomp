@@ -174,6 +174,15 @@ Status words: **verified** (observed on the device or by a run), **built**
 - Build PC: two unrelated python servers hold most of the PC's memory; the
   Gradle daemon's heap is lowered in scripts/win_build.ps1 (outside the repo)
   so builds start beside them.
+- Frame pacing over those 10 minutes: the window showed every frame (none
+  let go, none held). 131 stutters in 654 s of play lost 370 of about
+  39,000 frames (0.95%); 114 of them one frame. 107 were the renderer late,
+  not the title. Most of the "17.5-25 ms" share is ordinary vsync jitter
+  (19,914 frames 16.7-20 ms swap to swap; 682 over 20 ms). What is left is
+  texture churn: 68,910 textures (8.3 GB) uploaded in the 11 minutes and
+  67,439 released because the title's image pool rewrote their memory, read
+  and decoded on the ring consumer at segment ends. Moving that decode off
+  the consumer is the next step for the remaining hitches.
 
 ## Build (WSL2 Ubuntu 24.04)
 
