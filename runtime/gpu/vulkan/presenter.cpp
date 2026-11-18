@@ -21,6 +21,7 @@ void     vk::StopPresenting()  {}
 void     vk::Stop()            {}
 void     vk::ShowImage(void*, uint32_t, uint32_t, uint64_t) {}
 void     vk::WaitUntilTaken(uint64_t) {}
+void     vk::WaitForDisplay(uint64_t) {}
 uint64_t vk::GuestBlankPeriod() { return 0; }
 bool     vk::TakeMouseMotion(float&, float&) { return false; }
 bool     vk::Running()         { return false; }
@@ -179,7 +180,9 @@ namespace
 
         // The display's clock, as the presents reaching it measure it.
         double nominalNs = 0;                // from the display mode; 0 = not followed
+        double modeHz = 0;                   // the display mode's rate
         double periodNs = 0;
+        uint32_t measured = 0;               // gaps the period was measured from
         int64_t lastShownNs = -1;
         uint64_t lastShownId = 0;
         bool exactRate = false;              // the display mode gave its rate exactly
@@ -663,18 +666,13 @@ namespace
 
     void Waiter();
 
-    // The guest's blank follows the display when the display runs at the
-    // console's 60 Hz and the device can say when a present reaches it. A
-    // display at another rate cannot show 60 frames a second evenly anyway,
-    // and the title keeps its own 60.
-    void FollowTheDisplay()
+    // The display's rate as its mode gives it; 60 when nothing says.
+    double ModeRate()
     {
         double hz = 0;
 #ifdef MW2_ANDROID
-        // Display.getRefreshRate, as the app reported it. A phone that can
-        // run at 90 or 120 is asked for 60 by the app where it can, because
-        // the console's frame is a 60 Hz frame and a display at 90 shows
-        // every other one twice.
+        // Display.getRefreshRate, as the app reported it, at the surface's
+        // making and whenever the display's mode changes after it.
         hz = android::RefreshHz();
         g.exactRate = false;
 #else
@@ -687,18 +685,47 @@ namespace
                              : double(mode->refresh_rate);
         }
 #endif
-        g.periodNs = 1e9 / (hz > 0 ? hz : 60.0);
-        if (!g.presentWait) return;
-        if (hz >= 59.0 && hz <= 61.0)
-        {
-            g.nominalNs = g.periodNs;
-            LOGI("vulkan: the display runs at %.4f Hz; the guest's blank follows it", hz);
-        }
-        else
-            LOGI("vulkan: the display runs at %.3f Hz, not 60; the guest's blank keeps its own"
-                 " clock", hz);
-        g.waiter = std::thread(Waiter);
+        return hz > 0 ? hz : 60.0;
     }
+
+    // The display runs at `hz` from now on (under waitLock once the waiter
+    // runs). The guest's blank follows the display when the display runs at
+    // the console's 60 Hz and the device can say when a present reaches it. A
+    // display at another rate cannot show 60 frames a second evenly anyway,
+    // and the title keeps its own 60; what paces its frames there is
+    // frame_rate.h's to choose, from the rate given it here.
+    void AdoptDisplayRate(double hz)
+    {
+        g.modeHz = hz;
+        g.periodNs = 1e9 / hz;
+        g.measured = 0;
+        g.lastShownNs = -1;
+        frame_rate::SetDisplay(hz, g.periodNs);
+        const bool followed = g.presentWait && hz >= 59.0 && hz <= 61.0;
+        g.nominalNs = followed ? g.periodNs : 0;
+        if (!followed) g.guestPeriodNs.store(0, std::memory_order_relaxed);
+        LOGI("vulkan: the display runs at %.4f Hz; the guest's blank %s", hz,
+             followed ? "follows it" : "keeps its own 60 Hz clock");
+    }
+
+    void FollowTheDisplay()
+    {
+        AdoptDisplayRate(ModeRate());
+        if (g.presentWait) g.waiter = std::thread(Waiter);
+    }
+
+#ifdef MW2_ANDROID
+    // A phone changes its display's mode under a running game: the system
+    // grants the rate the app asked for a moment after the surface is made,
+    // and takes it back when the battery or the heat says so.
+    void FollowModeChange()
+    {
+        const double hz = ModeRate();
+        if (std::abs(hz - g.modeHz) < 0.5) return;
+        std::lock_guard lock(g.waitLock);
+        AdoptDisplayRate(hz);
+    }
+#endif
 
     // How much longer the guest's blank may be than the display's while
     // latency drains: 0.5%, a frame in about three seconds, and nobody sees it.
@@ -728,9 +755,11 @@ namespace
     void SawDisplayed(uint64_t id, int64_t at)
     {
         const uint64_t queued = g.lastQueued.load(std::memory_order_relaxed);
-        // Off the blank nothing waits its turn behind the frame on screen:
-        // the frames after it are let go for the newest (DrawOneFrame).
-        const double behind = frame_rate::Console() && queued > id ? double(queued - id) : 0.0;
+        // Under the title's limiter nothing waits its turn behind the frame
+        // on screen: the frames after it are let go for the newest
+        // (DrawOneFrame).
+        const double behind = frame_rate::Mode() != frame_rate::kByLimiter && queued > id
+                                  ? double(queued - id) : 0.0;
         if (g.lastShownNs >= 0 && id > g.lastShownId)
         {
             const double gap = double(at - g.lastShownNs);
@@ -738,9 +767,19 @@ namespace
             const long blanks = std::lround(gap / g.periodNs);
             // Only a gap no longer than the period can be trusted to measure it.
             if (!g.exactRate && frames == 1 && gap <= g.periodNs * 1.02 && gap > g.periodNs * 0.9)
+            {
                 g.periodNs += (gap - g.periodNs) / 256.0;
-            if (blanks > long(frames))
-                stutters::Displayed(id, uint32_t(blanks - long(frames)), gap / 1e6);
+                frame_rate::SetDisplay(g.modeHz, g.periodNs);
+                // Four times the average's length: what the mode's rate was
+                // out by has gone from it.
+                if (++g.measured == 1024)
+                    LOGI("vulkan: the display's blank measures %.1f us, %.3f Hz, against %.3f Hz"
+                         " from its mode", g.periodNs / 1000.0, 1e9 / g.periodNs, g.modeHz);
+            }
+            // A frame is due to stay as many blanks as the limit makes it
+            // (60 on a 120 Hz display: two).
+            const long due = long(frames) * long(frame_rate::BlanksAFrame());
+            if (blanks > due) stutters::Displayed(id, uint32_t(blanks - due), gap / 1e6);
         }
         g.lastShownNs = at;
         g.lastShownId = id;
@@ -999,10 +1038,12 @@ namespace
         if (!idle)
         {
             std::lock_guard lock(g.lock);
-            // Off the blank (MW2_FPS_LIMIT) the title finishes frames whenever
-            // it likes, and the display still takes one a blank: the newest is
-            // shown and the ones before it are let go.
-            while (!frame_rate::Console() && g.frameQueue.size() > 1)
+            // Under the title's limiter (frame_rate.h) the title finishes
+            // frames whenever it likes, and the display still takes one a
+            // blank: the newest is shown and the ones before it are let go.
+            // Paced by the console's blank or the display's, every frame is
+            // shown in its turn.
+            while (frame_rate::Mode() == frame_rate::kByLimiter && g.frameQueue.size() > 1)
             {
                 g.taken = std::max(g.taken, g.frameQueue.front().serial);
                 g.frameQueue.pop_front();
@@ -1383,6 +1424,7 @@ namespace
             g.shown = true;
             // The activity's surface came, went, or was replaced.
             if (android::WindowGeneration() != g.generation) AdoptNewSurface();
+            FollowModeChange();
             // Nothing to present to, or nothing worth presenting: the frames
             // the renderer finishes are let go at once, so the guest never
             // waits on a window that is not there.
@@ -1577,6 +1619,37 @@ void vk::WaitUntilTaken(uint64_t serial)
     if (told.fetch_add(1) < 4)
         LOGW("vulkan: the window took no frame in 250 ms; frames up to %llu let go unshown",
              (unsigned long long)serial);
+}
+
+// The swapchain waits for the blank (FIFO), so the window takes a frame a
+// blank and the wait for it paces the renderer. Not every swapchain does: a
+// desktop driver set to present without waiting takes them as they come --
+// 575 a second were shown on a 240 Hz display -- and with the activity paused
+// there is no window to take any. So a frame is also never finished sooner
+// than a period after the one before. The 2% under keeps this clock from
+// being the one that paces where the display does: two clocks pacing the
+// same frames beat against each other.
+void vk::WaitForDisplay(uint64_t serial)
+{
+    WaitUntilTaken(serial);
+    static std::chrono::steady_clock::time_point earliest;   // the ring consumer's own
+    const auto period = std::chrono::nanoseconds(int64_t(frame_rate::DisplayPeriodNs() * 0.98));
+    const auto now = std::chrono::steady_clock::now();
+    // Counted from when the last was due, not from when it came, so a late
+    // wake-up is not added to every frame after it.
+    if (now < earliest)
+    {
+#ifdef _WIN32
+        // Windows wakes a sleeper to the millisecond at best, a quarter of a
+        // 240 Hz period: the end of the wait is waited out awake.
+        std::this_thread::sleep_until(earliest - std::chrono::milliseconds(2));
+        while (std::chrono::steady_clock::now() < earliest) std::this_thread::yield();
+#else
+        std::this_thread::sleep_until(earliest);
+#endif
+        earliest += period;
+    }
+    else earliest = now + period;
 }
 
 uint64_t vk::GuestBlankPeriod()

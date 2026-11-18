@@ -55,7 +55,8 @@ namespace android
     bool WaitForWindow(int milliseconds);
     // The surface's size in pixels, as the app last reported it.
     void WindowSize(uint32_t& width, uint32_t& height);
-    // What the display runs at, from the app (Display.getRefreshRate).
+    // What the display runs at, from the app (Display.getRefreshRate): at the
+    // surface's making, and whenever the display's mode changes after it.
     double RefreshHz();
     // The activity is not in front: nothing is presented, and audio is muted.
     bool Paused();

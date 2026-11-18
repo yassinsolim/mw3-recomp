@@ -11,6 +11,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
@@ -21,6 +22,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.Gravity
+import android.view.Display
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -103,6 +105,22 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     private val statsValues = FloatArray(9)
     private var started = false
+
+    // The system changes the display's mode under a running game: it grants
+    // the rate asked for a moment after the surface is made, and takes it
+    // back for the battery or the heat. The runtime paces by the display, so
+    // it is told (runtime/frame_rate.h).
+    private var displayModeLogged = ""
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId != shownDisplay()?.displayId) return
+            logDisplayMode()
+            NativeBridge.nativeSetRefreshRate(refreshHz())
+        }
+    }
+
     private var cachedRendererInfo = ""
 
     private var cpuUsagePercent = -1f
@@ -410,6 +428,8 @@ val mode60 = modes
             }
             window.attributes = attributes
         }
+        logDisplayMode()
+        getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, handler)
 
         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
@@ -711,14 +731,30 @@ val mode60 = modes
 
     private fun pad(dp: Int): Int = (dp * resources.displayMetrics.density).roundToInt()
 
-    private fun refreshHz(): Float {
-        val shown = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display
+    private fun shownDisplay(): Display? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display
         else {
             @Suppress("DEPRECATION")
             windowManager.defaultDisplay
         }
-        val hz = shown?.refreshRate ?: 60f
+
+    private fun refreshHz(): Float {
+        val hz = shownDisplay()?.refreshRate ?: 60f
         return if (hz < 20f) 60f else hz
+    }
+
+    // The mode the display is in, beside the ones it has, whenever that is
+    // another: a limit of 120 on a screen the system holds at 60 is seen here.
+    private fun logDisplayMode() {
+        val shown = shownDisplay() ?: return
+        val mode = shown.mode
+        val line = "display ${shown.displayId}: mode ${mode.modeId}, " +
+            "${mode.physicalWidth}x${mode.physicalHeight} at ${mode.refreshRate} Hz; it has " +
+            shown.supportedModes.joinToString { "${it.modeId}: ${it.refreshRate} Hz" } +
+            "; FPS limit ${prefs.fpsLimit}"
+        if (line == displayModeLogged) return
+        displayModeLogged = line
+        android.util.Log.i("MW2", line)
     }
 
     private fun goFullscreen() {
@@ -1277,6 +1313,7 @@ val mode60 = modes
         monitorThread?.interrupt()
         monitorThread = null
         handler.removeCallbacksAndMessages(null)
+        getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener)
         NativeBridge.listener = null
         if (started && !isChangingConfigurations) {
             // The activity is going for good: the run goes with it.

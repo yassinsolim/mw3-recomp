@@ -1,4 +1,5 @@
 #include "report.h"
+#include "frame_rate.h"
 #include "log.h"
 #include "platform.h"
 #include "gpu/memory_watch.h"
@@ -31,6 +32,11 @@ namespace
         // not a slow frame.
         uint64_t intervals = 0, buckets[kBuckets]{};
         double intervalMs = 0, longestMs = 0;
+        // Against the display's blank, whatever its rate: frames that came a
+        // blank after the one before them, and within two. The 5% over is
+        // what a frame's finishing wanders by; it applies to both, so a 60
+        // a second frame on a 120 Hz display counts as two blanks.
+        uint64_t withinABlank = 0, withinTwoBlanks = 0, againstDisplay = 0;
         // The consumer's times as they stood at the last frame, and what the
         // intervals counted above took of them.
         uint64_t spentAtLast[report::kTimeCount]{}, spentInPlay[report::kTimeCount]{};
@@ -202,6 +208,12 @@ void report::Frame(bool world)
             s.intervals++;
             s.intervalMs += ms;
             s.longestMs = std::max(s.longestMs, ms);
+            if (const double blankMs = frame_rate::DisplayPeriodNs() / 1e6; blankMs > 0)
+            {
+                s.againstDisplay++;
+                if (ms <= 1.05 * blankMs) s.withinABlank++;
+                if (ms <= 2.05 * blankMs) s.withinTwoBlanks++;
+            }
         }
     }
     std::copy(std::begin(spent), std::end(spent), s.spentAtLast);
@@ -250,10 +262,21 @@ void report::Write()
              " %.1f%% longer",
              share(s.buckets[0]), kBounds[0], share(s.buckets[1]), kBounds[1], share(s.buckets[2]), kBounds[2],
              share(s.buckets[3]), kBounds[3], share(s.buckets[4]));
+        if (s.againstDisplay)
+            LOGI("report: in play, %.1f%% of frames came within 1.05 display periods of the one before,"
+                 " %.1f%% within 2.05; the period is %.2f ms (%.2f Hz)",
+                 100.0 * double(s.withinABlank) / double(s.againstDisplay),
+                 100.0 * double(s.withinTwoBlanks) / double(s.againstDisplay),
+                 frame_rate::DisplayPeriodNs() / 1e6, 1e9 / frame_rate::DisplayPeriodNs());
         auto took = [](Time time) { return double(s.spentInPlay[time]) / 1e4 / s.intervalMs; };
+        // The wait for the display is time in hand, and not work.
         LOGI("report: in play, the renderer's thread was at work %.0f%% of the time: %.0f%% waiting for the"
              " graphics chip, %.0f%% for its recorder thread, %.0f%% reading textures, %.0f%% compiling",
-             took(kExecuting), took(kGpuWait), took(kRecorderWait), took(kTextures), took(kCompiling));
+             took(kExecuting) - took(kDisplayWait), took(kGpuWait), took(kRecorderWait), took(kTextures),
+             took(kCompiling));
+        if (s.spentInPlay[kDisplayWait])
+            LOGI("report: in play, the renderer's thread waited for the display %.0f%% of the time",
+                 took(kDisplayWait));
         if (s.spentInPlay[kGpuBusy])
             LOGI("report: in play, the graphics chip was at work %.0f%% of the time, %.1f ms a frame",
                  took(kGpuBusy), double(s.spentInPlay[kGpuBusy]) / 1e6 / double(s.intervals));

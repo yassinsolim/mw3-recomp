@@ -6,7 +6,9 @@
 #include "texture_cache.h"
 #include "texture_formats.h"
 #include "../texture.h"
+#include "../../frame_rate.h"
 #include "../../log.h"
+#include "../../report.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -404,7 +406,17 @@ void vk::renderer::Swap(uint32_t frontBuffer)
     // resolve's to the window thread, keeps the next frame from overwriting it.
     const uint32_t index = g.presentIndex;
     VkImage present = g.present[index];
-    vk::WaitUntilTaken(g.presentSerial[index]);
+    // Paced by the display (frame_rate.h), this frame is not finished until
+    // the window has taken the one before it: the window takes one a blank,
+    // so the renderer, and the title behind it, run at the display's rate
+    // with one frame waiting at most. The image's own last frame is older
+    // and was taken before that one.
+    if (frame_rate::Mode() == frame_rate::kByDisplay)
+    {
+        report::Timed waited(report::kDisplayWait);
+        vk::WaitForDisplay(g.presentSerial[(index + kPresentImages - 1) % kPresentImages]);
+    }
+    else vk::WaitUntilTaken(g.presentSerial[index]);
 
     RecordBarrier(frame.image, VK_IMAGE_ASPECT_COLOR_BIT,
                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,

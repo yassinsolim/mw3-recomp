@@ -522,7 +522,7 @@ present wait is missing, or nothing has been shown for half a second.
 ### More than 60 frames a second
 
 `MW2_FPS_LIMIT` (`runtime/frame_rate.h`) at anything but 60 takes the title off
-the blank. Three things hold it at 60, and each is released its own way:
+the blank. Two things hold it at 60, and each is released its own way:
 
 - **D3D's present interval.** The title's present puts the device's
   `D3DRS_PRESENTINTERVAL` in the flip request, and D3D's flip handler queues
@@ -532,17 +532,52 @@ the blank. Three things hold it at 60, and each is released its own way:
   ([d3d9-seam.md](d3d9-seam.md#the-flip-handshake)).
 - **The title's limiter.** `Com_Frame` sleeps until `1000 / com_maxfps` whole
   milliseconds have passed since the last frame; `com_maxfps` is 60 unless
-  set. The hook queues `com_maxfps <limit>` on the title's console, and
+  set. The hook queues `com_maxfps` on the title's console, and
   `r_vsync 0`: with `r_vsync` on, the title takes a frame's length from the
   blanks it counted between swaps instead of from its clock.
-- **The window.** It still presents one frame a blank, without tearing, but
-  the newest: frames finished before it and not yet shown are let go. Nothing
-  waits behind the frame on screen, so the guest's blank is never lengthened.
 
-The guest's blank itself stays the display's; only the retiring of frames
-leaves it. The simulation's speed does not change: a route walked at 93 frames
-a second takes the time it takes at 60. `MW2_STUTTERS`, which counts blanks
-without a new frame, is off in this mode.
+What paces the frames then depends on the display, and the log says which in
+one line (`pacing: MW2_FPS_LIMIT 120 on a display at 120.00 Hz, a blank every
+8333.3 us -- ...`), again whenever the display's mode changes:
+
+- **The display** (`frame_rate::kByDisplay`), when the limit is the display's
+  refresh rate to within 3%: 120 on a 120 Hz panel, whose real rate may be
+  119.88 or 118.4. The limiter is off (`com_maxfps 0`): counting whole
+  milliseconds it would let 125 frames through against 120 shown, five a
+  second dropped. Instead the swap waits (`vk::WaitForDisplay`) until the
+  window has taken the frame before the one it is finishing. The window shows
+  every frame, takes one a blank (`FIFO`), and so the renderer and the title
+  behind it run at the display's rate with one frame waiting at most; a frame
+  that takes too long simply stays two blanks. A swapchain that does not wait
+  for the blank (a desktop driver set so showed 575 frames a second on a
+  240 Hz display) is held by a clock instead: a frame is never finished
+  sooner than 98% of a period after the one before, the 2% so that this
+  clock never paces where the display does.
+- **The title's limiter** (`frame_rate::kByLimiter`), for any other limit:
+  `com_maxfps <limit>`, or 0 for none. The window still presents one frame a
+  blank, without tearing, but the newest: frames finished before it and not
+  yet shown are let go. Nothing waits behind the frame on screen.
+
+The guest's blank keeps its 60 Hz in both, and `VdQueryVideoMode` its 60:
+with `r_vsync 0` nothing times a frame by blanks. The simulation's speed does
+not change: a route walked at 93 frames a second takes the time it takes at
+60.
+
+The display's rate is its mode's (`frame_rate::DisplayHz`), which chooses the
+pacing; its period is measured from the presents reaching the screen where
+the mode does not give it exactly, and logged once it has settled (`vulkan:
+the display's blank measures ...`). On Android the surface votes for the
+limit as the display's rate (`ANativeWindow_setFrameRate`, Android 11 on),
+beside the window's preferred mode, and the app's display listener passes
+every mode change on: the system may refuse 120 or take it back for the
+battery or the heat, and the pacing follows.
+
+`MW2_STUTTERS` and the report count against the display's blank at any rate:
+a frame is due every blank, or every second one where the limit is half the
+display's rate. The report's `in play, N% of frames came within 1.05 display
+periods of the one before, M% within 2.05` is the line a 120 Hz run is judged
+by: N is the share of frames that kept the display's rate, 100 - M the share
+that missed two blanks.
 
 ## Occlusion queries
 

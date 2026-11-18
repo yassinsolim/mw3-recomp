@@ -1,14 +1,16 @@
 #pragma once
 // MW2_STUTTERS=1: a stutter detector for play.
 //
-// The console shows a new world frame at every blank. A stutter is a blank
-// that shows the same picture again, and it can be lost in two places: the
-// renderer finishes a world frame late (the title presented late, or our
-// consumer took too long over it), or the display holds a frame for more than
-// one blank although the next was due. Both are watched,
-// from the first 30 world frames in a row onward, and each stutter is logged
-// with what the time went on in between: the costs below are timed wherever
-// the renderer does something that only happens now and then.
+// A frame is due at every blank of the display -- every second one where the
+// limit is half the display's rate (frame_rate.h) -- whatever that rate is:
+// lateness is counted in the display's blanks. A stutter is a blank that
+// shows the same picture again though a new one was due, and it can be lost
+// in two places: the renderer finishes a world frame late (the title
+// presented late, or our consumer took too long over it), or the display
+// holds a frame for longer than its due although the next was ready. Both are
+// watched, from the first 30 world frames in a row onward, and each stutter
+// is logged with what the time went on in between: the costs below are timed
+// wherever the renderer does something that only happens now and then.
 //
 // The pad's Y and F7 put a mark in the log, so a hitch someone felt can be
 // matched to the stutter logged just before it. A report at exit sums it up.

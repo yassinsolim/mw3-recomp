@@ -21,9 +21,13 @@
 
 namespace
 {
-    constexpr double kBlankMs = 1000.0 / 60.0;
-    // Late by half a blank or more: the blank it was due at has gone by.
-    constexpr int64_t kLateUs = 25000;
+    // The display's blank is what a frame is late against, whatever its rate;
+    // 60 Hz's with no display to say.
+    double BlankUs()
+    {
+        const double ns = frame_rate::DisplayPeriodNs();
+        return ns > 0 ? ns / 1000.0 : 1e6 / 60.0;
+    }
     // Longer than this is not play: a loading screen, a menu, the end of a round.
     constexpr int64_t kPauseUs = 1000000;
     constexpr uint32_t kPlayStreak = 30;   // as the in-play frame rate counts it
@@ -55,8 +59,8 @@ namespace
         int64_t lastWorldUs = -1;
         uint64_t costsAt[stutters::kCostCount]{}, timesAt[stutters::kCostCount]{};
         int64_t playUs = 0;
-        uint64_t stutters = 0, framesLost = 0, pauses = 0, titleLate = 0, rendererLate = 0;
-        uint64_t byLength[6]{};   // 1, 2, 3, 4-7, 8-15, 16 and more frames
+        uint64_t stutters = 0, blanksLost = 0, pauses = 0, titleLate = 0, rendererLate = 0;
+        uint64_t byLength[6]{};   // 1, 2, 3, 4-7, 8-15, 16 and more of the display's blanks
         uint64_t lateCostNs[stutters::kCostCount]{};
     } r;
 
@@ -110,13 +114,7 @@ namespace
 
 bool stutters::On()
 {
-    // A frame at every blank is the console's pacing; off it (MW2_FPS_LIMIT)
-    // there is no blank a frame was due at.
-    static const bool on = [] {
-        if (!diag::Flag("MW2_STUTTERS")) return false;
-        if (!frame_rate::Console()) LOGW("stutters: MW2_STUTTERS is for the console's 60, not MW2_FPS_LIMIT; off");
-        return frame_rate::Console();
-    }();
+    static const bool on = diag::Flag("MW2_STUTTERS");
     return on;
 }
 
@@ -179,14 +177,20 @@ void stutters::Finished(uint64_t serial, bool world)
         return;
     }
     r.playUs += gap;
-    if (gap < kLateUs) { remember(); return; }
+    // A frame is due every blank, or every so many where the limit is a
+    // fraction of the display's rate (frame_rate.h). Late by half as long
+    // again or more: the blank it was due at has gone by.
+    const double blankUs = BlankUs();
+    const long due = long(frame_rate::BlanksAFrame());
+    const int64_t lateUs = int64_t(1.5 * blankUs * double(due));
+    if (gap < lateUs) { remember(); return; }
 
-    const uint64_t lost = uint64_t(std::max<long>(1, std::lround(double(gap) / 1000.0 / kBlankMs) - 1));
+    const uint64_t lost = uint64_t(std::max<long>(1, std::lround(double(gap) / blankUs) - due));
     r.stutters++;
-    r.framesLost += lost;
+    r.blanksLost += lost;
     r.byLength[LengthBucket(lost)]++;
     g_lastStutterUs.store(now, std::memory_order_relaxed);
-    const bool titleLate = titleGap >= kLateUs;
+    const bool titleLate = titleGap >= lateUs;
     (titleLate ? r.titleLate : r.rendererLate)++;
 
     // What the renderer's occasional work cost between the two world frames.
@@ -203,7 +207,7 @@ void stutters::Finished(uint64_t serial, bool world)
         spent += one;
     }
     if (r.stutters <= kLinesShown)
-        LOGW("STUTTER %llu: %llu frame%s lost at %.3f s -- %.1f ms between world frames; %s"
+        LOGW("STUTTER %llu: %llu blank%s lost at %.3f s -- %.1f ms between world frames; %s"
              " (%.1f ms between its presents); the ring consumer was busy %.1f ms%s%s",
              (unsigned long long)r.stutters, (unsigned long long)lost, lost == 1 ? "" : "s",
              Seconds(now), double(gap) / 1000.0,
@@ -224,7 +228,10 @@ void stutters::Shown(uint64_t serial)
     if (serial <= last + 1) return;
     w.skips++;
     w.framesSkipped += serial - last - 1;
-    if (w.lines.fetch_add(1, std::memory_order_relaxed) < kLinesShown)
+    // Under the title's limiter the window lets frames go by design, the
+    // newest being the one to show: counted, and not a line each.
+    if (frame_rate::Mode() != frame_rate::kByLimiter &&
+        w.lines.fetch_add(1, std::memory_order_relaxed) < kLinesShown)
         LOGW("DISPLAY at %.3f s: the window let %llu frame%s go unshown (before frame %llu)",
              Seconds(pacing::Microseconds()), (unsigned long long)(serial - last - 1),
              serial - last - 1 == 1 ? "" : "s", (unsigned long long)serial);
@@ -260,10 +267,12 @@ void stutters::Report()
 {
     if (!On()) return;
     const double minutes = double(r.playUs) / 60e6;
-    LOGI("stutters: %llu in %.1f s of play (%.1f a minute), %llu frames lost; by length:"
+    LOGI("stutters: against a blank of %.2f ms, a frame due every %u: %llu in %.1f s of play"
+         " (%.1f a minute), %llu blanks lost; by blanks lost:"
          " 1:%llu 2:%llu 3:%llu 4-7:%llu 8-15:%llu 16+:%llu; %llu pauses over a second",
+         BlankUs() / 1000.0, frame_rate::BlanksAFrame(),
          (unsigned long long)r.stutters, Seconds(r.playUs),
-         minutes > 0 ? double(r.stutters) / minutes : 0.0, (unsigned long long)r.framesLost,
+         minutes > 0 ? double(r.stutters) / minutes : 0.0, (unsigned long long)r.blanksLost,
          (unsigned long long)r.byLength[0], (unsigned long long)r.byLength[1],
          (unsigned long long)r.byLength[2], (unsigned long long)r.byLength[3],
          (unsigned long long)r.byLength[4], (unsigned long long)r.byLength[5],

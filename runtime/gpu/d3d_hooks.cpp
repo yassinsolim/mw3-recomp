@@ -13,11 +13,12 @@
 #include "../log.h"
 
 #include <atomic>
+#include <algorithm>
 #include <cstdio>
 
 namespace
 {
-    // MW2_FPS_LIMIT (frame_rate.h) takes the title off the display's blank
+    // MW2_FPS_LIMIT (frame_rate.h) takes the title off the guest's blank
     // with what the console has for it. D3D's present puts the device's
     // D3DRS_PRESENTINTERVAL in the flip request, and its flip handler retires
     // a frame asked for with D3DPRESENT_INTERVAL_IMMEDIATE when the command
@@ -26,22 +27,49 @@ namespace
     // set at every present. The title's side is two settings of its own:
     // com_maxfps, its limiter, and r_vsync, which has it take a frame's
     // length from the blanks counted rather than from the clock.
-    void Unsynchronise(uint32_t device)
+    //
+    // What com_maxfps is depends on what paces the frames, and that on the
+    // display, whose mode a phone may change in the middle of a run: the
+    // title is told again whenever the pacing is another one.
+    void Pace(uint32_t device)
     {
-        constexpr uint32_t kPresentInterval = T_DEV_PresentInterval;   // in D3D9's device structure
-        constexpr uint32_t kIntervalImmediate = 0x80000000;
-        *GuestPtr<be32>(device + kPresentInterval) = kIntervalImmediate;
+        const frame_rate::Pacing pacing = frame_rate::Mode();
+        if (pacing != frame_rate::kByConsole)
+        {
+            constexpr uint32_t kPresentInterval = T_DEV_PresentInterval;   // in D3D9's device structure
+            constexpr uint32_t kIntervalImmediate = 0x80000000;
+            *GuestPtr<be32>(device + kPresentInterval) = kIntervalImmediate;
+        }
 
-        static const bool told = [] {
-            char limit[32];
-            std::snprintf(limit, sizeof limit, "com_maxfps %u", frame_rate::Limit());
-            console::RunNow(limit);
+        static std::atomic<int> told{ -1 };
+        if (told.exchange(pacing, std::memory_order_relaxed) == pacing) return;
+        const uint32_t limit = frame_rate::Limit();
+        // The display's own blanks hold the frames to its rate; a limiter
+        // counting whole milliseconds beside them would let 125 through
+        // against 120 shown.
+        const uint32_t maxFps = pacing == frame_rate::kByDisplay ? 0 : limit;
+        char how[112];
+        if (pacing == frame_rate::kByConsole)
+            std::snprintf(how, sizeof how, "the console's: a frame retired at every guest blank, 60 a second");
+        else
+        {
+            char command[32];
+            std::snprintf(command, sizeof command, "com_maxfps %u", maxFps);
+            console::RunNow(command);
             console::RunNow("r_vsync 0");
-            if (frame_rate::Limit()) LOGI("d3d: frames are retired off the blank, %u a second at most", frame_rate::Limit());
-            else LOGI("d3d: frames are retired off the blank, as many a second as there are");
-            return true;
-        }();
-        (void)told;
+            if (pacing == frame_rate::kByDisplay)
+                std::snprintf(how, sizeof how, "the display's: com_maxfps 0, every frame shown, one a blank");
+            else if (limit)
+                std::snprintf(how, sizeof how, "the title's limiter: com_maxfps %u, %u a second, the newest"
+                              " frame shown at each blank", limit, 1000 / std::max(1u, 1000 / limit));
+            else
+                std::snprintf(how, sizeof how, "none: com_maxfps 0, the newest frame shown at each blank");
+        }
+        if (const double period = frame_rate::DisplayPeriodNs(); period > 0)
+            LOGI("pacing: MW2_FPS_LIMIT %u on a display at %.2f Hz, a blank every %.1f us -- %s",
+                 limit, frame_rate::DisplayHz(), period / 1000.0, how);
+        else
+            LOGI("pacing: MW2_FPS_LIMIT %u with no display -- %s", limit, how);
     }
 }
 
@@ -51,7 +79,7 @@ namespace
 GUEST_HOOK(T_D3D_Present)
 {
     pacing::Note(pacing::kPresent);
-    if (!frame_rate::Console()) Unsynchronise(ctx.r3.u32);
+    Pace(ctx.r3.u32);
     GUEST_ORIG(T_D3D_Present)(ctx, base);
     pacing::Note(pacing::kPresentEnd);
     gpu::Presented();

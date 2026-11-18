@@ -14,10 +14,12 @@
 #ifdef MW2_ANDROID
 
 #include "android.h"
+#include "../frame_rate.h"
 #include "../log.h"
 #include "../gpu/vulkan/pipeline.h"
 
 #include <android/native_window.h>
+#include <dlfcn.h>
 
 #include <atomic>
 #include <chrono>
@@ -38,6 +40,31 @@ namespace
     bool g_awaitingRelease = false;            // surfaceDestroyed is waiting
     std::atomic<bool> g_paused{ false };
     std::atomic<bool> g_running{ true };
+
+    // The surface's vote for the display's rate: MW2_FPS_LIMIT, so a 120 Hz
+    // panel runs at 120 for a limit of 120 and may drop to 60 for one of 60.
+    // The system weighs it with the user's setting, the battery and the heat,
+    // and may not grant it; what the display then runs at reaches us through
+    // SetRefreshHz. ANativeWindow_setFrameRate came with Android 11 and the
+    // app runs on 8, so it is looked up and not linked.
+    void VoteFrameRate(ANativeWindow* window)
+    {
+        using SetFrameRate = int32_t (*)(ANativeWindow*, float, int8_t);
+        static const SetFrameRate setFrameRate = [] {
+            void* library = dlopen("libnativewindow.so", RTLD_NOW);
+            return library ? reinterpret_cast<SetFrameRate>(dlsym(library, "ANativeWindow_setFrameRate"))
+                           : nullptr;
+        }();
+        if (!setFrameRate) return;
+        // ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT: a game's frames,
+        // which may be shown at a multiple of the rate; FIXED_SOURCE is for video.
+        constexpr int8_t kCompatibilityDefault = 0;
+        // A limit of 0 is no limit, and 0 here is no preference.
+        const float rate = float(frame_rate::Limit());
+        const int32_t result = setFrameRate(window, rate, kCompatibilityDefault);
+        if (result) LOGW("android: the surface's frame rate vote of %.0f was refused (%d)", rate, result);
+        else LOGI("android: the surface votes for a display rate of %.0f", rate);
+    }
 }
 
 uint64_t android::WindowGeneration() { return g_generation.load(std::memory_order_acquire); }
@@ -124,6 +151,7 @@ namespace android::detail
         }
         g_wake.notify_all();
         LOGI("android: surface %p, %ux%u at %.2f Hz", (void*)window, width, height, refreshHz);
+        if (window) VoteFrameRate(window);
     }
 
     // surfaceDestroyed: the window goes away, and this waits for whoever is
@@ -171,10 +199,17 @@ namespace android::detail
         g_wake.notify_all();
     }
 
+    // The display's mode changed under the surface (the app's display
+    // listener); the presenter reads it at its next frame.
     void SetRefreshHz(double hz)
     {
-        std::lock_guard lock(g_lock);
-        if (hz > 20.0 && hz < 500.0) g_refreshHz = hz;
+        if (hz <= 20.0 || hz >= 500.0) return;
+        {
+            std::lock_guard lock(g_lock);
+            if (hz == g_refreshHz) return;
+            g_refreshHz = hz;
+        }
+        LOGI("android: the display now runs at %.2f Hz", hz);
     }
 }
 

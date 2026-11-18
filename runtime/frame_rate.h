@@ -1,13 +1,23 @@
 #pragma once
 // MW2_FPS_LIMIT: how many frames a second the title draws at most.
 //
-// Unset or 60 is the console's pacing: D3D retires a frame at the display's
+// Unset or 60 is the console's pacing: D3D retires a frame at the guest's
 // blank and the title's own limiter (com_maxfps) is at its 60. Any other
 // number takes the title off the blank the way the console's D3D offers it
-// (d3d_hooks.cpp), with that number as com_maxfps; 0 is no limit. The title's
-// limiter counts whole milliseconds a frame, so the rate it keeps is 1000
-// over a whole number: 120 gives 125, 144 gives 166.
+// (d3d_hooks.cpp), and what paces it then depends on the display:
+//
+//   * the number is the display's refresh rate (120 on a 120 Hz panel): the
+//     display paces it. The title's limiter is off, every frame is shown, and
+//     the renderer waits for the window to have taken a frame before it
+//     finishes the next, so there is one frame a blank whatever the panel's
+//     real rate is -- a "120 Hz" panel may run at 118.4.
+//   * any other number: the title's limiter paces it, with that number as
+//     com_maxfps; 0 is no limit. The limiter counts whole milliseconds a
+//     frame, so the rate it keeps is 1000 over a whole number: 120 gives 125,
+//     144 gives 166. The window shows the newest frame at each blank.
 #include <algorithm>
+#include <atomic>
+#include <cmath>
 #include <cstdint>
 #include "env.h"
 
@@ -24,4 +34,45 @@ namespace frame_rate
 
     // Frames are retired at the blank, one a blank, as on the console.
     inline bool Console() { return Limit() == kConsole; }
+
+    // The display the window is on, as the presenter knows it: the rate its
+    // mode gives, which the pacing is chosen by, and its blank's period, which
+    // is that rate's until the presents reaching the screen have measured it.
+    // Both are 0 with no window.
+    namespace detail
+    {
+        inline std::atomic<double> g_displayHz{ 0.0 }, g_displayPeriodNs{ 0.0 };
+    }
+    inline void SetDisplay(double hz, double periodNs)
+    {
+        detail::g_displayHz.store(hz, std::memory_order_relaxed);
+        detail::g_displayPeriodNs.store(periodNs, std::memory_order_relaxed);
+    }
+    inline double DisplayHz() { return detail::g_displayHz.load(std::memory_order_relaxed); }
+    inline double DisplayPeriodNs() { return detail::g_displayPeriodNs.load(std::memory_order_relaxed); }
+
+    enum Pacing { kByConsole, kByDisplay, kByLimiter };
+
+    // A mode that calls itself 120 may be 119.88 or 118.4: 3% takes them all
+    // and leaves 90 against 120 or 144 well apart. The mode's rate decides,
+    // not the measured period, which moves a little as it is measured and
+    // must not move the title between two pacings.
+    inline Pacing Mode()
+    {
+        if (Console()) return kByConsole;
+        const double hz = DisplayHz();
+        const uint32_t limit = Limit();
+        return limit && hz > 0 && std::abs(hz - double(limit)) <= 0.03 * hz ? kByDisplay : kByLimiter;
+    }
+
+    // How many of the display's blanks a frame is due to stay on screen: one,
+    // or more where the limit is a fraction of the display's rate (60 on a
+    // 120 Hz panel is two).
+    inline uint32_t BlanksAFrame()
+    {
+        const double hz = DisplayHz();
+        const uint32_t limit = Limit();
+        if (!limit || hz <= 0) return 1;
+        return uint32_t(std::max(1L, std::lround(hz / double(limit))));
+    }
 }
