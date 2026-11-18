@@ -310,10 +310,10 @@ class Prefs(context: Context) {
     companion object {
         /**
          * The public relay every copy starts with, host or host:port (3074
-         * without one): the one place it is written. Empty until there is
-         * one; Online then plays on the local network.
+         * without one): the one place it is written. The owner's homelab
+         * runs it (docs/relay.md); a player may point Online at another.
          */
-        const val DEFAULT_RELAY_ADDRESS = ""
+        const val DEFAULT_RELAY_ADDRESS = "mw3.yassin.app:3074"
         const val NETWORK_ONLINE = "online"
         const val NETWORK_LAN = "lan"
         const val NETWORK_OFF = "off"
