@@ -173,6 +173,12 @@ object NativeBridge {
     const val B = 0x2000
     const val X = 0x4000
     const val Y = 0x8000
+
+    /**
+     * Not a pad bit: the on-screen push-to-talk button, sent with the pad's
+     * in nativeTouchState and taken out again by the runtime (jni.cpp).
+     */
+    const val TALK = 0x10000
 }
 
 /**

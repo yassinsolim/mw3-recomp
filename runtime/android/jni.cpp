@@ -422,6 +422,9 @@ MW2_NATIVE(void, nativeTouchState)(JNIEnv*, jobject, jint buttons, jint leftTrig
 {
     android::input::Pad pad;
     pad.buttons = uint16_t(buttons);
+    // Above the pad's sixteen bits: the overlay's Talk button
+    // (NativeBridge.TALK), which is push-to-talk and no controller's button.
+    android::voice::SetTalking((buttons & 0x10000) != 0);
     pad.leftTrigger = uint8_t(std::clamp(int(leftTrigger), 0, 255));
     pad.rightTrigger = uint8_t(std::clamp(int(rightTrigger), 0, 255));
     auto axis = [](float value) {

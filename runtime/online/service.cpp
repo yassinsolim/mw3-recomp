@@ -88,17 +88,19 @@ const char* online::Name()
     return g_name;
 }
 
-// MW3's multiplayer is signed in to Live only when asked to be (MW2_LIVE=1):
-// its Xbox LIVE menu also wants Activision's DemonWare servers, which nothing
-// here stands in for, and ends in EXE_DEMONWARE_DISCONNECT without them
-// (docs/MW3-MP-BRINGUP.md). Its players meet in System Link, which the
-// service carries to everyone it reaches.
+// MW3's multiplayer is signed in to Live on a relay ("server"), where its
+// Xbox LIVE menu finds the playlists and other players' games, and its
+// DemonWare lobby is answered here (demonware.h). On lan it is not, unless
+// asked (MW2_LIVE=1): its players meet in System Link, which either service
+// carries to everyone it reaches. MW2_LIVE=0 keeps it signed out on a relay.
 bool online::Live()
 {
     static const bool live = [] {
         auto* service = Get();
 #if defined(MW3_TITLE_MP)
-        if (!env::Flag("MW2_LIVE")) return false;
+        const bool wanted = env::Text("MW2_LIVE") ? env::Flag("MW2_LIVE")
+                                                  : g_name && std::strcmp(g_name, "server") == 0;
+        if (!wanted) return false;
 #endif
         return service && service->Lobbies();
     }();

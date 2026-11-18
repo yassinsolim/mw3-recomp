@@ -1,3 +1,9 @@
 # relay/tests/header.rs compares this file byte for byte with what cbindgen
 # writes (LF), so a Windows checkout with core.autocrlf must not convert it.
 relay/protocol.h text eol=lf
+# cmd.exe misreads a batch file with LF endings (labels, multi-line blocks).
+setup/*.cmd text eol=crlf
+# git apply matches the patch's lines against XenonRecomp's LF sources; a
+# CRLF checkout of the patch (core.autocrlf, Git for Windows' default) would
+# match none of them.
+*.patch text eol=lf

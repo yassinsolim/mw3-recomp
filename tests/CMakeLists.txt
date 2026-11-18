@@ -1,5 +1,6 @@
-# The checks `ctest` runs: the durable write, the log's repeat counting and the
-# software block-compressed decoder. They are defined in a project of their own
+# The checks `ctest` runs: the durable write, the log's repeat counting, the
+# software block-compressed decoder and the DemonWare lobby stand-in. They are
+# defined in a project of their own
 # so they can be configured on a tree that cannot build the runtime -- the root
 # CMakeLists refuses to configure without the recompiled guest code, which is
 # made from the disc's executables and is in no repository, so a CI runner has
@@ -95,6 +96,19 @@ add_executable(version-test
 target_include_directories(version-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../launcher")
 add_test(NAME version COMMAND version-test)
 
+# ---- the DemonWare lobby stand-in ------------------------------------------
+# What MW3's multiplayer logs on to instead of its publisher's servers
+# (runtime/online/demonware.cpp): the stream's framing, the player's files read
+# back whole and kept in the player's own folder, the playlists as the
+# aggregate the title inflates, and that bytes which are not the protocol end
+# the connection or the task without a read past them or a file written.
+add_executable(demonware-test
+    "${CMAKE_CURRENT_SOURCE_DIR}/demonware_test.cpp"
+    "${MW2_RUNTIME}/online/demonware.cpp"
+    "${MW2_RUNTIME}/kernel/durable.cpp")
+target_include_directories(demonware-test PRIVATE "${MW2_RUNTIME}" "${CMAKE_CURRENT_SOURCE_DIR}/stubs")
+add_test(NAME demonware COMMAND demonware-test)
+
 if(WIN32)
     # The same rule the game is linked with: no C++ runtime beside the
     # executable. Without it a check that pulls in one more libstdc++ symbol
@@ -106,4 +120,5 @@ if(WIN32)
     target_link_options(bc-test PRIVATE -static)
     target_link_options(volume-test PRIVATE -static)
     target_link_options(version-test PRIVATE -static)
+    target_link_options(demonware-test PRIVATE -static)
 endif()

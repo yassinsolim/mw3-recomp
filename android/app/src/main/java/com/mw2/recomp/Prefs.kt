@@ -242,6 +242,24 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_UNLOCK_ALL_ITEMS, value).apply()
 
     /**
+     * Modern Warfare 3's multiplayer: how many bots join the matches this
+     * device hosts (MW2_BOTS, runtime/bots.cpp), 0 for none; how well they
+     * shoot, 0 Recruit to 3 Veteran (MW2_BOT_SKILL); and whether they all
+     * take the side the players are not on (MW2_BOT_TEAMS).
+     */
+    var botCount: Int
+        get() = store.getInt(KEY_BOT_COUNT, 0).coerceIn(0, MAX_BOTS)
+        set(value) = store.edit().putInt(KEY_BOT_COUNT, value.coerceIn(0, MAX_BOTS)).apply()
+
+    var botSkill: Int
+        get() = store.getInt(KEY_BOT_SKILL, 1).coerceIn(0, 3)
+        set(value) = store.edit().putInt(KEY_BOT_SKILL, value.coerceIn(0, 3)).apply()
+
+    var botsAgainstPlayers: Boolean
+        get() = store.getBoolean(KEY_BOTS_AGAINST_PLAYERS, false)
+        set(value) = store.edit().putBoolean(KEY_BOTS_AGAINST_PLAYERS, value).apply()
+
+    /**
      * Keep the driver's pipeline blob on disk between runs on Mali
      * (MW2_PERSIST_PIPELINE_CACHE). Off by default: it may be unstable.
      */
@@ -294,6 +312,24 @@ class Prefs(context: Context) {
     var liveSignIn: Boolean
         get() = store.getBoolean(KEY_LIVE_SIGN_IN, false)
         set(value) = store.edit().putBoolean(KEY_LIVE_SIGN_IN, value).apply()
+
+    /**
+     * Modern Warfare 3's multiplayer: voice chat (MW2_VOICE). Off until the
+     * player turns it on, which is also when the app asks for the
+     * microphone: speech goes to the other players through the relay.
+     */
+    var voiceChat: Boolean
+        get() = store.getBoolean(KEY_VOICE_CHAT, false)
+        set(value) = store.edit().putBoolean(KEY_VOICE_CHAT, value).apply()
+
+    /**
+     * Send only while the Talk button is held (MW2_VOICE_PTT). Off is an
+     * open microphone, as the console had: for playing on a controller with
+     * the touch controls hidden.
+     */
+    var voicePushToTalk: Boolean
+        get() = store.getBoolean(KEY_VOICE_PTT, true)
+        set(value) = store.edit().putBoolean(KEY_VOICE_PTT, value).apply()
 
     /**
      * What the runtime is given as MW2_NETWORK: the relay when Online is
@@ -357,9 +393,16 @@ class Prefs(context: Context) {
         private const val KEY_PREWARM_ALL = "prewarmAllShaders"
         private const val KEY_ASYNC_PIPELINES = "asyncPipelines"
         private const val KEY_UNLOCK_ALL_ITEMS = "unlockAllItems"
+        private const val KEY_BOT_COUNT = "botCount"
+        private const val KEY_BOT_SKILL = "botSkill"
+        private const val KEY_BOTS_AGAINST_PLAYERS = "botsAgainstPlayers"
+        /** A server has 18 slots and the host keeps one. */
+        const val MAX_BOTS = 17
         private const val KEY_PERSIST_PIPELINE = "persistPipelineCache"
         private const val KEY_PLAYER_NAME = "playerName"
         private const val KEY_LAN_ACCEPT = "lanAccept"
         private const val KEY_LAN_IFACE = "lanIface"
+        private const val KEY_VOICE_CHAT = "voiceChat"
+        private const val KEY_VOICE_PTT = "voicePushToTalk"
     }
 }

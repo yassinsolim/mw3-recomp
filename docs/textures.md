@@ -396,6 +396,20 @@ a single picture. The frame shown is `floor(seconds since start * fps)` modulo
 the count, by the steady clock, so it does not depend on the frame rate and
 every image of one animation shows the same frame.
 
+**The Gold camo on weapons (MW3 multiplayer, disc version).** In a match the
+gold of every weapon comes from one image, `~weapon_camo_gold-rgb&detail_~…`
+in the gold materials' specular slot, loaded at three sizes: keys
+`a8357229dfcf400c` (128x128), `2f7e28ad8644733c` (64x64) and
+`d6caf021a5eda72a` (32x32). Replacing all three turns Gold into another camo
+on every weapon; seen on the Thor with an original animated plasma
+(2026-11-18). The menu's swatch for Gold is `73c9431503b443a9` (128x128) and
+the banner behind the weapon `6fd4265d799d5a74` (408x152). Original art for
+them, made from nothing of the game's:
+
+    for k in a8357229dfcf400c:128x128 2f7e28ad8644733c:64x64 d6caf021a5eda72a:32x32 73c9431503b443a9:128x128; do
+      python tools/camo_gen.py --key ${k%%:*} --size ${k##*:} --style plasma --frames 12 --fps 8 --out replace
+    done
+
 The texture keeps its one image, id and view. At an animated image's first
 bind of a presented frame (`Animate`, from `Upload`) the cache asks
 `gpu::replace::Due` for the frame the clock is at; when that is not the one

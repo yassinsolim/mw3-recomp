@@ -19,6 +19,7 @@
 #include "../log.h"
 #include "../env.h"
 #include "../diagnostics.h"
+#include "../online/demonware.h"
 #include "../online/service.h"
 #include "../title.h"
 
@@ -30,6 +31,7 @@
 #include <atomic>
 #include <deque>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <vector>
@@ -90,6 +92,9 @@ namespace
         socket_t host = socket_t(INVALID_SOCKET);
         uint16_t port = 0;   // the title's, as it bound it; 0 until then
         bool bound = false;
+        // The stream connected to the DemonWare lobby stand-in
+        // (online/demonware.h): its bytes never reach the host's socket.
+        std::shared_ptr<online::demonware::Lobby> lobby;
     };
     std::mutex g_socketLock;
     std::map<uint32_t, Socket> g_sockets;
@@ -431,8 +436,21 @@ PPC_FUNC(__imp__NetDll_XNetConnect)
 PPC_FUNC(__imp__NetDll_XNetGetConnectStatus)  { ctx.r3.u64 = 2; }   // XNET_CONNECT_STATUS_CONNECTED
 PPC_FUNC(__imp__NetDll_XNetUnregisterInAddr)  { ctx.r3.u64 = 0; }
 
-// Xbox Live's own servers, which nothing here stands in for.
-PPC_FUNC(__imp__NetDll_XNetServerToInAddr)    { ctx.r3.u64 = X_WSAENETDOWN; }
+// (xnet, IN_ADDR server, service, IN_ADDR* out). Xbox Live's own servers,
+// which nothing here stands in for but one: the title server XAM lists for
+// MW3's DemonWare lobby (online/demonware.h), whose secure address is the
+// address it is listed under. No host socket ever uses it.
+PPC_FUNC(__imp__NetDll_XNetServerToInAddr)
+{
+    auto* out = GuestPtr<be32>(ctx.r6.u32);
+    const bool lobby = online::demonware::Served() && ctx.r4.u32 == online::demonware::kServerAddress &&
+                       ctx.r5.u32 == online::demonware::kLspService && out;
+    if (lobby) *out = online::demonware::kServerAddress;
+    if (online::Trace())
+        LOGI("net-trace: XNetServerToInAddr %08x for service %08x: %s", ctx.r4.u32, ctx.r5.u32,
+             lobby ? "the DemonWare lobby" : "refused");
+    ctx.r3.u64 = lobby ? 0 : X_WSAENETDOWN;
+}
 PPC_FUNC(__imp__NetDll_XNetXnAddrToMachineId) { ctx.r3.u64 = X_WSAENETDOWN; }
 
 // (xnet, flags, event, XNQOS** out). Signed in to Live, the title measures its
@@ -616,9 +634,21 @@ PPC_FUNC(__imp__NetDll_connect)
     sockaddr_in addr{};
     if (s == socket_t(INVALID_SOCKET) || !ReadSockAddr(ctx.r5.u32, addr))
     { t_lastError = 10022; ctx.r3.u64 = uint32_t(-1); return; }
-    // Only the socket for Xbox Live's servers connects, and there are none.
-    // MW3's multiplayer connects to nothing, with a service or without (see
-    // NetDll_bind).
+    // Only the sockets for Xbox Live's servers connect, and there is one such
+    // server: the DemonWare lobby stand-in, which answers inside this process.
+    // MW3's multiplayer connects to nothing else, with a service or without
+    // (see NetDll_bind).
+    if (online::demonware::Served() && ntohl(addr.sin_addr.s_addr) == online::demonware::kServerAddress &&
+        ntohs(UnshiftPort(addr.sin_port)) == online::demonware::kLobbyPort)
+    {
+        auto lobby = online::demonware::Connect(kernel::LocalLiveXuid(), kernel::SaveRoot() / "online" / "user");
+        std::lock_guard g(g_socketLock);
+        auto it = g_sockets.find(ctx.r4.u32);
+        if (it == g_sockets.end()) { t_lastError = 10038; ctx.r3.u64 = uint32_t(-1); return; }
+        it->second.lobby = std::move(lobby);
+        ctx.r3.u64 = 0;
+        return;
+    }
 #if defined(MW3_TITLE_MP)
     { t_lastError = 10061; ctx.r3.u64 = uint32_t(-1); return; }
 #endif
@@ -795,14 +825,72 @@ PPC_FUNC(__imp__NetDll_inet_addr)
     ctx.r3.u64 = __builtin_bswap32(network);
 }
 
-// Offline answers for the calls that need a connection nothing here provides.
-// Xbox Live's sockets never connect (see NetDll_connect), so a stream send or
-// receive is on a socket that is not connected.
-PPC_FUNC(__imp__NetDll_send) { t_lastError = 10057; ctx.r3.u64 = uint32_t(-1); }   // WSAENOTCONN
-PPC_FUNC(__imp__NetDll_recv) { t_lastError = 10057; ctx.r3.u64 = uint32_t(-1); }
+// Stream sockets. Xbox Live's sockets never connect (see NetDll_connect) but
+// the one to the DemonWare lobby stand-in, so a send or receive on any other
+// is on a socket that is not connected.
+//
+// (xnet, socket, buffer, length, flags)
+PPC_FUNC(__imp__NetDll_send)
+{
+    const auto lobby = FindSocket(ctx.r4.u32).lobby;
+    const auto* bytes = GuestPtr<const uint8_t>(ctx.r5.u32);
+    if (!lobby || lobby->Closed()) { t_lastError = 10057; ctx.r3.u64 = uint32_t(-1); return; }   // WSAENOTCONN
+    if (!bytes) { t_lastError = 10014; ctx.r3.u64 = uint32_t(-1); return; }                      // WSAEFAULT
+    lobby->Send(bytes, ctx.r6.u32);
+    ctx.r3.u64 = ctx.r6.u32;
+}
 
-// select(): nothing is ready, so it times out.
-PPC_FUNC(__imp__NetDll_select) { ctx.r3.u64 = 0; }
+// A lobby that hung up reads as a stream closed by the other side: nothing.
+PPC_FUNC(__imp__NetDll_recv)
+{
+    const auto lobby = FindSocket(ctx.r4.u32).lobby;
+    auto* bytes = GuestPtr<uint8_t>(ctx.r5.u32);
+    if (!lobby) { t_lastError = 10057; ctx.r3.u64 = uint32_t(-1); return; }
+    if (!bytes) { t_lastError = 10014; ctx.r3.u64 = uint32_t(-1); return; }
+    const size_t got = lobby->Receive(bytes, ctx.r6.u32);
+    if (!got && !lobby->Closed())
+    {
+        t_lastError = 10035;   // WSAEWOULDBLOCK: the title's sockets never block
+        ctx.r3.u64 = uint32_t(-1);
+        return;
+    }
+    ctx.r3.u64 = uint32_t(got);
+}
+
+// (xnet, count, fd_set* read, write, except, timeout), an fd_set being
+// { count, sockets[64] }. Only a stream to the lobby stand-in is ever ready: it
+// can always be written to, reads when the lobby has answered or hung up, and
+// has no errors. With none in the sets nothing is ready and they are left as
+// they came, so the call times out.
+PPC_FUNC(__imp__NetDll_select)
+{
+    constexpr uint32_t kSetSize = 64;
+    be32* const sets[3] = { GuestPtr<be32>(ctx.r5.u32), GuestPtr<be32>(ctx.r6.u32), GuestPtr<be32>(ctx.r7.u32) };
+    bool lobbies = false;
+    for (const be32* set : sets)
+        for (uint32_t i = 0; set && i < std::min<uint32_t>(set[0], kSetSize) && !lobbies; i++)
+            lobbies = FindSocket(set[1 + i]).lobby != nullptr;
+    if (!lobbies) { ctx.r3.u64 = 0; return; }
+
+    uint32_t ready = 0;
+    for (int kind = 0; kind < 3; kind++)
+    {
+        be32* const set = sets[kind];
+        if (!set) continue;
+        const uint32_t count = std::min<uint32_t>(set[0], kSetSize);
+        uint32_t kept = 0;
+        for (uint32_t i = 0; i < count; i++)
+        {
+            const uint32_t socket = set[1 + i];
+            const auto lobby = FindSocket(socket).lobby;
+            const bool is = lobby && (kind == 0 ? lobby->Readable() || lobby->Closed() : kind == 1);
+            if (is) set[1 + kept++] = socket;
+        }
+        set[0] = kept;
+        ready += kept;
+    }
+    ctx.r3.u64 = ready;
+}
 
 // DNS: no resolver, so a lookup fails at once and there is nothing to release.
 PPC_FUNC(__imp__NetDll_XNetDnsLookup)

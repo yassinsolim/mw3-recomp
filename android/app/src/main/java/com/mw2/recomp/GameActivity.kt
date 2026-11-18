@@ -74,6 +74,16 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private val isMultiplayer: Boolean
         get() = packageName.contains(".mp")
 
+    /**
+     * Voice chat, for Modern Warfare 3's multiplayer: the player turned it
+     * on in Settings and the microphone permission asked for there is still
+     * held. Without both the runtime is told nothing and opens no microphone.
+     */
+    private val voiceChat: Boolean
+        get() = isMultiplayer && !isMw2Multiplayer && prefs.voiceChat &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
     private lateinit var prefs: Prefs
     private lateinit var surfaceView: SurfaceView
     private lateinit var overlay: TouchOverlayView
@@ -495,6 +505,9 @@ val mode60 = modes
 
         overlay = TouchOverlayView(this)
         overlay.layout = ControlLayout.load(this)
+        // The Talk button is there when there is something for it to do,
+        // whatever a saved layout says.
+        overlay.layout.find("talk")?.visible = voiceChat && prefs.voicePushToTalk
         overlay.visibility = if (prefs.touchControls) View.VISIBLE else View.GONE
         overlay.onLayoutEdited = { overlay.layout.save(this) }
         overlay.onSelectionChanged = { editPanel?.show(it) }
@@ -750,10 +763,15 @@ val mode60 = modes
         // Settings; otherwise the tiered instant-boot budget + background warmup.
         NativeBridge.nativeSetOption("MW2_SHADER_PREWARM_ALL", if (prefs.prewarmAllShaders) "1" else "")
         NativeBridge.nativeSetOption("MW2_ASYNC_PIPELINES", if (prefs.asyncPipelines) "1" else "0")
-        // Modern Warfare 3's multiplayer: every item unlocked (the other
-        // titles do not read it).
+        // Modern Warfare 3's multiplayer: every item unlocked, and voice
+        // chat (the other titles read neither).
         if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
             NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
+            NativeBridge.nativeSetOption("MW2_BOTS", if (prefs.botCount > 0) prefs.botCount.toString() else "")
+            NativeBridge.nativeSetOption("MW2_BOT_SKILL", prefs.botSkill.toString())
+            NativeBridge.nativeSetOption("MW2_BOT_TEAMS", if (prefs.botsAgainstPlayers) "against" else "")
+            NativeBridge.nativeSetOption("MW2_VOICE", if (voiceChat) "1" else "")
+            NativeBridge.nativeSetOption("MW2_VOICE_PTT", if (prefs.voicePushToTalk) "1" else "0")
         }
         // Mali drivers have had trouble reloading persisted Vulkan pipeline blobs.
         // Respect the user's setting; the safe default is off on this device class.

@@ -301,6 +301,22 @@ changes only when the state does, since the title reads a new packet as
 "something changed". Diagnostic builds add scripted presses and the headless
 walker ([switches.md](switches.md)).
 
+On Windows the mouse is the right stick, its left and right buttons the triggers and its
+middle one the right stick's click. While the window has the keyboard it holds
+the mouse in SDL's relative mode (`presenter.cpp`): the cursor is hidden and
+cannot leave, and the counts are the mouse's own, taken as SDL queues them
+from the thread it reads the device on, so neither the screen's edge nor the
+desktop's acceleration is in them. Losing the keyboard (`Alt+Tab`) ends
+relative mode, which is SDL's rule; `F2` ends it in place and starts it again,
+as a click in the window does. A stick is a rate and a mouse a distance, so
+`input.cpp` spreads the counts over the time since the last read: the stick is
+what turns that many degrees (0.022 a count times `MW2_MOUSE_SENSITIVITY`) in
+that time at the title's turn rates, placed beyond its dead zone, and what a
+full stick cannot turn in one frame is carried into the next few. The title's
+own stick handling still applies after that -- its response curve, the
+acceleration of a turn, the slowing near a target -- so this is a stick driven
+well, not the PC game's mouse.
+
 ## Networking
 
 `net.cpp` implements XNet and Winsock. Every call answers definitively, since

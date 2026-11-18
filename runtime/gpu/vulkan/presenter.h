@@ -27,6 +27,15 @@ namespace vk
     // The guest's blank period in nanoseconds, following the display the
     // window is on; 0 when there is none to follow.
     uint64_t GuestBlankPeriod();
+    // The mouse, which on Windows is the first player's right stick
+    // (kernel/input.cpp). While the window has the keyboard it holds the
+    // mouse: the cursor is hidden and cannot leave, and what is counted is the
+    // mouse's own motion rather than the cursor's, which stops at the screen's
+    // edge and carries the desktop's acceleration. Leaving the window lets it
+    // go, and so does F2 until F2 again or a click in the window; MW2_MOUSE=0
+    // never takes it. False when the window does not hold the mouse; otherwise
+    // the counts since the last call, x to the right and y down.
+    bool TakeMouseMotion(float& dx, float& dy);
 
     bool Running();
     uint64_t PresentedFrames();

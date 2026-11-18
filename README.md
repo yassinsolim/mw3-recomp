@@ -1,240 +1,236 @@
-# mw3-android
+# MW3 Recompiled: Modern Warfare 3 on Android and PC
 
-### Modern Warfare 3 (2011) · Xbox 360 → native ARM64 Android
+*Call of Duty: Modern Warfare 3* (2011) for the Xbox 360, turned into a native
+Android app and a native Windows game. The console's PowerPC code is
+translated ahead of time into C++ by
+[XenonRecomp](https://github.com/hedge-dev/XenonRecomp) and compiled for your
+phone or PC, with a runtime that stands in for the console: its kernel, the
+GPU (drawn with Vulkan), audio and controllers. It is not an emulator, and
+there is no streaming.
 
-A native Android build of **Call of Duty: Modern Warfare 3**, made by statically
-recompiling the Xbox 360 executable. [XenonRecomp](https://github.com/hedge-dev/XenonRecomp)
-translates the PowerPC code into C++, which the NDK compiles for arm64 and
-links with a host runtime: kernel and XAM services, the Xenos command stream
-drawn with Vulkan, guest XAudio2 with XMA decoding, AAudio, and controller and
-touch input. No emulator, Wine, Box64 or streaming is involved. First target:
-Spec Ops Survival.
+> **You need your own copy of the game.** This repository contains no game
+> data, no executables and no code made from them. You supply a disc image
+> (`.iso`) of your own Xbox 360 *Modern Warfare 3* disc; the build reads it on
+> your PC and everything made from it stays on your own devices. **Never upload
+> or share the APKs, the Windows game, the extracted files or the generated
+> code** (`out/`, `mw3/`, `ppc_mw3*/`): they contain the game.
 
-It is a private fork of [mw3recomp](https://github.com/the-drk/mw3recomp) (the
-MW3 desktop bring-up of [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled))
-with the Android layer of mw2-android merged in.
+## Status
 
-- **Where it stands, what is verified and what is not:** [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md)
-- **Why this architecture:** [docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md)
-- **Building the APK:** the Build section of the progress log
+Tested mostly on one Android device (an AYN Thor: Snapdragon 8 Gen 2,
+Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 
-| Part | Where |
+| | Android | Windows |
+|---|---|---|
+| Campaign | plays (Black Tuesday at about 58 FPS) | builds; not yet tested on Windows |
+| Special Ops Survival | plays at about 60 FPS | builds; not yet tested on Windows |
+| Multiplayer, split screen | plays (Seatown at 60 FPS) | not tested |
+| Multiplayer online (System Link over the relay) | works | reaches the menu and joins the relay; matches lightly tested |
+| Xbox LIVE menu | **does not work** (it needs Activision's DemonWare servers) | same |
+| Everything unlocked in multiplayer | yes (classes, weapons, attachments, camos) | yes |
+| Audio | works | not checked |
+| Controls | touch overlay, Bluetooth/USB controllers | controller, keyboard and mouse |
+| Saves and profile | work | not checked |
+
+The detailed log is [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md).
+
+## What you need
+
+- Your own Xbox 360 *Modern Warfare 3* disc, dumped to an `.iso`. The build
+  checks the executables on it and accepts only the disc builds it has been
+  made for (the USA/Europe disc and one other packaging of the campaign;
+  [tools/check_mw3_xex.py](tools/check_mw3_xex.py)). Others are refused rather
+  than built wrong.
+- A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
+  free (60 GB with the Windows game). A first build takes one to several
+  hours.
+- For Android: a 64-bit phone or handheld with Android 10 or later and
+  Vulkan, about 7 GB free per app for the game files (plus room for the
+  ~8 GB disc image while installing). Qualcomm (Adreno) devices get a bundled
+  Turnip driver; others use their own driver and are untested.
+- For the Windows game: a GPU with Vulkan and a processor from 2011 or later
+  (x86-64-v2).
+
+## Quick start (Windows)
+
+1. Get the code: `git clone -b android https://github.com/yassinsolim/mw3-android.git C:\mw3`
+   (or **Code → Download ZIP** and unpack it). A short path without spaces,
+   such as `C:\mw3`, avoids path-length trouble.
+2. Double-click `setup\setup.cmd` (or run it from a terminal).
+3. Answer its questions: which part (campaign, multiplayer or both), Android
+   and/or PC, and where your `.iso` is.
+
+That is all. The script downloads the tools it needs into `.toolchain\` (a
+JDK, the Android SDK and NDK, LLVM, CMake, Ninja, and Python and Git if you
+have none; each pinned and checked by SHA-256), reads the executables out of
+your disc image (read-only), checks them, recompiles them and builds:
+
+- `out\mw3-debug.apk`: campaign and Special Ops (`com.mw3.recomp`)
+- `out\mw3mp-debug.apk`: multiplayer (`com.mw3.recomp.mp`)
+- `out\pc\`: the Windows game, if you asked for it
+
+The one thing it cannot fetch by itself is Microsoft's C++ Build Tools, which
+the recompiler is built with. If they are missing it offers to install them
+with `winget` (about 3 GB, needs administrator rights); otherwise install
+[Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/)
+with **Desktop development with C++** and run setup again.
+
+Useful options (`setup\setup.cmd -<option>`):
+
+| option | what it does |
 |---|---|
-| Shared platform runtime (kernel, GPU, audio, files) | `runtime/` |
-| Android platform layer | `runtime/android/`, `cmake/android.cmake` |
-| Android app (launcher, installer, game activity) | `android/` |
-| MW3-specific addresses and recompiler config | `runtime/title.h` (`MW3_TITLE`), `config/MW3.toml` |
-| Recompiler patch | `patches/xenonrecomp-mw2.patch` |
-| Asset-free tests | `tests/` |
+| `-Check` | read-only: lists what is present and what would be downloaded, changes nothing |
+| `-Iso <path>` | the disc image, instead of being asked |
+| `-Title both\|sp\|mp` | which executable(s) |
+| `-Build android\|pc\|both` | what to build |
+| `-Install` | install the APKs on the connected phone without asking |
+| `-PushIso` | also copy the disc image to the phone's Download folder |
+| `-Recomp` | recompile again, e.g. after updating the code |
+| `-Yes` | ask nothing, take the defaults |
 
-The game is not included. The ISO, extracted files, the generated C++
-(`ppc_mw3/`) and every binary built from it stay on the owner's machine and
-device and are never committed or published.
+Running it again is safe: finished steps are skipped. After `git pull`, run it
+again to rebuild; add `-Recomp` if the release notes or commits mention the
+recompiler, `config/` or `patches/`.
 
-The rest of this file is the upstream desktop bring-up's own README, kept for
-its history; its status paragraphs predate the Android work.
+## Install on Android
 
-## Upstream desktop milestone (14 November 2026)
+1. **The app.** With the phone connected over USB and
+   [USB debugging](https://developer.android.com/studio/debug/dev-options)
+   on, setup offers to install the APKs. Or copy the APK to the phone and open
+   it (allow installing from that app when Android asks).
+2. **The game files.** Copy your `.iso` to the phone (setup can do it:
+   `-PushIso`, or answer yes). Open the app, choose **Install the game files**,
+   then **Browse the phone's storage** and pick the image. The app checks it
+   and copies what it needs into its own storage (about 7 GB). The campaign
+   and multiplayer apps each install their own copy.
+3. **Play.** Tap **Play**. The on-screen pad can be edited from the pause
+   menu (**Edit controls**); a Bluetooth or USB controller works too.
 
+## Play on PC
 
-The supported campaign executable, with a complete local disc extraction,
-completed both 12-second and 60-second diagnostic runs under Ubuntu 24.04 on
-WSL 1. The longer run ended at its deadline with **exit code 0**:
+Start `out\pc\Multiplayer.cmd` or `out\pc\Campaign.cmd`. Settings live in
+`out\pc\.env`, one `NAME=value` a line (all of them:
+[docs/switches.md](docs/switches.md)); setup writes one with your player name,
+the public relay and a 1280×720 window (`MW2_FULLSCREEN=1` for full screen,
+F8 toggles it). The log is `out\pc\mw3.log`.
 
-| Diagnostic | 60-second result |
-|---|---:|
-| GPU swap commands | 3,160 |
-| Draw commands | 166,629 |
-| GPU packets processed | 994,587 |
-| Distinct shaders loaded | 11 |
-| Unimplemented imports reached | 0 |
-| Unknown opcodes / abandoned ring batches | 0 / 0 |
+## Online play
 
-These are **headless command-processing counts**, not rendered frames or a
-playable frame-rate measurement. Audio callbacks ran, but output was discarded
-and no XMA frames were decoded. Only known optional patch files were reported
-missing; no dirty-disc failure appeared in these runs.
+The multiplayer meets other players through a small relay server, which
+carries the game's **System Link** traffic across the internet. A public one
+runs at **`mw3.yassin.app:3074`** (UDP) and is the default: the Android app's
+Settings → Network is **Online** with that address, and the PC's `.env` has
+`MW2_NETWORK=server` and `MW2_SERVER=mw3.yassin.app:3074`.
 
-### What changed
+- In the game choose **MULTIPLAYER → SYSTEM LINK**. One player creates a game
+  and **starts the match**; it then appears in everyone else's list.
+- **Xbox LIVE does not work** (see Status). Use System Link.
+- Play with copies built from the same version of this repository; different
+  versions may refuse each other or misbehave.
+- The relay sees your IP address, like any game server. It needs no account
+  or password. **LAN** in the app's settings (or `MW2_NETWORK=lan`) plays on
+  your own network only.
+- You can run your own relay: [docs/relay.md](docs/relay.md).
 
-- **Memory-layout corruption fixed:** MW3's function lookup table overlapped
-  the old general heap. Moving the heap to `0x85000000` stopped the observed
-  failed indirect call; a compile-time guard now rejects overlapping layouts.
-- **WSL 1 memory backing:** an immediately unlinked temporary file is used only
-  when `memfd_create` returns `ENOSYS`. Normal Linux keeps the memfd path.
-- **Older CPU diagnostics:** explicit baseline x86-64 builds can run without
-  the default x86-64-v2 instruction requirements.
-- **Asset-free validation:** runtime tests, static checks, relay tests, and public
-  decoder/recompiler builds run in GitHub Actions.
+## Linux
 
-### Rendering milestone and remaining blocker
-
-The installed software Vulkan driver calls `memfd_create`, which returns
-`ENOSYS` on WSL 1, then attempts to map the invalid descriptor and crashes.
-An asset-free probe reproduces this independently of MW3. An opt-in diagnostic
-shim, `tools/wsl1_memfd_probe_shim.c`, substitutes an unlinked temporary file;
-it is not a complete memfd implementation and does not emulate sealing.
-
-With that shim, a separate 60-second software-rendering run exited normally and
-produced three non-black 1280×720 captures. An inspected capture shows a green
-waveform-style startup visual, **not a verified menu**. The renderer recorded
-201 frames and 11,302 draws, with nine textures uploaded and no upload failures.
-Software rendering is slow; these results are not a playable performance claim.
-Captures and raw logs remain local. A subsequent 60-second test with the no-SDL
-scripted controller and Start/A presses reached the Japanese first-run brightness
-screen, verified from captures. It exited normally and decoded 365 XMA frames on
-three contexts with zero decoding errors; audible output is still unverified.
-The next 60-second slider/confirmation test showed brightness followed by a
-screen-adjustment step with large horizontal arrows and an A-to-continue prompt.
-Earlier brightness text remained visible underneath, so transition/clearing
-correctness is still unresolved. That run exited normally with 326 renderer
-frames, 19,468 recorded draws, 16 texture uploads with no failures, and 329 XMA
-frames decoded with no errors. No unimplemented imports were reached.
-Next: confirm the screen-adjustment step and inspect the following screen.
-This is not main-menu validation.
-
-A later 90-second run with additional A confirmations exited normally, but all
-six sampled captures still showed brightness setup. It did not reproduce the
-screen-adjustment view: progression is not reliable yet. That run recorded 584
-renderer frames and 34,174 draws, with no texture upload or XMA decoding errors
-and no reached unimplemented imports. Longer button-only confirmation is not a
-demonstrated fix; input-delivery timing needs to be checked next.
-
-The subsequent traced 90-second test returned every scheduled press and release
-through the input import (18 state changes). Captures showed slider movement
-and the screen-adjustment view, but no verified progression beyond it despite
-later A presses. Missed script intervals do not explain this particular run.
-It exited 0 with 458 renderer frames, 26,586 recorded draws, no texture upload
-failures, 759 decoded XMA frames with zero errors, and no reached unimplemented
-imports. Next: investigate setup confirmation/UI state handling and the
-overlapping rendering, rather than assuming more button presses will fix it.
-
-A profile-read ABI correction (the missing stored-setting data-type byte) passed
-synthetic tests and was rebuilt locally. The same 90-second input schedule still
-ended at screen adjustment with overlapping UI, despite all 18 input state
-changes being delivered. No profile read/write messages appeared, so exercising
-the corrected stored-setting path is not established. This did not demonstrate
-a fix for setup progression; main-menu arrival remains unverified.
-
-## Progress at a glance
-
-| Area | Evidence / status |
-|---|---|
-| Supported executable | Campaign `iw5sp_ship.exe`, title ID `0x415608CB`, XEX version `0x16` |
-| Static recompilation | Generated code compiles; diagnostic desktop runner links |
-| Guest execution | Sustained 60-second headless run, normal deadline exit |
-| Kernel / XAM | 258 imports inventoried: 224 implemented, 34 logging stubs; none of those stubs reached in the validated runs |
-| Graphics command processing | Swaps, draws, shaders, interrupts and ring progress observed |
-| Actual rendering | Non-black 1280×720 startup visual captured using software Vulkan and a diagnostic WSL 1 shim |
-| Audio | 365 XMA frames decoded with zero errors in the input run; audible output unverified |
-| Startup UI / input | Brightness followed by screen adjustment captured with scripted input; overlapping UI remains unresolved |
-| Main menu / campaign / saves | Not demonstrated |
-| PS4 port and packaging | Not started |
-
-Import counts are name-level inventory, **not proof of correct semantics**.
-Historical investigation documents may describe older failures and milestones;
-the current bounded-run procedure and evidence are in
-[MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md).
-
-## Game files stay on your machine
-
-This repository does not distribute game content.
-
-- Supply your own legally obtained disc dump under the ignored `mw3/` directory.
-- Never upload game assets, extracted images, generated PPC code/headers, or
-  game-derived build artifacts to GitHub, Actions, Git LFS, or an asset repository.
-- CI uses public source and synthetic test inputs only. Public dependency
-  artifacts contain no game code.
-- Keep raw runtime logs private and review/redact diagnostics before sharing.
-- Do not create placeholder game files to hide missing assets.
-
-[`tools/check_no_game_files.py`](tools/check_no_game_files.py) checks tracked
-files and LFS rules in CI; its `--staged` mode is available for pre-commit checks.
-
-## Development workflow
-
-### Public checks → GitHub Actions
-
-The [validation workflow](.github/workflows/mw3-validation.yml) runs static
-checks, asset-free runtime tests, relay tests, and public XMA decoder and pinned
-XenonRecomp builds. Use Actions for independent public work rather than making a
-low-powered development machine repeat every build.
-
-For contributors who need to reproduce the asset-free tests locally:
+The same pipeline runs on Linux (Ubuntu 24.04, also under WSL2), by hand:
 
 ```sh
-cmake -S . -B build-tests -G Ninja \
-  -DMW2_TESTS_ONLY=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build build-tests --parallel 2
-ctest --test-dir build-tests --output-on-failure
+python3 tools/xdvdfs.py <your.iso> mw3/tu0 default.xex default_mp.xex   # read-only
+bash tools/recomp_mw3.sh       # campaign  -> ppc_mw3/   (tools/recomp_mw3.sh mp: multiplayer)
+MW2_TITLE=mw3 MW2_VERSION=tu0 python3 tools/genshared.py
+MW2_TITLE=mw3 MW2_VERSION=tu0 python3 tools/gen_kernel_stubs.py
+bash android/fetch_deps.sh     # libadrenotools and the Turnip driver
+cd android && echo "sdk.dir=$ANDROID_HOME" > local.properties
+MW2_LTO=OFF ./gradlew assembleMw3Tu0Debug     # assembleMw3mpTu0Debug for multiplayer
 ```
 
-Tests use synthetic inputs and stub guest headers, not extracted game headers.
-Prerequisites: CMake 3.20+, Ninja, a C++20 compiler, and Python 3.11+ for tooling.
+It needs JDK 17, NDK 28.2.13676358, `platforms;android-35`, CMake 3.22.1+,
+clang-18, Ninja and Python 3.10+. `build.sh` at the root is the Modern Warfare 2
+pipeline this port grew from; for MW3 use the steps above
+([docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#build-wsl2-ubuntu-2404),
+desktop runs: [docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md)).
 
-### Private game-dependent work → local machine
+## Troubleshooting
 
-1. Stage the supported campaign XEX at `mw3/tu0/default.xex` and retain the full
-   disc directory structure for live runs.
-2. Install Clang 18, CMake, Ninja, Python, Git, binutils and Vulkan development
-   headers as described in the [local guide](docs/MW3-LOCAL-RUN.md).
-3. Verify and recompile your executable:
+| problem | what to do |
+|---|---|
+| "Unsupported MW3 executable" | your disc is a build this port has not been made for; only the ones in `tools/check_mw3_xex.py` are accepted |
+| setup stops at the C++ Build Tools | install them by hand (see Quick start) and run setup again |
+| the build fails or the PC runs out of memory | close other programs and run setup again; it carries on where it stopped. Logs are in `out\logs\` |
+| errors about long paths or spaces | move the folder to a short path such as `C:\mw3` |
+| `adb` says *unauthorized* | unlock the phone and accept the USB debugging prompt |
+| the app says the game files are missing | do step 2 of *Install on Android*; each app needs its own install |
+| black screen or crashes on a non-Qualcomm phone | untested hardware; the app's **Log** screen says what happened |
+| friends do not see your game | everyone on the same relay, same version; the host must have **started** the match |
 
-   ```sh
-   bash tools/build_mw3.sh
-   ```
+Bug reports are welcome with the log (the app's **Log** screen, or
+`out\pc\mw3.log`). Read it first: it can name files and folders on your
+machine.
 
-This generates and builds game-derived code and audit reports; it does **not**
-produce a playable game. Follow [MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md) to
-configure/link the diagnostic runner and perform a bounded run.
+## For developers
 
-Linux x86-64 is the development target. WSL 1 has been validated for the
-documented **headless** path, not accelerated rendering. On older CPUs select
-`MW2_X86_LEVEL=x86-64`; use a single build job on constrained machines. Keep WSL
-builds in the Linux filesystem rather than `/mnt/c`.
+How the port works and how it was brought up:
+[docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md),
+[docs/MW3-BRINGUP.md](docs/MW3-BRINGUP.md),
+[docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md),
+[docs/runtime.md](docs/runtime.md), [docs/rendering.md](docs/rendering.md),
+[docs/audio.md](docs/audio.md), [docs/multiplayer.md](docs/multiplayer.md),
+[docs/building.md](docs/building.md). Guest addresses per title are in
+`runtime/title.h`; recompiler settings in `config/MW3.toml` and
+`config/MW3MP.toml`. The asset-free tests run with
+`cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON && cmake --build build-tests && ctest --test-dir build-tests`.
 
-The supported XEX SHA-256 is:
-
-```text
-d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912
-```
-
-## Roadmap
-
-1. **Startup progression — next:** investigate progression beyond the captured
-   startup visual, validate input, and check rendering correctness.
-2. **Desktop menu:** establish visual correctness, input, audio output, and
-   reliable startup. Fix runtime semantics based on observed execution.
-3. **Campaign:** load the first mission; validate gameplay, saves, and performance.
-4. **PS4 feasibility and port:** only after desktop evidence, investigate
-   OpenOrbis integration, memory mapping, graphics backend compatibility,
-   controller/audio support, profiling, and packaging.
-
-Multiplayer services and Special Ops are outside the current scope. A passing
-build or smoke test is not a promise of compatibility or a release date.
-
-## Architecture and investigation notes
-
-The pipeline verifies the XEX, extracts a flat image, analyses jump tables,
-generates C++, and links the result with guest memory, kernel/XAM handlers,
-threads, DPC delivery, GPU command processing and audio support. MW3-specific
-addresses must be validated against MW3; MW2 hooks are not interchangeable.
-
-- [Build and local workflow](docs/MW3-BUILD.md), [bounded startup tests](docs/MW3-LOCAL-RUN.md)
-- [Runtime architecture](docs/runtime.md), [rendering](docs/rendering.md), [audio](docs/audio.md)
-- [Bring-up history](docs/MW3-BRINGUP.md), [synchronization validation](docs/MW3-SYNC-VALIDATION.md)
-- [DPC investigation](docs/MW3-DPC-INVESTIGATION.md), [startup-import plan](docs/MW3-STARTUP-IMPORT-PLAN.md)
-- [D3D9 integration](docs/d3d9-seam.md)
+`tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
+refuses commits that carry game data. Never commit anything from `mw3/`,
+`ppc_*/`, `out/` or a build folder.
 
 ## Credits
 
-- [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled) — runtime and recompilation foundation
-- [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) — PowerPC static recompiler
-- [Xenia](https://github.com/xenia-project/xenia) — compatibility reference
+This port stands on the work of others:
+
+- [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled) by Paul
+  Combal and contributors: the runtime, the recompilation pipeline, the relay
+  and the online play this grew from
+- [mw3recomp](https://github.com/the-drk/mw3recomp) by DrK: the MW3 desktop
+  bring-up
+- [mw2-android](https://github.com/OpenPort-Labs/mw2-android) and its fork
+  [flavinxs0/mw2-android](https://github.com/flavinxs0/mw2-android)
+  (GuruMachanica, flavinxs0 and contributors): the Android layer
+- [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) (hedge-dev): the
+  PowerPC recompiler
+- [Xenia](https://github.com/xenia-project/xenia): the reference for the
+  console's behaviour, and its FFmpeg branch's XMA decoder
+- [OpenAssetTools](https://github.com/Laupetin/OpenAssetTools) and
+  [pc2xbox360mw2ools](https://github.com/slanginbeans/pc2xbox360mw2ools): zone
+  structure definitions
+- [libadrenotools](https://github.com/bylaws/libadrenotools) and
+  [Mesa Turnip](https://gitlab.freedesktop.org/mesa/mesa) (builds by
+  [StevenMXZ](https://github.com/StevenMXZ/Adreno-Tools-Drivers)): custom GPU
+  drivers on Adreno
+- [SDL](https://github.com/libsdl-org/SDL), [Dear ImGui](https://github.com/ocornut/imgui),
+  [zlib](https://github.com/madler/zlib), [FFmpeg](https://ffmpeg.org/),
+  [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers), the
+  [RenderDoc](https://github.com/baldurk/renderdoc) API header, and the Barlow
+  and Michroma fonts
 - [LibertyRecomp](https://github.com/OZORDI/LibertyRecomp) and
-  [gta4-ps4](https://github.com/plastikman/gta4-ps4) — related recompilation and porting work
+  [gta4-ps4](https://github.com/plastikman/gta4-ps4): related recompilation work
 
-## License
+Their licences: [THIRD_PARTY.md](THIRD_PARTY.md).
 
-Code is licensed under [GPL-3.0-only](LICENSE). Game content belongs to its
-respective owners and is not included.
+## Licence
+
+The code in this repository is licensed under the
+[GNU General Public License v3.0 only](LICENSE), as the projects it derives
+from are. Third-party components keep their own licences
+([THIRD_PARTY.md](THIRD_PARTY.md)).
+
+## Disclaimer
+
+This is an unofficial fan project. It is not affiliated with, endorsed by or
+sponsored by Activision, Infinity Ward, Sledgehammer Games or Microsoft.
+*Call of Duty* and *Modern Warfare* are trademarks of Activision Publishing,
+Inc.; *Xbox 360* and *Xbox LIVE* are trademarks of Microsoft. No game content
+is distributed here: you need your own legally obtained copy of the game, and
+what you build from it is for your own use only.

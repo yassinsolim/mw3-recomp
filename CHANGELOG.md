@@ -5,6 +5,27 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
+  `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
+  computer players through the test-client path the executable kept, they
+  choose a team and a class through the stock menus, shoot at the enemies
+  they see and walk towards the nearest one. Host only; a bot leaves when a
+  player needs its slot. `bots <n>`, `bots +`, `bots -` on the host's console
+  ([docs/switches.md](docs/switches.md)).
+- **MW3 multiplayer: voice chat** (`MW2_VOICE=1`, `runtime/kernel/voice.cpp`;
+  the app's "Voice chat", off by default): the headset the title's voice
+  library asks XAM for, made of the microphone (SDL, or AAudio on Android)
+  and the game's sound output. Push-to-talk by default (T, or the on-screen
+  Talk button); the Android app asks for the microphone only when voice chat
+  is turned on. Speech passes through the relay unencrypted. Compiled, not
+  yet run ([docs/multiplayer.md](docs/multiplayer.md#voice-chat)).
+- **One-command Windows setup** (`setup/setup.cmd`, `setup/setup.ps1`): fetches
+  pinned, hash-checked tools into `.toolchain/`, asks for the player's own disc
+  image, checks its executables (`tools/check_mw3_xex.py`), recompiles them and
+  builds the Android apps and/or the Windows game, then optionally installs
+  them over adb; `-Check` reports prerequisites without changing anything.
+  The README is rewritten for players (status, quick start, online play,
+  credits, disclaimer); `THIRD_PARTY.md` lists every component's licence.
 - **Skin tools** (`tools/iwi_match.py`, `tools/camo_gen.py`): match texture
   dumps to the user's own PC `.iwi` files and write the user's modded images
   under the dumps' keys; draw original procedural camos (carbon, voronoi,
@@ -12,8 +33,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   ([docs/textures.md](docs/textures.md#making-skins)).
 - **MW3 multiplayer: unlock everything** (`MW2_UNLOCK_ALL=1`,
   `runtime/mw3_unlock_all.cpp`; the app's "Unlock all camos and items", on by
-  default): the title's unlock checks answer yes, and the stats are not
-  changed ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#everything-unlocked)).
+  default): the title's unlock checks answer yes, in the menus and where a
+  match checks a spawning player's class, so a chosen camouflage is on the
+  weapon in play; the stats are not changed
+  ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#everything-unlocked)).
 - **Modern Warfare 3's multiplayer executable builds as a title of its own**
   (`MW2_TITLE=mw3mp`, `config/MW3MP.toml`, `runtime/title.h`, the `mw3mp`
   Android flavour, `com.mw3.recomp.mp`): recompiled, linked and packaged, not
@@ -32,6 +55,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `MW2_TEXTURE_REPLACE=<dir>`, is uploaded in that texture's place.
   `MW2_DUMP_TEXTURES=<dir>` now works in every build and names its files by
   that key, as PNG ([docs/textures.md](docs/textures.md#texture-replacement-skins)).
+
+### Fixed
+- **The Windows build holds the mouse** (`runtime/gpu/vulkan/presenter.cpp`,
+  `runtime/kernel/input.cpp`): the cursor used to walk out of the window as
+  the player looked round, and stop turning the view at the screen's edge.
+  The window now takes the mouse in SDL's relative mode while it has the
+  keyboard; `Alt+Tab` or `F2` lets it go. Mouse look is a turn of so many
+  degrees a count (`MW2_MOUSE_SENSITIVITY`) whatever the frame rate, and a
+  slow hand is no longer lost in the stick's dead zone
+  ([docs/runtime.md](docs/runtime.md#input)).
 
 ### Changed
 - **Consecutive draws that change no state are one hardware draw**

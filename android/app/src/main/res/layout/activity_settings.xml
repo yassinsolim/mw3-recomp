@@ -296,6 +296,43 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/unlock_all_items_hint" />
+
+                    <TextView
+                        android:id="@+id/bot_count_label"
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <SeekBar
+                        android:id="@+id/bot_count"
+                        style="@style/SettingSeek"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/bot_count_hint" />
+
+                    <TextView
+                        android:id="@+id/bot_skill_label"
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <SeekBar
+                        android:id="@+id/bot_skill"
+                        style="@style/SettingSeek"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/bots_against_players"
+                        style="@style/SettingSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/bots_against_players" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -503,6 +540,41 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/live_sign_in_hint" />
+                    </LinearLayout>
+
+                    <!-- Modern Warfare 3 multiplayer only (SettingsActivity shows it). -->
+                    <LinearLayout
+                        android:id="@+id/voice_chat_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/voice_chat"
+                            style="@style/SettingSwitch"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/voice_chat" />
+
+                        <TextView
+                            style="@style/SettingHint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/voice_chat_hint" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/voice_ptt"
+                            style="@style/SettingSwitch"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/voice_ptt" />
+
+                        <TextView
+                            style="@style/SettingHint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/voice_ptt_hint" />
                     </LinearLayout>
                 </LinearLayout>
 

@@ -15,6 +15,7 @@
 #include "../crash.h"
 #include "../platform.h"
 #include "../kernel/kernel.h"
+#include "../kernel/voice.h"
 
 #ifdef MW2_USE_SDL
 #include <SDL3/SDL.h>
@@ -311,6 +312,10 @@ void apu::audio::SubmitFrame(uint32_t handle, uint32_t samplesGuestAddress)
                 bits = __builtin_bswap32(bits);
                 std::memcpy(&out[s * kChannels + c], &bits, 4);
             }
+        // The other players' voices are no part of the title's mix: the
+        // console sent them to the headset (kernel/voice.cpp). Into the
+        // first client's frames only, or two clients would play them twice.
+        if (i == 0) kernel::voice::Mix(out, kSamplesPerChannel, kChannels);
         android::audio::Write(out, kSamplesPerChannel);
     }
     return;
@@ -331,6 +336,10 @@ void apu::audio::SubmitFrame(uint32_t handle, uint32_t samplesGuestAddress)
             bits = __builtin_bswap32(bits);
             std::memcpy(&out[s * kChannels + c], &bits, 4);
         }
+    // The other players' voices are no part of the title's mix: the console
+    // sent them to the headset (kernel/voice.cpp). Into the first client's
+    // frames only, or two clients would play them twice.
+    if (i == 0) kernel::voice::Mix(out, kSamplesPerChannel, kChannels);
     if (!SDL_PutAudioStreamData(g_stream, out, int(kFrameBytes)))
     {
         static bool warned = false;

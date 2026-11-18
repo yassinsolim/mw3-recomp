@@ -22,6 +22,7 @@ void     vk::Stop()            {}
 void     vk::ShowImage(void*, uint32_t, uint32_t, uint64_t) {}
 void     vk::WaitUntilTaken(uint64_t) {}
 uint64_t vk::GuestBlankPeriod() { return 0; }
+bool     vk::TakeMouseMotion(float&, float&) { return false; }
 bool     vk::Running()         { return false; }
 uint64_t vk::PresentedFrames() { return 0; }
 #else
@@ -190,6 +191,69 @@ namespace
     };
 
     Presenter g;
+
+#ifdef _WIN32
+    // The mouse (presenter.h). Windows only, as reading it is, and a Windows
+    // window is SDL's.
+    struct Mouse
+    {
+        bool used = false;      // not under MW2_MOUSE=0
+        std::mutex lock;
+        bool focused = false;   // the window has the keyboard
+        bool freed = false;     // F2: the player has the cursor back
+        float dx = 0, dy = 0;   // counts since TakeMouseMotion
+    } g_mouse;
+
+    // SDL calls this as an event is queued, on the thread that queued it. In
+    // relative mode the mouse is read on a thread of SDL's own, so its counts
+    // are added up here as they come, not when the window's loop next goes
+    // round -- once a frame, and behind a present that may wait for the
+    // display. Holding and letting go on focus are SDL's doing: a window's
+    // relative mode is in force only while it has the keyboard, so Alt+Tab
+    // gives the cursor back without anything here.
+    bool SDLCALL WatchMouse(void*, SDL_Event* event)
+    {
+        switch (event->type)
+        {
+        case SDL_EVENT_WINDOW_FOCUS_GAINED:
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+        {
+            std::lock_guard lock(g_mouse.lock);
+            g_mouse.focused = event->type == SDL_EVENT_WINDOW_FOCUS_GAINED;
+            g_mouse.dx = g_mouse.dy = 0;
+            break;
+        }
+        case SDL_EVENT_MOUSE_MOTION:
+        {
+            // A finger or a pen moving the cursor is not the mouse.
+            if (event->motion.which == SDL_TOUCH_MOUSEID || event->motion.which == SDL_PEN_MOUSEID) break;
+            std::lock_guard lock(g_mouse.lock);
+            if (g_mouse.focused && !g_mouse.freed)
+            {
+                g_mouse.dx += event->motion.xrel;
+                g_mouse.dy += event->motion.yrel;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        return true;
+    }
+
+    // The cursor given back to the player, or taken again. On the window's
+    // thread.
+    void FreeMouse(bool freed)
+    {
+        {
+            std::lock_guard lock(g_mouse.lock);
+            g_mouse.freed = freed;
+            g_mouse.dx = g_mouse.dy = 0;
+        }
+        if (!SDL_SetWindowRelativeMouseMode(g.window, !freed))
+            LOGW("vulkan: the mouse would not be %s (%s)", freed ? "let go" : "held", SDL_GetError());
+    }
+#endif
 
     bool Check(VkResult r, const char* what)
     {
@@ -1120,6 +1184,9 @@ namespace
         }
         if (g.instance) vkDestroyInstance(g.instance, nullptr);
 #ifdef MW2_USE_SDL
+#ifdef _WIN32
+        SDL_RemoveEventWatch(WatchMouse, nullptr);
+#endif
         if (g.window) SDL_DestroyWindow(g.window);
         g.window = nullptr;
 #endif
@@ -1265,6 +1332,17 @@ namespace
                                     SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN |
                                     (g.fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
         if (!g.window) { LOGW("vulkan: no window (%s)", SDL_GetError()); return false; }
+#ifdef _WIN32
+        // Held from the first moment the window has the keyboard. Without
+        // this the cursor walked out of the window as the player looked round,
+        // and stopped turning the view at the screen's edge.
+        g_mouse.used = !env::Text("MW2_MOUSE") || env::Flag("MW2_MOUSE");
+        if (g_mouse.used)
+        {
+            SDL_AddEventWatch(WatchMouse, nullptr);
+            FreeMouse(false);
+        }
+#endif
         if (!CreateInstance()) return false;
         if (!SDL_Vulkan_CreateSurface(g.window, g.instance, nullptr, &g.surface))
         {
@@ -1392,6 +1470,28 @@ namespace
                         g.fullscreen = !g.fullscreen;
                     }
                 }
+#ifdef _WIN32
+                // F2 gives the cursor back without leaving the window -- to
+                // drag or resize it, say -- and takes it again. So does a
+                // click in the window, on the button's way up, so that the
+                // click is not a shot.
+                else if (g_mouse.used && event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat &&
+                         event.key.scancode == SDL_SCANCODE_F2)
+                {
+                    FreeMouse(!g_mouse.freed);
+                    LOGI("input: F2 -- the mouse is %s", g_mouse.freed ? "free" : "held");
+                }
+                else if (g_mouse.freed && event.type == SDL_EVENT_MOUSE_BUTTON_UP &&
+                         event.button.button == SDL_BUTTON_LEFT)
+                {
+                    FreeMouse(false);
+                    LOGI("input: a click -- the mouse is held");
+                }
+                // Coming back to the window is coming back to the game: F2
+                // lasts until the window is left.
+                else if (g_mouse.freed && event.type == SDL_EVENT_WINDOW_FOCUS_LOST)
+                    FreeMouse(false);
+#endif
                 // The window's size in pixels changed -- dragged, maximised,
                 // fullscreen -- and the swapchain has to be its size.
                 else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
@@ -1520,5 +1620,19 @@ void vk::Stop()
 
 bool vk::Running() { return g.running.load(); }
 uint64_t vk::PresentedFrames() { return g.presented.load(); }
+
+bool vk::TakeMouseMotion(float& dx, float& dy)
+{
+#ifdef _WIN32
+    std::lock_guard lock(g_mouse.lock);
+    dx = g_mouse.dx;
+    dy = g_mouse.dy;
+    g_mouse.dx = g_mouse.dy = 0;
+    return g_mouse.focused && !g_mouse.freed;
+#else
+    dx = dy = 0;
+    return false;
+#endif
+}
 
 #endif  // MW2_HAVE_VULKAN && MW2_USE_SDL

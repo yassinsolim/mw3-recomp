@@ -519,6 +519,49 @@ stats to use; the automatic join answers Live (`set useonlinestats 1`), so the
 rank is the same in private matches and system link. With `none`, the Live menu
 refuses as signed out.
 
+## Voice chat
+
+Modern Warfare 3's multiplayer only, and off by default (`MW2_VOICE=1`, the
+Android app's Settings > Network > Voice chat). `runtime/kernel/voice.cpp`.
+
+The title's voice library (XHV) is part of the executable and runs as
+recompiled code: the voice activity detector, the speech codec and the framing
+are its own, and voice travels as the tail of the title's ordinary datagrams,
+so lan and the relay carry it unchanged. The runtime supplies what the console's
+XAM did, a headset:
+
+| import | behaviour |
+|---|---|
+| `XamVoiceCreate` | voice on and the first player: opens the microphone and writes a handle. Otherwise succeeds with no handle, which XHV reads as no headset |
+| `XamVoiceHeadsetPresent` | 1 while that headset is open |
+| `XamVoiceSubmitPacket`, direction 1 | capture: the packet is queued and filled with 16 kHz 16-bit big-endian samples as the microphone delivers them, four times the bytes asked for with format 0, which XHV takes as already decoded |
+| `XamVoiceSubmitPacket`, direction 0 | playback: 4-bit ADPCM at 16 kHz, decoded by calling the title's own coder (`T_XHV_AdpcmCoder` in `runtime/title.h`), resampled to 48 kHz and added to the front channels of the mix (`runtime/apu/audio.cpp`) |
+| `XamVoiceClose` | drops the queued packets and closes the microphone |
+
+The microphone is SDL's default recording device on the desktop and an AAudio
+input stream with the voice-communication preset on Android
+(`runtime/android/voice.cpp`). Without one the other players are still heard.
+
+**Privacy.** The console's title has no push-to-talk: it sends whenever it
+hears speech. Here nothing is sent unless voice chat is on, and then only
+while push-to-talk is held: the T key on the desktop, the Talk button of the
+touch controls on Android (`MW2_VOICE_PTT=0` for an open microphone). The
+Android app asks for the microphone permission when the player turns voice
+chat on, and at no other time; refused, voice chat stays off and the game is
+unaffected. Speech is not encrypted, as it was not on the console: with the
+`server` service it passes through the relay, whose operator could record it.
+Nothing is written to disk except by `MW2_VOICE_DUMP`.
+
+**Testing with two copies.** On copy A set `MW2_VOICE=1`, `MW2_VOICE_TONE=1`
+and `MW2_VOICE_PTT=0`; on copy B `MW2_VOICE=1` and `MW2_VOICE_DUMP=b.wav`.
+With both in one lobby, A's tone is in `b.wav` and B shows A's talker icon.
+Each copy logs its first three packets in each direction (`voice: capture
+packet ...`, `voice: playback packet ...`) with their size and format.
+
+Not yet run: everything above is from the title's code. Whether a player
+without the communications privilege (the `none` service) is allowed to talk,
+and the title's scoreboard mute, are untested.
+
 ## Switches
 
 | switch | effect |
@@ -535,6 +578,8 @@ refuses as signed out.
 | `MW2_LAN_ACCEPT=1` | lan: accept invitations |
 | `MW2_STEAM_ROOT=<path>` | steam: the install to use, the folder holding `linux64/steamclient.so`, or `steamclient64.dll` on Windows; on Linux a Steam must be running from it |
 | `MW2_STEAM_APPID` | steam: the app id to run as (480) |
+| `MW2_VOICE=1` | MW3's multiplayer: voice chat (off by default; see [Voice chat](#voice-chat)) |
+| `MW2_VOICE_PTT=0` | voice: an open microphone instead of push-to-talk |
 | `MW2_TRACE_ONLINE=1` | log every datagram (diagnostic builds) |
 
 The full list is in [switches.md](switches.md).

@@ -181,6 +181,10 @@ class ControlLayout private constructor(val elements: MutableList<ControlElement
 
                 ControlElement("start", ControlKind.BUTTON, NativeBridge.START, "Start", 0.58f, 0.07f, 46f, 0.35f),
                 ControlElement("back", ControlKind.BUTTON, NativeBridge.BACK, "Back", 0.42f, 0.07f, 46f, 0.35f),
+
+                // Push-to-talk, between Back and Start. Hidden unless voice
+                // chat is on: GameActivity decides that at every start.
+                ControlElement("talk", ControlKind.BUTTON, NativeBridge.TALK, "Talk", 0.50f, 0.07f, 46f, 0.35f, visible = false),
             )
         )
     }

@@ -18,6 +18,9 @@
     <!-- System link between phones on the same network (MW2_NET_LINK). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Voice chat in Modern Warfare 3's multiplayer. Asked for only when the
+         player turns voice chat on in Settings; the game runs without it. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- The run's process has to stay wanted while the game is up, and for a
          process nobody is looking at a foreground service is the only way to
@@ -29,6 +32,7 @@
         android:version="0x400000" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
         android:name=".MW2Application"

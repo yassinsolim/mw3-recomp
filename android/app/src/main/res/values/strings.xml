@@ -164,6 +164,17 @@
     <string name="section_multiplayer">Multiplayer</string>
     <string name="unlock_all_items">Unlock all camos and items</string>
     <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, killstreak, title and emblem can be chosen whatever the rank. Nothing is written to the stats: off shows what was really earned again. Takes effect the next time the game starts.</string>
+    <string name="bot_count">Bots in my matches: %1$d</string>
+    <string name="bot_count_none">Bots in my matches: none</string>
+    <string name="bot_count_hint">Computer players that join every match this device hosts, and leave to make room when a player joins. They do nothing in a match somebody else hosts. Each one costs the host some speed, so start with a few. Takes effect the next time the game starts.</string>
+    <string name="bot_skill">Bot skill: %1$s</string>
+    <string-array name="bot_skills">
+        <item>Recruit</item>
+        <item>Regular</item>
+        <item>Hardened</item>
+        <item>Veteran</item>
+    </string-array>
+    <string name="bots_against_players">All bots against the players</string>
 
     <!-- network play -->
     <string name="network_mode">Play with</string>
@@ -176,6 +187,11 @@
     <string name="relay_address_hint">The server Online plays through (port 3074 when none is given). No password is needed. Left empty, Online plays on this WiFi network, as LAN does.</string>
     <string name="live_sign_in">Sign in to Xbox LIVE (experimental)</string>
     <string name="live_sign_in_hint">Opens the game\u2019s Xbox LIVE menu. The game also asks its publisher\u2019s servers there, which this app does not reach, so expect errors: this is for testing. Leave it off to play; System Link needs no sign-in.</string>
+    <string name="voice_chat">Voice chat</string>
+    <string name="voice_chat_hint">Talk to and hear the other players in a match. Turning it on asks for the microphone. What you say is sent to the other players through the relay server, not encrypted, as the console sent it. Headphones avoid echo. Takes effect the next time the game starts.</string>
+    <string name="voice_ptt">Push to talk</string>
+    <string name="voice_ptt_hint">On: you are heard only while the on-screen Talk button is held. Off: the microphone is open for the whole match, for playing on a controller with the touch controls hidden.</string>
+    <string name="voice_denied">Voice chat needs the microphone permission.</string>
     <string name="player_name">Network player name</string>
     <string name="player_name_hint">The name other players on the network see (15 characters at most). Empty means the profile\u2019s name, which on a fresh install is \u201cPlayer 1\u201d.</string>
     <string name="lan_accept">Accept network invites automatically</string>

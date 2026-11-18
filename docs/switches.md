@@ -32,6 +32,8 @@ them as unset whatever the environment says, and also drops the keys `F5`, `F7`,
 | `MW2_WINDOW=0\|1` | R | the window, which every build opens; `MW2_WINDOW=0` keeps it shut, for a headless run. Closing it ends the run as `MW2_RUN_SECONDS` does, with the reports. The frame keeps its proportions in any window shape |
 | `MW2_FULLSCREEN=1` | R | starts fullscreen, borderless at the desktop's resolution. `F8` toggles it |
 | `MW2_STRETCH=1` | R | the frame fills the window or screen whatever their shapes, instead of keeping its proportions between black bars: for a TV that shows a widescreen signal at 4:3, with a 4:3 frame (`MW2_RENDER`) |
+| `MW2_MOUSE=0` | R | Windows: the window does not hold the mouse and the game does not read it. Without it the window holds the mouse while it has the keyboard -- the cursor hidden and kept inside, the mouse the first player's right stick and triggers -- and `F2` or leaving the window (`Alt+Tab`) lets it go; `F2` again, a click in the window or coming back takes it again ([runtime.md](runtime.md#input)) |
+| `MW2_MOUSE_SENSITIVITY=<n>` | R | Windows: how far the mouse turns the view, as the PC game's `sensitivity` (0.022 degrees a count each). Default 5. The title's own Sensitivity option multiplies it, and decides how fast the view turns at most |
 | `MW2_LOG_FILE=<path>` | R | writes the log there, creating its folder. The log goes to stderr, so `> file` does not catch it. A title started from the other one's menus writes on in the same file |
 | `MW2_REPORT=1` | R | what a bug report needs, as the launcher's REPORT A BUG sets it: the log names the graphics driver and ends with the run's frame rate, frame time spread, what was compiled at a draw, how much of the time the graphics chip was at work by its own clock (a timestamp pair around every submission), and the processor and memory in play: how busy, how much of it this game's and which threads, how much memory was free, what the memory watch's protection changes cost ([building.md](building.md)) |
 | `MW2_LOG_TIME=1` | | stamps every log line with the time since start |
@@ -39,6 +41,9 @@ them as unset whatever the environment says, and also drops the keys `F5`, `F7`,
 | `MW2_CONSOLE="30:map af_caves;45:god"` | R | queues commands into the title's console command buffer at the given wall-clock seconds; see [gameplay.md](gameplay.md) |
 | `MW2_CUSTOM_MAPS=1` | R | the multiplayer loads fastfiles nobody signed: a map converted from the PC game. Off, it refuses them as the console does, and the launcher's shader pass reads only the game's own fastfiles ([gameplay.md](gameplay.md)) |
 | `MW2_UNLOCK_ALL=1` | R | Modern Warfare 3's multiplayer only: every weapon, attachment, camouflage, reticle, proficiency, perk, killstreak, title and emblem reads as unlocked. The title's own unlock checks are answered, and nothing is written to the stats, so without it the menus show what was earned again. The Android app's "Unlock all camos and items" sets it and is on by default; unset on the desktop ([MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#everything-unlocked)) |
+| `MW2_BOTS=<0-17>` | R | Modern Warfare 3's multiplayer only: that many bots join every match this copy hosts and leave when a player needs the slot; nothing happens in a match somebody else hosts. They pick a team and a class through the stock menus, shoot at enemies they can see and walk towards the nearest one, feeling their way round walls (the maps have no path data). The Android app's "Bots in my matches" sets it. In a match the host's console takes `bots <n>`, `bots +`, `bots -` and `bots skill <0-3>` (through `MW2_CONSOLE` too) (`runtime/bots.cpp`) |
+| `MW2_BOT_SKILL=<0-3>` | R | how well the bots shoot: 0 Recruit, 1 Regular (the default), 2 Hardened, 3 Veteran. It sets their reaction time (600 to 120 ms), aim error (5° to 0.5°), turn rate, view cone, and whether they strafe and crouch in a fight |
+| `MW2_BOT_TEAMS=against` | R | every bot joins the side the players are not on. Unset, they are auto-assigned and fill both teams |
 | `MW2_NET_LINK=0\|1` | R | whether the Ethernet link is reported up. Default down for the campaign, up for MW2's multiplayer, which starts no match without one, and for MW3's multiplayer up when an online service started |
 | `MW2_NO_AUTO_SAVE_DEVICE=1` | R | leaves the save-device choice to the title's prompt instead of choosing the hard disk ([saves.md](saves.md)) |
 | `MW2_NO_AUDIO=1` | R | opens no playback device; the mixer and decoder still run ([audio.md](audio.md)) |
@@ -54,7 +59,7 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 | switch | effect |
 |---|---|
 | `MW2_NETWORK=none\|lan\|server\|steam` | the online service; `none` (default) keeps system link on this machine, `steam` is lan when Steam is not running. The launcher's NETWORK entry sets it, and the Android multiplayer apps' Settings. MW3's multiplayer has none, lan and server |
-| `MW2_LIVE=1` | MW3's multiplayer: signed in to Xbox LIVE through the service, as MW2's always is; experimental ([MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#the-network)) |
+| `MW2_LIVE=0\|1` | MW3's multiplayer: signed in to Xbox LIVE through the service. On by default with `server`, where the Xbox LIVE menu offers the relay's playlists and Find Game, and the title's DemonWare lobby is answered inside the game (`runtime/online/demonware.h`); off by default with `lan`. System Link works either way |
 | `MW2_SERVER=<host>[:<port>]` | server: the relay's address (port 3074 when none is given) |
 | `MW2_SERVER_PASSWORD=<text>` | server: the password the relay asks for |
 | `MW2_NAME=<name>` | lan and server: the player's name, instead of his profile's; the name of the first profile when it is made |
@@ -63,8 +68,14 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 | `MW2_LAN_ACCEPT=1` | lan and server: accepts invitations |
 | `MW2_STEAM_APPID=<id>` | steam: the app id to run as (480, Spacewar) |
 | `MW2_STEAM_ROOT=<path>` | steam: the Steam install to use, when it is not found or several are running |
+| `MW2_VOICE=1` | MW3's multiplayer: voice chat. Off by default; on, the microphone is opened and what the player says goes to the other players through the service, unencrypted ([multiplayer.md](multiplayer.md#voice-chat)). The Android app's "Voice chat" sets it |
+| `MW2_VOICE_PTT=0\|1` | voice: send only while the push-to-talk key (T) or the on-screen Talk button is held. Default 1; 0 is an open microphone, as the console had |
+| `MW2_VOICE_VOLUME=<percent>` | voice: how loud the other players are, in percent of what the title sent (100; at most 400) |
+| `MW2_VOICE_TONE=1` | voice: a 440 Hz tone stands in for the microphone, which is then not opened; still gated by push-to-talk (diagnostic) |
+| `MW2_VOICE_DUMP=<file.wav>` | voice: writes what the other players said, as decoded, to a 16 kHz mono WAV file (diagnostic) |
 | `MW2_TRACE_ONLINE=1` | every datagram through the service (diagnostic) |
 | `MW2_TRACE_NET=1` | the same in every build, with the session messages, the sockets' ports, what the service drops, and a line every five seconds while the title's main thread runs; `net-trace:` lines |
+| `MW2_TRACE_DW=1` | MW3's multiplayer: a line for the logon to the DemonWare lobby stand-in and for every task the title sends it, with the service, the task number, the file it names, the error and the size of the reply; `dw:` lines, in every build |
 
 ## Moving the player
 
@@ -94,6 +105,7 @@ walking to it.
 | `MW2_ENGINE_LOG=1` | the title's own `Com_Printf` output in the log |
 | `MW2_TRACE_ERRORS=1` | the guest call stack under every `Com_Error`; one wrapper raises every error, so the message alone does not say where it came from |
 | `MW2_TRACE_CBUF=1` | every command queued to the title's console, which shows what a menu runs |
+| `MW2_TRACE_BOTS=1` | the bots: the menus' names, each menu answer, where every bot is and what it is doing every five seconds, and each target that went down while a bot fired at it |
 | `MW2_TRACE_FILES=1` | every file opened, read and written. The files asked for and not found are listed at exit regardless |
 | `MW2_TRACE_XMA=1` | every XMA decoder kick with its buffers, and FFmpeg's log |
 | `MW2_DUMP=<hex>[:words][,...]` | blocks of guest memory to print when the watchdog fires (16 words by default) |

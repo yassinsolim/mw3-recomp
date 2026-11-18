@@ -1,0 +1,120 @@
+// What Find Game offers Modern Warfare 3 on a relay, in the title's playlist
+// format (docs/relay.md, "Playlists"). Written for this project: the maps and
+// the script game types are the disc's own names, nothing else is the
+// publisher's. Raise `version` when the file changes.
+//
+// Playlists are numbered from 1: the title's menu never lists playlist 0.
+// None is `ranked`: this release of the title refuses the word, and a ranked
+// match asks Xbox LIVE for arbitration, which nothing answers.
+version 1
+
+gametype tdm
+name english "Team Deathmatch"
+abbrv english "TDM"
+script war
+teambased
+
+gametype ffa
+name english "Free-for-all"
+abbrv english "FFA"
+script dm
+
+gametype dom
+name english "Domination"
+abbrv english "DOM"
+script dom
+teambased
+
+gametype kc
+name english "Kill Confirmed"
+abbrv english "KC"
+script conf
+teambased
+
+playlist 1
+name english "Team Deathmatch"
+description english "Two teams. The first to the score limit wins."
+minparty 1
+maxparty 6
+mp_alpha,tdm,1
+mp_bootleg,tdm,1
+mp_bravo,tdm,1
+mp_carbon,tdm,1
+mp_dome,tdm,1
+mp_exchange,tdm,1
+mp_hardhat,tdm,1
+mp_interchange,tdm,1
+mp_lambeth,tdm,1
+mp_mogadishu,tdm,1
+mp_paris,tdm,1
+mp_plaza2,tdm,1
+mp_radar,tdm,1
+mp_seatown,tdm,1
+mp_underground,tdm,1
+mp_village,tdm,1
+
+playlist 2
+name english "Free-for-all"
+description english "Every player for themselves."
+minparty 1
+maxparty 8
+mp_alpha,ffa,1
+mp_bootleg,ffa,1
+mp_bravo,ffa,1
+mp_carbon,ffa,1
+mp_dome,ffa,1
+mp_exchange,ffa,1
+mp_hardhat,ffa,1
+mp_interchange,ffa,1
+mp_lambeth,ffa,1
+mp_mogadishu,ffa,1
+mp_paris,ffa,1
+mp_plaza2,ffa,1
+mp_radar,ffa,1
+mp_seatown,ffa,1
+mp_underground,ffa,1
+mp_village,ffa,1
+
+playlist 3
+name english "Domination"
+description english "Two teams hold three flags for points."
+minparty 1
+maxparty 6
+mp_alpha,dom,1
+mp_bootleg,dom,1
+mp_bravo,dom,1
+mp_carbon,dom,1
+mp_dome,dom,1
+mp_exchange,dom,1
+mp_hardhat,dom,1
+mp_interchange,dom,1
+mp_lambeth,dom,1
+mp_mogadishu,dom,1
+mp_paris,dom,1
+mp_plaza2,dom,1
+mp_radar,dom,1
+mp_seatown,dom,1
+mp_underground,dom,1
+mp_village,dom,1
+
+playlist 4
+name english "Kill Confirmed"
+description english "Two teams. A kill counts once its dog tag is collected."
+minparty 1
+maxparty 6
+mp_alpha,kc,1
+mp_bootleg,kc,1
+mp_bravo,kc,1
+mp_carbon,kc,1
+mp_dome,kc,1
+mp_exchange,kc,1
+mp_hardhat,kc,1
+mp_interchange,kc,1
+mp_lambeth,kc,1
+mp_mogadishu,kc,1
+mp_paris,kc,1
+mp_plaza2,kc,1
+mp_radar,kc,1
+mp_seatown,kc,1
+mp_underground,kc,1
+mp_village,kc,1

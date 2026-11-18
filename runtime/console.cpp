@@ -17,6 +17,7 @@
 #include "guest.h"
 #include "log.h"
 #include "console.h"
+#include "bots.h"
 #include "env.h"
 
 #include <chrono>
@@ -145,3 +146,16 @@ void console::Pump(PPCContext& ctx, uint8_t* base)
 
     if (!placing) LOGI("console: queued \"%.*s\" at %.2f s", int(text.size()) - 1, text.c_str(), Elapsed());
 }
+
+// Cbuf_AddText(localClientNum, text). The `bots` lines are the runtime's own
+// (bots.cpp) and never reach the title, which has no such command; whatever
+// queued one -- MW2_CONSOLE, a key, the app's console entry -- comes through
+// here. Only the title that has bots is hooked: the others' Cbuf_AddText is
+// engine_log.cpp's to trace.
+#if defined(T_SV_BotUserMoves) && defined(T_Cbuf_AddText)
+GUEST_HOOK(T_Cbuf_AddText)
+{
+    if (ctx.r4.u32 && bots::ConsoleLine(reinterpret_cast<const char*>(base + ctx.r4.u32))) return;
+    GUEST_ORIG(T_Cbuf_AddText)(ctx, base);
+}
+#endif

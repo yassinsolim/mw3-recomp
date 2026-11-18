@@ -47,9 +47,21 @@
 // starting with "weaponRank" gives the highest level in
 // mp/weaponRankTable.csv, whose column 4 is the level an item needs
 // (sub_8228AC18 compares the stats' weaponRank with it), and one starting with
-// "weaponXP" the largest number in the table. The script's reader
-// (sub_8225A710) and the stats are left alone, so a match counts experience
-// from what was earned.
+// "weaponXP" the largest number in the table.
+//
+// A match checks the class again. The script that gives a spawning player the
+// loadout reads customClasses.<n>.weaponSetups.<n>.{weapon, attachment, buff,
+// camo, reticle} through its own getPlayerData (sub_8225A710, the client's
+// stats on the server), asks isItemUnlocked for the weapon and then reads
+// getPlayerData("weaponRank", <weapon>) (three times for a primary weapon),
+// dropping what the level does not give: with a level of 0 a gold MSR spawned
+// in its stock finish, though the class in the stats said "gold". So those
+// reads are raised as well, and only those: from a read of a weaponSetups path
+// until the script reads something that is neither a class nor weaponRank
+// (the experience bookkeeping that follows starts with weaponXP). Every other
+// weaponRank the script reads is the real one, so a match counts experience
+// and level-ups from what was earned, and nothing is written to the stats.
+// The result is an integer the reader hands to Scr_AddInt (sub_822B97B0).
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "env.h"
@@ -63,7 +75,9 @@
 
 #if defined(T_Unlock_RowUnlocked) && defined(T_Unlock_RowUnlockedForController) \
     && defined(T_Profile_IconUnlocked) && defined(T_Profile_TitleUnlocked) && defined(T_Profile_ItemUnlocked) \
-    && defined(T_UI_GetPlayerData) && defined(T_StringTable_GetAsset) && defined(T_STR_WeaponRankTable)
+    && defined(T_UI_GetPlayerData) && defined(T_StringTable_GetAsset) && defined(T_STR_WeaponRankTable) \
+    && defined(T_Scr_GetPlayerData) && defined(T_Scr_GetNumParam) && defined(T_Scr_GetType) \
+    && defined(T_Scr_GetString) && defined(T_Scr_AddInt)
 
 namespace
 {
@@ -165,6 +179,72 @@ GUEST_HOOK(T_UI_GetPlayerData)
     const WeaponMax most = WeaponMaximum(ctx, base);
     const int32_t value = which == kRank ? most.rank : most.xp;
     if (int32_t(PPC_LOAD_U32(result + 4)) < value) PPC_STORE_U32(result + 4, uint32_t(value));
+}
+
+PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetNumParam));
+PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetType));
+PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetString));
+
+namespace
+{
+    // The script runs on the server's thread alone.
+    bool g_loadoutCheck = false;   // the script is checking a class it has just read
+    bool g_raiseResult = false;    // the read in progress is one of that check's weaponRank reads
+
+    // A script call with one argument, on a frame of its own below the hook's.
+    uint32_t ScriptCall(PPCContext& ctx, uint8_t* base, PPCFunc* function, uint32_t argument)
+    {
+        const PPCContext saved = ctx;
+        ctx.r1.u64 = saved.r1.u32 - 0x100;
+        ctx.r3.u64 = argument;
+        function(ctx, base);
+        const uint32_t result = ctx.r3.u32;
+        ctx = saved;
+        return result;
+    }
+
+    const char* ScriptString(PPCContext& ctx, uint8_t* base, uint32_t index)
+    {
+        if (ScriptCall(ctx, base, GUEST_FUNC(T_Scr_GetType), index) != 2) return nullptr;
+        const uint32_t text = ScriptCall(ctx, base, GUEST_FUNC(T_Scr_GetString), index);
+        return text ? reinterpret_cast<const char*>(base + text) : nullptr;
+    }
+}
+
+// (the player's entity reference = r3; the path is the script call's arguments)
+GUEST_HOOK(T_Scr_GetPlayerData)
+{
+    if (!UnlockAll()) { GUEST_ORIG(T_Scr_GetPlayerData)(ctx, base); return; }
+
+    const uint32_t count = ScriptCall(ctx, base, GUEST_FUNC(T_Scr_GetNumParam), 0);
+    const char* first = count ? ScriptString(ctx, base, 0) : nullptr;
+    const bool rank = first && !strcasecmp(first, "weaponRank");
+    if (!rank) {
+        // customClasses or privateMatchCustomClasses, then the class's number.
+        const bool ofClass = first && (!strcasecmp(first, "customClasses") || !strcasecmp(first, "privateMatchCustomClasses"));
+        const char* member = ofClass && count > 2 ? ScriptString(ctx, base, 2) : nullptr;
+        if (member && !strcasecmp(member, "weaponSetups")) g_loadoutCheck = true;
+        else if (!ofClass) g_loadoutCheck = false;
+    }
+
+    g_raiseResult = rank && g_loadoutCheck;
+    GUEST_ORIG(T_Scr_GetPlayerData)(ctx, base);
+    g_raiseResult = false;
+}
+
+// (value = r3)
+GUEST_HOOK(T_Scr_AddInt)
+{
+    if (g_raiseResult) {
+        g_raiseResult = false;
+        const int32_t most = WeaponMaximum(ctx, base).rank;
+        if (ctx.r3.s32 < most) {
+            static bool said = false;
+            if (!said) { said = true; LOGI("unlock: a spawning player's class is checked against weapon level %d", most); }
+            ctx.r3.s64 = most;
+        }
+    }
+    GUEST_ORIG(T_Scr_AddInt)(ctx, base);
 }
 
 #endif

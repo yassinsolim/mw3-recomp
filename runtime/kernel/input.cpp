@@ -18,6 +18,8 @@
 #include "../signin.h"
 #include "../stutters.h"
 #include "../gpu/vulkan/renderer.h"
+#include "../gpu/vulkan/presenter.h"
+#include "../env.h"
 
 #ifdef MW2_ANDROID
 #include "../android/android.h"
@@ -207,22 +209,115 @@ namespace
         if (y != 0) ly = int16_t(y);
     }
 
+    // The mouse on user 0's right stick, triggers and right thumb click, while
+    // the window holds it (vk::TakeMouseMotion): after F2 has given the cursor
+    // back, a click is the desktop's and not a shot.
+    //
+    // A stick is a rate and a mouse a distance. The counts that came since the
+    // last read are how far the view should turn over the frame this read is
+    // for, which lasts about as long as the time since that read; so the stick
+    // is set to the rate that turns that far in that time, as a part of what
+    // the title turns at a full stick. Taken as a deflection themselves, as
+    // they once were, the counts turned the view by the frame time twice over
+    // -- twice as fast at half the frame rate -- and a slow hand, under the
+    // title's dead zone, did not turn it at all.
+    //
+    // The numbers are the title's own. Modern Warfare 3's multiplayer takes
+    // 0.2 off the stick as dead and the last 0.01 as full
+    // (gpad_stick_deadzone_min, _max), and turns a full stick 260 degrees a
+    // second across and 90 up and down from the hip, 90 and 55 down the sights
+    // (constants in its sub_820D8E88); they are Modern Warfare 2's
+    // aim_turnrate dvars too. What it does to a stick besides is still done to
+    // the mouse: its response curve (aim_assist/view_input_3.graph), the
+    // 1200 degrees a second squared a turn speeds up by, its slowing near a
+    // target, and its own sensitivity setting, which multiplies all of this.
+    constexpr float kDegreesPerCount = 0.022f;              // the PC game's, at a `sensitivity` of 1
+    constexpr float kDeadZone = 0.2f, kDeadZoneTop = 0.01f;
+    constexpr float kTurnAcross[2] = { 260.0f, 90.0f };     // from the hip, down the sights
+    constexpr float kTurnUpDown[2] = { 90.0f, 55.0f };
+    // How long the sights take to come up. The title blends its two rates by
+    // how far up they are, which depends on the weapon and is not known here.
+    constexpr float kSightsSeconds = 0.25f;
+    // A full stick turns only so fast, and what a quick hand asked for beyond
+    // it waits for the next frames -- this many seconds of full stick at most,
+    // or the view would go on turning long after the hand had stopped.
+    constexpr float kCarrySeconds = 0.05f;
+
+    struct MouseLook
+    {
+        float x = 0, y = 0;         // counts the view has not turned by yet
+        float sights = 0;           // 0 from the hip to 1 down the sights
+        std::chrono::steady_clock::time_point read{};
+        bool reading = false;       // `read` is a time
+        bool turning = false;       // the last read moved the stick,
+        int16_t rx = 0, ry = 0;     // to here
+    };
+
     uint16_t MouseInputs(uint8_t triggers[2], int16_t& rx, int16_t& ry)
     {
-        if (!SDL_WasInit(SDL_INIT_VIDEO)) return 0;
+        static MouseLook look;
         float dx = 0.0f, dy = 0.0f;
-        const SDL_MouseButtonFlags mouse = SDL_GetRelativeMouseState(&dx, &dy);
+        if (!vk::TakeMouseMotion(dx, dy))
+        {
+            look = MouseLook{};
+            return 0;
+        }
+
+        // SDL's buttons, which leave out the click that brought the window to
+        // the front: that one was aimed at the window, not at anybody.
+        const SDL_MouseButtonFlags mouse = SDL_GetMouseState(nullptr, nullptr);
         uint16_t b = 0;
         if (mouse & SDL_BUTTON_LMASK) triggers[1] = 255;
         if (mouse & SDL_BUTTON_RMASK) triggers[0] = 255;
         if (mouse & SDL_BUTTON_MMASK) b |= BTN_RTHUMB;
 
-        if (std::abs(dx) > 0.01f || std::abs(dy) > 0.01f)
+        look.x += dx;
+        look.y += dy;
+        const auto now = std::chrono::steady_clock::now();
+        const float since = look.reading ? std::chrono::duration<float>(now - look.read).count() : 0.0f;
+        // The title may read the pad more than once a frame. The later reads
+        // answer as the first did, and their counts wait for the next frame:
+        // spread over the moment between two reads they would be a full stick.
+        if (look.reading && since < 0.002f)
         {
-            const float sens = 3000.0f;
-            rx = int16_t(std::clamp(dx * sens, -32768.0f, 32767.0f));
-            ry = int16_t(std::clamp(-dy * sens, -32768.0f, 32767.0f));
+            if (look.turning) { rx = look.rx; ry = look.ry; }
+            return b;
         }
+        // The first read, or the first after a pause (the window was away, a
+        // map loaded): the frame is not as long as the pause was.
+        const float seconds = look.reading && since < 0.25f ? since : 1.0f / 60.0f;
+        look.reading = true;
+        look.read = now;
+        look.turning = false;
+
+        // A trigger past gpad_button_deadzone (0.13) is pulled, the left one
+        // being the sights: the pad's or the right mouse button.
+        const float step = seconds / kSightsSeconds;
+        look.sights = std::clamp(triggers[0] > 33 ? 1.0f : 0.0f, look.sights - step, look.sights + step);
+        if (look.x == 0.0f && look.y == 0.0f) return b;
+
+        // MW2_MOUSE_SENSITIVITY is the PC game's `sensitivity`, 5 as there.
+        static const float degrees =
+            kDegreesPerCount * float(std::clamp(env::Real("MW2_MOUSE_SENSITIVITY", 5.0), 0.1, 100.0));
+        // The counts a full stick turns in a second, and with them the stick
+        // these counts ask for: past 1 when the hand is quicker than that.
+        const float across = std::lerp(kTurnAcross[0], kTurnAcross[1], look.sights) / degrees;
+        const float upDown = std::lerp(kTurnUpDown[0], kTurnUpDown[1], look.sights) / degrees;
+        float sx = look.x / (across * seconds), sy = look.y / (upDown * seconds);
+        const float asked = std::hypot(sx, sy);
+        const float given = std::min(asked, 1.0f);
+        sx /= asked;
+        sy /= asked;
+        const float carried = std::min(asked - given, kCarrySeconds / seconds);
+        look.x = sx * carried * across * seconds;
+        look.y = sy * carried * upDown * seconds;
+
+        // Onto the stick beyond the dead zone, whose direction the title
+        // keeps. The guest's Y axis points up, the mouse's down.
+        const float stick = (kDeadZone + (1.0f - kDeadZone - kDeadZoneTop) * given) * 32767.0f;
+        look.rx = rx = int16_t(std::lround(sx * stick));
+        look.ry = ry = int16_t(std::lround(-sy * stick));
+        look.turning = true;
         return b;
     }
 #endif
@@ -530,10 +625,6 @@ PPC_FUNC(__imp__XamInputGetState)
                 if (isDown('G') || isDown('E'))                           b |= BTN_RB;
 
                 if (isDown(VK_SHIFT))                                     b |= BTN_LTHUMB;
-                if (isDown(VK_MBUTTON))                                   b |= BTN_RTHUMB;
-
-                if (isDown(VK_LBUTTON)) triggers[1] = 255;
-                if (isDown(VK_RBUTTON)) triggers[0] = 255;
 
                 // The stick only: the D-pad is a control of its own, and the
                 // title binds other things to it.

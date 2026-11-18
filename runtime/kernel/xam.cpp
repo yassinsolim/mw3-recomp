@@ -13,6 +13,7 @@
 #include "../friends.h"
 #include "../presence.h"
 #include "../signin.h"
+#include "../online/demonware.h"
 #include "../online/service.h"
 #include "../title.h"
 
@@ -757,7 +758,10 @@ namespace
 
     void NoteSearched(uint32_t id, uint32_t value)
     {
-        if (std::find(std::begin(kSearched), std::end(kSearched), id) == std::end(kSearched)) return;
+        const bool searched = std::find(std::begin(kSearched), std::end(kSearched), id) != std::end(kSearched);
+        if (online::Trace())
+            LOGI("net-trace: the title set %08x to %u%s", id, value, searched ? ", which a search compares" : "");
+        if (!searched) return;
         {
             std::lock_guard g(g_sessionLock);
             g_searchedNumbers[id] = value;
@@ -793,30 +797,45 @@ namespace
     // procedures, which it fills in alike. The numbers that are no integers
     // are skill bounds, which nothing here keeps, and the room for a party is a
     // lower bound.
-    Reply XgiSessionSearch(uint32_t buffer, uint32_t length, uint32_t overlapped)
+    //
+    // MW3 sends XSessionSearchWeighted, whose message has a second pair of
+    // counts and lists before the size: what Live ordered its answer by, most
+    // alike first. Nothing here orders, so of those the ones a lobby must
+    // share to be the same game have to match -- kWeighed, which the title
+    // has all set by the time it lists a lobby of its own. It sets the others
+    // later or not at all (0x800B once it is in a game), and a listing
+    // without a number that is asked for is refused.
+    constexpr uint32_t kWeighed[] = { 0x800A, 0x0006, 0x10000014, 0x10000017 };
+    Reply XgiSessionSearch(uint32_t buffer, uint32_t length, uint32_t overlapped, bool weighted)
     {
+        const uint32_t size = weighted ? 9 : 6;   // the word the size of the results is in
         const auto* words = GuestPtr<be32>(buffer);
-        if (!words || length < 36) return Result(X_ERROR_INVALID_PARAMETER);
+        if (!words || length < (size + 3) * 4) return Result(X_ERROR_INVALID_PARAMETER);
         auto* service = online::Get();
         // The title's wrapper has cleared the header: nothing found.
         if (!service || !service->Matchmaking() || !overlapped) return {};
 
         online::SessionSearch search;
         search.most = words[2];
-        const uint32_t counts = words[3];
-        const auto* contexts = GuestPtr<be32>(words[5]);
+        // In a weighted search the lists that matter are the weighted ones:
+        // the plain ones hold only the skill.
+        const uint32_t counts = words[weighted ? 6 : 3];
+        const auto* properties = GuestPtr<uint8_t>(words[weighted ? 7 : 4]);
+        const auto* contexts = GuestPtr<be32>(words[weighted ? 8 : 5]);
+        const auto compared = [&](uint32_t id) {
+            return !weighted || std::find(std::begin(kWeighed), std::end(kWeighed), id) != std::end(kWeighed);
+        };
         for (uint32_t i = 0; contexts && i < (counts & 0xFFFF); i++)
-            search.wants.push_back({ contexts[2 * i], contexts[2 * i + 1], false });
+            if (compared(contexts[2 * i])) search.wants.push_back({ contexts[2 * i], contexts[2 * i + 1], false });
         // XUSER_PROPERTY { id, pad, XUSER_DATA { type at 8, value at 16 } }
-        const auto* properties = GuestPtr<uint8_t>(words[4]);
         for (uint32_t i = 0; properties && i < (counts >> 16); i++)
         {
             const uint8_t* property = properties + 24 * i;
             if (property[8] != 1) continue;
             const uint32_t id = *reinterpret_cast<const be32*>(property);
             const uint32_t value = *reinterpret_cast<const be32*>(property + 16);
-            search.wants.push_back({ id, value, id == kPartyRoom });
             if (id == kPartyRoom) search.room = value;
+            if (compared(id)) search.wants.push_back({ id, value, id == kPartyRoom });
         }
         kernel::ForgetSessionLags();
         // The title polls this block, and takes anything but pending as the
@@ -825,9 +844,12 @@ namespace
         const uint32_t id = service->Search(search);
         {
             std::lock_guard g(g_searchLock);
-            g_searches.push_back({ id, overlapped, words[7], words[6], words[2] });
+            g_searches.push_back({ id, overlapped, words[size + 1], words[size], words[2] });
         }
         LOGI("online: searching for sessions, procedure %u, room for %u", uint32_t(words[0]), search.room);
+        if (online::Trace())
+            for (const online::SessionWant& want : search.wants)
+                LOGI("net-trace: the search wants %08x %s %u", want.id, want.atLeast ? "at least" : "to be", want.value);
         Reply reply;
         reply.pending = true;
         return reply;
@@ -1112,6 +1134,24 @@ namespace
         return {};
     }
 
+    // XOnlineGetServiceInfo(service, XONLINE_SERVICE_INFO* out): whether the
+    // player's logon to Live includes a service, and where it is:
+    // { dwServiceID, serviceIP, wServicePort, wReserved }. MW3's multiplayer
+    // asks for the one its DemonWare servers are behind before it looks for
+    // them, with no block to fill.
+    Reply ServiceInfo(uint32_t service, uint32_t out)
+    {
+        constexpr uint32_t XONLINE_E_LOGON_SERVICE_NOT_AUTHORIZED = 0x80151802;
+        if (service != online::demonware::kLspService) return Result(XONLINE_E_LOGON_SERVICE_NOT_AUTHORIZED);
+        if (auto* info = GuestPtr<be32>(out))
+        {
+            info[0] = service;
+            info[1] = online::demonware::kServerAddress;
+            info[2] = uint32_t(online::demonware::kLobbyPort) << 16;
+        }
+        return {};
+    }
+
     Reply XLiveBase(uint32_t message, uint32_t param1, uint32_t param2)
     {
         switch (message)
@@ -1127,6 +1167,7 @@ namespace
         case 0x0005800E:   // XUserMuteListQuery: nobody is muted
             if (auto* muted = GuestPtr<be32>(param2)) *muted = 0;
             return {};
+        case 0x00058007: return ServiceInfo(param1, param2);
         case 0x00058023: return InviteGetAcceptedInfo(param2);
         case 0x00058035: return StorageBuildServerPath(param1);
         default: return { X_ERROR_SUCCESS, X_ERROR_SUCCESS };
@@ -1155,10 +1196,11 @@ namespace
             return message == 0x000B0006 || message == 0x000B0007 || message == 0x000B0010 ||
                    message == 0x000B0011 || message == 0x000B0012 || message == 0x000B0013 ||
                    message == 0x000B0014 || message == 0x000B0015 || message == 0x000B0018 ||
-                   message == 0x000B001C || message == 0x000B001E || message == 0x000B001F;
+                   message == 0x000B001C || message == 0x000B001E || message == 0x000B001F ||
+                   message == 0x000B0065;
         if (app == kAppXLiveBase)
             return message == 0x00050009 || message == 0x0005000B || message == 0x00058004 ||
-                   message == 0x00058006 ||
+                   message == 0x00058006 || (message == 0x00058007 && online::demonware::Served()) ||
                    message == 0x0005800E || message == 0x00058023 || message == 0x00058035;
         return false;
     }
@@ -1193,14 +1235,17 @@ namespace
             case 0x000B0014: return XgiSessionStart(param1);
             case 0x000B0015: return XgiSessionEnd(param1);
             case 0x000B0018: return XgiSessionModify(param1, param2);
-            case 0x000B001C: return XgiSessionSearch(param1, param2, overlapped);
+            case 0x000B001C: return XgiSessionSearch(param1, param2, overlapped, false);
             case 0x000B001E: return XgiSessionMigrateHost(param1, param2);
             case 0x000B001F: return {};   // XSessionModifySkill: no service keeps a skill
+            case 0x000B0065: return XgiSessionSearch(param1, param2, overlapped, true);
             }
         }
         return XLiveBase(message, param1, param2);
     }
 }
+
+uint64_t kernel::LocalLiveXuid() { return LocalOnlineXuid(); }
 
 void kernel::MovePlayerData(uint64_t from, uint64_t to)
 {
@@ -1353,28 +1398,55 @@ PPC_FUNC(__imp__XMsgCancelIORequest)
 
 // Enumerators: the title asks XAM for a list -- content packages, Live's
 // title servers, friends -- by a handle it then pages through. Nothing here
-// has any of those to list, so every enumeration ends at once, which is what
-// the console answers for a player with no downloaded content and a Live with
-// no servers for the title.
+// has content or friends to list, so those enumerations end at once, which is
+// what the console answers for a player with no downloaded content. Live's
+// title servers are the one list with an entry: where MW3's multiplayer finds
+// its DemonWare lobby (online/demonware.h).
 namespace
 {
+    // The title reaches its private block through the enumerator object, whose
+    // own fields come first: XTitleServerCreateEnumerator writes the server
+    // name it wants at +0x18 of what XamGetPrivateEnumStructureFromHandle
+    // hands back, and goes on for the size it asked for.
+    constexpr uint32_t kEnumeratorHeader = 0x18;
+    constexpr uint32_t kAppXLiveBaseEnumerators = 0xFC, kTitleServersOpen = 0x00058039;
+    // XTITLE_SERVER_INFO { inaServer, dwFlags, szServerInfo[200] }
+    constexpr uint32_t kTitleServerInfoSize = 0xD0, kTitleServerNameSize = 200;
+
     struct Enumerator : Object
     {
-        uint32_t extra = 0;   // the caller's private block, XamCreateEnumeratorHandle's
+        uint32_t extra = 0;          // the object and the caller's private block after it
+        bool titleServers = false;   // XTitleServerCreateEnumerator's
+        bool listed = false;         // its one server was handed out
         ~Enumerator() override { if (extra) kernel::FreeGuest(extra); }
         const char* TypeName() const override { return "enumerator"; }
     };
 
-    uint32_t NewEnumerator(uint32_t extraSize)
+    uint32_t NewEnumerator(uint32_t extraSize, bool titleServers = false)
     {
         auto enumerator = std::make_shared<Enumerator>();
+        enumerator->titleServers = titleServers;
         if (extraSize)
         {
-            enumerator->extra = kernel::AllocateGuest(extraSize, 16);
+            if (extraSize > 0x10000) return 0;
+            enumerator->extra = kernel::AllocateGuest(kEnumeratorHeader + extraSize, 16);
             if (!enumerator->extra) return 0;
-            std::memset(GuestPtr<uint8_t>(enumerator->extra), 0, extraSize);
+            std::memset(GuestPtr<uint8_t>(enumerator->extra), 0, kEnumeratorHeader + extraSize);
         }
         return InsertHandle(enumerator);
+    }
+
+    // The DemonWare lobby as Live's one title server for this title, under the
+    // name the title asked for. False when the buffer has no room for it.
+    bool WriteTitleServer(const Enumerator& enumerator, uint32_t buffer, uint32_t size)
+    {
+        auto* info = GuestPtr<uint8_t>(buffer);
+        const auto* wanted = GuestPtr<char>(enumerator.extra + kEnumeratorHeader);
+        if (!info || !enumerator.extra || size < kTitleServerInfoSize) return false;
+        std::memset(info, 0, kTitleServerInfoSize);
+        *reinterpret_cast<be32*>(info) = online::demonware::kServerAddress;
+        std::memcpy(info + 8, wanted, strnlen(wanted, kTitleServerNameSize - 1));
+        return true;
     }
 
     constexpr uint32_t X_ERROR_NO_MORE_FILES = 0x12;
@@ -1384,7 +1456,8 @@ namespace
 // (user, app, openMessage, closeMessage, extraSize, itemCount, flags, handleOut)
 PPC_FUNC(__imp__XamCreateEnumeratorHandle)
 {
-    const uint32_t handle = NewEnumerator(ctx.r7.u32);
+    const bool titleServers = ctx.r4.u32 == kAppXLiveBaseEnumerators && ctx.r5.u32 == kTitleServersOpen;
+    const uint32_t handle = NewEnumerator(ctx.r7.u32, titleServers);
     if (auto* out = GuestPtr<be32>(ctx.r10.u32)) *out = handle;
     ctx.r3.u64 = handle ? X_ERROR_SUCCESS : X_ERROR_NOT_ENOUGH_MEMORY;
 }
@@ -1409,15 +1482,20 @@ PPC_FUNC(__imp__XamContentCreateEnumerator)
 // (handle, flags, buffer, bufferSize, itemsOut, overlapped)
 PPC_FUNC(__imp__XamEnumerate)
 {
-    if (!LookupHandleAs<Enumerator>(ctx.r3.u32)) { ctx.r3.u64 = X_ERROR_INVALID_HANDLE; return; }
+    auto enumerator = LookupHandleAs<Enumerator>(ctx.r3.u32);
+    if (!enumerator) { ctx.r3.u64 = X_ERROR_INVALID_HANDLE; return; }
+    const bool server = enumerator->titleServers && !enumerator->listed && online::demonware::Served() &&
+                        WriteTitleServer(*enumerator, ctx.r5.u32, ctx.r6.u32);
+    if (server) enumerator->listed = true;
     if (const uint32_t overlapped = ctx.r8.u32)
     {
-        CompleteOverlappedEx(overlapped, kFunctionFailed, 0x80070000 | X_ERROR_NO_MORE_FILES, 0);
+        if (server) CompleteOverlappedEx(overlapped, X_ERROR_SUCCESS, X_ERROR_SUCCESS, 1);
+        else CompleteOverlappedEx(overlapped, kFunctionFailed, 0x80070000 | X_ERROR_NO_MORE_FILES, 0);
         ctx.r3.u64 = X_ERROR_IO_PENDING;
         return;
     }
-    if (auto* items = GuestPtr<be32>(ctx.r7.u32)) *items = 0;
-    ctx.r3.u64 = X_ERROR_NO_MORE_FILES;
+    if (auto* items = GuestPtr<be32>(ctx.r7.u32)) *items = server ? 1 : 0;
+    ctx.r3.u64 = server ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
 }
 
 // XamGetSystemVersion, XGetLanguage and XGetAVPack are in misc.cpp.

@@ -290,6 +290,14 @@
 #define T_UI_GetPlayerData      822D6120   // (controller, operands, first, result)
 #define T_StringTable_GetAsset  82315A68   // (name, StringTable**)
 #define T_STR_WeaponRankTable   0x82022610u   // "mp/weaponRankTable.csv"
+// The script's getPlayerData (the method; the client's stats on the server,
+// sub_822BFAE8) and the script calls it reads its path with and answers an
+// integer through (sub_8224C3B8 and sub_8224C550 use them).
+#define T_Scr_GetPlayerData     8225A710
+#define T_Scr_GetNumParam       822B9768   // () -> count
+#define T_Scr_GetType           822B95C8   // (index) -> type, 2 a string
+#define T_Scr_GetString         822B8E00   // (index) -> text
+#define T_Scr_AddInt            822B97B0   // (value)
 
 // ---- the network (docs/MW3-MP-BRINGUP.md, "The network") ----
 // The protocol number every version check compares: (sub_82286A88() << 16) +
@@ -309,6 +317,78 @@
 // pa_joinrequest, sub_821978C0, bounds it to 18), the map name command (no
 // "map %s" line is built: sub_822EC8A0 queues a call), the command time print
 // (sub_822C18A8 drops the command without one).
+
+// Voice chat (kernel/voice.cpp). XHV is linked into the title and sends the
+// headset 4-bit ADPCM at 16 kHz; sub_8251B358(mode, source, target, samples,
+// state) is its coder (mode 0 encodes, 1 decodes; the headset pump
+// sub_82519EF8 calls it at 8251A088 just before XamVoiceSubmitPacket), and
+// the 54 bytes at 8205B060 are the coder state the title starts each headset
+// with (copied by sub_8251A338 at 8251A3B4).
+#define T_XHV_AdpcmCoder        0x8251B358u
+#define T_XHV_AdpcmState        0x8205B060u
+#define T_XHV_AdpcmStateSize    54u
+
+// Bots (bots.cpp, MW2_BOTS). The executable kept the server half of IW's test
+// clients: SV_BotUserMoves (called every server frame from sub_822C8A50 and
+// sub_822C8B88) builds a usercmd for every client whose address type is 0 and
+// hands it to SV_ClientThink, and SV_DirectConnect (address by value in r3:r4,
+// `connect <id> "<userinfo>"` in the server's argv) still exempts that type
+// from the challenge and the registration check. What was compiled out is
+// SV_AddTestClient, which bots.cpp rebuilds from these.
+#define T_SV_BotUserMoves       822C87B0
+#define T_SV_BotFrameBegin      822C34A0   // what SV_BotUserMoves calls first: restarts a per-frame arena
+#define T_SV_DirectConnect      822C2520
+#define T_SV_ClientThink        822C18A8   // (client, usercmd*)
+#define T_SV_ClientEnterWorld   822C0C18   // (client, usercmd*): state 5 and ClientBegin
+#define T_SV_DropClient         822C0390   // (client, reason, tell)
+#define T_SV_ExecuteClientCommand 822C1570 // (client, text, clientOK, 0)
+#define T_SV_Cmd_TokenizeString 82283328   // (text)
+#define T_SV_Cmd_EndTokenizedString 82283348
+#define T_SV_GetConfigstring    822C3E88   // (index, buffer, size)
+#define T_G_SightTrace          822404D8   // (int* hit, start, end, pass0, pass1, mask)
+#define T_FF_Checksum           820E0258   // the userinfo's "checksum"
+#define T_Stats_Version         82289AC8   // "statver", the "%i"
+#define T_Stats_FormatChecksum  82289AF8   // "statver", the "%u"
+// svs: +0x205E80 time, +0x205E8C the client count, +0x205E90 the clients.
+#define T_DATA_Svs                0x83463F80u
+#define T_SVS_TIME                0x205E80u
+#define T_SVS_CLIENT_COUNT        0x205E8Cu
+#define T_SVS_CLIENTS             0x205E90u
+// A server client: +0 state (0 free, 1 zombie, 3 connected, 4 primed, 5
+// active), +8 the delta message, +0x18 the netchan (its outgoing sequence
+// first), +0x28 the address (type, IP, port at +8), +0x20E74 the gamestate
+// message number, +0x21418 the gentity, +0x2148C the time of the last packet
+// (the timeout check, sub_822C7EE8, exempts address type 2 only), +0x214AC what
+// SV_SendClientGameState zeroes beside the message number.
+#define T_SVCLIENT_SIZE           0x9C300u
+#define T_SVCLIENT_DELTA_MESSAGE  0x8u
+#define T_SVCLIENT_NETCHAN        0x18u
+#define T_SVCLIENT_ADDRESS        0x28u
+#define T_SVCLIENT_GAMESTATE_MSG  0x20E74u
+#define T_SVCLIENT_GENTITY        0x21418u
+#define T_SVCLIENT_LAST_PACKET    0x2148Cu
+#define T_SVCLIENT_GAMESTATE_ACK  0x214ACu
+// The first slot SV_DirectConnect offers a player the party does not know (a
+// dvar pointer; the integer at +8), and the server id `mr` must name.
+#define T_DATA_FirstPublicSlotDvar 0x83463F44u
+#define T_DATA_ServerId           0x8344626Cu
+#define T_CS_MENUS                0xBB4u      // 32 configstrings: the menus' names, by the index `mr` takes
+// A gentity: +0 its number, +0x158 the gclient, +0x19C health. A gclient: the
+// player state first (offsets from the delta table at 8202A3C0), +0x3300 the
+// session state (0 playing), +0x3314 the killcam's archive time, +0x33D0 the
+// client state (team at +4: 0 free, 1 axis, 2 allies, 3 spectator; name at +0x44).
+#define T_GENTITY_CLIENT          0x158u
+#define T_GENTITY_HEALTH          0x19Cu
+#define T_GCLIENT_SESSION_STATE   0x3300u
+#define T_GCLIENT_ARCHIVE_TIME    0x3314u
+#define T_GCLIENT_TEAM            0x33D4u
+#define T_GCLIENT_NAME            0x3414u
+#define T_PS_PM_TYPE              0x4u
+#define T_PS_ORIGIN               0x1Cu
+#define T_PS_DELTA_ANGLES         0x60u
+#define T_PS_VIEW_ANGLES          0x158u
+#define T_PS_VIEW_HEIGHT          0x168u
+#define T_PS_WEAPON               0x370u
 
 #elif defined(MW3_TITLE)
 

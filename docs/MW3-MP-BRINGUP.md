@@ -32,7 +32,7 @@ under that name.
 | CMake | `-DMW2_TITLE=mw3` | `-DMW2_TITLE=mw3mp` |
 | definitions | `MW3_TITLE` | `MW3_TITLE`, `MW3_TITLE_MP` |
 | Android flavour, package | `mw3`, `com.mw3.recomp` | `mw3mp`, `com.mw3.recomp.mp` |
-| Windows build | `win_build.ps1` | `win_build.ps1 -Title mp` |
+| Windows build | `setup\setup.cmd -Title sp` | `setup\setup.cmd -Title mp` |
 | recompile only | `tools/recomp_mw3.sh` | `tools/recomp_mw3.sh mp` |
 
 `MW2_TITLE_MP` is not defined for it: that selects MW2's multiplayer fixes.
@@ -198,7 +198,7 @@ Which service:
 
 ### Two copies on one device
 
-`win_build.ps1 -Title mp -Instance 2` (gradle `-PmpInstance=2`, debug only)
+`setup\setup.cmd -Title mp -Instance 2` (gradle `-PmpInstance=2`, debug only)
 builds the same app as `com.mw3.recomp.mp2`, "CoD: MW3 Multiplayer (2)",
 `out\mw3mp2-debug.apk`. It has its own settings, its own profile (so another
 player; its name starts as "Player 2") and its own game folder: the game is
@@ -230,6 +230,7 @@ earned, so switching it off shows that again.
 | `8228FE60` (controller, table, row) | the menu's way into it | fetches the controller's stats (`82289F88`) and answers 0 without them. Called by `isItemUnlocked` (`822D6B10`), `isCardIconUnlocked` (`822D6D38`), `isCardTitleUnlocked` (`822D6E60`), `isProfileItemUnlocked` (`822D73B0`) |
 | `821829A0`, `821829B0`, `82182AA8` | the profile's `iconUnlocked`, `titleUnlocked` and `unlock` bits | three-instruction leaves that load the name and jump to `82182610`; the menu functions call them when the stats are not the source (`82288968` returns 0) |
 | `822D6120` (controller, operands, first, result) | the menu's `getPlayerData` | for a path starting with `weaponRank` the result is raised to the highest level in `mp/weaponRankTable.csv` (the largest number of its column 4, which `8228AC18` compares the stats' `weaponRank` with), for `weaponXP` to the largest number in the table. The table is read at the first such call (`82315A68`), and the log says `unlock: the menus read every weapon at level N` |
+| `8225A710`, `822B97B0` | the script's `getPlayerData` and `Scr_AddInt`, which hands back its integer | a `weaponRank` read is raised to the same level while the script checks a class it has just read: from a read of a `…weaponSetups…` path until a read that is neither a class nor `weaponRank`. The log says `unlock: a spawning player's class is checked against weapon level N` |
 
 The menu's `isItemUnlocked` already answers 1 for everything in a private match
 (`xblive_privatematch`, tested at `822D6B74`), and 1 for a name the table does
@@ -241,8 +242,32 @@ On the device the first three rows opened Create a Class at rank 1 and left an
 M4A1's attachments and proficiencies locked: the menus compare the weapon's
 level themselves, and the executable has no menu function for it, so they read
 it with `getPlayerData`. That reader is the fourth row; it has not been run.
-The weapon level a menu shows is therefore the highest for every weapon, and
-the script's reader (`8225A710`) still gives the earned one.
+The weapon level a menu shows is therefore the highest for every weapon.
+
+A match checks the class again, in script, when a player spawns. Traced on the
+PC build (System Link, Custom Class 1 with a gold camouflage): the script reads
+`customClasses.0.weaponSetups.0.{weapon, attachment, buff, camo, reticle}`
+(`camo` gave `"gold"`), calls `isItemUnlocked("iw5_<weapon>")` and reads
+`weaponRank` of the weapon three times, which gave 0, and the weapon spawned
+in its stock finish. With those reads raised it is given as
+`iw5_msr_mp_msrscope_camo11`. Every other `weaponRank` the script reads (the
+challenges at connect, the experience bookkeeping after `weaponXP`) is still
+the earned one. The class itself is saved as the game saves it: choosing the
+MSR in gold changed three bytes of `mpdata` (the weapon, and 13 for the
+camouflage) besides the checksum, and a match with it played changed no more.
+The check runs on the host, so a player whose host has the switch off spawns
+with what the levels really give.
+
+A weapon handle carries the camouflage in bits 8 to 11 (`820F6A50` writes it
+back as `_camoNN`), and each weapon has a material of its own for each one.
+The MSR in gold draws `mq/mtl_weapon_remington_msr_gold` (models
+`viewmodel_remington_msr_iw5_gold`, `weapon_remington_msr_iw5_gold`), whose
+images are `~weapon_camo_gold-rgb&detail_~76e28b4e` (specular: the gold
+itself, which the M14's gold material has in the same place),
+`weapon_remington_msr_nml` (normal), `detail_black_paint_b` (colour) and
+`weapon_remington_msr_spc` (detail). The stock `mq/mtl_weapon_remington_msr`
+has `~weapon_remington_msr_spc-rgb~655e7a06`, `weapon_remington_msr_nml`,
+`weapon_remington_msr_col` and `detail_tanned` in those places.
 
 Not covered: a menu that reads the bits an entitlement sets (`unlockedCamo`,
 `unlockedReticles`, written by `823C6980` and `823C6AC8`; no unlock check in
@@ -254,7 +279,7 @@ The app copies `default_mp.xex` (checked against the hash above) and the game
 files from the same disc image the campaign app takes; it does not look at
 `default.xex`.
 
-    powershell -File scripts\win_build.ps1 -Title mp      # out\mw3mp-debug.apk
+    setup\setup.cmd -Title mp -Build android      # out\mw3mp-debug.apk
     adb install -r out\mw3mp-debug.apk
     adb shell am start -n com.mw3.recomp.mp/com.mw2.recomp.MainActivity
 

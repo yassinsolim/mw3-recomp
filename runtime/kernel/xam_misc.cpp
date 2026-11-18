@@ -47,9 +47,6 @@ PPC_FUNC(__imp__XamShowMessageBoxUI)
     ctx.r3.u64 = X_ERROR_IO_PENDING;
 }
 
-PPC_FUNC(__imp__XamVoiceClose)         { ctx.r3.u64 = 0; }
-PPC_FUNC(__imp__XamVoiceHeadsetPresent) { ctx.r3.u64 = 0; }   // no headset
-
 PPC_FUNC(__imp__KeBugCheck)
 {
     LOGE("KeBugCheck(0x%X) -- the title stopped itself", ctx.r3.u32);

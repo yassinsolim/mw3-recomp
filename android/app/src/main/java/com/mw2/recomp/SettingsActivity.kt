@@ -44,6 +44,24 @@ class SettingsActivity : AppCompatActivity() {
         installModFolder(File(path))
     }
 
+    /**
+     * The microphone, asked for when the player turns voice chat on and at
+     * no other time. Refused, the switch goes back off: voice chat without a
+     * microphone would be a setting that says one thing and does another.
+     */
+    private val microphonePermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            findViewById<SwitchCompat>(R.id.voice_chat).isChecked = false
+            android.widget.Toast.makeText(this, R.string.voice_denied, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun hasMicrophone(): Boolean =
+        checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -51,7 +69,7 @@ class SettingsActivity : AppCompatActivity() {
         colorValues(
             R.id.resolution_label, R.id.render_scale_label, R.id.fps_limit_label,
             R.id.fov_label, R.id.texture_label, R.id.look_x_label,
-            R.id.look_y_label, R.id.smoothing_label,
+            R.id.look_y_label, R.id.smoothing_label, R.id.bot_count_label, R.id.bot_skill_label,
         )
         title = getString(R.string.settings)
 
@@ -115,6 +133,32 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
             findViewById<android.view.View>(R.id.unlock_all_items_group).visibility = android.view.View.VISIBLE
             switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
+
+            val botCountLabel: TextView = findViewById(R.id.bot_count_label)
+            val botCount: SeekBar = findViewById(R.id.bot_count)
+            botCount.max = Prefs.MAX_BOTS
+            botCount.progress = prefs.botCount
+            botCountLabel.text = botCountText(botCount.progress)
+            botCount.setOnSeekBarChangeListener(object : Simple() {
+                override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                    botCountLabel.text = botCountText(value)
+                    if (fromUser) prefs.botCount = value
+                }
+            })
+
+            val botSkills = resources.getStringArray(R.array.bot_skills)
+            val botSkillLabel: TextView = findViewById(R.id.bot_skill_label)
+            val botSkill: SeekBar = findViewById(R.id.bot_skill)
+            botSkill.max = botSkills.size - 1
+            botSkill.progress = prefs.botSkill
+            botSkillLabel.text = getString(R.string.bot_skill, botSkills[botSkill.progress])
+            botSkill.setOnSeekBarChangeListener(object : Simple() {
+                override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                    botSkillLabel.text = getString(R.string.bot_skill, botSkills[value])
+                    if (fromUser) prefs.botSkill = value
+                }
+            })
+            switch(R.id.bots_against_players, prefs.botsAgainstPlayers) { prefs.botsAgainstPlayers = it }
         }
 
         val fovLabel: TextView = findViewById(R.id.fov_label)
@@ -179,6 +223,16 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
             if (packageName.startsWith("com.mw3.")) {
                 findViewById<android.view.View>(R.id.live_sign_in_group).visibility = android.view.View.VISIBLE
                 switch(R.id.live_sign_in, prefs.liveSignIn) { prefs.liveSignIn = it }
+                findViewById<android.view.View>(R.id.voice_chat_group).visibility = android.view.View.VISIBLE
+                // A permission taken back in the system's settings shows as
+                // the switch being off, which is what the game will do.
+                switch(R.id.voice_chat, prefs.voiceChat && hasMicrophone()) { on ->
+                    prefs.voiceChat = on
+                    if (on && !hasMicrophone()) {
+                        microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+                switch(R.id.voice_ptt, prefs.voicePushToTalk) { prefs.voicePushToTalk = it }
             }
         }
         switch(R.id.vibration, prefs.vibration) { prefs.vibration = it }
@@ -393,6 +447,10 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
     private fun textureText(step: Int): String =
         if (step == 0) getString(R.string.texture_budget_auto)
         else getString(R.string.texture_budget, step * 128)
+
+    private fun botCountText(count: Int): String =
+        if (count == 0) getString(R.string.bot_count_none)
+        else getString(R.string.bot_count, count)
 
     private fun switch(id: Int, initial: Boolean, onChange: (Boolean) -> Unit) {
         val view: SwitchCompat = findViewById(id)

@@ -10,6 +10,7 @@
 //   window.cpp   the surface handed over by SurfaceHolder, and its lifetime
 //   input.cpp    the pad the touch controls and a physical pad both feed
 //   audio.cpp    the AAudio sink the mixer writes into
+//   voice.cpp    the AAudio microphone voice chat reads
 //   driver.cpp   which Vulkan the process uses: the system's, or a Turnip
 //                driver the player imported as a zip
 //   perf.cpp     core affinity, thread priority and what to drop when the
@@ -159,6 +160,23 @@ namespace android::audio
     uint32_t QueuedFrames();
     bool IsOpen();
     void SetMuted(bool muted);
+}
+
+// ---- the microphone -------------------------------------------------------
+// An AAudio input stream for voice chat (kernel/voice.cpp): 16 kHz mono
+// 16-bit, with the phone's echo canceller where it has one. The app asks for
+// the permission; without it Open fails or the samples are silence.
+namespace android::voice
+{
+    bool Open();
+    void Close();
+    // Samples waiting, and taking up to `samples` of them; Read returns how
+    // many it had.
+    uint32_t Available();
+    uint32_t Read(int16_t* out, uint32_t samples);
+    // The on-screen push-to-talk button, held or not.
+    void SetTalking(bool talking);
+    bool Talking();
 }
 
 // ---- the Vulkan driver ----------------------------------------------------

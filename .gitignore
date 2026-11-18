@@ -18,8 +18,11 @@
 *.bik
 
 # ---- upstream tool checkout (121 MB + 6 submodules) ----
-# Cloned and patched by build.sh; local changes live in patches/.
+# Cloned and patched by build.sh and setup/setup.ps1; local changes live in patches/.
 /XenonRecomp/
+
+# ---- the portable tools setup/setup.ps1 downloads (JDK, SDK, LLVM, ...) ----
+/.toolchain/
 
 # ---- generated C++ (~2.2M lines, 64 MB) ----
 /ppc/
@@ -80,7 +83,7 @@ android/local.properties
 # ---- fetched by android/fetch_deps.sh, somebody else's code ----
 third_party/libadrenotools/
 # The Turnip driver the mw3 app bundles, downloaded by the same script (and
-# by scripts/win_build.ps1); a binary of somebody else's, never committed.
+# by setup/setup.ps1); a binary of somebody else's, never committed.
 android/app/src/mw3/assets/drivers/
 
 # ---- the native build's scratch directory ----
