@@ -10,12 +10,22 @@ player ([multiplayer.md](multiplayer.md#host-migration)).
 Every packet goes through the relay. Players connect out to it, so only the
 relay's machine needs an open port, and no player learns another's address.
 
+A relay serves any title built from this source -- Modern Warfare 2, Modern
+Warfare 3's multiplayer -- and keeps them apart: a copy meets only copies of
+its own title and network version, as if each had a relay to itself.
+
 ## Running one
 
 The relay is one small program, `mw2-relay`, for Linux. It listens on UDP port
 3074 unless told otherwise. Its version must be the players' release: a relay
 and a game of different protocols refuse each other, and the game's log says
 so.
+
+A relay is **private**, for those who have its password, or **public**, for
+anyone who has its address: `--public`, which is also what a relay with no
+password is. `--public` with a password, from `--password` or the environment,
+is a mistake the relay does not start with. A public relay reads no password,
+so a copy with one set still joins.
 
 **With Docker**, from the image each release publishes:
 
@@ -40,27 +50,74 @@ To build the image yourself: `docker build -t mw2-relay relay/`.
 **Without Docker**, take `mw2-relay-<release>-linux-x86_64` from the release
 (a static binary that needs no library), and run it:
 
-    ./mw2-relay --port 3074 --password <password> [--max 64] [--per-address 16]
-                [--playlists <file>] [--log-file <file>] [--status-port <port>]
+    ./mw2-relay --port 3074 (--public | --password <password>) [--max 64]
+                [--per-address 16] [--sessions-per-address 4] [--rate 1000]
+                [--total-rate 20000] [--max-payload 2048]
+                [--playlists [<title>=]<file>]... [--log-file <file>]
+                [--status-port <port>] [--status-address 127.0.0.1]
 
 `--max` is how many players it takes at once, `--per-address` how many of them
 from one IP address: players behind one router share theirs, so a LAN party
 on a relay needs as many as it has players. The password can come from the
 environment instead (`MW2_RELAY_PASSWORD`), which keeps it out of the process
-list. Built from source, `cargo build --release` in `relay/`.
+list. Built from source, `cargo build --release` in `relay/`. The other limits
+are [below](#limits).
 
-`--playlists` is the file Find Game offers (below); the image starts with its
-own, and without one Find Game has nothing to offer. `--log-file` also writes
+**A public relay on a plain Linux machine or container**, with systemd. Put
+the binary in `/usr/local/bin`, and this in
+`/etc/systemd/system/mw2-relay.service`:
+
+    [Unit]
+    Description=mw2-relay, public
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    ExecStart=/usr/local/bin/mw2-relay --public --port 3074 --max 256 \
+        --per-address 8 --status-port 3075
+    DynamicUser=yes
+    Restart=always
+    RestartSec=2
+    NoNewPrivileges=yes
+    ProtectSystem=strict
+    ProtectHome=yes
+    PrivateTmp=yes
+    PrivateDevices=yes
+    RestrictAddressFamilies=AF_INET
+    CapabilityBoundingSet=
+    MemoryMax=128M
+    TasksMax=16
+
+    [Install]
+    WantedBy=multi-user.target
+
+then `systemctl daemon-reload && systemctl enable --now mw2-relay`. The log is
+the journal's (`journalctl -u mw2-relay -f`), which keeps its own size, and
+`curl 127.0.0.1:3075` says what the relay holds. It needs no root, no file and
+no other port. In an unprivileged LXC container without nesting, systemd
+cannot make the namespaces the `Protect*` and `Private*` lines ask for and the
+unit fails with `226/NAMESPACE`: turn nesting on for the container, or remove
+those lines and `DynamicUser` and write `User=nobody` instead. Forward UDP 3074
+from the router to the container; the players' SERVER is the router's public
+name and that port.
+
+`--playlists` is the file Find Game offers (below); the image starts with
+Modern Warfare 2's, and a title without one has nothing for Find Game to offer.
+`<title>=` before the file, the title's id in hexadecimal, makes it that
+title's alone, and the option can be given once for each: `--playlists
+41560817=mw2.info --playlists 415608cb=mw3.info`. `--log-file` also writes
 the log to a file, for a Docker that shows no container output: mount a folder
 that user 65534 can write to, and name a file in it. `--status-port` answers
-any TCP connection with what the relay holds, as JSON: who is connected, the
-sessions listed and their numbers, and the latest searches with how many
-sessions each number turned away. It says nothing a player should not see, but
-it has no password, so publish it on the machine alone:
+any TCP connection with what the relay holds, as JSON: who is connected and as
+which title, the sessions listed and their numbers, the latest searches with
+how many sessions each number turned away, and how many packets each limit
+dropped. It has no password and shows the players' addresses, so it listens
+on 127.0.0.1 alone unless `--status-address` says otherwise. In a container
+it must, for Docker to publish it, on the machine alone:
 
     docker run -d -p 3074:3074/udp -p 127.0.0.1:3075:3075/tcp -v /srv/relay:/log \
-      ghcr.io/paulcombal/mw2-relay:<release> \
-      --playlists /playlists.info --log-file /log/relay.log --status-port 3075
+      ghcr.io/paulcombal/mw2-relay:<release> --public \
+      --log-file /log/relay.log --status-port 3075 --status-address 0.0.0.0
     curl 127.0.0.1:3075
 
 **The firewall** lets in UDP on the relay's port, from anywhere. Players need
@@ -71,7 +128,36 @@ the relay's address (`relay.example.com`, or `relay.example.com:<port>` for
 another port than 3074), and PASSWORD.
 
 The relay logs a line, with the time in UTC, for each player who joins,
-leaves, goes quiet, or is refused, and why.
+leaves, goes quiet, or is refused, and why, and for each packet a limit
+drops: at most 20 lines every 10 s about each of these, then one line that
+counts the rest, so a flood does not fill the disk.
+
+## Limits
+
+A relay anyone can reach is sent anything. What it takes is bounded, and so
+is what it holds:
+
+| limit | default | why |
+|---|---|---|
+| players at once | `--max` 64 | the copies table, and every table that follows it |
+| players from one IP address | `--per-address` 16 | a household or a LAN party shares one; one machine cannot fill the relay |
+| sessions listed from one IP address | `--sessions-per-address` 4 | a copy lists one; one address cannot fill Find Game |
+| packets a second from one player | `--rate` 1000, twice that at once | a host of 18 sends some 350, a player 30 to 100; an All counts once for each player it goes to |
+| packets a second from all players | `--total-rate` 20000 | what a small machine and a home uplink carry; 64 players in matches send a fifth of it |
+| bytes after a packet's header | `--max-payload` 2048 | the titles send 1264 at most, wrapped in 12; with the rate, it bounds a player's bandwidth |
+| listings a second from one player | 4, 8 at once | the game lists every 2 s and on a change |
+| searches | one a player every 0.9 s, 200 a second in all | a search walks every listing |
+| attributes of a listing, wants of a search | 32 | a listing is 340 bytes at most |
+| results of a search | 50, in pages of 12 | pages stay under 1200 bytes |
+| Hellos a second from one IP address that has not joined | 20, 40 at once | two join a copy; 16 copies rejoin at once after a restart |
+| other packets a second from such an address | 5, 10 at once | each is answered Unknown |
+| answers a second to all such addresses | 500, 1000 at once | a flood of forged addresses gets no more Challenges than that |
+| such addresses told apart | 4096, each for 10 s | past it the line above alone holds |
+| playlists | 8 files of 128 KB | one a title |
+
+A packet from an address that has not joined, or without its copy's token,
+counts against that address and never against a copy, so nobody slows a
+player down by sending in its name. What a limit drops gets no answer.
 
 ## What it costs
 
@@ -111,10 +197,13 @@ playlist. A diagnostic build logs why with `MW2_ENGINE_LOG=1`.
 
 ## What players on a relay should know
 
-Anyone with the password sees every game hosted on the relay and can join it,
-and meets every other player who looks for a game with Find Game.
-The relay's owner can see all the traffic. Keep the password to the people the
-relay is for.
+On a private relay, anyone with the password sees every game of their title
+hosted on the relay and can join it, and meets every other player who looks
+for a game with Find Game; keep the password to the people the relay is for.
+On a public relay that is anyone at all. The relay's owner can see all the
+traffic and every player's address; the players see neither. What a player has
+unlocked or wears is its own copy's and never passes the relay's judgement:
+the relay hands the game's packets on unread.
 
 ## How it works
 
@@ -130,17 +219,17 @@ the program parses a packet by hand.
 it (`relay/tests/conformance.rs`), with packets of random bytes among them.
 
 Every packet is a 24-byte header -- the magic `MW2R`, a kind, a peer id and
-a token -- then what the kind carries, big-endian:
+a token -- then what the kind carries, big-endian, 2048 bytes at most:
 
 | kind | from | carries |
 |---|---|---|
-| Hello | game | the protocol, the password; the id the copy had, or 0; the Challenge's token, or 0 |
+| Hello | game | the protocol, the title's id and its network version, the password; the id the copy had, or 0; the Challenge's token, or 0 |
 | Challenge | relay | the token every later packet of this copy carries |
 | Welcome | relay | the copy's id |
 | Refused | relay | why, as text: wrong password, another protocol, full |
 | Alive | game | nothing; sent when the copy has said nothing for a second |
 | To | game | a peer's id and the bytes for it |
-| All | game | bytes for everyone else on the relay |
+| All | game | bytes for everyone else of its title and version on the relay |
 | From | relay | the sender's id, which the relay stamps, and the bytes |
 | Unknown | relay | nothing: the relay does not know this copy, which says Hello again |
 | Bye | game | nothing: the copy is leaving |
@@ -149,7 +238,7 @@ a token -- then what the kind carries, big-endian:
 | Results | relay | a page of what fits, nearest host first |
 | Ping | game | anything in `peer` |
 | Pong | relay | the Ping's `peer` |
-| FileAsk | game | an offset in the playlists |
+| FileAsk | game | an offset in its title's playlists |
 | FileChunk | relay | the file's size, the offset, and up to 1 KB of it |
 
 UDP lets anyone write any sender address on a packet, so the relay keeps
@@ -161,7 +250,15 @@ not is dropped, so nobody can send, leave, or take a slot as another address.
 To an address it has not checked, the relay sends nothing larger than what it
 got from there, so it cannot be used to multiply traffic at someone else. A
 relay restarted with a new key answers the old tokens with Unknown, and the
-copies are challenged again.
+copies are challenged again. A public relay challenges all the same.
+
+**Titles.** A Hello names the copy's title, the id of its executable
+(`41560817` Modern Warfare 2, `415608CB` Modern Warfare 3's multiplayer), and
+the title's network version. The relay compares the two numbers and knows no
+more of them: To reaches only a copy with the same pair, All and Search see
+only those, and a session is 60 bytes and some numbers whatever the title. A
+Hello of another protocol is refused with the reason before the rest of it is
+read, so a game of an older release is told why.
 
 A copy is known by the address and port its packets come from. The relay keeps
 only the copies it took in. The relay

@@ -15,6 +15,7 @@
 #include "../env.h"
 #include "../log.h"
 #include "../signin.h"
+#include "../title.h"
 
 #include <chrono>
 #include <cstdio>
@@ -33,6 +34,14 @@ namespace
     uint32_t BigEndian32(uint32_t value) { return __builtin_bswap32(value); }
     uint16_t BigEndian16(uint16_t value) { return __builtin_bswap16(value); }
 
+    // Four letters of a packet's kind, the title's three first (T_NET_TAG):
+    // another title's copies on the same network or relay are not heard.
+    constexpr uint32_t Magic(char kind)
+    {
+        return (uint32_t(uint8_t(T_NET_TAG[0])) << 24) | (uint32_t(uint8_t(T_NET_TAG[1])) << 16) |
+               (uint32_t(uint8_t(T_NET_TAG[2])) << 8) | uint8_t(kind);
+    }
+
     // Magic, the sender's instance, its port and the port it is for.
     struct Frame
     {
@@ -40,7 +49,7 @@ namespace
         uint32_t instance;
         uint16_t fromPort, toPort;
     };
-    constexpr uint32_t kMagic = 0x4D57324C;   // "MW2L"
+    constexpr uint32_t kMagic = Magic('L');   // "MW2L", "MW3L"
 
     // Who a copy is and what can be joined: to everyone as presence, or to one
     // player as an invitation.
@@ -55,7 +64,7 @@ namespace
         char name[32];
         uint8_t session[online::kSessionInfoSize];
     };
-    constexpr uint32_t kPresenceMagic = 0x4D573250;   // "MW2P"
+    constexpr uint32_t kPresenceMagic = Magic('P');   // "MW2P", "MW3P"
     constexpr uint8_t kAnnounce = 0, kInvite = 1;
     constexpr auto kAnnounceEvery = std::chrono::seconds(1);
 
@@ -64,9 +73,14 @@ namespace
         uint64_t id = 0, account = 0;
         bool joinable = false;
         uint8_t session[online::kSessionInfoSize]{};
+        std::chrono::steady_clock::time_point heard{};
     };
     constexpr size_t kLargest = 64 * 1024;
     constexpr size_t kQueued = 512;
+    // A copy says who it is every second; one silent this long has left. On a
+    // public relay anyone can say any name, so the list has a size too.
+    constexpr auto kPeerGoneAfter = std::chrono::seconds(10);
+    constexpr size_t kMostPeers = 256;
 
     class Players final : public online::Service
     {
@@ -96,13 +110,20 @@ namespace
                   const void* bytes, size_t size) override
         {
             const std::vector<uint8_t>& packet = Framed(fromPort, toPort, bytes, size);
-            return !packet.empty() && transport_->SendTo(peer, packet.data(), packet.size());
+            const bool sent = !packet.empty() && transport_->SendTo(peer, packet.data(), packet.size());
+            if (!sent && online::Trace())
+                LOGI("net-trace: %s could not send %zu bytes to %012llx", transport_->Name(), size,
+                     static_cast<unsigned long long>(peer));
+            return sent;
         }
 
         bool Broadcast(uint16_t fromPort, uint16_t toPort, const void* bytes, size_t size) override
         {
             const std::vector<uint8_t>& packet = Framed(fromPort, toPort, bytes, size);
-            return !packet.empty() && transport_->SendAll(packet.data(), packet.size());
+            const bool sent = !packet.empty() && transport_->SendAll(packet.data(), packet.size());
+            if (!sent && online::Trace())
+                LOGI("net-trace: %s could not send %zu bytes to everyone", transport_->Name(), size);
+            return sent;
         }
 
         bool Receive(uint16_t port, online::Datagram& out) override
@@ -177,7 +198,41 @@ namespace
             }
         }
 
+        size_t PeerCount() override
+        {
+            std::lock_guard g(lock_);
+            ForgetGoneLocked();
+            return peers_.size();
+        }
+
+        std::string PeerNames() override
+        {
+            std::lock_guard g(lock_);
+            ForgetGoneLocked();
+            std::string names;
+            for (const auto& [name, peer] : peers_)
+                if (peer.joinable) names += name + "\n";
+            return names;
+        }
+
+        // The peer's Live party or lobby, as MW2_LAN_JOIN joins it.
+        bool JoinPeer(const std::string& name) override
+        {
+            std::lock_guard g(lock_);
+            const auto it = peers_.find(name);
+            if (it == peers_.end() || !it->second.joinable) return false;
+            LOGI("online: %s joins %s", transport_->Name(), name.c_str());
+            invites_.push_back(InviteFrom(it->second, false));
+            return true;
+        }
+
     private:
+        void ForgetGoneLocked()
+        {
+            const auto now = std::chrono::steady_clock::now();
+            std::erase_if(peers_, [&](const auto& entry) { return now - entry.second.heard >= kPeerGoneAfter; });
+        }
+
         static online::Invite InviteFrom(const Peer& peer, bool fromInvite)
         {
             online::Invite invite;
@@ -224,8 +279,16 @@ namespace
         {
             if (presence.instance == instance_) return;
             const std::string name(presence.name, strnlen(presence.name, sizeof presence.name));
+            if (!peers_.count(name))
+            {
+                ForgetGoneLocked();
+                if (peers_.size() >= kMostPeers) return;
+                LOGI("online: %s hears %s at %012llx", transport_->Name(), name.c_str(),
+                     static_cast<unsigned long long>(from));
+            }
             Peer& peer = peers_[name];
             peer.id = from;
+            peer.heard = std::chrono::steady_clock::now();
             peer.account = BigEndian64(presence.account);
             if (peer.account == Account() && !warned_)
             {
@@ -269,7 +332,14 @@ namespace
                 Frame frame;
                 if (size_t(got) < sizeof frame) continue;
                 std::memcpy(&frame, packet.data(), sizeof frame);
-                if (BigEndian32(frame.magic) != kMagic || frame.instance == instance_) continue;
+                if (BigEndian32(frame.magic) != kMagic)
+                {
+                    if (online::Trace())
+                        LOGI("net-trace: %s dropped %ld bytes from %012llx: not this game's (%08x)", transport_->Name(),
+                             got, static_cast<unsigned long long>(from), BigEndian32(frame.magic));
+                    continue;
+                }
+                if (frame.instance == instance_) continue;   // this copy's own broadcast
                 online::Datagram datagram;
                 datagram.from = from;
                 datagram.fromPort = BigEndian16(frame.fromPort);
@@ -277,6 +347,10 @@ namespace
                 datagram.bytes.assign(packet.begin() + sizeof frame, packet.begin() + got);
                 // A port nobody reads fills up and drops, as a socket's buffer does.
                 auto& queue = waiting_[datagram.toPort];
+                if (online::Trace())
+                    LOGI("net-trace: %s heard %zu bytes from %012llx, port %u to port %u (%zu waiting there)",
+                         transport_->Name(), datagram.bytes.size(), static_cast<unsigned long long>(from),
+                         datagram.fromPort, datagram.toPort, queue.size());
                 if (queue.size() < kQueued) queue.push_back(std::move(datagram));
             }
         }

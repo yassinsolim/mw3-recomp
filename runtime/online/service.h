@@ -10,7 +10,8 @@
 //
 // Every build has every backend, and the player chooses one as the game starts
 // (MW2_NETWORK, the launcher's NETWORK): none, the default, lan, server or
-// steam, which is lan when Steam is not running. A backend is a function that
+// steam, which is lan when Steam is not running. MW3's multiplayer has none,
+// lan and server. A backend is a function that
 // makes it, listed in service.cpp. With none, there is no service, and the
 // title keeps its offline system link on this machine.
 #include <cstddef>
@@ -212,6 +213,9 @@ namespace online
     // The service, started on first use: the first backend built in that
     // starts. Null when there is none or none could start.
     Service* Get();
+    // The service if it has started, without starting it: for a caller that
+    // must not wait on a backend logging in (the app's thread).
+    Service* Started();
     // Its backend's name, "steam", "lan" or "server"; null without one.
     const char* Name();
 
@@ -219,6 +223,16 @@ namespace online
     // console line, or hands an accepted Live invitation to the title.
     void Frame();
 
-    // The service can carry Xbox LIVE lobbies.
+    // The service can carry Xbox LIVE lobbies, and the player is signed in.
     bool Live();
+
+    // What copies must share to meet: the disc's title id, and the title's
+    // protocol number, the release in its high half (network_version.cpp).
+    uint32_t TitleId();
+    uint32_t NetworkVersion();
+
+    // MW2_TRACE_NET=1: the log says what the title asks of its sessions and
+    // sockets, and what the service does with each datagram ("net-trace:").
+    // In every build, unlike MW2_TRACE_ONLINE.
+    bool Trace();
 }

@@ -14,6 +14,7 @@
 #include "../presence.h"
 #include "../signin.h"
 #include "../online/service.h"
+#include "../title.h"
 
 #include <algorithm>
 #include <array>
@@ -35,7 +36,7 @@ namespace fs = std::filesystem;
 namespace
 {
     constexpr uint32_t kLocalUser = 0;
-    constexpr uint32_t kTitleId = 0x41560817;
+    constexpr uint32_t kTitleId = T_TITLE_ID;
 
     // XOVERLAPPED. Not Win32's: the console's has the event at +12, which is
     // where the title's own XGetOverlappedResult looks for it, and it reads the
@@ -369,7 +370,11 @@ namespace
     };
     Reply Result(uint32_t result) { return { result, result }; }
 
-    // XSESSION_INFO, the block XSessionCreate fills in for the caller.
+    // XSESSION_INFO, the block XSessionCreate fills in for the caller. The
+    // console's, so the same in MW3's multiplayer: its XSessionCreate
+    // (sub_82511270) sends the same 28 bytes as 000B0010, and its session
+    // keeps the 60 bytes at +0x14 (copied with a length of 0x3C at 823B0874)
+    // and the nonce at +0x58.
     struct XSessionInfo
     {
         uint8_t sessionId[8];      // 0,  XNKID
@@ -584,7 +589,11 @@ namespace
         // instead of waiting on a service that never answers.
         const bool live = flags & kLiveFeatures;
         if (live && !online::Live())
+        {
+            LOGI("online: session %08x refused, flags %x: it asks for Xbox LIVE and the player is not signed in to it",
+                 object, flags);
             return Result(0x80155209);   // X_ONLINE_E_SESSION_NOT_LOGGED_ON
+        }
 
         auto* info = GuestPtr<XSessionInfo>(words[5]);
         auto* nonce = GuestPtr<uint8_t>(words[6]);
@@ -1169,6 +1178,10 @@ namespace
         }
         if (app == kAppXGI)
         {
+            if (online::Trace() && message >= 0x000B0010)
+                if (const auto* words = GuestPtr<be32>(param1))
+                    LOGI("net-trace: session message %08x, %u bytes, session %08x, second word %x", message, param2,
+                         uint32_t(words[0]), param2 >= 8 ? uint32_t(words[1]) : 0);
             switch (message)
             {
             case 0x000B0006: return XgiUserSetContext(param1);

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -158,6 +159,28 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         val playerName: EditText = findViewById(R.id.player_name)
         playerName.setText(prefs.playerName)
         playerName.doAfterTextChanged { prefs.playerName = it.toString() }
+        // How the multiplayer apps reach other players (GameActivity sets
+        // MW2_NETWORK from it); the campaign apps have no network.
+        if (packageName.contains(".mp")) {
+            findViewById<android.view.View>(R.id.network_mode_group).visibility = android.view.View.VISIBLE
+            val modes = mapOf(
+                Prefs.NETWORK_ONLINE to R.id.network_online,
+                Prefs.NETWORK_LAN to R.id.network_lan,
+                Prefs.NETWORK_OFF to R.id.network_off,
+            )
+            val networkMode: RadioGroup = findViewById(R.id.network_mode)
+            networkMode.check(modes.getValue(prefs.networkMode))
+            networkMode.setOnCheckedChangeListener { _, checked ->
+                modes.entries.firstOrNull { it.value == checked }?.let { prefs.networkMode = it.key }
+            }
+            val relayAddress: EditText = findViewById(R.id.relay_address)
+            relayAddress.setText(prefs.relayAddress)
+            relayAddress.doAfterTextChanged { prefs.relayAddress = it.toString() }
+            if (packageName.startsWith("com.mw3.")) {
+                findViewById<android.view.View>(R.id.live_sign_in_group).visibility = android.view.View.VISIBLE
+                switch(R.id.live_sign_in, prefs.liveSignIn) { prefs.liveSignIn = it }
+            }
+        }
         switch(R.id.vibration, prefs.vibration) { prefs.vibration = it }
         switch(R.id.invert, prefs.invertLook) { prefs.invertLook = it }
 

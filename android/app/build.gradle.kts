@@ -26,6 +26,12 @@ val repositoryRoot = file("../..")
 //   MW2_KEYSTORE and friends  a signing key, so the apk is installable
 fun setting(name: String): String? = System.getenv(name)?.trim()?.ifEmpty { null }
 
+// -PmpInstance=2: a second copy of the MW3 multiplayer app beside the first
+// (com.mw3.recomp.mp2, "CoD: MW3 Multiplayer (2)"), so that two can play each
+// other on one device (docs/MW3-MP-BRINGUP.md). Debug builds only. The native
+// library is the same; the copy has its own settings, game folder and saves.
+val mpInstance = (findProperty("mpInstance") as String?)?.toIntOrNull()?.coerceIn(1, 9) ?: 1
+
 // The app's own sources have to be here. They went missing once -- written,
 // built against, and never committed -- and the result was an apk that
 // installed, launched, and died on a manifest pointing at classes that did
@@ -68,6 +74,7 @@ android {
             "(${setting("MW2_BUILD_SHA") ?: "local"})"
         buildConfigField("String", "BUILD_SHA", "\"${setting("MW2_BUILD_SHA") ?: "local"}\"")
         buildConfigField("String", "BUILD_STAMP", "\"${setting("MW2_BUILD_STAMP") ?: "unstamped"}\"")
+        buildConfigField("int", "MP_INSTANCE", "1")
 
         ndk {
             // The guest's address space is 4 GiB reserved in one mapping, so
@@ -165,15 +172,16 @@ android {
         }
         // Its multiplayer: the disc's default_mp.xex, recompiled into
         // ppc_mw3_mp/ (docs/MW3-MP-BRINGUP.md). Beside the campaign app, as
-        // MW2's two are. It plays without a network: MW2's network hardening
-        // has not been found in this executable, and the runtime gives this
-        // title no backend and no socket off the device.
+        // MW2's two are. Its network is what the player chooses in Settings,
+        // NETWORK (GameActivity sets MW2_NETWORK): a relay, the local network,
+        // or none.
         create("mw3mp") {
             dimension = "title"
-            applicationId = "com.mw3.recomp.mp"
+            applicationId = "com.mw3.recomp.mp" + if (mpInstance > 1) "$mpInstance" else ""
             versionNameSuffix = "-multiplayer"
-            resValue("string", "app_name", "CoD: MW3 Multiplayer")
+            resValue("string", "app_name", "CoD: MW3 Multiplayer" + if (mpInstance > 1) " ($mpInstance)" else "")
             buildConfigField("String", "UPDATE_REPO", "\"\"")
+            buildConfigField("int", "MP_INSTANCE", "$mpInstance")
             externalNativeBuild {
                 cmake {
                     arguments += listOf(
@@ -211,6 +219,8 @@ android {
         beforeVariants { variant ->
             val flavors = variant.productFlavors.toMap()
             if (flavors["title"] in setOf("mw3", "mw3mp") && flavors["tu"] == "tu6") variant.enable = false
+            // A second copy is a test harness, never a release.
+            if (mpInstance > 1 && flavors["title"] == "mw3mp" && variant.buildType != "debug") variant.enable = false
         }
     }
 

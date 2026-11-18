@@ -11,7 +11,7 @@ constexpr static const uint32_t MAGIC = 1297560146;
 
 /// Raised whenever a packet's meaning changes: a copy and a relay of
 /// different protocols refuse each other.
-constexpr static const uint16_t PROTOCOL = 2;
+constexpr static const uint16_t PROTOCOL = 3;
 
 constexpr static const uint16_t DEFAULT_PORT = 3074;
 
@@ -37,8 +37,16 @@ constexpr static const size_t CHUNK_BYTES = 1024;
 /// what the title has room for
 constexpr static const size_t LARGEST_FILE = (128 * 1024);
 
-/// The largest datagram either side sends.
+/// The largest datagram either side can take.
 constexpr static const size_t LARGEST = ((64 * 1024) - 64);
+
+/// The most a packet carries after its Header, unless the relay is told
+/// otherwise (--max-payload): above what a title sends at once, which fits a
+/// datagram the Internet does not split.
+constexpr static const size_t LARGEST_PAYLOAD = 2048;
+
+/// The shortest Hello any protocol had: a shorter one gets no answer.
+constexpr static const size_t SHORTEST_HELLO = 68;
 
 /// Ids are 48 bits: the game makes the Ethernet address the title tells
 /// machines apart by from the low 48 bits of a player's id.
@@ -93,7 +101,11 @@ struct Header {
 struct Hello {
   uint16_t protocol;
   uint8_t pad[2];
-  /// NUL-padded
+  /// which game it is: the title id of its executable
+  uint32_t title;
+  /// the title's network version: copies of different ones never meet
+  uint32_t version;
+  /// NUL-padded; a relay open to all reads none
   uint8_t password[64];
 };
 
@@ -180,7 +192,7 @@ namespace relay
     inline uint64_t Big64(uint64_t value) { return __builtin_bswap64(value); }
 
     static_assert(sizeof(Header) == 24);
-    static_assert(sizeof(Hello) == 68);
+    static_assert(sizeof(Hello) == 76);
     static_assert(sizeof(Advert) == 84);
     static_assert(sizeof(Want) == 12);
     static_assert(sizeof(Search) == 12);

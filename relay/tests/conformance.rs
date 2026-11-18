@@ -11,7 +11,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const MAGIC: u32 = 0x4D573252;
-const PROTOCOL: u16 = 2;
+const PROTOCOL: u16 = 3;
+const MW2: (u32, u32) = (0x41560817, 136);
+const MW3: (u32, u32) = (0x415608CB, 1);
 const HELLO: u8 = 1;
 const WELCOME: u8 = 2;
 const REFUSED: u8 = 3;
@@ -97,8 +99,14 @@ fn header(kind: u8, peer: u64, token: u64) -> Vec<u8> {
 }
 
 fn hello_body(protocol: u16, password: &[u8]) -> Vec<u8> {
+    hello_of(protocol, MW2, password)
+}
+
+fn hello_of(protocol: u16, (title, version): (u32, u32), password: &[u8]) -> Vec<u8> {
     let mut body = protocol.to_be_bytes().to_vec();
     body.extend([0, 0]);
+    body.extend(title.to_be_bytes());
+    body.extend(version.to_be_bytes());
     let mut field = [0; 64];
     field[..password.len()].copy_from_slice(password);
     body.extend(field);
@@ -122,6 +130,14 @@ impl Client {
     }
 
     fn try_join(relay: &Relay, password: &[u8], protocol: u16) -> Result<Client, String> {
+        Client::try_hello(relay, &hello_body(protocol, password))
+    }
+
+    fn join_as(relay: &Relay, realm: (u32, u32)) -> Client {
+        Client::try_hello(relay, &hello_of(PROTOCOL, realm, b"")).unwrap()
+    }
+
+    fn try_hello(relay: &Relay, hello: &[u8]) -> Result<Client, String> {
         let socket = Arc::new(Client::socket(relay));
         let mut client = Client {
             socket,
@@ -132,7 +148,7 @@ impl Client {
             quiet: Arc::new(AtomicBool::new(false)),
         };
         for _ in 0..20 {
-            client.say(HELLO, 0, &hello_body(protocol, password));
+            client.say(HELLO, 0, hello);
             match client.next(Duration::from_millis(300)) {
                 Some(Packet { kind: CHALLENGE, token, .. }) => client.token = token,
                 Some(Packet { kind: WELCOME, peer, .. }) => {
@@ -310,7 +326,7 @@ fn refuses_with_a_reason() {
     assert_eq!(Client::try_join(&relay, b"", PROTOCOL).err().unwrap(), "a password is needed");
     assert_eq!(Client::try_join(&relay, b"nope", PROTOCOL).err().unwrap(), "wrong password");
     let other = Client::try_join(&relay, b"secret", 1).err().unwrap();
-    assert!(other.contains("this relay speaks protocol 2, the game 1"), "{other}");
+    assert!(other.contains("this relay speaks protocol 3, the game 1"), "{other}");
     let _a = Client::try_join(&relay, b"secret", PROTOCOL).unwrap();
     let _b = Client::try_join(&relay, b"secret", PROTOCOL).unwrap();
     assert_eq!(Client::try_join(&relay, b"secret", PROTOCOL).err().unwrap(), "too many players from this address");
@@ -482,7 +498,7 @@ fn bad_listings_are_dropped() {
 
 #[test]
 fn pages_a_long_answer_and_takes_no_more_than_asked() {
-    let relay = Relay::start(&[]);
+    let relay = Relay::start(&["--sessions-per-address", "16"]);
     let mut b = Client::join(&relay);
     let mut crowd: Vec<Client> = (0..14).map(|_| Client::join(&relay)).collect();
     for (i, copy) in crowd.iter_mut().enumerate() {
@@ -585,6 +601,8 @@ fn random_packets_stop_nothing() {
     assert!(relay.status().starts_with("HTTP/1.0 200 OK"));
 }
 
+// The signal is the one a Linux container or systemd stops the relay with.
+#[cfg(unix)]
 #[test]
 fn stops_on_sigterm_and_logs_to_a_file() {
     let dir = std::env::temp_dir().join(format!("mw2-relay-log-{}", std::process::id()));
@@ -637,9 +655,315 @@ fn the_status_page_is_json() {
     let text = relay.status();
     let body = text.split("\r\n\r\n").nth(1).unwrap();
     let status: serde_json::Value = serde_json::from_str(body).unwrap();
-    assert_eq!(status["protocol"], 2);
+    assert_eq!(status["protocol"], 3);
+    assert_eq!(status["public"], true);
+    assert_eq!(status["copies"][0]["title"], "41560817");
+    assert_eq!(status["copies"][0]["version"], 136);
+    assert_eq!(status["sessions"][0]["title"], "41560817");
     assert_eq!(status["copies"][0]["id"], format!("{:012x}", a.id));
     assert_eq!(status["sessions"][0]["openPublic"], 8);
     assert_eq!(status["sessions"][0]["attributes"]["0x1000001a"], 8);
     let _: SocketAddr = status["copies"][0]["address"].as_str().unwrap().parse().unwrap();
+}
+
+fn status_of(relay: &Relay) -> serde_json::Value {
+    let text = relay.status();
+    serde_json::from_str(text.split("\r\n\r\n").nth(1).unwrap()).unwrap()
+}
+
+/// How many packets of this kind come until none has for 300 ms.
+fn count(client: &Client, kind: u8) -> usize {
+    let mut got = 0;
+    while let Some(packet) = client.next(Duration::from_millis(300)) {
+        got += usize::from(packet.kind == kind);
+    }
+    got
+}
+
+#[test]
+fn a_public_relay_takes_anyone() {
+    for arguments in [&["--public"][..], &[]] {
+        let relay = Relay::start(arguments);
+        Client::try_join(&relay, b"", PROTOCOL).unwrap();
+        Client::try_join(&relay, b"whatever it was told", PROTOCOL).unwrap();
+        assert_eq!(status_of(&relay)["public"], true);
+        assert_eq!(status_of(&relay)["copies"].as_array().unwrap().len(), 2);
+    }
+    let relay = Relay::start(&["--password", "secret"]);
+    assert_eq!(status_of(&relay)["public"], false);
+}
+
+#[test]
+fn public_with_a_password_does_not_start() {
+    let run = |arguments: &[&str], password: Option<&str>| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_mw2-relay"));
+        command.args(arguments).env_remove("MW2_RELAY_PASSWORD").stdout(Stdio::null()).stderr(Stdio::null());
+        if let Some(password) = password {
+            command.env("MW2_RELAY_PASSWORD", password);
+        }
+        command.status().unwrap().code().unwrap()
+    };
+    assert_eq!(run(&["--public", "--password", "secret"], None), 1);
+    assert_eq!(run(&["--public"], Some("secret")), 1);
+    assert_eq!(run(&["--public", "--port"], None), 2);
+}
+
+#[test]
+fn a_public_relay_still_challenges() {
+    let relay = Relay::start(&["--public"]);
+    let socket = Client::socket(&relay);
+    let mut hello = header(HELLO, 0, 0x1234_5678);
+    hello.extend(hello_body(PROTOCOL, b""));
+    socket.send(&hello).unwrap();
+    socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+    let mut answer = [0; 2000];
+    socket.recv(&mut answer).unwrap();
+    assert_eq!(answer[4], CHALLENGE, "a token it did not give is no token");
+    assert!(relay.status().contains("\"copies\":[]"));
+}
+
+#[test]
+fn a_game_of_the_protocol_before_is_told_so() {
+    let relay = Relay::start(&[]);
+    let mut old = 2u16.to_be_bytes().to_vec();
+    old.extend([0; 66]);
+    let why = Client::try_hello(&relay, &old).err().unwrap();
+    assert!(why.contains("this relay speaks protocol 3, the game 2"), "{why}");
+}
+
+#[test]
+fn titles_never_meet() {
+    let relay = Relay::start(&[]);
+    let (mut mw2, mut a, mut b) =
+        (Client::join_as(&relay, MW2), Client::join_as(&relay, MW3), Client::join_as(&relay, MW3));
+    let mut later = Client::join_as(&relay, (MW3.0, MW3.1 + 1));
+    a.say(ALL, 0, b"to all");
+    assert_eq!(b.expect(FROM, Duration::from_secs(1)).unwrap().peer, a.id);
+    a.say(TO, mw2.id, b"to another title");
+    a.say(TO, later.id, b"to another version");
+    a.say(TO, b.id, b"to b");
+    assert_eq!(b.expect(FROM, Duration::from_secs(1)).unwrap().body, b"to b");
+    assert_eq!(count(&mw2, FROM), 0, "another title hears nothing");
+    assert_eq!(count(&later, FROM), 0, "another version hears nothing");
+
+    mw2.advert(0xA2, 8, &[], 1);
+    later.advert(0xA4, 8, &[], 1);
+    pause();
+    assert_eq!(b.find(0, &[], 50), Some(vec![]), "another title's sessions are not listed");
+    a.advert(0xA3, 8, &[], 1);
+    pause();
+    thread::sleep(WAIT_A_SEARCH);
+    assert_eq!(b.find(0, &[], 50), Some(vec![(a.id, 0xA3, 8, 1)]));
+    assert_eq!(mw2.find(0, &[], 50), Some(vec![]));
+    assert_eq!(later.find(0, &[], 50), Some(vec![]));
+    let status = status_of(&relay);
+    let titles: Vec<&str> =
+        status["copies"].as_array().unwrap().iter().map(|copy| copy["title"].as_str().unwrap()).collect();
+    assert_eq!(titles.iter().filter(|title| **title == "415608cb").count(), 3);
+    assert_eq!(titles.iter().filter(|title| **title == "41560817").count(), 1);
+}
+
+#[test]
+fn each_title_gets_its_own_playlists() {
+    let dir = std::env::temp_dir().join(format!("mw2-relay-titles-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (for_mw2, for_others) = (dir.join("mw2"), dir.join("others"));
+    std::fs::write(&for_mw2, [1; 100]).unwrap();
+    std::fs::write(&for_others, [2; 200]).unwrap();
+    let total = |client: &Client| {
+        client.say(FILE_ASK, 0, &0u32.to_be_bytes());
+        let chunk = client.expect(FILE_CHUNK, Duration::from_secs(1)).unwrap();
+        (u32::from_be_bytes(chunk.body[0..4].try_into().unwrap()), chunk.body.get(8).copied())
+    };
+    let named = format!("41560817={}", for_mw2.to_str().unwrap());
+    {
+        let relay = Relay::start(&["--playlists", &named, "--playlists", for_others.to_str().unwrap()]);
+        assert_eq!(total(&Client::join_as(&relay, MW2)), (100, Some(1)));
+        assert_eq!(total(&Client::join_as(&relay, MW3)), (200, Some(2)));
+    }
+    let relay = Relay::start(&["--playlists", &named]);
+    assert_eq!(total(&Client::join_as(&relay, MW2)), (100, Some(1)));
+    assert_eq!(total(&Client::join_as(&relay, MW3)), (0, None), "a title without a file has none");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_copy_sends_no_faster_than_allowed() {
+    let relay = Relay::start(&["--rate", "20"]);
+    let (a, b) = (Client::join(&relay), Client::join(&relay));
+    for _ in 0..200 {
+        a.say(TO, b.id, b"fast");
+    }
+    let got = count(&b, FROM);
+    assert!((20..=60).contains(&got), "{got} of 200 came through: twice the rate at once, then the rate");
+    assert!(status_of(&relay)["dropped"]["copyRate"].as_u64().unwrap() >= 140);
+    thread::sleep(Duration::from_secs(1));
+    b.say(TO, a.id, b"another copy is not held back");
+    assert!(a.expect(FROM, Duration::from_secs(1)).is_some());
+    a.say(TO, b.id, b"and the first is taken again");
+    assert!(b.expect(FROM, Duration::from_secs(1)).is_some());
+}
+
+#[test]
+fn an_all_costs_what_it_sends() {
+    let relay = Relay::start(&["--rate", "10"]);
+    let crowd: Vec<Client> = (0..5).map(|_| Client::join(&relay)).collect();
+    for _ in 0..10 {
+        crowd[0].say(ALL, 0, b"everyone");
+    }
+    // 20 at once, 4 for each All.
+    let got = count(&crowd[1], FROM);
+    assert!((4..=6).contains(&got), "{got} of 10");
+}
+
+#[test]
+fn all_copies_together_send_no_faster_than_allowed() {
+    let relay = Relay::start(&["--total-rate", "20"]);
+    let (a, b, c) = (Client::join(&relay), Client::join(&relay), Client::join(&relay));
+    for _ in 0..100 {
+        a.say(TO, c.id, b"fast");
+        b.say(TO, c.id, b"fast");
+    }
+    let got = count(&c, FROM);
+    assert!((20..=60).contains(&got), "{got} of 200 came through");
+    assert!(status_of(&relay)["dropped"]["allRate"].as_u64().unwrap() >= 140);
+}
+
+#[test]
+fn a_packet_too_large_is_dropped() {
+    for (arguments, most) in [(&[][..], 2048), (&["--max-payload", "600"], 600)] {
+        let relay = Relay::start(arguments);
+        let (a, b) = (Client::join(&relay), Client::join(&relay));
+        a.say(TO, b.id, &vec![7; most + 1]);
+        a.say(ALL, 0, &vec![7; most + 1]);
+        assert_eq!(count(&b, FROM), 0);
+        a.say(TO, b.id, &vec![7; most]);
+        assert_eq!(b.expect(FROM, Duration::from_secs(1)).unwrap().body.len(), most);
+        assert_eq!(status_of(&relay)["dropped"]["tooLarge"], 2);
+    }
+}
+
+#[test]
+fn strangers_get_few_answers_and_keep_nobody_out() {
+    let relay = Relay::start(&[]);
+    let a = Client::join(&relay);
+    let stranger = Client { socket: Arc::new(Client::socket(&relay)), token: 0, id: 0, sequence: 0, search: 0, quiet: Arc::new(AtomicBool::new(false)) };
+    for _ in 0..300 {
+        stranger.say(ALIVE, 0, &[]);
+    }
+    let unknown = count(&stranger, UNKNOWN);
+    assert!((1..=20).contains(&unknown), "{unknown} answers to 300 packets");
+    for _ in 0..300 {
+        stranger.say(HELLO, 0, &hello_body(PROTOCOL, b""));
+    }
+    let challenges = count(&stranger, CHALLENGE);
+    assert!((1..=60).contains(&challenges), "{challenges} answers to 300 Hellos");
+    assert!(status_of(&relay)["dropped"]["strangers"].as_u64().unwrap() >= 500);
+    assert_eq!(status_of(&relay)["copies"].as_array().unwrap().len(), 1, "nothing is kept for them");
+    // The copies already here are not held back, and one more still joins.
+    let b = Client::join(&relay);
+    a.say(TO, b.id, b"still here");
+    assert!(b.expect(FROM, Duration::from_secs(1)).is_some());
+}
+
+#[test]
+fn a_forged_token_costs_the_copy_nothing() {
+    let relay = Relay::start(&["--rate", "20"]);
+    let (mut a, b) = (Client::join(&relay), Client::join(&relay));
+    let token = a.token;
+    a.token ^= 1;
+    for _ in 0..300 {
+        a.say(TO, b.id, b"forged");
+    }
+    a.token = token;
+    assert_eq!(count(&b, FROM), 0);
+    for _ in 0..30 {
+        a.say(TO, b.id, b"its own");
+    }
+    assert!(count(&b, FROM) >= 30);
+}
+
+#[test]
+fn an_address_lists_only_so_many_sessions() {
+    let relay = Relay::start(&["--sessions-per-address", "2"]);
+    let mut hosts: Vec<Client> = (0..3).map(|_| Client::join(&relay)).collect();
+    let mut b = Client::join(&relay);
+    for (i, host) in hosts.iter_mut().enumerate() {
+        host.advert(i as u8 + 1, 8, &[], i as u16 + 1);
+        pause();
+    }
+    assert_eq!(b.find(0, &[], 50).unwrap().iter().map(|one| one.1).collect::<Vec<_>>(), [1, 2]);
+    // One withdrawn makes room for another.
+    hosts[0].sequence += 1;
+    hosts[0].advert_numbered(hosts[0].sequence, 0, 0, &[], 0, 0);
+    pause();
+    hosts[2].advert(3, 8, &[], 3);
+    pause();
+    thread::sleep(WAIT_A_SEARCH);
+    assert_eq!(b.find(0, &[], 50).unwrap().iter().map(|one| one.1).collect::<Vec<_>>(), [2, 3]);
+}
+
+#[test]
+fn a_copy_lists_no_faster_than_allowed() {
+    let relay = Relay::start(&[]);
+    let mut a = Client::join(&relay);
+    for _ in 0..100 {
+        a.advert(0xA1, 8, &NUMBERS, 5);
+    }
+    pause();
+    let status = status_of(&relay);
+    assert!(status["dropped"]["adverts"].as_u64().unwrap() >= 80, "{status}");
+    assert_eq!(status["sessions"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn searches_dropped_are_counted() {
+    let relay = Relay::start(&[]);
+    let mut a = Client::join(&relay);
+    assert!(a.find(0, &[], 50).is_some());
+    for _ in 0..10 {
+        a.say(SEARCH, 0, &[0; 12]);
+    }
+    pause();
+    assert_eq!(status_of(&relay)["dropped"]["searches"], 10);
+}
+
+#[test]
+fn a_flood_does_not_fill_the_log() {
+    let dir = std::env::temp_dir().join(format!("mw2-relay-flood-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("relay.log");
+    let relay = Relay::start(&["--log-file", path.to_str().unwrap()]);
+    let (a, b) = (Client::join(&relay), Client::join(&relay));
+    for _ in 0..500 {
+        a.say(TO, b.id, &[7; 3000]);
+    }
+    thread::sleep(Duration::from_millis(500));
+    let dropped = status_of(&relay)["dropped"]["tooLarge"].as_u64().unwrap();
+    assert!(dropped >= 300, "{dropped} of 500 came");
+    let log = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(log.matches("dropped a packet from").count(), 20, "{log}");
+    // After the ten seconds the lines held back are counted, once.
+    thread::sleep(Duration::from_secs(11));
+    let log = std::fs::read_to_string(&path).unwrap();
+    let held = format!("{} more lines about limits not logged", dropped - 20);
+    assert_eq!(log.matches(&held).count(), 1, "{log}");
+    drop(relay);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_status_page_answers_on_this_machine_alone() {
+    let relay = Relay::start(&[]);
+    // Any other address of this machine: the one a socket to the outside has.
+    let probe = UdpSocket::bind("0.0.0.0:0").unwrap();
+    if probe.connect("192.0.2.1:9").is_err() {
+        return;
+    }
+    let SocketAddr::V4(own) = probe.local_addr().unwrap() else { return };
+    if own.ip().is_loopback() || own.ip().is_unspecified() {
+        return;
+    }
+    let there = SocketAddr::from((*own.ip(), relay.status));
+    assert!(TcpStream::connect_timeout(&there, Duration::from_millis(500)).is_err());
 }

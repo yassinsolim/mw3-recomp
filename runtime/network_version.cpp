@@ -22,6 +22,12 @@
 // carries the host's release instead: NET_OutOfBandPrint, which sends it, is
 // given a copy with the release in its place. The format is SV_DirectConnect's
 // alone.
+//
+// Modern Warfare 3's multiplayer has the same number and the same three
+// checks (title.h, T_ProtocolVersion): 0x56 in the low half, and in the high
+// half the online update's version or, with no update, -1 or -2 by the
+// copy's state (sub_82286A88) -- so two copies in different states could
+// refuse each other. Its build number string is "1.0".
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "version.h"

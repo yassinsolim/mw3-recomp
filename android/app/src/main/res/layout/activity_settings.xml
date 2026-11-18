@@ -411,6 +411,101 @@
                     android:layout_height="wrap_content"
                     android:text="@string/tab_network" />
 
+                <!-- How the multiplayer reaches other players; hidden in the campaign apps. -->
+                <LinearLayout
+                    android:id="@+id/network_mode_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/network_mode" />
+
+                    <RadioGroup
+                        android:id="@+id/network_mode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/network_online"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/network_online"
+                            android:textColor="#E4E9EE" />
+
+                        <RadioButton
+                            android:id="@+id/network_lan"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/network_lan"
+                            android:textColor="#E4E9EE" />
+
+                        <RadioButton
+                            android:id="@+id/network_off"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/network_off"
+                            android:textColor="#E4E9EE" />
+                    </RadioGroup>
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/network_mode_hint" />
+
+                    <TextView
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/relay_address" />
+
+                    <EditText
+                        android:id="@+id/relay_address"
+                        android:background="@drawable/bg_field"
+                        android:padding="12dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/relay_address_example"
+                        android:inputType="textUri"
+                        android:maxLength="128"
+                        android:singleLine="true"
+                        android:textColor="#E2E8F0"
+                        android:textColorHint="#64748B" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/relay_address_hint" />
+
+                    <LinearLayout
+                        android:id="@+id/live_sign_in_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/live_sign_in"
+                            style="@style/SettingSwitch"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/live_sign_in" />
+
+                        <TextView
+                            style="@style/SettingHint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/live_sign_in_hint" />
+                    </LinearLayout>
+                </LinearLayout>
+
                 <TextView
                     style="@style/SettingLabel"
                     android:layout_width="match_parent"

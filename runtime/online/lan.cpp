@@ -10,6 +10,11 @@
 // it, and how far after is the copy's slot.
 // MW2_LAN_IFACE pins the announced adapter by name or address substring;
 // without it the first connection up is announced.
+//
+// What goes to everyone also goes to the own ports of the other copies on
+// this machine, at the announced address (the first kLocalCopies slots): two
+// apps on one phone then find each other with no network connection at all,
+// where a broadcast has nowhere to go, and on a network that drops broadcasts.
 #include "transport.h"
 #include "udp.h"
 #include "../env.h"
@@ -171,7 +176,8 @@ namespace
             sockaddr_in bound{};
             socklen_t length = sizeof bound;
             getsockname(own_, reinterpret_cast<sockaddr*>(&bound), &length);
-            bound.sin_addr.s_addr = htonl(OwnAddress());
+            address_ = OwnAddress();
+            bound.sin_addr.s_addr = htonl(address_);
             id_ = IdOf(bound);
             char text[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &bound.sin_addr, text, sizeof text);
@@ -224,6 +230,17 @@ namespace
             bool ok = udp::SendDatagram(own_, bytes, size, everyone);
             for (const sockaddr_in& subnet : broadcasts_)
                 ok = udp::SendDatagram(own_, bytes, size, subnet) && ok;
+#ifndef _WIN32   // there a send to a port nobody has comes back as an error on the socket
+            for (uint32_t slot = 0; slot < kLocalCopies; slot++)
+            {
+                if (slot == slot_) continue;
+                sockaddr_in copy{};
+                copy.sin_family = AF_INET;
+                copy.sin_addr.s_addr = htonl(address_);
+                copy.sin_port = htons(uint16_t(sharedPort_ + 1 + slot));
+                udp::SendDatagram(own_, bytes, size, copy);
+            }
+#endif
             return ok;
         }
 
@@ -241,8 +258,10 @@ namespace
         }
 
     private:
+        static constexpr uint32_t kLocalCopies = 4;
         Socket own_ = kNoSocket, shared_ = kNoSocket;
         uint16_t sharedPort_ = 0;
+        uint32_t address_ = 0;                  // the announced one, host order
         uint64_t id_ = 0;
         uint32_t slot_ = 0;
         std::vector<sockaddr_in> broadcasts_;   // subnet broadcasts, beside 255.255.255.255

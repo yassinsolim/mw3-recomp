@@ -5,8 +5,17 @@
 use crate::protocol::SESSION_SIZE;
 use std::collections::BTreeMap;
 
+/// Which game a copy is: its title and that title's network version. Copies
+/// of different realms never meet, and a search sees its own alone.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Realm {
+    pub title: u32,
+    pub version: u32,
+}
+
 #[derive(Clone)]
 pub struct Listing {
+    pub realm: Realm,
     pub rtt: u16,
     pub session: [u8; SESSION_SIZE],
     pub open_public: u32,
@@ -71,10 +80,12 @@ impl Directory {
         self.sequences.remove(&host);
     }
 
-    /// The listings that fit, nearest to the relay first: every packet of a
-    /// match goes through it, so that is the order of their lag.
+    /// The listings of the asker's realm that fit, nearest to the relay first:
+    /// every packet of a match goes through it, so that is the order of their
+    /// lag.
     pub fn search(
         &self,
+        realm: Realm,
         asker: u64,
         room: u32,
         wants: &[Wanted],
@@ -83,7 +94,7 @@ impl Directory {
     ) -> Vec<(u64, &Listing)> {
         let mut found = Vec::new();
         for (&host, listing) in &self.listings {
-            if host == asker {
+            if host == asker || listing.realm != realm {
                 continue;
             }
             tally.listed += 1;
@@ -127,8 +138,11 @@ impl Directory {
 mod tests {
     use super::*;
 
+    const HERE: Realm = Realm { title: 0x41560817, version: 136 };
+
     fn listing(rtt: u16, open: u32, attributes: &[(u32, u32)]) -> Listing {
         Listing {
+            realm: HERE,
             rtt,
             session: [0; SESSION_SIZE],
             open_public: open,
@@ -156,7 +170,7 @@ mod tests {
             Wanted { id: 9, value: 2, at_least: true },
         ];
         let mut tally = Tally::default();
-        assert_eq!(hosts(directory.search(0, 1, &wants, 50, &mut tally)), [1]);
+        assert_eq!(hosts(directory.search(HERE, 0, 1, &wants, 50, &mut tally)), [1]);
         assert_eq!(tally.listed, 5);
         assert_eq!(tally.full, 1);
         assert_eq!(tally.refused_by[&7], 2);
@@ -167,7 +181,7 @@ mod tests {
     fn never_finds_the_asker() {
         let mut directory = Directory::default();
         directory.put(1, 1, listing(5, 8, &[]));
-        assert!(directory.search(1, 0, &[], 50, &mut Tally::default()).is_empty());
+        assert!(directory.search(HERE, 1, 0, &[], 50, &mut Tally::default()).is_empty());
     }
 
     #[test]
@@ -176,7 +190,20 @@ mod tests {
         directory.put(1, 1, listing(30, 8, &[]));
         directory.put(2, 1, listing(10, 8, &[]));
         directory.put(3, 1, listing(20, 8, &[]));
-        assert_eq!(hosts(directory.search(0, 0, &[], 2, &mut Tally::default())), [2, 3]);
+        assert_eq!(hosts(directory.search(HERE, 0, 0, &[], 2, &mut Tally::default())), [2, 3]);
+    }
+
+    #[test]
+    fn another_title_or_version_is_never_found_nor_counted() {
+        let mut directory = Directory::default();
+        directory.put(1, 1, listing(5, 8, &[]));
+        directory.put(2, 1, Listing { realm: Realm { title: 0x415608CB, ..HERE }, ..listing(5, 8, &[]) });
+        directory.put(3, 1, Listing { realm: Realm { version: 137, ..HERE }, ..listing(5, 8, &[]) });
+        let mut tally = Tally::default();
+        assert_eq!(hosts(directory.search(HERE, 0, 0, &[], 50, &mut tally)), [1]);
+        assert_eq!(tally.listed, 1);
+        let other = Realm { title: 0x415608CB, ..HERE };
+        assert_eq!(hosts(directory.search(other, 0, 0, &[], 50, &mut Tally::default())), [2]);
     }
 
     #[test]

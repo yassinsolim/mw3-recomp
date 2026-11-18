@@ -39,7 +39,7 @@ them as unset whatever the environment says, and also drops the keys `F5`, `F7`,
 | `MW2_CONSOLE="30:map af_caves;45:god"` | R | queues commands into the title's console command buffer at the given wall-clock seconds; see [gameplay.md](gameplay.md) |
 | `MW2_CUSTOM_MAPS=1` | R | the multiplayer loads fastfiles nobody signed: a map converted from the PC game. Off, it refuses them as the console does, and the launcher's shader pass reads only the game's own fastfiles ([gameplay.md](gameplay.md)) |
 | `MW2_UNLOCK_ALL=1` | R | Modern Warfare 3's multiplayer only: every weapon, attachment, camouflage, reticle, proficiency, perk, killstreak, title and emblem reads as unlocked. The title's own unlock checks are answered, and nothing is written to the stats, so without it the menus show what was earned again. The Android app's "Unlock all camos and items" sets it and is on by default; unset on the desktop ([MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#everything-unlocked)) |
-| `MW2_NET_LINK=0\|1` | R | whether the Ethernet link is reported up. Default down for the campaign, up for the multiplayer, which starts no match without one |
+| `MW2_NET_LINK=0\|1` | R | whether the Ethernet link is reported up. Default down for the campaign, up for MW2's multiplayer, which starts no match without one, and for MW3's multiplayer up when an online service started |
 | `MW2_NO_AUTO_SAVE_DEVICE=1` | R | leaves the save-device choice to the title's prompt instead of choosing the hard disk ([saves.md](saves.md)) |
 | `MW2_NO_AUDIO=1` | R | opens no playback device; the mixer and decoder still run ([audio.md](audio.md)) |
 | `MW2_RUN_SECONDS=<n>` | | reports and exits after n seconds |
@@ -53,7 +53,8 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 
 | switch | effect |
 |---|---|
-| `MW2_NETWORK=none\|lan\|server\|steam` | the online service; `none` (default) keeps system link on this machine, `steam` is lan when Steam is not running. The launcher's NETWORK entry sets it |
+| `MW2_NETWORK=none\|lan\|server\|steam` | the online service; `none` (default) keeps system link on this machine, `steam` is lan when Steam is not running. The launcher's NETWORK entry sets it, and the Android multiplayer apps' Settings. MW3's multiplayer has none, lan and server |
+| `MW2_LIVE=1` | MW3's multiplayer: signed in to Xbox LIVE through the service, as MW2's always is; experimental ([MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#the-network)) |
 | `MW2_SERVER=<host>[:<port>]` | server: the relay's address (port 3074 when none is given) |
 | `MW2_SERVER_PASSWORD=<text>` | server: the password the relay asks for |
 | `MW2_NAME=<name>` | lan and server: the player's name, instead of his profile's; the name of the first profile when it is made |
@@ -63,6 +64,7 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 | `MW2_STEAM_APPID=<id>` | steam: the app id to run as (480, Spacewar) |
 | `MW2_STEAM_ROOT=<path>` | steam: the Steam install to use, when it is not found or several are running |
 | `MW2_TRACE_ONLINE=1` | every datagram through the service (diagnostic) |
+| `MW2_TRACE_NET=1` | the same in every build, with the session messages, the sockets' ports, what the service drops, and a line every five seconds while the title's main thread runs; `net-trace:` lines |
 
 ## Moving the player
 

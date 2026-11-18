@@ -45,6 +45,7 @@
 #include "../env.h"
 #include "../log.h"
 #include "../signin.h"
+#include "../title.h"
 #include "../version.h"
 #include "playlists_data.h"
 
@@ -175,7 +176,7 @@ namespace
     // SteamID that hosts. Nobody joins a listing, but a search never returns a
     // full lobby, so it takes Steam's most members: a stranger cannot hide it
     // by filling it.
-    constexpr const char* kListingKey = "mw2recomp";
+    constexpr const char* kListingKey = T_NET_NAME;   // "mw2recomp"; "mw3recomp" in an MW3 build
     constexpr int kListingMembers = 250;
     // The disc version and the update do not play together either.
 #ifdef MW2_VERSION_TU0

@@ -291,6 +291,20 @@
 #define T_StringTable_GetAsset  82315A68   // (name, StringTable**)
 #define T_STR_WeaponRankTable   0x82022610u   // "mp/weaponRankTable.csv"
 
+// ---- the network (docs/MW3-MP-BRINGUP.md, "The network") ----
+// The protocol number every version check compares: (sub_82286A88() << 16) +
+// 0x56, the high half being the online update's version (a halfword at
+// 0x83015C70), or -1 or -2 when the title has none. Its callers are the
+// client's connect (sub_821746F0 at 821748B8), SV_DirectConnect (sub_822C2520
+// at 822C2604, which answers "error\nEXE_SERVER_IS_DIFFERENT_VER\x15%s\n" with
+// "1.0" through NET_OutOfBandPrint), the party's pa_joinrequest (sub_821978C0
+// at 82197960) and the server's infoResponse (sub_822C7040 at 822C7138).
+// NET_OutOfBandPrint is (socket, the address by value in r4 and r5, text in
+// r6), as MW2's. network_version.cpp.
+#define T_ProtocolVersion       82320FD0
+#define T_NET_OutOfBandPrint    822A3D40
+#define T_PROTOCOL_LOW          0x56u
+
 // Not here, with the evidence in docs/security.md: the joinParty count (IW5's
 // pa_joinrequest, sub_821978C0, bounds it to 18), the map name command (no
 // "map %s" line is built: sub_822EC8A0 queues a call), the command time print
@@ -876,6 +890,29 @@
 #endif
 #ifndef T_DEV_ProgressBlock
 #define T_DEV_ProgressBlock    10896u
+#endif
+
+// The title id the console's Live knows the disc by (the XEX header's), which
+// XNetLogonGetTitleID answers and the Live storage paths carry; the low half
+// of the title's protocol number (network_version.cpp), which the online
+// service tells copies apart by; and the four letters that mark what this
+// build's copies send each other, so another title's copies on the same
+// network or relay are not heard.
+#ifdef MW3_TITLE
+#define T_TITLE_ID             0x415608CBu
+#define T_NET_TAG              "MW3"
+#define T_NET_NAME             "mw3recomp"
+#else
+#define T_TITLE_ID             0x41560817u
+#define T_NET_TAG              "MW2"
+#define T_NET_NAME             "mw2recomp"
+#endif
+#ifndef T_PROTOCOL_LOW
+#ifdef MW2_VERSION_TU0
+#define T_PROTOCOL_LOW         128u
+#else
+#define T_PROTOCOL_LOW         136u
+#endif
 #endif
 
 // The macros that turn a table entry into the symbols the recompiled code uses.

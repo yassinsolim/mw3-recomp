@@ -2,9 +2,12 @@
 #
 #   docker build -t mw2-relay relay/
 #   docker run -d --restart unless-stopped -p 3074:3074/udp -e MW2_RELAY_PASSWORD=secret mw2-relay
+#   docker run -d --restart unless-stopped -p 3074:3074/udp mw2-relay --public
 #
-# The image holds playlists.info, what Find Game offers; another file mounted
-# in the container and named with --playlists replaces it.
+# The image holds playlists.info, what Modern Warfare 2's Find Game offers
+# (title 41560817); another file mounted in the container and named with
+# --playlists replaces it, or is another title's. It runs as nobody, on an
+# empty and read-only file system if asked (--read-only --cap-drop ALL).
 #
 # The release workflow builds it for amd64 and pushes it to
 # ghcr.io/paulcombal/mw2-relay, tagged with the release.
@@ -19,4 +22,4 @@ COPY --from=build /mw2-relay /mw2-relay
 COPY playlists.info /playlists.info
 USER 65534:65534
 EXPOSE 3074/udp
-ENTRYPOINT ["/mw2-relay", "--playlists", "/playlists.info"]
+ENTRYPOINT ["/mw2-relay", "--playlists", "41560817=/playlists.info"]

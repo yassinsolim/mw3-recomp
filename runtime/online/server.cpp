@@ -1,12 +1,17 @@
 // Players on a relay server (relay/): everyone who connects to the same one,
 // wherever they are. MW2_SERVER is its address, host or host:port (3074 when no
-// port is given), and MW2_SERVER_PASSWORD the password it asks for, if any.
+// port is given), and MW2_SERVER_PASSWORD the password it asks for, if any; a
+// public relay asks for none.
 // The relay hands every packet on, so nobody's address reaches the others, and
 // only the relay's owner opens a port: every copy connects out to it.
 //
 // The relay challenges a copy's first Hello with a token, and gives it its id
 // when it says Hello again with it (relay/protocol.h); a copy that cannot get
-// one in kAnswerWithin does not start, and the title stays offline. A thread says Alive once a second, so a copy the title is not
+// one in kAnswerWithin does not start, and the title stays offline. The Hello
+// says which game the copy is and its protocol number (online::TitleId,
+// NetworkVersion): the relay keeps copies that differ in either apart, so
+// "everyone" is everyone this copy could play with. A thread says Alive once
+// a second, so a copy the title is not
 // polling -- while a map loads -- stays known. Each copy has a port of its own,
 // the first free one above MW2_LAN_PORT (3074), and how far above is its slot,
 // as on lan.
@@ -327,7 +332,14 @@ namespace
 
         bool Say(relay::Kind kind, uint64_t peer, const void* bytes, size_t size)
         {
-            if (size > relay::LARGEST - sizeof(relay::Header)) return false;
+            // The relay drops what is larger; the title's datagrams are not.
+            if (size > relay::LARGEST_PAYLOAD)
+            {
+                if (!tooLarge_.exchange(true, std::memory_order_relaxed))
+                    LOGW("online: a packet of %zu bytes is larger than the server takes (%zu); not sent", size,
+                         size_t(relay::LARGEST_PAYLOAD));
+                return false;
+            }
             thread_local std::vector<uint8_t> packet;
             packet.resize(sizeof(relay::Header) + size);
             const relay::Header header{ relay::Big32(relay::MAGIC), kind, {}, relay::Big64(peer),
@@ -342,6 +354,8 @@ namespace
         {
             relay::Hello hello{};
             hello.protocol = relay::Big16(relay::PROTOCOL);
+            hello.title = relay::Big32(online::TitleId());
+            hello.version = relay::Big32(online::NetworkVersion());
             std::memcpy(hello.password, password_.data(), password_.size());
             Say(relay::Kind_Hello, had, &hello, sizeof hello);
         }
@@ -519,6 +533,7 @@ namespace
         uint64_t id_ = 0;
         std::atomic<Clock::rep> said_{ 0 };   // when this copy last sent the relay anything
         std::atomic<uint64_t> token_{ 0 };    // the relay's Challenge, on everything sent after it
+        std::atomic<bool> tooLarge_{ false }; // said once that a packet was too large for the relay
         std::thread alive_;
         std::mutex stopLock_;
         std::condition_variable stop_;

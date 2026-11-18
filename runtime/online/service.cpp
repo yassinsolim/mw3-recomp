@@ -3,7 +3,11 @@
 #include "../env.h"
 #include "../kernel/kernel.h"
 #include "../log.h"
+#include "../title.h"
+#include "../version.h"
 
+#include <atomic>
+#include <chrono>
 #include <cstring>
 
 namespace
@@ -20,21 +24,22 @@ namespace
     constexpr Backend kNone[] = { { nullptr, nullptr } };
 
     // MW2_NETWORK: what the player chose; none when unset or unknown.
-    // MW3's multiplayer has no choice yet: MW2's network hardening has not
-    // been found in it, so it plays without a network whatever is set.
+    // MW3's multiplayer has lan and server only: its hardening
+    // (docs/security.md) was read against what those two let through, and
+    // with none the kernel keeps its sockets on the loopback (kernel/net.cpp).
     const Backend* Chosen()
     {
-#if defined(MW3_TITLE_MP)
-        return kNone;
-#else
         const char* network = env::Text("MW2_NETWORK");
         if (!network || !*network || std::strcmp(network, "none") == 0) return kNone;
         if (std::strcmp(network, "lan") == 0) return kLan;
         if (std::strcmp(network, "server") == 0) return kServer;
+#if defined(MW3_TITLE_MP)
+        LOGW("online: MW2_NETWORK=%s is none of none, lan, server; playing without a network", network);
+#else
         if (std::strcmp(network, "steam") == 0) return kSteam;
         LOGW("online: MW2_NETWORK=%s is none of none, lan, server, steam; playing without a network", network);
-        return kNone;
 #endif
+        return kNone;
     }
 }
 
@@ -47,6 +52,7 @@ bool online::EnterServiceNamespace(int& exitCode)
 namespace
 {
     const char* g_name = nullptr;   // the backend that started
+    std::atomic<online::Service*> g_started{ nullptr };
 }
 
 online::Service* online::Get()
@@ -61,6 +67,7 @@ online::Service* online::Get()
             {
                 LOGI("online: the service is %s", backend->name);
                 g_name = backend->name;
+                g_started.store(made.get(), std::memory_order_release);
                 return made.get();
             }
             made.reset();
@@ -73,19 +80,39 @@ online::Service* online::Get()
     return service;
 }
 
+online::Service* online::Started() { return g_started.load(std::memory_order_acquire); }
+
 const char* online::Name()
 {
     Get();
     return g_name;
 }
 
+// MW3's multiplayer is signed in to Live only when asked to be (MW2_LIVE=1):
+// its Xbox LIVE menu also wants Activision's DemonWare servers, which nothing
+// here stands in for, and ends in EXE_DEMONWARE_DISCONNECT without them
+// (docs/MW3-MP-BRINGUP.md). Its players meet in System Link, which the
+// service carries to everyone it reaches.
 bool online::Live()
 {
     static const bool live = [] {
         auto* service = Get();
+#if defined(MW3_TITLE_MP)
+        if (!env::Flag("MW2_LIVE")) return false;
+#endif
         return service && service->Lobbies();
     }();
     return live;
+}
+
+uint32_t online::TitleId() { return T_TITLE_ID; }
+
+uint32_t online::NetworkVersion() { return (uint32_t(version::Network()) << 16) | T_PROTOCOL_LOW; }
+
+bool online::Trace()
+{
+    static const bool trace = env::Flag("MW2_TRACE_NET");
+    return trace;
 }
 
 // What the System Link menu runs when the player opens it, before its server
@@ -138,6 +165,20 @@ void online::Frame()
     auto* service = Get();
     if (!service) return;
     kernel::FinishSearches();
+    if (Trace())
+    {
+        // That the title's main thread still runs, as when the app is behind
+        // another, and who is heard.
+        static auto said = std::chrono::steady_clock::time_point{};
+        static uint64_t frames = 0;
+        frames++;
+        if (const auto now = std::chrono::steady_clock::now(); now - said >= std::chrono::seconds(5))
+        {
+            said = now;
+            LOGI("net-trace: alive, frame %llu, %zu players heard", static_cast<unsigned long long>(frames),
+                 service->PeerCount());
+        }
+    }
     Invite invite;
     if (service->NextInvite(invite))
     {

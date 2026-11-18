@@ -4,12 +4,16 @@
 //!
 //! A copy says Hello, and the relay answers Challenge with a token made from
 //! the copy's address and a secret of the relay's, keeping nothing. The copy
-//! says Hello again with that token, the password and the protocol it speaks,
-//! and only then does the relay take it in: Welcome with the copy's id, or
-//! Refused with why. A packet with a forged sender address never gets that far,
-//! since its Challenge goes to the forged address. Every packet the copy sends
-//! after carries the token, and the relay drops one that does not, so nobody
-//! can send as somebody else.
+//! says Hello again with that token, the password, the protocol it speaks and
+//! which title it is, and only then does the relay take it in: Welcome with the
+//! copy's id, or Refused with why. A packet with a forged sender address never
+//! gets that far, since its Challenge goes to the forged address. Every packet
+//! the copy sends after carries the token, and the relay drops one that does
+//! not, so nobody can send as somebody else.
+//!
+//! A relay serves any title. A copy meets only the copies of its own title and
+//! network version, the two numbers of its Hello: To, All and Search reach no
+//! other, as if each pair had a relay to itself.
 //!
 //! The copy then sends To one other copy or to All of them, and the relay hands
 //! each on as From, with the sender's id: the relay is the only one that knows
@@ -18,16 +22,19 @@
 //! FORGET_AFTER_SECONDS, or that says Bye, and answers anything from a copy it
 //! does not know with Unknown, which the copy answers with Hello again, asking
 //! for the id it had. To an address it has not checked, the relay sends
-//! nothing larger than what came from there.
+//! nothing larger than what came from there. A packet that carries more than
+//! LARGEST_PAYLOAD after its Header is dropped, as are those of a copy that
+//! sends faster than the relay allows.
 //!
 //! The relay also keeps the sessions its copies list for matchmaking: a copy
 //! says Advertise, again every ADVERTISE_EVERY_SECONDS, and the relay forgets
 //! the listing with the copy, or on a later Advertise that is not open. Search
 //! asks for the listings that fit, and Results answers in pages that fit a
-//! datagram the Internet will not split. To the relay a session is 60 bytes it
-//! hands on and numbers it compares; it knows no more of what they mean. Ping
-//! and Pong measure the way to the relay, and FileAsk and FileChunk fetch the
-//! playlists every copy on a relay must share.
+//! datagram the Internet will not split. To the relay a session is
+//! SESSION_SIZE bytes it hands on and numbers it compares; it knows no more of
+//! what they mean, whatever the title. Ping and Pong measure the way to the
+//! relay, and FileAsk and FileChunk fetch the playlists every copy of a title
+//! on a relay must share.
 //!
 //! The game reads this file as protocol.h. Its structs have no holes, and a
 //! number in them is a Be16, Be32 or Be64, which cannot be read without
@@ -43,7 +50,7 @@ pub type Be64 = U64<BigEndian>;
 pub const MAGIC: u32 = 0x4D573252; // "MW2R"
 /// Raised whenever a packet's meaning changes: a copy and a relay of
 /// different protocols refuse each other.
-pub const PROTOCOL: u16 = 2;
+pub const PROTOCOL: u16 = 3;
 pub const DEFAULT_PORT: u16 = 3074;
 /// How often the game says Alive; the relay only forgets.
 #[allow(dead_code)]
@@ -135,7 +142,11 @@ pub struct Header {
 pub struct Hello {
     pub protocol: Be16,
     pub pad: [u8; 2],
-    /// NUL-padded
+    /// which game it is: the title id of its executable
+    pub title: Be32,
+    /// the title's network version: copies of different ones never meet
+    pub version: Be32,
+    /// NUL-padded; a relay open to all reads none
     pub password: [u8; 64],
 }
 
@@ -240,8 +251,14 @@ pub const CHUNK_BYTES: usize = 1024;
 /// what the title has room for
 pub const LARGEST_FILE: usize = 128 * 1024;
 
-/// The largest datagram either side sends.
+/// The largest datagram either side can take.
 pub const LARGEST: usize = 64 * 1024 - 64;
+/// The most a packet carries after its Header, unless the relay is told
+/// otherwise (--max-payload): above what a title sends at once, which fits a
+/// datagram the Internet does not split.
+pub const LARGEST_PAYLOAD: usize = 2048;
+/// The shortest Hello any protocol had: a shorter one gets no answer.
+pub const SHORTEST_HELLO: usize = 68;
 
 /// Ids are 48 bits: the game makes the Ethernet address the title tells
 /// machines apart by from the low 48 bits of a player's id.
@@ -250,7 +267,7 @@ pub const ID_MASK: u64 = 0x0000_FFFF_FFFF_FFFF;
 const _: () = {
     use core::mem::size_of;
     assert!(size_of::<Header>() == 24);
-    assert!(size_of::<Hello>() == 68);
+    assert!(size_of::<Hello>() == 76);
     assert!(size_of::<Advert>() == 84);
     assert!(size_of::<Want>() == 12);
     assert!(size_of::<Search>() == 12);

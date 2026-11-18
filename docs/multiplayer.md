@@ -138,6 +138,12 @@ network instead, as another player (below). The log names the service. Only
 steam joins the Flatpak Steam's namespace at the start
 (`EnterServiceNamespace`).
 
+Modern Warfare 3's multiplayer uses the same service with `lan` and `server`
+only, and is not signed in to Live: its players meet in System Link
+([MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#the-network)). The Android apps set
+`MW2_NETWORK` from Settings, NETWORK: Online (a relay, or the local network
+when no relay address is given), LAN or Off.
+
 With `none` there is no service, and the title's sockets are host UDP sockets, enough
 for system link on one machine. Only one copy can have the title's ports then;
 a second one's binds fail, which the title takes for a fatal error and restarts
@@ -177,15 +183,20 @@ list and private matches.
 
 `runtime/online/lan.cpp`: plain UDP on the local network. Each copy sends from a
 port of its own, the first free one above the shared port; broadcasts go to the
-shared port, `MW2_LAN_PORT` (3074). A peer id is the IPv4 address in the top
-bits and the port in the low 16. The log names the network connections found
-and the one announced.
+shared port, `MW2_LAN_PORT` (3074), and, off Windows, to the first four own
+ports at this machine's announced address, so two copies on one machine find
+each other with no network connection at all. A peer id is the IPv4 address in
+the top bits and the port in the low 16. The log names the network connections
+found and the one announced.
 
 `runtime/online/server.cpp`: a relay server (`relay/`, [relay.md](relay.md)) at
-`MW2_SERVER`, with `MW2_SERVER_PASSWORD`. The copy says Hello, answers the
+`MW2_SERVER`, with `MW2_SERVER_PASSWORD` (a public relay asks for none). The
+copy says Hello with its title id and protocol number
+([Versions](#versions)), answers the
 relay's challenge with the token it was given, which every later packet
 carries, and gets its id, 48 bits; one that has none within five seconds does not start,
-and the title stays offline. "To all" is everyone on the relay, and every
+and the title stays offline. "To all" is everyone on the relay with the same
+title and protocol, and every
 packet goes through it, so nobody needs an open port and nobody learns another
 player's address. A thread says Alive every second, so a copy stays known while
 the title is loading a map and not polling; a relay that forgot it answers
@@ -196,6 +207,10 @@ The account is the profile at the first controller
 ([gameplay.md](gameplay.md#signing-in)) plus the copy's slot, so a second
 copy on one machine is a second player; `MW2_NAME` is another name for him than
 the profile's. The log says so when another machine has the same account.
+
+A copy forgets a player it has not heard for ten seconds, and keeps 256 at
+most: on a public relay anyone can announce any name. The Android HUD's "LAN"
+number is how many it hears.
 
 Every copy announces who it is and what can be joined once a second to
 everyone the transport reaches. `MW2_LAN_JOIN=<name>` joins that player's party or lobby as soon as
@@ -509,10 +524,11 @@ refuses as signed out.
 | switch | effect |
 |---|---|
 | `TITLE=sp\|mp` | `build.sh`: which executable to build |
-| `MW2_NETWORK=none\|lan\|server\|steam` | which online service; the launcher's NETWORK |
+| `MW2_NETWORK=none\|lan\|server\|steam` | which online service; the launcher's NETWORK, the Android app's Settings. MW3's multiplayer: none, lan, server |
 | `MW2_SERVER=<host>[:<port>]` | server: the relay's address |
 | `MW2_SERVER_PASSWORD` | server: the relay's password |
-| `MW2_NET_LINK=0\|1` | Ethernet link reported down or up (default: up in the multiplayer, down in the campaign) |
+| `MW2_NET_LINK=0\|1` | Ethernet link reported down or up (default: up in MW2's multiplayer, up in MW3's when a service started, down in the campaigns) |
+| `MW2_LIVE=1` | MW3's multiplayer: signed in to Xbox LIVE (experimental; MW2's is whenever the service carries lobbies) |
 | `MW2_NAME` | lan and server: the player's name |
 | `MW2_LAN_PORT` | lan: the shared broadcast port (3074) |
 | `MW2_LAN_JOIN=<name>` | lan: join that player's party or lobby when seen |

@@ -20,12 +20,14 @@
 #include "../env.h"
 #include "../diagnostics.h"
 #include "../online/service.h"
+#include "../title.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <deque>
 #include <map>
 #include <mutex>
@@ -164,8 +166,9 @@ namespace
     constexpr uint32_t kBroadcast = 0xFFFFFFFF;
 
     // A peer's id, in the part of the XNADDR the console fills in from Xbox
-    // Live, behind a tag so an address that did not come from here is refused.
-    constexpr uint8_t kPeerTag[4] = { 'M', 'W', '2', 'O' };
+    // Live, behind a tag so an address that did not come from here, or from
+    // the other game's copies, is refused: "MW2O", "MW3O".
+    constexpr uint8_t kPeerTag[4] = { uint8_t(T_NET_TAG[0]), uint8_t(T_NET_TAG[1]), uint8_t(T_NET_TAG[2]), 'O' };
 
     void WritePeer(XNADDR& addr, uint64_t id)
     {
@@ -213,9 +216,9 @@ namespace
     void Trace(const char* what, uint64_t peer, uint16_t from, uint16_t to,
                const void* bytes, size_t size)
     {
-        static const bool traced = diag::Flag("MW2_TRACE_ONLINE");
+        static const bool traced = diag::Flag("MW2_TRACE_ONLINE") || online::Trace();
         if (!traced) return;
-        char text[401];
+        char text[81];
         size_t n = 0;
         for (size_t i = 0; i < size && n + 1 < sizeof text; i++)
         {
@@ -223,7 +226,7 @@ namespace
             text[n++] = (c >= 32 && c < 127) ? char(c) : '.';
         }
         text[n] = 0;
-        LOGI("online: %s %012llx %u->%u %zu bytes '%s'", what, (unsigned long long)peer, from, to,
+        LOGI("net-trace: %s %012llx %u->%u %zu bytes '%s'", what, (unsigned long long)peer, from, to,
              size, text);
     }
 
@@ -285,7 +288,7 @@ PPC_FUNC(__imp__NetDll_XNetGetTitleXnAddr)
                  (online::Live() ? XNET_GET_XNADDR_GATEWAY | XNET_GET_XNADDR_DNS | XNET_GET_XNADDR_ONLINE : 0);
 }
 
-PPC_FUNC(__imp__XNetLogonGetTitleID) { ctx.r3.u64 = 0x41560817; }
+PPC_FUNC(__imp__XNetLogonGetTitleID) { ctx.r3.u64 = T_TITLE_ID; }
 
 PPC_FUNC(__imp__NetDll_XNetStartup)  { ctx.r3.u64 = 0; }
 PPC_FUNC(__imp__NetDll_WSACleanup)   { ctx.r3.u64 = 0; }
@@ -307,7 +310,7 @@ PPC_FUNC(__imp__NetDll_WSAStartup)
         std::memset(data, 0, 400);
         *reinterpret_cast<be16*>(data + 0) = requested ? requested : 0x0202;   // wVersion
         *reinterpret_cast<be16*>(data + 2) = 0x0202;                           // wHighVersion
-        std::snprintf(reinterpret_cast<char*>(data) + 4, 256, "mw2recomp sockets");
+        std::snprintf(reinterpret_cast<char*>(data) + 4, 256, T_NET_NAME " sockets");
         std::snprintf(reinterpret_cast<char*>(data) + 261, 128, "Running");
         *reinterpret_cast<be16*>(data + 390) = 64;      // iMaxSockets
         *reinterpret_cast<be16*>(data + 392) = 1264;    // iMaxUdpDg
@@ -319,14 +322,20 @@ PPC_FUNC(__imp__NetDll_WSAStartup)
 // multiplayer refuses to start any match without one -- "You must have an
 // active network connection to play online or systemlink matches" -- and a
 // system-link match is the only way it has of reaching a map, so that build
-// reports a 100 Mb/s full-duplex link. MW2_NET_LINK=0|1 overrides either.
+// reports a 100 Mb/s full-duplex link. MW3's multiplayer (its link test is
+// sub_8234F3A8, which answers XBOXLIVE_NETCONNECTION) reaches a map from
+// split screen too, and has a link when an online service started: with
+// none its sockets stay on the loopback, and with a relay that does not
+// answer the menu says why nobody is there. MW2_NET_LINK=0|1 overrides any.
 namespace
 {
     bool EthernetLinkUp()
     {
         static const bool up = [] {
-#ifdef MW2_TITLE_MP
+#if defined(MW2_TITLE_MP)
             bool value = true;
+#elif defined(MW3_TITLE_MP)
+            bool value = online::Get() != nullptr;
 #else
             bool value = false;
 #endif
@@ -340,7 +349,13 @@ namespace
 }
 PPC_FUNC(__imp__NetDll_XNetGetEthernetLinkStatus)
 {
-    ctx.r3.u64 = EthernetLinkUp()
+    const bool up = EthernetLinkUp();
+    if (online::Trace())
+    {
+        static std::atomic<bool> said{ false };
+        if (!said.exchange(true)) LOGI("net-trace: the title asked for the Ethernet link: %s", up ? "up" : "down");
+    }
+    ctx.r3.u64 = up
         ? (XNET_ETHERNET_LINK_ACTIVE | XNET_ETHERNET_LINK_100MBPS | XNET_ETHERNET_LINK_FULL_DUPLEX) : 0;
 }
 
@@ -364,8 +379,17 @@ PPC_FUNC(__imp__NetDll_XNetXnAddrToInAddr)
     const auto* addr = GuestPtr<XNADDR>(ctx.r4.u32);
     auto* out = GuestPtr<be32>(ctx.r6.u32);
     uint64_t id;
-    if (!service || !addr || !out || !ReadPeer(*addr, id)) { ctx.r3.u64 = X_WSAENETDOWN; return; }
+    if (!service || !addr || !out || !ReadPeer(*addr, id))
+    {
+        if (online::Trace())
+            LOGI("net-trace: XNetXnAddrToInAddr refused: %s", !service ? "no service" : "not an address of this game's");
+        ctx.r3.u64 = X_WSAENETDOWN;
+        return;
+    }
     const uint32_t address = id == service->LocalId() ? kLoopback : StandIn(id);
+    if (online::Trace())
+        LOGI("net-trace: XNetXnAddrToInAddr %012llx is %u.%u.%u.%u", (unsigned long long)id, address >> 24,
+             (address >> 16) & 255, (address >> 8) & 255, address & 255);
     if (const auto* kid = GuestPtr<uint8_t>(ctx.r5.u32))
     {
         std::lock_guard g(g_peers.lock);
@@ -553,9 +577,11 @@ PPC_FUNC(__imp__NetDll_bind)
     { t_lastError = 10022; ctx.r3.u64 = uint32_t(-1); return; }
 
 #if defined(MW3_TITLE_MP)
-    // MW3's multiplayer has none of MW2's network hardening yet
-    // (docs/MW3-MP-BRINGUP.md): its sockets are bound to the loopback address,
-    // so nothing on the network reaches the title's packet parsers.
+    // MW3's multiplayer reaches the network through an online service only,
+    // lan or server (online/service.cpp), whose peers are the copies its
+    // hardening was read for (docs/security.md). With none its sockets are
+    // real ones, bound here to the loopback address, so that nothing on the
+    // network reaches the title's packet parsers.
     addr.sin_addr.s_addr = htonl(kLoopback);
 #endif
     bool bound = true;
@@ -578,6 +604,9 @@ PPC_FUNC(__imp__NetDll_bind)
         g_sockets[ctx.r4.u32].port = ntohs(UnshiftPort(addr.sin_port));
         g_sockets[ctx.r4.u32].bound = bound;
     }
+    if (online::Trace())
+        LOGI("net-trace: socket %u bound to port %u (%s)", ctx.r4.u32, unsigned(ntohs(UnshiftPort(addr.sin_port))),
+             online::Get() ? "the service's" : bound ? "the host's" : "unbound");
     ctx.r3.u64 = 0;
 }
 
@@ -588,7 +617,8 @@ PPC_FUNC(__imp__NetDll_connect)
     if (s == socket_t(INVALID_SOCKET) || !ReadSockAddr(ctx.r5.u32, addr))
     { t_lastError = 10022; ctx.r3.u64 = uint32_t(-1); return; }
     // Only the socket for Xbox Live's servers connects, and there are none.
-    // MW3's multiplayer connects to nothing (see NetDll_bind).
+    // MW3's multiplayer connects to nothing, with a service or without (see
+    // NetDll_bind).
 #if defined(MW3_TITLE_MP)
     { t_lastError = 10061; ctx.r3.u64 = uint32_t(-1); return; }
 #endif
@@ -672,10 +702,11 @@ PPC_FUNC(__imp__NetDll_sendto)
         return;
     }
 #if defined(MW3_TITLE_MP)
-    // Only what the title sends itself leaves the socket (see NetDll_bind);
-    // like UDP, the rest is lost, not an error.
+    // With no service, only what the title sends itself leaves the socket
+    // (see NetDll_bind); like UDP, the rest is lost, not an error.
     if (ntohl(addr.sin_addr.s_addr) != kLoopback)
     {
+        Trace("dropped, no service", 0, socket.port, ntohs(UnshiftPort(addr.sin_port)), buffer, ctx.r6.u32);
         ctx.r3.u64 = ctx.r6.u32;
         return;
     }

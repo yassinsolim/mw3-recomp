@@ -63,12 +63,16 @@ import kotlin.math.roundToInt
 class GameActivity : AppCompatActivity(), NativeListener {
 
     /**
-     * MW2's multiplayer apps (com.mw2.recomp.mp, .mp.tu6): the LAN link, the
-     * network entries and the stat cheats are for that title only. MW3's
-     * multiplayer (com.mw3.recomp.mp) plays without a network.
+     * MW2's multiplayer apps (com.mw2.recomp.mp, .mp.tu6): the link the app
+     * forces up, the Live lobby entries and the stat cheats are for that
+     * title only.
      */
     private val isMw2Multiplayer: Boolean
         get() = packageName.contains(".mp") && !packageName.startsWith("com.mw3.")
+
+    /** Any multiplayer app, MW3's (com.mw3.recomp.mp, .mp2) included. */
+    private val isMultiplayer: Boolean
+        get() = packageName.contains(".mp")
 
     private lateinit var prefs: Prefs
     private lateinit var surfaceView: SurfaceView
@@ -277,7 +281,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 // with a friend hosting beside this phone means discovery is
                 // not arriving -- same WiFi, firewall, hotspot; see the guide.
                 // The TU badge matters: TU0 plays only with TU0, TU6 with TU6.
-                val isMpHud = isMw2Multiplayer
+                val isMpHud = isMultiplayer
                 val tuHud = BuildConfig.MW2_TU.uppercase()
                 val lanPeers = if (isMpHud) {
                     try {
@@ -336,7 +340,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                         append("MEMORY & VIEWPORT\n")
                         append("  App / System Total RAM: $ramStr\n")
                         append("  Internal Render: ${resW}×${resH}  •  Refresh: ${refreshHz().roundToInt()} Hz\n")
-                        if (isMw2Multiplayer) {
+                        if (isMultiplayer) {
                             append("\nNETWORK\n")
                             append("  Players heard on LAN: $lanPeers\n")
                         }
@@ -794,6 +798,33 @@ val mode60 = modes
         NativeBridge.nativeSetOption("MW2_NAME", prefs.playerName)
         NativeBridge.nativeSetOption("MW2_LAN_ACCEPT", if (prefs.lanAccept) "1" else "")
         NativeBridge.nativeSetOption("MW2_LAN_IFACE", prefs.lanIface)
+        // Which online service carries the title's network (Settings,
+        // NETWORK): a relay server, the local network, or none. The campaign
+        // apps have none. A public relay asks for no password.
+        if (isMultiplayer) {
+            val backend = prefs.networkBackend
+            NativeBridge.nativeSetOption("MW2_NETWORK", backend)
+            NativeBridge.nativeSetOption("MW2_SERVER", if (backend == "server") prefs.relayAddress else "")
+            NativeBridge.nativeSetOption("MW2_SERVER_PASSWORD", "")
+            if (!isMw2Multiplayer) {
+                NativeBridge.nativeSetOption("MW2_LIVE", if (prefs.liveSignIn) "1" else "")
+            }
+        }
+        // A debug build takes more switches from options.txt in the app's
+        // external folder, one MW2_NAME=value a line, after everything
+        // above: `adb shell "echo MW2_TRACE_NET=1 > /sdcard/Android/data/
+        // <package>/files/options.txt"` turns a trace on without a rebuild.
+        if (BuildConfig.DEBUG) {
+            val options = File(getExternalFilesDir(null) ?: filesDir, "options.txt")
+            if (options.isFile) {
+                options.readLines().map { it.trim() }.forEach { line ->
+                    val at = line.indexOf('=')
+                    if (at > 0 && line.startsWith("MW2_")) {
+                        NativeBridge.nativeSetOption(line.substring(0, at), line.substring(at + 1))
+                    }
+                }
+            }
+        }
         NativeBridge.nativeLookSettings(
             prefs.lookSensitivityX, prefs.lookSensitivityY,
             prefs.lookSmoothing, prefs.invertLook, prefs.lookSaturation,
@@ -869,9 +900,12 @@ val mode60 = modes
             getString(R.string.resume) to { _: android.content.DialogInterface -> },
             getString(R.string.edit_controls) to { _: android.content.DialogInterface -> beginEditing() },
         )
-        if (isMw2Multiplayer) {
+        // The Live lobby's invitations: MW2's, and MW3's when it is signed in.
+        if (isMw2Multiplayer || (isMultiplayer && prefs.liveSignIn)) {
             labels.add(getString(R.string.invite_players) to { _: android.content.DialogInterface -> inviteNetworkPlayers() })
             labels.add(getString(R.string.join_game) to { _: android.content.DialogInterface -> pickNetworkPeer() })
+        }
+        if (isMw2Multiplayer) {
             labels.add(getString(R.string.max_rank) to { _: android.content.DialogInterface -> runCheat(R.string.max_rank, Cheats::maxRank) })
             labels.add(getString(R.string.unlock_all) to { _: android.content.DialogInterface -> runCheat(R.string.unlock_all, Cheats::unlockEverything) })
             labels.add(getString(R.string.prestige_up) to { _: android.content.DialogInterface -> runCheat(R.string.prestige_up, Cheats::prestigeUp) })

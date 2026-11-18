@@ -487,13 +487,13 @@ MW2_NATIVE(void, nativePadEnabled)(JNIEnv*, jobject, jboolean enabled)
 // service or nobody to invite to anything yet.
 MW2_NATIVE(void, nativeInviteFriends)(JNIEnv*, jobject)
 {
-    if (auto* service = online::Get()) service->InviteFriends();
+    if (auto* service = online::Started()) service->InviteFriends();
 }
 
 // How many other copies this one hears, for the HUD's network line.
 MW2_NATIVE(jint, nativeLanPeers)(JNIEnv*, jobject)
 {
-    if (auto* service = online::Get()) return jint(service->PeerCount());
+    if (auto* service = online::Started()) return jint(service->PeerCount());
     return 0;
 }
 
@@ -501,7 +501,7 @@ MW2_NATIVE(jint, nativeLanPeers)(JNIEnv*, jobject)
 MW2_NATIVE(jstring, nativeLanPeerNames)(JNIEnv* env, jobject)
 {
     std::string names;
-    if (auto* service = online::Get()) names = service->PeerNames();
+    if (auto* service = online::Started()) names = service->PeerNames();
     return FromString(env, names);
 }
 
@@ -510,7 +510,7 @@ MW2_NATIVE(jboolean, nativeLanJoinPeer)(JNIEnv* env, jobject, jstring name)
 {
     const std::string peer = ToString(env, name);
     if (peer.empty()) return JNI_FALSE;
-    if (auto* service = online::Get()) return service->JoinPeer(peer) ? JNI_TRUE : JNI_FALSE;
+    if (auto* service = online::Started()) return service->JoinPeer(peer) ? JNI_TRUE : JNI_FALSE;
     return JNI_FALSE;
 }
 

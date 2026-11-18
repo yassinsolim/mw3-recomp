@@ -16,7 +16,7 @@ namespace relay
     inline uint64_t Big64(uint64_t value) { return __builtin_bswap64(value); }
 
     static_assert(sizeof(Header) == 24);
-    static_assert(sizeof(Hello) == 68);
+    static_assert(sizeof(Hello) == 76);
     static_assert(sizeof(Advert) == 84);
     static_assert(sizeof(Want) == 12);
     static_assert(sizeof(Search) == 12);

@@ -35,8 +35,9 @@ under that name.
 | Windows build | `win_build.ps1` | `win_build.ps1 -Title mp` |
 | recompile only | `tools/recomp_mw3.sh` | `tools/recomp_mw3.sh mp` |
 
-`MW2_TITLE_MP` is not defined for it: that selects MW2's multiplayer fixes and
-its network, none of which is MW3's.
+`MW2_TITLE_MP` is not defined for it: that selects MW2's multiplayer fixes.
+What the network needs of the title is named in its own block of
+`runtime/title.h` ([The network](#the-network)).
 
 ## Recompiling
 
@@ -119,29 +120,100 @@ the party migration's), the callers of the message readers, the strings that
 survive in a ship build, and the globals each function reads. The evidence for
 each is in `runtime/title.h` beside the entry and in security.md's table.
 
-## No network
+## The network
 
-MW2's multiplayer is safe on a network because of hooks that bound what its
-packet parsers accept. Their MW3 counterparts are now in place
-([security.md](security.md#modern-warfare-3-multiplayer): wired, or shown not
-to be needed in IW5, with two fixes for code MW2 does not have), and built into
-the APK, but they have only been read and compiled: none has been exercised
-against real traffic, and the title's own network code has had no review
-beyond that list. So this title still has no network:
+The title's network goes through the online service MW2's multiplayer uses
+([multiplayer.md](multiplayer.md#the-online-service)), with two of its
+backends: `lan` and `server`, a relay ([relay.md](relay.md)). The hardening
+([security.md](security.md#modern-warfare-3-multiplayer)) is what stands
+between a peer and the title's parsers. **None of this has been run**: it
+compiles, and every address below was read in the executable.
 
-- `online/service.cpp`: the backend is `none` whatever `MW2_NETWORK` says.
-- `kernel/net.cpp`: the title's sockets are bound to 127.0.0.1, a send to any
-  other address is dropped, and `connect` is refused. (With no backend the
-  kernel's sockets are otherwise real ones on every interface.)
-- The Ethernet link reads as down (`MW2_NET_LINK=1` reports one; it does not
-  open anything).
-- The app does not set `MW2_NET_LINK`, and shows none of MW2's network entries
-  or stat cheats, for a `com.mw3.` package.
+What was MW2's, and what MW3's is:
 
-Do not lift any of these before the hooks have been run: a local match first
-(every snapshot, the HUD strings and the server's command resend pass through
-them on the loopback, and the log's `online:` warnings should stay silent),
-then two copies on one LAN.
+| | MW2 | MW3 multiplayer | where it was read |
+|---|---|---|---|
+| title id (`XNetLogonGetTitleID`, Live storage paths, invitations) | `0x41560817` | `0x415608CB` | the XEX header; the import's one caller is `sub_825108E0` |
+| protocol number (`T_ProtocolVersion`) | `sub_8230A3D8`: 136, 128 on the disc | `sub_82320FD0`: `(sub_82286A88() << 16) + 0x56` | callers: the client's connect (`821748B8`), `SV_DirectConnect` (`822C2604`), `pa_joinrequest` (`82197960`), the server's `infoResponse` (`822C7138`) |
+| its high half | the online update's version | the same (a halfword at `0x83015C70`), or -1 or -2 without an update, by the copy's state | `sub_82286A88` |
+| the refusal (`T_NET_OutOfBandPrint`) | `sub_8228EE28`, version text "1.4" | `sub_822A3D40`, "1.0" | `822C2610`..`34`: `error\nEXE_SERVER_IS_DIFFERENT_VER\x15%s\n` |
+| `XSESSION_INFO` | 60 bytes | 60 bytes: the console's | the session keeps it at +0x14, copied with a length of `0x3C` at `823B0874`; the nonce at +0x58 |
+| `XSessionCreate` | `000B0010`, 28 bytes | the same seven words | `sub_82511270` (`li r7,0x1C` at `8251138C`) |
+| the other session messages | `000B0006`, `07`, `10`..`15`, `18`, `1C`, `1E`, `1F` | the same, each at least as long as its handler reads; also `08`, `1B`, `21`, `25`, `65`, which answer success | the callers of `XMsgStartIORequest` (`0x825699E4`) |
+| Ethernet link | up in the multiplayer build | up when a service started | the test is `sub_8234F3A8` (`XBOXLIVE_NETCONNECTION`) |
+| System Link search | `getinfo xxx` to port 1000, broadcast | the same | `sub_82173AB0` |
+| what copies send each other | `MW2L`, `MW2P` packets, `MW2O` in the `XNADDR`, `mw2recomp` | `MW3L`, `MW3P`, `MW3O`, `mw3recomp` | `T_NET_TAG`, `T_NET_NAME` in `runtime/title.h` |
+
+`runtime/network_version.cpp` puts the release in the protocol's high half, as
+in MW2; here that also takes out the -1 and -2, which two copies in different
+states would have refused each other over.
+
+**System Link is where players meet.** A host's game is found by the title's
+own broadcast, which the service carries to everyone it reaches: the local
+network on `lan`, everyone on the relay with the same title and protocol on
+`server`. So on a public relay the System Link list is the list of public
+games, and anyone can host one.
+
+A game is in the list once its host has **started the match**. The screen
+after Create Game, with START GAME, is the host's own: nothing is hosted yet.
+The list is filled by `getinfo` (the client's `sub_82173AB0`), which only a
+running server answers (the packet loop `sub_82299D50` hands packets to the
+server at `82299DC8` and `82299E78` behind its running flag), and only with
+the `systemlink` dvar set (`sub_822C7470` at `822C7554`..`78`, which calls the
+`infoResponse` writer `sub_822C7040`). The server's session, flags `0x21`, is
+made as its map starts (`sub_822C5548` at `822C5808`, when `onlinegame` or
+`systemlink` is set), and the log then says `online: session ... created`
+and `online: hosting`. The answer carries the session's `xnaddr`, `xnkid` and
+`xnkey`, which the client's handler (`sub_821775E8`) reads. This has not been
+seen on a device.
+
+`MW2_TRACE_NET=1` logs what the title asks of its sessions and sockets and
+what the service does with each datagram, as `net-trace:` lines, and every
+five seconds that the title's main thread is alive. A debug build of the app
+reads more switches from `options.txt` in its external files folder, one
+`MW2_NAME=value` a line.
+
+**Xbox LIVE is off.** The executable carries Activision's DemonWare client
+(`code_source\DemonWare\...`, the `MW3 - DW ATVI LSP` title server) beside
+Live: the functions that raise `EXE_DEMONWARE_DISCONNECT` (`sub_823D54E8`,
+`sub_823D7F28`) end an online game whose player it is not connected to, and
+nothing here stands in for those servers. So the player is signed in locally,
+as with no
+service, and a session asking for Live features is refused. `MW2_LIVE=1` (the
+app's "Sign in to Xbox LIVE (experimental)") signs the player in to Live as in
+MW2, to see how far the menu gets; the relay's Find Game listings and the
+`lan` invitations are behind it.
+
+Which service:
+
+- `online/service.cpp`: `MW2_NETWORK=lan` or `server`; anything else, or
+  nothing, is none. Steam is not offered.
+- With none, `kernel/net.cpp` keeps the earlier guard: the title's sockets are
+  bound to 127.0.0.1, a send to any other address is dropped, the link reads as
+  down, and `connect` is refused (that one with a service too).
+- The app (Settings, NETWORK): Online, the default, is `server` with the relay
+  address given (`Prefs.DEFAULT_RELAY_ADDRESS` is the one place a default is
+  written; with no address Online is `lan`); LAN is `lan`; Off is none. The
+  player's name is `MW2_NAME`. A public relay takes no password.
+
+### Two copies on one device
+
+`win_build.ps1 -Title mp -Instance 2` (gradle `-PmpInstance=2`, debug only)
+builds the same app as `com.mw3.recomp.mp2`, "CoD: MW3 Multiplayer (2)",
+`out\mw3mp2-debug.apk`. It has its own settings, its own profile (so another
+player; its name starts as "Player 2") and its own game folder: the game is
+installed in it from the disc image again.
+
+Both copies use the same ports, on `lan` and on a relay alike. Each takes the
+first free port above `MW2_LAN_PORT` (3074) as its own, so the second to start
+gets the next one and is a second player; on `lan` both also listen on 3074
+itself, shared, for broadcasts. What a copy says to everyone it also sends to
+the first four own ports at its announced address, so the two find each other
+with WiFi off as well.
+
+Before trusting it with strangers: a local match with a service on (the
+log's `online:` warnings should stay silent), then the two copies on `lan`,
+then through the relay.
 
 ## Everything unlocked
 
@@ -194,10 +266,10 @@ files from the same disc image the campaign app takes; it does not look at
   matchmaking) are logging stubs that return 0 (the list is in
   `ppc_mw3_mp/stubs_generated.cpp` after a build). A title that takes 0 from
   one of them for success and then waits on it will hang at start-up.
-- With the link down the menu may refuse everything but split screen; a title
-  that insists on a link, or on Xbox Live sign-in, before its main menu will
-  stop there.
-- `XNetLogonGetTitleID` still answers MW2's title id.
+- With no service the link is down, and the menu may refuse everything but
+  split screen.
+- The network: see [The network](#the-network). A System Link game between
+  two copies has not been tried, on `lan` or on a relay.
 - Zones: the multiplayer loads `*_mp.ff` files, which must be on the disc image
   used; nothing checks for them before the title asks.
 - The heap starts at `0x85000000` for both MW3 titles; the multiplayer's image

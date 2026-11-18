@@ -65,9 +65,10 @@ MW3's multiplayer (`iw5mp_ship.exe`, [MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md)) is
 the same engine one game on. Each fix above was looked for in that executable
 by what its function does (the out-of-band command tables, the message readers
 it calls, the globals it reads), and the code path was read there before a hook
-was enabled; no address comes from MW2. The title's network stays off: this is
-what has to be in place before it is turned on, and none of it has met a
-hostile peer yet.
+was enabled; no address comes from MW2. The title's network is on through the
+`lan` and `server` services only
+([MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#the-network)), where the senders are
+as in the columns above, and none of this has met a hostile peer yet.
 
 | fix | MW3 function | state | what was read there |
 |---|---|---|---|

@@ -166,6 +166,16 @@
     <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, killstreak, title and emblem can be chosen whatever the rank. Nothing is written to the stats: off shows what was really earned again. Takes effect the next time the game starts.</string>
 
     <!-- network play -->
+    <string name="network_mode">Play with</string>
+    <string name="network_online">Online: everyone on the relay server</string>
+    <string name="network_lan">LAN: this WiFi network only</string>
+    <string name="network_off">Off: no network</string>
+    <string name="network_mode_hint">Online and LAN both show other players\u2019 games in the game\u2019s System Link menu: host one there, or join one from its list. Takes effect the next time the game starts.</string>
+    <string name="relay_address">Relay server address</string>
+    <string name="relay_address_example">host or host:port</string>
+    <string name="relay_address_hint">The server Online plays through (port 3074 when none is given). No password is needed. Left empty, Online plays on this WiFi network, as LAN does.</string>
+    <string name="live_sign_in">Sign in to Xbox LIVE (experimental)</string>
+    <string name="live_sign_in_hint">Opens the game\u2019s Xbox LIVE menu. The game also asks its publisher\u2019s servers there, which this app does not reach, so expect errors: this is for testing. Leave it off to play; System Link needs no sign-in.</string>
     <string name="player_name">Network player name</string>
     <string name="player_name_hint">The name other players on the network see (15 characters at most). Empty means the profile\u2019s name, which on a fresh install is \u201cPlayer 1\u201d.</string>
     <string name="lan_accept">Accept network invites automatically</string>

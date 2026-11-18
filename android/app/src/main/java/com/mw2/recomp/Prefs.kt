@@ -251,10 +251,11 @@ class Prefs(context: Context) {
 
     /**
      * The name other network players see (MW2_NAME). Empty means the
-     * profile's name, which on a fresh phone is "Player 1".
+     * profile's name, which on a fresh phone is "Player 1"; a second copy
+     * on one device starts as "Player 2".
      */
     var playerName: String
-        get() = store.getString(KEY_PLAYER_NAME, "") ?: ""
+        get() = store.getString(KEY_PLAYER_NAME, DEFAULT_PLAYER_NAME) ?: DEFAULT_PLAYER_NAME
         set(value) = store.edit().putString(KEY_PLAYER_NAME, value.take(15)).apply()
 
     /** Accept LAN lobby invitations automatically (MW2_LAN_ACCEPT). */
@@ -270,7 +271,59 @@ class Prefs(context: Context) {
         get() = store.getString(KEY_LAN_IFACE, "") ?: ""
         set(value) = store.edit().putString(KEY_LAN_IFACE, value).apply()
 
+    /**
+     * How the multiplayer reaches other players: NETWORK_ONLINE, through a
+     * relay server; NETWORK_LAN, the local network only; NETWORK_OFF, no
+     * network at all.
+     */
+    var networkMode: String
+        get() = (store.getString(KEY_NETWORK_MODE, NETWORK_ONLINE) ?: NETWORK_ONLINE)
+            .let { if (it in NETWORK_MODES) it else NETWORK_ONLINE }
+        set(value) = store.edit().putString(KEY_NETWORK_MODE, value).apply()
+
+    /** The relay server, host or host:port (MW2_SERVER). */
+    var relayAddress: String
+        get() = store.getString(KEY_RELAY_ADDRESS, DEFAULT_RELAY_ADDRESS) ?: DEFAULT_RELAY_ADDRESS
+        set(value) = store.edit().putString(KEY_RELAY_ADDRESS, value.trim()).apply()
+
+    /**
+     * Modern Warfare 3's multiplayer, experimental: signed in to Xbox LIVE
+     * (MW2_LIVE). Its Xbox LIVE menu also wants the publisher's servers, so
+     * this is for testing; players meet in System Link without it.
+     */
+    var liveSignIn: Boolean
+        get() = store.getBoolean(KEY_LIVE_SIGN_IN, false)
+        set(value) = store.edit().putBoolean(KEY_LIVE_SIGN_IN, value).apply()
+
+    /**
+     * What the runtime is given as MW2_NETWORK: the relay when Online is
+     * chosen and there is an address for one, else the local network, which
+     * needs nothing set up.
+     */
+    val networkBackend: String
+        get() = when (networkMode) {
+            NETWORK_OFF -> "none"
+            NETWORK_LAN -> "lan"
+            else -> if (relayAddress.isBlank()) "lan" else "server"
+        }
+
     companion object {
+        /**
+         * The public relay every copy starts with, host or host:port (3074
+         * without one): the one place it is written. Empty until there is
+         * one; Online then plays on the local network.
+         */
+        const val DEFAULT_RELAY_ADDRESS = ""
+        const val NETWORK_ONLINE = "online"
+        const val NETWORK_LAN = "lan"
+        const val NETWORK_OFF = "off"
+        val NETWORK_MODES = listOf(NETWORK_ONLINE, NETWORK_LAN, NETWORK_OFF)
+        /** A second copy on one device (-PmpInstance) is another player. */
+        val DEFAULT_PLAYER_NAME =
+            if (BuildConfig.MP_INSTANCE > 1) "Player ${BuildConfig.MP_INSTANCE}" else ""
+        private const val KEY_NETWORK_MODE = "networkMode"
+        private const val KEY_RELAY_ADDRESS = "relayAddress"
+        private const val KEY_LIVE_SIGN_IN = "liveSignIn"
         private const val KEY_FPS_LIMIT = "fpsLimit"
         val FPS_LIMITS = listOf(30, 45, 60, 120)
         private const val KEY_RESOLUTION = "resolutionScale"
