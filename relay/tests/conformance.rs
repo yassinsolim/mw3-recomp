@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -36,6 +36,7 @@ const ROOM: u32 = 0x1000001A;
 const WAIT_A_SEARCH: Duration = Duration::from_millis(950);
 
 static NEXT_PORT: AtomicU16 = AtomicU16::new(0);
+static NEXT_PING: AtomicU64 = AtomicU64::new(1);
 
 struct Relay {
     child: Child,
@@ -67,11 +68,19 @@ impl Relay {
     }
 
     fn status(&self) -> String {
-        let mut stream = TcpStream::connect(("127.0.0.1", self.status)).unwrap();
-        let mut text = String::new();
-        stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
-        stream.read_to_string(&mut text).unwrap();
-        text
+        // The relay answers a connection when it sees it and waits for no
+        // request. One that gets there after the answer, from a test that
+        // lost its processor in between, has the connection cut, which on
+        // Windows loses the answer: it is asked for again.
+        let end = Instant::now() + Duration::from_secs(5);
+        loop {
+            let mut stream = TcpStream::connect(("127.0.0.1", self.status)).unwrap();
+            let mut text = String::new();
+            if stream.write_all(b"GET / HTTP/1.0\r\n\r\n").is_ok() && stream.read_to_string(&mut text).is_ok() {
+                return text;
+            }
+            assert!(Instant::now() < end, "the status page does not answer");
+        }
     }
 }
 
@@ -205,6 +214,27 @@ impl Client {
         None
     }
 
+    /// Returns once the relay has handled all that was sent to it before: it
+    /// takes its packets one at a time, in the order they came, so its Pong
+    /// to a Ping sent now comes after them. For a copy the test expects
+    /// nothing else for meanwhile, since what comes before the Pong is read
+    /// past.
+    fn caught_up(&self) {
+        let number = NEXT_PING.fetch_add(1, Ordering::Relaxed);
+        // Asked again when no answer comes: a Ping above what the copy may
+        // send is dropped like any other packet.
+        for _ in 0..40 {
+            self.say(PING, number, &[]);
+            let end = Instant::now() + Duration::from_millis(250);
+            while let Some(pong) = self.expect(PONG, end.saturating_duration_since(Instant::now())) {
+                if pong.peer == number {
+                    return;
+                }
+            }
+        }
+        panic!("the relay answers no Ping");
+    }
+
     fn advert(&mut self, session: u8, open: u32, numbers: &[(u32, u32)], rtt: u16) {
         self.sequence += 1;
         self.advert_numbered(self.sequence, session, open, numbers, rtt, 1);
@@ -285,6 +315,52 @@ impl Drop for Client {
 
 fn pause() {
     thread::sleep(Duration::from_millis(100));
+}
+
+/// How many packets of a flood go out before the relay is waited for. A relay
+/// that gets no processor for a moment has only its socket's buffer for what
+/// comes, and what does not fit there is lost before the relay counts it. A
+/// Linux container gives it 208 KB, and counts a packet of a few hundred
+/// bytes as 1.3 KB at most: 64 of them take two fifths of it, or less.
+const AT_ONCE: usize = 64;
+/// The same for the largest packets sent here, of 3 KB, which Linux counts as
+/// 4.3 KB: 16 of them take a third of its buffer, and 48 of the 64 KB that
+/// Windows gives.
+const LARGE_AT_ONCE: usize = 16;
+
+/// A flood of `count` packets, each sent by `send`, which is given its number
+/// from 1, that is never more than `at_once` packets ahead of the relay:
+/// `caught_up` returns once the relay has handled what was sent. So all of
+/// them reach the relay, however small its buffer and however few processors
+/// it shares with the test, and it has handled them all when this returns.
+fn flood(count: usize, at_once: usize, mut send: impl FnMut(usize), caught_up: impl Fn()) {
+    for sent in 1..=count {
+        send(sent);
+        if sent % at_once == 0 || sent == count {
+            caught_up();
+        }
+    }
+}
+
+/// Client::caught_up for where no copy's Ping would pass, all of them together
+/// having sent more than they may: a Hello without its token is answered with
+/// a Challenge, whoever sends it. From a port of its own each time, so that an
+/// answer that comes late is not taken for the next one.
+fn caught_up_without_a_copy(relay: &Relay) {
+    let socket = Client::socket(relay);
+    socket.set_read_timeout(Some(Duration::from_millis(250))).unwrap();
+    let mut hello = header(HELLO, 0, 0);
+    hello.extend(hello_body(PROTOCOL, b""));
+    let mut answer = [0; 64];
+    // Asked again when no answer comes: an address may send only so many
+    // Hellos, and those of the copies that joined count.
+    for _ in 0..40 {
+        socket.send(&hello).unwrap();
+        if socket.recv(&mut answer).is_ok_and(|size| size >= 24 && answer[4] == CHALLENGE) {
+            return;
+        }
+    }
+    panic!("the relay answers no Hello");
 }
 
 const NUMBERS: [(u32, u32); 6] =
@@ -588,11 +664,13 @@ fn random_packets_stop_nothing() {
             packet.append(&mut body);
             let _ = stranger.send(&packet);
         }
-        if round % 2000 == 0 {
-            thread::sleep(Duration::from_millis(5));
+        // No faster than the relay takes them, so that it reads them all
+        // and loses none before it does.
+        if (round + 1) % AT_ONCE as u64 == 0 {
+            a.caught_up();
         }
     }
-    thread::sleep(Duration::from_millis(300));
+    a.caught_up();
     while b.next(Duration::from_millis(1)).is_some() {}
     a.say(TO, b.id, b"after");
     assert!(b.expect(FROM, Duration::from_secs(2)).is_some(), "the relay no longer hands packets on");
@@ -790,10 +868,8 @@ fn each_title_gets_its_own_playlists() {
 #[test]
 fn a_copy_sends_no_faster_than_allowed() {
     let relay = Relay::start(&["--rate", "20"]);
-    let (a, b) = (Client::join(&relay), Client::join(&relay));
-    for _ in 0..200 {
-        a.say(TO, b.id, b"fast");
-    }
+    let (a, b, witness) = (Client::join(&relay), Client::join(&relay), Client::join(&relay));
+    flood(200, AT_ONCE, |_| a.say(TO, b.id, b"fast"), || witness.caught_up());
     let got = count(&b, FROM);
     assert!((20..=60).contains(&got), "{got} of 200 came through: twice the rate at once, then the rate");
     assert!(status_of(&relay)["dropped"]["copyRate"].as_u64().unwrap() >= 140);
@@ -820,10 +896,7 @@ fn an_all_costs_what_it_sends() {
 fn all_copies_together_send_no_faster_than_allowed() {
     let relay = Relay::start(&["--total-rate", "20"]);
     let (a, b, c) = (Client::join(&relay), Client::join(&relay), Client::join(&relay));
-    for _ in 0..100 {
-        a.say(TO, c.id, b"fast");
-        b.say(TO, c.id, b"fast");
-    }
+    flood(200, AT_ONCE, |sent| [&a, &b][sent % 2].say(TO, c.id, b"fast"), || caught_up_without_a_copy(&relay));
     let got = count(&c, FROM);
     assert!((20..=60).contains(&got), "{got} of 200 came through");
     assert!(status_of(&relay)["dropped"]["allRate"].as_u64().unwrap() >= 140);
@@ -848,14 +921,10 @@ fn strangers_get_few_answers_and_keep_nobody_out() {
     let relay = Relay::start(&[]);
     let a = Client::join(&relay);
     let stranger = Client { socket: Arc::new(Client::socket(&relay)), token: 0, id: 0, sequence: 0, search: 0, quiet: Arc::new(AtomicBool::new(false)) };
-    for _ in 0..300 {
-        stranger.say(ALIVE, 0, &[]);
-    }
+    flood(300, AT_ONCE, |_| stranger.say(ALIVE, 0, &[]), || a.caught_up());
     let unknown = count(&stranger, UNKNOWN);
     assert!((1..=20).contains(&unknown), "{unknown} answers to 300 packets");
-    for _ in 0..300 {
-        stranger.say(HELLO, 0, &hello_body(PROTOCOL, b""));
-    }
+    flood(300, AT_ONCE, |_| stranger.say(HELLO, 0, &hello_body(PROTOCOL, b"")), || a.caught_up());
     let challenges = count(&stranger, CHALLENGE);
     assert!((1..=60).contains(&challenges), "{challenges} answers to 300 Hellos");
     assert!(status_of(&relay)["dropped"]["strangers"].as_u64().unwrap() >= 500);
@@ -869,12 +938,10 @@ fn strangers_get_few_answers_and_keep_nobody_out() {
 #[test]
 fn a_forged_token_costs_the_copy_nothing() {
     let relay = Relay::start(&["--rate", "20"]);
-    let (mut a, b) = (Client::join(&relay), Client::join(&relay));
+    let (mut a, b, witness) = (Client::join(&relay), Client::join(&relay), Client::join(&relay));
     let token = a.token;
     a.token ^= 1;
-    for _ in 0..300 {
-        a.say(TO, b.id, b"forged");
-    }
+    flood(300, AT_ONCE, |_| a.say(TO, b.id, b"forged"), || witness.caught_up());
     a.token = token;
     assert_eq!(count(&b, FROM), 0);
     for _ in 0..30 {
@@ -906,11 +973,8 @@ fn an_address_lists_only_so_many_sessions() {
 #[test]
 fn a_copy_lists_no_faster_than_allowed() {
     let relay = Relay::start(&[]);
-    let mut a = Client::join(&relay);
-    for _ in 0..100 {
-        a.advert(0xA1, 8, &NUMBERS, 5);
-    }
-    pause();
+    let a = Client::join(&relay);
+    flood(100, AT_ONCE, |sent| a.advert_numbered(sent as u32, 0xA1, 8, &NUMBERS, 5, 1), || a.caught_up());
     let status = status_of(&relay);
     assert!(status["dropped"]["adverts"].as_u64().unwrap() >= 80, "{status}");
     assert_eq!(status["sessions"].as_array().unwrap().len(), 1);
@@ -935,12 +999,9 @@ fn a_flood_does_not_fill_the_log() {
     let path = dir.join("relay.log");
     let relay = Relay::start(&["--log-file", path.to_str().unwrap()]);
     let (a, b) = (Client::join(&relay), Client::join(&relay));
-    for _ in 0..500 {
-        a.say(TO, b.id, &[7; 3000]);
-    }
-    thread::sleep(Duration::from_millis(500));
+    flood(500, LARGE_AT_ONCE, |_| a.say(TO, b.id, &[7; 3000]), || b.caught_up());
     let dropped = status_of(&relay)["dropped"]["tooLarge"].as_u64().unwrap();
-    assert!(dropped >= 300, "{dropped} of 500 came");
+    assert_eq!(dropped, 500, "every packet of the flood reaches the relay");
     let log = std::fs::read_to_string(&path).unwrap();
     assert_eq!(log.matches("dropped a packet from").count(), 20, "{log}");
     // After the ten seconds the lines held back are counted, once.
