@@ -158,6 +158,8 @@ android {
             dimension = "title"
             applicationId = "com.mw3.recomp"
             resValue("string", "app_name", "CoD: Modern Warfare 3")
+            // The launcher emblem's ring: amber for the campaign.
+            resValue("color", "icon_accent", "#E8A33D")
             buildConfigField("String", "UPDATE_REPO", "\"\"")
             externalNativeBuild {
                 cmake {
@@ -180,6 +182,8 @@ android {
             applicationId = "com.mw3.recomp.mp" + if (mpInstance > 1) "$mpInstance" else ""
             versionNameSuffix = "-multiplayer"
             resValue("string", "app_name", "CoD: MW3 Multiplayer" + if (mpInstance > 1) " ($mpInstance)" else "")
+            // Green for multiplayer, so the two apps tell apart at a glance.
+            resValue("color", "icon_accent", "#3FCF8E")
             buildConfigField("String", "UPDATE_REPO", "\"\"")
             buildConfigField("int", "MP_INSTANCE", "$mpInstance")
             externalNativeBuild {

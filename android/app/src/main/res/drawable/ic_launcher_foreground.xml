@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's own emblem, drawn for this project: a reticle ring with four
+     ticks around three stencil bars (the "3"). Everything sits inside the
+     adaptive icon's 66 dp safe circle (radius 33 around 54,54), so no
+     launcher mask cuts it. The ring and ticks take the title's accent
+     (icon_accent: amber for the campaign, green for multiplayer). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- the ring -->
+    <path
+        android:pathData="M54,27a27,27 0,1 1,0 54a27,27 0,1 1,0 -54z"
+        android:strokeColor="@color/icon_accent"
+        android:strokeWidth="3.2"
+        android:fillColor="#00000000" />
+    <!-- the ticks: north, south, west, east, each crossing the ring -->
+    <path
+        android:fillColor="@color/icon_accent"
+        android:pathData="M52.4,22h3.2v9h-3.2z M52.4,77h3.2v9h-3.2z M22,52.4h9v3.2h-9z M77,52.4h9v3.2h-9z" />
+    <!-- three bars, each cut on a slant at the top like a stencil -->
+    <path
+        android:fillColor="#ECEFF2"
+        android:pathData="M43,45.5l5,-2.5v21.5h-5z M51.5,43.5l5,-2.5v23.5h-5z M60,45.5l5,-2.5v21.5h-5z" />
+</vector>

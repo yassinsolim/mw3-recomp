@@ -21,8 +21,7 @@ a desktop (the recompiler runs there), and Gradle then builds the same
   builds with no window.
 - SDL3 and Dear ImGui are fetched; SDL3 is linked statically; on Linux it needs the usual
   development packages for its video, audio and input backends (X11, Wayland,
-  ALSA/PulseAudio/PipeWire, udev, dbus). `.github/workflows/release.yml` lists
-  them.
+  ALSA/PulseAudio/PipeWire, udev, dbus).
 - The retail ISO, or at least `mw2/tu0/default.xex` and
   `mw2/tu0/default_mp.xex`.
 - Title update 6: its package, or its files in `mw2/update/`
@@ -202,12 +201,12 @@ like the fonts, and the game's own shader translator and pipeline code from
 
 Its icon is in `launcher/icon/`: `launcher.ico` is linked into the Windows
 program as a resource, and `launcher.bmp` is written out as an array like the
-fonts and given to the window on both systems. `tools/launcher_icon.py` makes
-the two from the campaign's icon in the PC game's `iw4sp.exe`: the left half as
-it is, the right half in the multiplayer's colours. `tools/steam_emblem.py`
+fonts and given to the window on both systems. `tools/launcher_icon.py` draws
+the two from the project's own emblem (the Android apps' icon): the left half
+in the campaign's amber, the right half in multiplayer's green. Nothing of the
+game's goes into either. `tools/steam_emblem.py`
 makes `steam_emblem.h`, the Steam card's emblem, from Steam's own 256-pixel
-icon: a coverage mask of its white parts, which the launcher tints. `tools/readme_art.py` draws the
-README's banner, tiles and headings into `docs/images/readme/`.
+icon: a coverage mask of its white parts, which the launcher tints.
 
 | file | what |
 |---|---|
@@ -395,27 +394,6 @@ release (`llvm-mingw-<date>-ucrt-x86_64.zip`), CMake 3.24 or later and Ninja,
 and no WSL: `cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake
 -DLLVM_MINGW=<dir> -DMW2_TITLE=...`, then `cmake --build <dir> --target mw2`.
 A diagnostics build links winpthreads statically, for `clock_gettime`.
-
-## Release workflow
-
-`.github/workflows/release.yml` runs by hand from the Actions tab with a version
-tag. It builds both titles of title update 6 for Linux (Ubuntu 22.04,
-so the binaries need glibc 2.35 at most, with Vulkan-Headers 1.3.275 installed
-over the system's) and for Windows (cross-compiled on Ubuntu with llvm-mingw),
-the campaign's build with the launcher and the multiplayer's with the game
-alone (`TARGETS`). ccache's and ThinLTO's caches (`.ccache`, `.lto-cache`) are
-kept between runs; each title's own PGO profile is part of a compile's key, so
-the two titles share little of the compiler's. It then packages `mw2-sp` and
-`mw2-mp` with the README per platform,
-and drafts a GitHub Release. A third job builds the relay's image
-([relay.md](relay.md)) for amd64, pushes it to
-`ghcr.io/<owner>/mw2-relay:<tag>` with the workflow's own token, and adds the
-amd64 binary to the release. The registry makes a new package private: it is
-made public once, in the package's settings on GitHub. The two executables come from a
-private repository named by the secret `ASSET_REPO`, read with
-`ASSET_REPO_TOKEN`, which holds `default.xex` and `default_mp.xex` at its root
-and the update's two patches and three fastfiles under `title-updates/TU6/`.
-It packages `mw2-launcher` with them, and the fonts' licence.
 
 ## Layout
 

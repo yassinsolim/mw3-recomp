@@ -25,9 +25,12 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 | Campaign | plays (Black Tuesday at about 58 FPS) | builds; not yet tested on Windows |
 | Special Ops Survival | plays at about 60 FPS | builds; not yet tested on Windows |
 | Multiplayer, split screen | plays (Seatown at 60 FPS) | not tested |
-| Multiplayer online (System Link over the relay) | works | reaches the menu and joins the relay; matches lightly tested |
-| Xbox LIVE menu | **does not work** (it needs Activision's DemonWare servers) | same |
-| Everything unlocked in multiplayer | yes (classes, weapons, attachments, camos) | yes |
+| Multiplayer online, System Link over the relay | works (Android to PC tested) | works (joined an Android host) |
+| Xbox LIVE menu (Find Match, served by this project, not Microsoft or Activision) | signs in, lists playlists, opens a public lobby; a full match not yet tested | two copies matched through Find Match |
+| Bots in your matches (Settings, 0 to 17) | join, fight and score | same |
+| Voice chat (off by default; push-to-talk) | built, not yet tested | built, not yet tested |
+| Everything unlocked in multiplayer | yes, chosen camos show in matches | yes |
+| Custom skins (texture replacement, animated) | works | should work, not tested |
 | Audio | works | not checked |
 | Controls | touch overlay, Bluetooth/USB controllers | controller, keyboard and mouse |
 | Saves and profile | work | not checked |
@@ -53,7 +56,7 @@ The detailed log is [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md).
 
 ## Quick start (Windows)
 
-1. Get the code: `git clone -b android https://github.com/yassinsolim/mw3-android.git C:\mw3`
+1. Get the code: `git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`
    (or **Code → Download ZIP** and unpack it). A short path without spaces,
    such as `C:\mw3`, avoids path-length trouble.
 2. Double-click `setup\setup.cmd` (or run it from a terminal).

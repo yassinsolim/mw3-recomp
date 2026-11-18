@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="launcher_background">#0B0E12</color>
+    <!-- The emblem's ring and ticks (drawable/ic_launcher_foreground); each
+         MW3 title sets its own with resValue in build.gradle.kts. -->
+    <color name="icon_accent">#E8A33D</color>
 </resources>
