@@ -1,6 +1,7 @@
-# Cross-compiling for Windows from Linux with llvm-mingw
+# Building for Windows with llvm-mingw
 # (https://github.com/mstorsjo/llvm-mingw): clang for x86_64-w64-mingw32,
-# against the UCRT. LLVM_MINGW names the toolchain's folder.
+# against the UCRT, cross-compiling from Linux or natively on a Windows host
+# with the toolchain's Windows release. LLVM_MINGW names the toolchain's folder.
 #
 #   cmake -B build-win -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake ...
 set(CMAKE_SYSTEM_NAME Windows)
@@ -18,12 +19,18 @@ set(ENV{LLVM_MINGW} "${LLVM_MINGW}")
 list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LLVM_MINGW)
 
 set(triple x86_64-w64-mingw32)
-set(CMAKE_C_COMPILER   "${LLVM_MINGW}/bin/${triple}-clang")
-set(CMAKE_CXX_COMPILER "${LLVM_MINGW}/bin/${triple}-clang++")
-set(CMAKE_RC_COMPILER  "${LLVM_MINGW}/bin/${triple}-windres")
-set(CMAKE_DLLTOOL      "${LLVM_MINGW}/bin/${triple}-dlltool")
-set(CMAKE_AR           "${LLVM_MINGW}/bin/llvm-ar")
-set(CMAKE_RANLIB       "${LLVM_MINGW}/bin/llvm-ranlib")
+# On a Windows host the tools carry .exe, and CMake wants the full path of an
+# existing file for a compiler: it does not add the suffix itself.
+set(exe "")
+if(CMAKE_HOST_WIN32)
+    set(exe ".exe")
+endif()
+set(CMAKE_C_COMPILER   "${LLVM_MINGW}/bin/${triple}-clang${exe}")
+set(CMAKE_CXX_COMPILER "${LLVM_MINGW}/bin/${triple}-clang++${exe}")
+set(CMAKE_RC_COMPILER  "${LLVM_MINGW}/bin/${triple}-windres${exe}")
+set(CMAKE_DLLTOOL      "${LLVM_MINGW}/bin/${triple}-dlltool${exe}")
+set(CMAKE_AR           "${LLVM_MINGW}/bin/llvm-ar${exe}")
+set(CMAKE_RANLIB       "${LLVM_MINGW}/bin/llvm-ranlib${exe}")
 
 set(CMAKE_FIND_ROOT_PATH "${LLVM_MINGW}/${triple}")
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

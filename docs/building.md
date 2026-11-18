@@ -390,6 +390,12 @@ the host's clang-18. The executable needs nothing beside it:
 
 It needs Windows 10 1803 or later, for the placeholder mapping of guest memory.
 
+The same toolchain file builds on a Windows host, with llvm-mingw's Windows
+release (`llvm-mingw-<date>-ucrt-x86_64.zip`), CMake 3.24 or later and Ninja,
+and no WSL: `cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake
+-DLLVM_MINGW=<dir> -DMW2_TITLE=...`, then `cmake --build <dir> --target mw2`.
+A diagnostics build links winpthreads statically, for `clock_gettime`.
+
 ## Release workflow
 
 `.github/workflows/release.yml` runs by hand from the Actions tab with a version

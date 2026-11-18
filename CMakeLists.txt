@@ -620,6 +620,12 @@ if(WIN32)
     # gives 8.
     target_link_libraries(mw2 PRIVATE ws2_32 iphlpapi winmm bcrypt)
     target_link_options(mw2 PRIVATE -static -Wl,--stack,16777216)
+    # A diagnostics build times the ring consumer's thread with clock_gettime
+    # (runtime/gpu/command_processor.cpp), which mingw-w64 keeps in
+    # winpthreads; the driver links that only when asked. Static, as the rest.
+    if(MW2_DIAGNOSTICS)
+        target_link_libraries(mw2 PRIVATE pthread)
+    endif()
     # A player's build opens no console window (runtime/platform.cpp).
     if(NOT MW2_DIAGNOSTICS)
         target_link_options(mw2 PRIVATE -mwindows)
