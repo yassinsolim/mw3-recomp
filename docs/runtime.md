@@ -293,7 +293,10 @@ into a page the GPU watch has made read-only fails instead of faulting (see
 
 `input.cpp` answers `XamInputGetState` from SDL3 gamepads, one per user index.
 With the window open, the keyboard also drives the pad: Return is Start, Escape
-Back, arrows the d-pad, Z/X/C/V are A/B/X/Y, Q/E the bumpers. The packet number
+Back, arrows the d-pad, Z/X/C/V are A/B/X/Y, Q/E the bumpers. On Windows the
+keyboard and mouse are user 0's controller whenever the window exists, pad or
+no pad, since the title only listens to a controller that
+`XamInputGetCapabilities` says is connected. The packet number
 changes only when the state does, since the title reads a new packet as
 "something changed". Diagnostic builds add scripted presses and the headless
 walker ([switches.md](switches.md)).

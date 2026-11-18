@@ -226,6 +226,22 @@ namespace
         return b;
     }
 #endif
+
+    // Whether the keyboard and mouse are user 0's controller: on Windows,
+    // whenever the game has a window. The title asks XamInputGetCapabilities
+    // about every user each frame and listens only to those it says are
+    // there, so a controller that exists just while a key is held is never
+    // heard: with no pad plugged in, the menus ignored every key. Like the
+    // touch controls on Android, the keyboard therefore always answers; which
+    // keys count, and when, is still XamInputGetState's business.
+    bool KeyboardStandsIn()
+    {
+#ifdef _WIN32
+        return SDL_WasInit(SDL_INIT_VIDEO) != 0;
+#else
+        return false;
+#endif
+    }
 #endif
 
     // MW2_INPUT_SCRIPT="2.5:start,6:a" presses buttons at fixed times, so a title
@@ -433,7 +449,8 @@ PPC_FUNC(__imp__XamInputGetState)
     if (user >= 4) { *out = XInputState{}; ctx.r3.u64 = X_ERROR_DEVICE_NOT_CONNECTED; return; }
     SDL_Gamepad* pad = PadFor(user);
     const uint16_t elsewhere = uint16_t((user == 0 ? KeyboardButtons() : 0) | ScriptedButtons(user));
-    if (pad || elsewhere || (user ? g_scripted[user] : ScriptedAxesHeld(0) || player::Wanted()))
+    if (pad || elsewhere ||
+        (user ? g_scripted[user] : ScriptedAxesHeld(0) || player::Wanted() || KeyboardStandsIn()))
     {
 
         if (pad) SDL_UpdateGamepads();
@@ -653,7 +670,7 @@ PPC_FUNC(__imp__XamInputGetCapabilities)
     connected = connected || android::input::Connected(user);
 #endif
 #ifdef MW2_USE_SDL
-    connected = connected || PadFor(user) || (user == 0 && player::Wanted());
+    connected = connected || PadFor(user) || (user == 0 && (player::Wanted() || KeyboardStandsIn()));
 #endif
     if (connected)
     {
