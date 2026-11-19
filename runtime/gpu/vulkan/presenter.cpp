@@ -165,6 +165,13 @@ namespace
         std::condition_variable wake, takenWake;
         std::deque<Queued> frameQueue;
         uint64_t taken = 0;                  // the last frame copied out or let go
+        // The console's pacing at half rate (frame_rate.h): the frame on
+        // screen, and how many more blanks it is to be shown for before the
+        // next is taken. The renderer finishes frames in bursts when the GPU
+        // is what it waits for, and shown as they came a frame stayed one
+        // blank or three as often as two.
+        Queued held;
+        uint32_t holdsLeft = 0;
         std::atomic<uint64_t> lastQueued{ 0 };
 
         // When each present reaches the screen (VK_KHR_present_wait), from a
@@ -831,7 +838,9 @@ namespace
     void LetGo()
     {
         std::lock_guard lock(g.lock);
-        if (g.frameQueue.empty()) return;
+        if (g.holdsLeft) g.taken = std::max(g.taken, g.held.serial);
+        g.holdsLeft = 0;
+        if (g.frameQueue.empty()) { g.takenWake.notify_all(); return; }
         g.taken = std::max(g.taken, g.frameQueue.back().serial);
         g.frameQueue.clear();
         g.takenWake.notify_all();
@@ -1035,24 +1044,40 @@ namespace
         else if (acquired != VK_SUCCESS) return;
 
         Presenter::Queued shown;
+        // Shown before, and on screen for another blank.
+        bool again = false;
         if (!idle)
         {
             std::lock_guard lock(g.lock);
-            // Under the title's limiter (frame_rate.h) the title finishes
-            // frames whenever it likes, and the display still takes one a
-            // blank: the newest is shown and the ones before it are let go.
-            // Paced by the console's blank or the display's, every frame is
-            // shown in its turn.
-            while (frame_rate::Mode() == frame_rate::kByLimiter && g.frameQueue.size() > 1)
+            if (g.holdsLeft)
             {
-                g.taken = std::max(g.taken, g.frameQueue.front().serial);
-                g.frameQueue.pop_front();
-                g.takenWake.notify_all();
+                shown = g.held;
+                g.holdsLeft--;
+                again = true;
             }
-            if (!g.frameQueue.empty())
+            else
             {
-                shown = g.frameQueue.front();
-                g.frameQueue.pop_front();
+                // Under the title's limiter (frame_rate.h) the title finishes
+                // frames whenever it likes, and the display still takes one a
+                // blank: the newest is shown and the ones before it are let go.
+                // Paced by the console's blank or the display's, every frame is
+                // shown in its turn.
+                while (frame_rate::Mode() == frame_rate::kByLimiter && g.frameQueue.size() > 1)
+                {
+                    g.taken = std::max(g.taken, g.frameQueue.front().serial);
+                    g.frameQueue.pop_front();
+                    g.takenWake.notify_all();
+                }
+                if (!g.frameQueue.empty())
+                {
+                    shown = g.frameQueue.front();
+                    g.frameQueue.pop_front();
+                    if (frame_rate::ConsoleBlanks() == 2)
+                    {
+                        g.held = shown;
+                        g.holdsLeft = frame_rate::BlanksAFrame() - 1;
+                    }
+                }
             }
         }
 
@@ -1146,14 +1171,18 @@ namespace
             return;
         }
         // The copy is in the queue ahead of anything the renderer submits from
-        // now on, so the renderer may draw over the image.
+        // now on, so the renderer may draw over the image, unless it is to be
+        // copied again for the next blank.
         if (shown.serial)
         {
             std::lock_guard lock(g.lock);
-            g.taken = std::max(g.taken, shown.serial);
-            g.takenWake.notify_all();
+            if (!g.holdsLeft)
+            {
+                g.taken = std::max(g.taken, shown.serial);
+                g.takenWake.notify_all();
+            }
         }
-        if (shown.serial) stutters::Shown(shown.serial);
+        if (shown.serial && !again) stutters::Shown(shown.serial);
 
         VkPresentInfoKHR present{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
         present.waitSemaphoreCount = 1;
@@ -1165,7 +1194,7 @@ namespace
         VkPresentIdKHR id{ VK_STRUCTURE_TYPE_PRESENT_ID_KHR };
         id.swapchainCount = 1;
         id.pPresentIds = &shown.serial;
-        if (g.presentWait && shown.serial) present.pNext = &id;
+        if (g.presentWait && shown.serial && !again) present.pNext = &id;
         // Out of date and suboptimal here mean the window changed under the
         // present: the swapchain is remade before the next frame. Only a lost
         // device is a failure.
@@ -1178,7 +1207,7 @@ namespace
             g.remakeSwapchain = true;
         else
             vk::pipeline::Failed(presented, "present");
-        if (g.presentWait && shown.serial &&
+        if (g.presentWait && shown.serial && !again &&
             (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR))
         {
             std::lock_guard waiting(g.waitLock);
@@ -1187,7 +1216,8 @@ namespace
         }
 
         g.frameIndex = (g.frameIndex + 1) % kFramesInFlight;
-        g.presented.fetch_add(1, std::memory_order_relaxed);
+        // Frames, not blanks: the app's frame counter reads this.
+        if (!again) g.presented.fetch_add(1, std::memory_order_relaxed);
     }
 
     void Teardown()
@@ -1547,8 +1577,8 @@ namespace
             {
                 std::unique_lock lock(g.lock);
                 g.wake.wait_for(lock, std::chrono::milliseconds(16),
-                                [] { return !g.frameQueue.empty() || !g.running; });
-                queued = !g.frameQueue.empty();
+                                [] { return !g.frameQueue.empty() || g.holdsLeft || !g.running; });
+                queued = !g.frameQueue.empty() || g.holdsLeft;
             }
             if (!g.running) break;
             // Nothing is presented to a hidden window, where a present can
@@ -1603,6 +1633,7 @@ void vk::WaitUntilTaken(uint64_t serial)
         std::lock_guard lock(g.lock);
         while (!g.frameQueue.empty() && g.frameQueue.front().serial <= serial)
             g.frameQueue.pop_front();
+        if (g.held.serial <= serial) g.holdsLeft = 0;
         g.taken = std::max(g.taken, serial);
         return;
     }
@@ -1614,6 +1645,7 @@ void vk::WaitUntilTaken(uint64_t serial)
     // A quarter of a second without the window taking a frame: it is hidden
     // or its display has stopped. The game does not wait on a window.
     while (!g.frameQueue.empty() && g.frameQueue.front().serial <= serial) g.frameQueue.pop_front();
+    if (g.held.serial <= serial) g.holdsLeft = 0;
     g.taken = std::max(g.taken, serial);
     static std::atomic<uint32_t> told{ 0 };
     if (told.fetch_add(1) < 4)

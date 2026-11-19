@@ -224,6 +224,14 @@ namespace android::perf
     // recorded pipelines PrewarmFromCache compiles synchronously, and the
     // deadline for them. Bigger phones compile more up front and warm sooner.
     void PrewarmBudget(uint32_t& maxSync, uint32_t& deadlineMs);
+    // The Adreno the kernel's driver names ("Adreno650v3"), or "" where
+    // there is none. Known before Vulkan is, which is when the driver's own
+    // settings have to be made.
+    const char* AdrenoModel();
+    // Whether it is of the 6xx class: a Snapdragon 865's 650 is GPU-bound at
+    // half the display's rate in a level, and what follows from that
+    // (docs/android.md) is decided by this.
+    bool Adreno6xx();
 }
 
 #endif  // MW2_ANDROID

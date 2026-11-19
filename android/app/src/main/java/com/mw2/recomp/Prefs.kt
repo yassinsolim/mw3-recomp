@@ -13,6 +13,20 @@ class Prefs(context: Context) {
     private val store: SharedPreferences =
         context.applicationContext.getSharedPreferences("mw2", Context.MODE_PRIVATE)
 
+    /**
+     * Modern Warfare 3 on an Adreno 6xx (the kernel's driver names the chip):
+     * the Adreno 650 of a Snapdragon 865 draws a level at 25 to 33 frames a
+     * second, so a cap of 60 there is a frame time that swings between two
+     * and three blanks, and 30 is one it holds.
+     */
+    private val holdsThirty: Boolean by lazy {
+        context.packageName.startsWith("com.mw3.") && try {
+            java.io.File("/sys/class/kgsl/kgsl-3d0/gpu_model").readText().startsWith("Adreno6")
+        } catch (_: java.io.IOException) {
+            false
+        }
+    }
+
     // ---- graphics ---------------------------------------------------------
 
     /**
@@ -73,12 +87,13 @@ class Prefs(context: Context) {
       
     /**
      * Frame-rate cap, one of FPS_LIMITS (MW2_FPS_LIMIT). Replaces the old
-     * 60 FPS lock: a phone that had the lock on starts at 60, off at 120.
+     * 60 FPS lock: a phone that had the lock on starts at 60, off at 120,
+     * and one that cannot reach 60 in a level (holdsThirty) at 30.
      */
     var fpsLimit: Int
         get() {
             val saved = store.getInt(KEY_FPS_LIMIT, 0)
-            return if (saved in FPS_LIMITS) saved else if (prefer60Hz) 60 else 120
+            return if (saved in FPS_LIMITS) saved else if (holdsThirty) 30 else if (prefer60Hz) 60 else 120
         }
         set(value) {
             val v = if (value in FPS_LIMITS) value else 60

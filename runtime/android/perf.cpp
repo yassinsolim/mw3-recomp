@@ -181,6 +181,23 @@ uint32_t android::perf::AvailableMemoryMB()
     return uint32_t((available ? available : MemInfoKB("MemFree")) / 1024);
 }
 
+const char* android::perf::AdrenoModel()
+{
+    static const std::string model = [] {
+        char text[64] = {};
+        if (FILE* file = std::fopen("/sys/class/kgsl/kgsl-3d0/gpu_model", "r"))
+        {
+            if (!std::fgets(text, sizeof text, file)) text[0] = 0;
+            std::fclose(file);
+        }
+        text[std::strcspn(text, "\r\n")] = 0;
+        return std::string(text);
+    }();
+    return model.c_str();
+}
+
+bool android::perf::Adreno6xx() { return std::strncmp(AdrenoModel(), "Adreno6", 7) == 0; }
+
 // The instant-boot shader budget, sized for this device. A weak phone keeps
 // the conservative default (15 pipelines / 250 ms: sub-2-second boot); a
 // strong one compiles more up front and finishes warming sooner. Overridable

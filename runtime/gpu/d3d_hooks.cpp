@@ -8,9 +8,13 @@
 #include "internal.h"
 #include "../diagnostics.h"
 #include "../console.h"
+#include "../env.h"
 #include "../frame_rate.h"
 #include "../guest.h"
 #include "../log.h"
+#ifdef MW2_ANDROID
+#include "../android/android.h"
+#endif
 
 #include <atomic>
 #include <algorithm>
@@ -24,7 +28,10 @@ namespace
     // a frame asked for with D3DPRESENT_INTERVAL_IMMEDIATE when the command
     // processor reaches it instead of queueing it for the blank. The title
     // never sets that state, but a state block put back restores it, so it is
-    // set at every present. The title's side is two settings of its own:
+    // set at every present. A limit of 30 stays on the blank and asks D3D for
+    // its interval of two instead: its flip handler then retires a frame at
+    // the second blank after the one before, as it does for a console title
+    // that runs at 30. The title's side is two settings of its own:
     // com_maxfps, its limiter, and r_vsync, which has it take a frame's
     // length from the blanks counted rather than from the clock.
     //
@@ -34,12 +41,12 @@ namespace
     void Pace(uint32_t device)
     {
         const frame_rate::Pacing pacing = frame_rate::Mode();
+        constexpr uint32_t kPresentInterval = T_DEV_PresentInterval;   // in D3D9's device structure
+        constexpr uint32_t kIntervalTwo = 2, kIntervalImmediate = 0x80000000;
         if (pacing != frame_rate::kByConsole)
-        {
-            constexpr uint32_t kPresentInterval = T_DEV_PresentInterval;   // in D3D9's device structure
-            constexpr uint32_t kIntervalImmediate = 0x80000000;
             *GuestPtr<be32>(device + kPresentInterval) = kIntervalImmediate;
-        }
+        else if (frame_rate::ConsoleBlanks() == 2)
+            *GuestPtr<be32>(device + kPresentInterval) = kIntervalTwo;
 
         static std::atomic<int> told{ -1 };
         if (told.exchange(pacing, std::memory_order_relaxed) == pacing) return;
@@ -50,7 +57,9 @@ namespace
         const uint32_t maxFps = pacing == frame_rate::kByDisplay ? 0 : limit;
         char how[112];
         if (pacing == frame_rate::kByConsole)
-            std::snprintf(how, sizeof how, "the console's: a frame retired at every guest blank, 60 a second");
+            std::snprintf(how, sizeof how, frame_rate::ConsoleBlanks() == 2
+                              ? "the console's at half rate: a frame retired at every second guest blank, 30 a second"
+                              : "the console's: a frame retired at every guest blank, 60 a second");
         else
         {
             char command[32];
@@ -71,6 +80,28 @@ namespace
         else
             LOGI("pacing: MW2_FPS_LIMIT %u with no display -- %s", limit, how);
     }
+
+    // MW2_SHADOWS=0: the sun casts no shadows (the title's sm_enable); 1
+    // leaves them on. The shadow maps are a fifth of the GPU's frame in a
+    // Modern Warfare 3 Survival level on an Adreno 650 -- 38 ms a frame with
+    // them, 31 without -- which is the difference between holding 30 frames
+    // a second there and not, so unset is off for that title on that class
+    // of chip and on everywhere else. Said once the title presents, when its
+    // console takes commands.
+    void Shadows()
+    {
+        static std::atomic<bool> told{ false };
+        if (told.exchange(true, std::memory_order_relaxed)) return;
+        const char* asked = env::Text("MW2_SHADOWS");
+#if defined(MW2_ANDROID) && defined(MW3_TITLE)
+        if (asked ? env::Flag("MW2_SHADOWS") : !android::perf::Adreno6xx()) return;
+#else
+        if (!asked || env::Flag("MW2_SHADOWS")) return;
+#endif
+        console::RunNow("sm_enable 0");
+        LOGI("shadows: the sun casts none (sm_enable 0): %s", asked ? "MW2_SHADOWS=0" :
+             "an Adreno 6xx holds 30 frames a second without them; MW2_SHADOWS=1 keeps them");
+    }
 }
 
 // D3D9's present. Its frame is retired the way the console retires it: the
@@ -80,6 +111,7 @@ GUEST_HOOK(T_D3D_Present)
 {
     pacing::Note(pacing::kPresent);
     Pace(ctx.r3.u32);
+    Shadows();
     GUEST_ORIG(T_D3D_Present)(ctx, base);
     pacing::Note(pacing::kPresentEnd);
     gpu::Presented();
