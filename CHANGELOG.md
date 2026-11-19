@@ -53,8 +53,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `cmake/android.cmake`), with one copy of the game files. The launcher
   offers both; the game's own menu entries between the two restart the run
   with the other library (`HandOffActivity`). The separate multiplayer app is
-  now only the two-players-on-one-device test copy (`-Instance 2`). Built,
-  not yet run on a device
+  now only the two-players-on-one-device test copy (`-Instance 2`). Run on
+  an AYN Thor: both launcher entries, and the hand-off in both directions
   ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#one-app-two-libraries)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds

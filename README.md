@@ -30,7 +30,7 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 | Bots in your matches (Settings, 0 to 17) | join, fight and score | same |
 | Voice chat (off by default; push-to-talk) | built, not yet tested | built, not yet tested |
 | Everything unlocked in multiplayer | yes, chosen camos show in matches | yes |
-| Extra camouflages below Gold in multiplayer ([packs](docs/textures.md#camouflage-packs)) | built, not yet tested on a phone | works |
+| Extra camouflages below Gold in multiplayer ([packs](docs/textures.md#camouflage-packs)) | works | works |
 | Custom skins (texture replacement, animated) | works | should work, not tested |
 | Audio | works | not checked |
 | Controls | touch overlay, Bluetooth/USB controllers | controller, keyboard and mouse |
@@ -177,7 +177,7 @@ desktop runs: [docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md)).
 | the build fails or the PC runs out of memory | close other programs and run setup again; it carries on where it stopped. Logs are in `out\logs\` |
 | errors about long paths or spaces | move the folder to a short path such as `C:\mw3` |
 | `adb` says *unauthorized* | unlock the phone and accept the USB debugging prompt |
-| the app says the game files are missing | do step 2 of *Install on Android*; each app needs its own install |
+| the app says the game files are missing | do step 2 of *Install on Android* |
 | black screen or crashes on a non-Qualcomm phone | untested hardware; the app's **Log** screen says what happened |
 | friends do not see your game | everyone on the same relay, same version; the host must have **started** the match |
 

@@ -565,7 +565,9 @@ Run on the PC build: a System Link match with bots ended by its time limit,
 the vote answered by the host and by a second copy that had joined through a
 relay, and both loading the chosen map and game type with the bots (Seatown
 Team Deathmatch to Outpost Capture the Flag, to Village Search and Destroy,
-to Dome Domination by rotation). Not run: a private match, End Game, a phone.
+to Dome Domination by rotation). On an AYN Thor a System Link match with four bots
+went from Seatown to Lockdown by the vote's draw, nobody voting. Not run: a
+private match, End Game.
 
 ## Voice chat
 

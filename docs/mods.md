@@ -7,7 +7,7 @@ the script compiler is [gsc-tool](https://github.com/xensik/gsc-tool) by
 xensik (GPL-3.0, `runtime/mods_gsc.cpp`, [THIRD_PARTY.md](../THIRD_PARTY.md)).
 
 **Status: experimental.** See [What is verified](#what-is-verified-and-what-is-not).
-Android was compiled, not run.
+On Android the `hello` example was run in a multiplayer match on an AYN Thor.
 
 ## Installing a mod
 
@@ -131,7 +131,8 @@ Not verified, or limits:
   game type.
 - The campaign: its hooks were found by the same code patterns and compile
   (Android), but that title was not run with them.
-- Android: both apps compile and link with the loader; not run on a device.
+- Android: `mods-examples/hello` ran in multiplayer matches on an AYN Thor, in
+  the app and in the multiplayer test copy; nothing larger was tried there.
   The app's MODS entry only explains the folder.
 - The launcher's script-mod install compiles; it was not run.
 - Map entities (`.ents`) are not replaced.
