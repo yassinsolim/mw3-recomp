@@ -78,6 +78,18 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density|navigation|keyboard|touchscreen|smallestScreenSize"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
+        <!-- Between the campaign and the multiplayer: in the launcher's
+             process, because its whole job is to outlive the run's and start
+             the next one (HandOffActivity.kt). It shows nothing and is gone
+             the moment the new run is up. -->
+        <activity
+            android:name=".HandOffActivity"
+            android:exported="false"
+            android:noHistory="true"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
         <!-- In the run's own process, so the notification and the game share
              one: a service in the launcher's process would keep the wrong thing
              alive and let the :game process be killed anyway. Its type is

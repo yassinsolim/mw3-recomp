@@ -31,7 +31,7 @@ under that name.
 | tools | `MW2_TITLE=mw3` | `MW2_TITLE=mw3mp` |
 | CMake | `-DMW2_TITLE=mw3` | `-DMW2_TITLE=mw3mp` |
 | definitions | `MW3_TITLE` | `MW3_TITLE`, `MW3_TITLE_MP` |
-| Android flavour, package | `mw3`, `com.mw3.recomp` | `mw3mp`, `com.mw3.recomp.mp` |
+| Android library, in the one app `com.mw3.recomp` (flavour `mw3`) | `libmw3.so` | `libmw3mp.so` |
 | Windows build | `setup\setup.cmd -Title sp` | `setup\setup.cmd -Title mp` |
 | recompile only | `tools/recomp_mw3.sh` | `tools/recomp_mw3.sh mp` |
 
@@ -196,13 +196,46 @@ Which service:
   written; with no address Online is `lan`); LAN is `lan`; Off is none. The
   player's name is `MW2_NAME`. A public relay takes no password.
 
+### One app, two libraries
+
+The Android app (flavour `mw3`, `com.mw3.recomp`) carries both titles. Its
+native build is the campaign's, configured with `-DMW3_BOTH_TITLES=ON`, which
+configures this same CMake project a second time for `mw3mp`
+(`cmake/android.cmake`) and leaves `libmw3mp.so` where Gradle packages it
+beside `libmw3.so`. Both libraries export the same JNI names, so a process
+loads one: the launcher's process the campaign's, the run's process (`:game`)
+the one chosen (`Title.kt`, `NativeBridge.load`).
+
+- The launcher offers **Campaign · Special Ops** and **Multiplayer**; what it
+  starts is written to `files/run_request.txt` (`RunRequest`) and read by
+  `GameActivity` in the new process.
+- The title's own way across (`XamLoaderLaunchTitle("default_mp.xex")`, and
+  `default.xex` back) ends the run as before, and on the way out
+  `install::StartNextTitle` tells the app (`android::StartTitle`,
+  `NativeListener.onNextTitle`). `GameActivity` writes the request, with the
+  launch data the title left, and puts `HandOffActivity` (launcher process) in
+  front; that waits for the run's process to be gone and starts
+  `GameActivity` again, which loads the other library and hands the launch
+  data over as `MW2_LAUNCH_DATA`.
+- One game folder: the installer copies and checks both executables
+  (`MW3_BOTH_TITLES` in `runtime/install/install.cpp`).
+- Saves: the campaign's stay in `files/saves`; the multiplayer's are in
+  `files/mp/saves` (`Title.home`), which is what the multiplayer app of old
+  kept in its own `files/saves`. `setup\setup.ps1` copies that folder across
+  over adb when it installs the app; the app tries the same at its first
+  start, which Android 11 and later refuse.
+- Shader and pipeline caches are per title (`shader_cache_mp.bin`,
+  `pipeline_mp.cache` for the multiplayer).
+
 ### Two copies on one device
 
+The multiplayer alone is still a flavour of its own (`mw3mp`), kept as the
+test harness for two players on one device.
 `setup\setup.cmd -Title mp -Instance 2` (gradle `-PmpInstance=2`, debug only)
-builds the same app as `com.mw3.recomp.mp2`, "CoD: MW3 Multiplayer (2)",
-`out\mw3mp2-debug.apk`. It has its own settings, its own profile (so another
-player; its name starts as "Player 2") and its own game folder: the game is
-installed in it from the disc image again.
+builds it as `com.mw3.recomp.mp2`, "CoD: MW3 Multiplayer (2)",
+`out\mw3mp2-debug.apk`, to run beside the app. It has its own settings, its
+own profile (so another player; its name starts as "Player 2") and its own
+game folder: the game is installed in it from the disc image again.
 
 Both copies use the same ports, on `lan` and on a relay alike. Each takes the
 first free port above `MW2_LAN_PORT` (3074) as its own, so the second to start
@@ -325,13 +358,12 @@ left alone.
 
 ## Installing and starting
 
-The app copies `default_mp.xex` (checked against the hash above) and the game
-files from the same disc image the campaign app takes; it does not look at
-`default.xex`.
+The app copies `default.xex` and `default_mp.xex` (each checked against its
+hash) and the game files from the disc image, once, for both titles.
 
-    setup\setup.cmd -Title mp -Build android      # out\mw3mp-debug.apk
-    adb install -r out\mw3mp-debug.apk
-    adb shell am start -n com.mw3.recomp.mp/com.mw2.recomp.MainActivity
+    setup\setup.cmd -Build android                # out\mw3-debug.apk
+    adb install -r out\mw3-debug.apk
+    adb shell am start -n com.mw3.recomp/com.mw2.recomp.MainActivity
 
 ## Risks at first boot
 

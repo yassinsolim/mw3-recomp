@@ -451,10 +451,11 @@ set(MW2_ONLINE_SOURCES
     "${CMAKE_SOURCE_DIR}/runtime/online/demonware.cpp")
 
 # On Android there is no process of ours to be the executable: the app's
-# activity is the process, and this is what it loads (libmw2.so, System
-# .loadLibrary("mw2"), runtime/android/jni.cpp). Everywhere else it is the
-# program itself. The library keeps that name whatever the title, since the
-# app loads it by name; the desktop executable is named for its title.
+# activity is the process, and this is what it loads (System.loadLibrary,
+# runtime/android/jni.cpp). Everywhere else it is the program itself. MW2's
+# is libmw2.so whatever the title; MW3's is named for its title (libmw3.so,
+# libmw3mp.so), as the desktop executable is, because one app carries both
+# (cmake/android.cmake, MW3_BOTH_TITLES).
 if(ANDROID)
     add_library(mw2 SHARED ${RUNTIME_SOURCES}
         ${MW2_ONLINE_SOURCES}
@@ -463,9 +464,11 @@ else()
     add_executable(mw2 ${RUNTIME_SOURCES}
         ${MW2_ONLINE_SOURCES}
         "${MW2_PPC_DIR}/stubs_generated.cpp")
-    if(MW2_IS_MW3)
-        set_target_properties(mw2 PROPERTIES OUTPUT_NAME "${MW2_TITLE}")
-    endif()
+endif()
+set(MW2_OUTPUT_NAME "mw2")
+if(MW2_IS_MW3)
+    set(MW2_OUTPUT_NAME "${MW2_TITLE}")
+    set_target_properties(mw2 PROPERTIES OUTPUT_NAME "${MW2_OUTPUT_NAME}")
 endif()
 target_link_libraries(mw2 PRIVATE ppc_recomp)
 target_compile_options(mw2 PRIVATE ${MW2_ARCH_OPTIONS})
@@ -517,37 +520,29 @@ function(mw2_sha256 variable path)
     set(${variable} "${hash}" PARENT_SCOPE)
 endfunction()
 if(MW2_IS_MW3)
-    # An MW3 build runs the executable it was recompiled from: the one in
+    # An MW3 build runs the executable it was recompiled from, and the app
+    # that carries both titles installs and checks both: each is the one in
     # mw3/tu0 when it is there (tools/check_mw3_xex.py has already accepted it
-    # before any code was generated), -DMW3_XEX_SHA256 for a build that has
-    # the generated sources but not the disc, or the first executable the
+    # before any code was generated), -DMW3_XEX_SHA256_SP/MP for a build that
+    # has the generated sources but not the disc, or the first executable the
     # bring-up was done on. MW2_XEX_SHA256_SP/MP are not read here: the Android
-    # build always passes MW2's. Each title names only its own executable.
-    if(MW2_TITLE STREQUAL "mw3mp")
-        set(mw3_xex_file "default_mp.xex")
-        set(mw3_xex_hash "0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c")
-    else()
-        set(mw3_xex_file "default.xex")
-        set(mw3_xex_hash "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912")
-    endif()
-    if(MW3_XEX_SHA256)
-        set(mw3_xex_hash "${MW3_XEX_SHA256}")
-    elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw3/tu0/${mw3_xex_file}")
-        mw2_sha256(mw3_xex_hash "${CMAKE_SOURCE_DIR}/mw3/tu0/${mw3_xex_file}")
-    endif()
-    if(MW2_TITLE STREQUAL "mw3mp")
-        set(MW2_HASH_DEFINITIONS
-            MW2_XEX_SHA256_SP="unsupported"
-            MW2_XEX_SHA256_MP="${mw3_xex_hash}"
-            MW2_DISC_SHA256_SP="unsupported"
-            MW2_DISC_SHA256_MP="${mw3_xex_hash}")
-    else()
-        set(MW2_HASH_DEFINITIONS
-            MW2_XEX_SHA256_SP="${mw3_xex_hash}"
-            MW2_XEX_SHA256_MP="unsupported"
-            MW2_DISC_SHA256_SP="${mw3_xex_hash}"
-            MW2_DISC_SHA256_MP="unsupported")
-    endif()
+    # build always passes MW2's.
+    set(mw3_xex_file_SP "default.xex")
+    set(mw3_xex_hash_SP "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912")
+    set(mw3_xex_file_MP "default_mp.xex")
+    set(mw3_xex_hash_MP "0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c")
+    foreach(which SP MP)
+        if(MW3_XEX_SHA256_${which})
+            set(mw3_xex_hash_${which} "${MW3_XEX_SHA256_${which}}")
+        elseif(EXISTS "${CMAKE_SOURCE_DIR}/mw3/tu0/${mw3_xex_file_${which}}")
+            mw2_sha256(mw3_xex_hash_${which} "${CMAKE_SOURCE_DIR}/mw3/tu0/${mw3_xex_file_${which}}")
+        endif()
+    endforeach()
+    set(MW2_HASH_DEFINITIONS
+        MW2_XEX_SHA256_SP="${mw3_xex_hash_SP}"
+        MW2_XEX_SHA256_MP="${mw3_xex_hash_MP}"
+        MW2_DISC_SHA256_SP="${mw3_xex_hash_SP}"
+        MW2_DISC_SHA256_MP="${mw3_xex_hash_MP}")
 elseif(MW2_XEX_SHA256_SP AND MW2_XEX_SHA256_MP)
     # CMake's regexes have no {n} repetition -- "{64}" would be matched as
     # those four characters -- so the length is counted separately.

@@ -187,6 +187,9 @@ class InstallActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_INITIAL_PATH = "initial_path"
         const val EXTRA_AUTO_START = "auto_start"
+
+        /** The [Title] (by name) to start once the files are in. */
+        const val EXTRA_TITLE = "title"
     }
 
     private fun useSource(path: String) {
@@ -426,20 +429,24 @@ class InstallActivity : AppCompatActivity() {
         // The imported copy has done its job and is the size of a disc.
         File(getExternalFilesDir(null) ?: filesDir, "import").deleteRecursively()
         if (intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
-            GameActivity.start(this)
+            GameActivity.start(this, titleToStart())
             finish()
         } else {
             AlertDialog.Builder(this)
                 .setTitle(R.string.install_game)
                 .setMessage(R.string.install_done)
                 .setPositiveButton(R.string.play) { _, _ ->
-                    GameActivity.start(this)
+                    GameActivity.start(this, titleToStart())
                     finish()
                 }
                 .setNegativeButton(R.string.close) { _, _ -> finish() }
                 .show()
         }
     }
+
+    /** The title the launcher was asked for, or the app's first. */
+    private fun titleToStart(): Title =
+        Title.carried.firstOrNull { it.name == intent.getStringExtra(EXTRA_TITLE) } ?: Title.carried.first()
 
     private fun isTu6(): Boolean = packageName.endsWith(".tu6")
 

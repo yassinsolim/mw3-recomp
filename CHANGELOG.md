@@ -47,6 +47,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `MW2_TRACE_MODS` logs what the game asks for. The launcher's MODS installs
   and toggles a script mod. Host only; experimental
   ([docs/mods.md](docs/mods.md)).
+- **MW3 on Android: one app for the whole game** (`com.mw3.recomp`): the
+  campaign with Special Ops and the multiplayer are two native libraries in
+  one APK (`libmw3.so`, `libmw3mp.so`; `-DMW3_BOTH_TITLES=ON`,
+  `cmake/android.cmake`), with one copy of the game files. The launcher
+  offers both; the game's own menu entries between the two restart the run
+  with the other library (`HandOffActivity`). The separate multiplayer app is
+  now only the two-players-on-one-device test copy (`-Instance 2`). Built,
+  not yet run on a device
+  ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#one-app-two-libraries)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they

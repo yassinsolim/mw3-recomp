@@ -61,16 +61,16 @@ The detailed log is [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md).
    (or **Code → Download ZIP** and unpack it). A short path without spaces,
    such as `C:\mw3`, avoids path-length trouble.
 2. Double-click `setup\setup.cmd` (or run it from a terminal).
-3. Answer its questions: which part (campaign, multiplayer or both), Android
-   and/or PC, and where your `.iso` is.
+3. Answer its questions: Android and/or PC, which part for PC (campaign,
+   multiplayer or both), and where your `.iso` is.
 
 That is all. The script downloads the tools it needs into `.toolchain\` (a
 JDK, the Android SDK and NDK, LLVM, CMake, Ninja, and Python and Git if you
 have none; each pinned and checked by SHA-256), reads the executables out of
 your disc image (read-only), checks them, recompiles them and builds:
 
-- `out\mw3-debug.apk`: campaign and Special Ops (`com.mw3.recomp`)
-- `out\mw3mp-debug.apk`: multiplayer (`com.mw3.recomp.mp`)
+- `out\mw3-debug.apk`: the Android app (`com.mw3.recomp`), one app with the
+  campaign, Special Ops and the multiplayer
 - `out\pc\`: the Windows game, if you asked for it
 
 The one thing it cannot fetch by itself is Microsoft's C++ Build Tools, which
@@ -85,9 +85,9 @@ Useful options (`setup\setup.cmd -<option>`):
 |---|---|
 | `-Check` | read-only: lists what is present and what would be downloaded, changes nothing |
 | `-Iso <path>` | the disc image, instead of being asked |
-| `-Title both\|sp\|mp` | which executable(s) |
+| `-Title both\|sp\|mp` | which executable(s) for PC (the Android app always holds both) |
 | `-Build android\|pc\|both` | what to build |
-| `-Install` | install the APKs on the connected phone without asking |
+| `-Install` | install the APK on the connected phone without asking |
 | `-PushIso` | also copy the disc image to the phone's Download folder |
 | `-Recomp` | recompile again, e.g. after updating the code |
 | `-Yes` | ask nothing, take the defaults |
@@ -100,15 +100,24 @@ recompiler, `config/` or `patches/`.
 
 1. **The app.** With the phone connected over USB and
    [USB debugging](https://developer.android.com/studio/debug/dev-options)
-   on, setup offers to install the APKs. Or copy the APK to the phone and open
+   on, setup offers to install the APK. Or copy the APK to the phone and open
    it (allow installing from that app when Android asks).
 2. **The game files.** Copy your `.iso` to the phone (setup can do it:
    `-PushIso`, or answer yes). Open the app, choose **Install the game files**,
-   then **Browse the phone's storage** and pick the image. The app checks it
-   and copies what it needs into its own storage (about 7 GB). The campaign
-   and multiplayer apps each install their own copy.
-3. **Play.** Tap **Play**. The on-screen pad can be edited from the pause
-   menu (**Edit controls**); a Bluetooth or USB controller works too.
+   then **Browse the phone's storage** and pick the image. The app checks
+   both executables and copies what it needs into its own storage (about
+   7 GB), once: the campaign and the multiplayer read the same folder.
+3. **Play.** Tap **Campaign · Special Ops** or **Multiplayer**. The game's
+   own menu entries that go from one to the other work too: the app restarts
+   the game with the other half. The on-screen pad can be edited from the
+   pause menu (**Edit controls**); a Bluetooth or USB controller works too.
+
+Coming from the two separate apps: the new app installs over the campaign app
+and keeps its saves and game files; run **Install the game files** once more
+so the multiplayer's executable is copied too (only what is missing is
+copied). Setup copies the old multiplayer app's profile and rank across over
+USB when it installs; after that the old "CoD: MW3 Multiplayer" app can be
+uninstalled, which frees its copy of the game files.
 
 ## Play on PC
 
@@ -142,12 +151,15 @@ The same pipeline runs on Linux (Ubuntu 24.04, also under WSL2), by hand:
 
 ```sh
 python3 tools/xdvdfs.py <your.iso> mw3/tu0 default.xex default_mp.xex   # read-only
-bash tools/recomp_mw3.sh       # campaign  -> ppc_mw3/   (tools/recomp_mw3.sh mp: multiplayer)
-MW2_TITLE=mw3 MW2_VERSION=tu0 python3 tools/genshared.py
-MW2_TITLE=mw3 MW2_VERSION=tu0 python3 tools/gen_kernel_stubs.py
+bash tools/recomp_mw3.sh       # campaign    -> ppc_mw3/
+bash tools/recomp_mw3.sh mp    # multiplayer -> ppc_mw3_mp/
+for title in mw3 mw3mp; do
+  MW2_TITLE=$title MW2_VERSION=tu0 python3 tools/genshared.py
+  MW2_TITLE=$title MW2_VERSION=tu0 python3 tools/gen_kernel_stubs.py
+done
 bash android/fetch_deps.sh     # libadrenotools and the Turnip driver
 cd android && echo "sdk.dir=$ANDROID_HOME" > local.properties
-MW2_LTO=OFF ./gradlew assembleMw3Tu0Debug     # assembleMw3mpTu0Debug for multiplayer
+MW2_LTO=OFF ./gradlew assembleMw3Tu0Debug     # one APK, both titles
 ```
 
 It needs JDK 17, NDK 28.2.13676358, `platforms;android-35`, CMake 3.22.1+,

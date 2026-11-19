@@ -65,20 +65,29 @@ import kotlin.math.roundToInt
 class GameActivity : AppCompatActivity(), NativeListener {
 
     /**
-     * MW2's multiplayer apps (com.mw2.recomp.mp, .mp.tu6): the link the app
-     * forces up, the Live lobby entries and the stat cheats are for that
-     * title only.
+     * The title this run is: the one whose library the process loaded
+     * (onCreate, from the launcher's or the other title's request).
+     */
+    private val title: Title
+        get() = NativeBridge.title() ?: Title.carried.first()
+
+    /** Either game's multiplayer. */
+    private val isMultiplayer: Boolean
+        get() = title == Title.MULTIPLAYER
+
+    /**
+     * MW2's multiplayer: the link the app forces up, the Live lobby entries
+     * and the stat cheats are for that title only.
      */
     private val isMw2Multiplayer: Boolean
-        get() = packageName.contains(".mp") && !packageName.startsWith("com.mw3.")
+        get() = isMultiplayer && !Title.isMw3
 
-    /** Any multiplayer app, MW3's (com.mw3.recomp.mp, .mp2) included. */
-    private val isMultiplayer: Boolean
-        get() = packageName.contains(".mp")
-
-    /** Modern Warfare 3's multiplayer (com.mw3.recomp.mp, .mp2). */
+    /** Modern Warfare 3's multiplayer, in the one app or the test copy. */
     private val isMw3Multiplayer: Boolean
-        get() = isMultiplayer && !isMw2Multiplayer
+        get() = isMultiplayer && Title.isMw3
+
+    /** What the other title left for this run (RunRequest), as hexadecimal. */
+    private var launchData = ""
 
     /**
      * Voice chat, for Modern Warfare 3's multiplayer: the player turned it
@@ -86,7 +95,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
      * held. Without both the runtime is told nothing and opens no microphone.
      */
     private val voiceChat: Boolean
-        get() = isMultiplayer && !isMw2Multiplayer && prefs.voiceChat &&
+        get() = isMw3Multiplayer && prefs.voiceChat &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
@@ -398,7 +407,20 @@ class GameActivity : AppCompatActivity(), NativeListener {
         prefs = Prefs(this)
 
         Trail.note(this, "game: starting")
-        if (!NativeBridge.load()) {
+        val request = RunRequest.read(this)
+        // Launch data is for the run it was left for, not for whichever run
+        // comes after it.
+        if (request.launchData.isNotEmpty()) RunRequest(request.title, "").write(this)
+        launchData = request.launchData
+        // The last run's process, not gone yet, holds the other title's
+        // library and cannot take this one: start again once it has ended.
+        if (NativeBridge.title().let { it != null && it != request.title }) {
+            HandOffActivity.start(this, request)
+            finish()
+            Process.killProcess(Process.myPid())
+            return
+        }
+        if (!NativeBridge.load(request.title)) {
             fail(getString(R.string.error_library, NativeBridge.loadError() ?: "?"))
             return
         }
@@ -470,7 +492,9 @@ val mode60 = modes
             CamoPacks.installBundled(this, gameDirectory)
         }
         Trail.note(this, "game: handing over to the runtime")
-        if (!NativeBridge.nativeStart(gameDirectory)) {
+        val home = title.home(File(gameDirectory))
+        home.mkdirs()
+        if (!NativeBridge.nativeStart(gameDirectory, home.absolutePath)) {
             fail(NativeBridge.nativeStatus().ifEmpty { getString(R.string.error_start) })
             return
         }
@@ -847,9 +871,11 @@ val mode60 = modes
         // Both caches live in the app's own folder and make the second start
         // of a level far quicker than the first.
         val extDir = getExternalFilesDir(null)
-        val shaderCacheFile = if (extDir != null) File(extDir, "shader_cache.bin") else File(filesDir, "shader_cache.bin")
+        // A name of its own for each title in the app that carries both.
+        val shaderCacheName = "shader_cache${title.cacheSuffix}.bin"
+        val shaderCacheFile = if (extDir != null) File(extDir, shaderCacheName) else File(filesDir, shaderCacheName)
         if (!shaderCacheFile.exists()) {
-            val internalCache = File(filesDir, "shader_cache.bin")
+            val internalCache = File(filesDir, shaderCacheName)
             val legacyShaders = File(filesDir, "shaders")
             if (internalCache.exists() && internalCache.length() > 0) {
                 internalCache.copyTo(shaderCacheFile, overwrite = true)
@@ -863,7 +889,10 @@ val mode60 = modes
             // recorded playthrough shipped in the APK actually reaches play.
             adoptRicherSeed(shaderCacheFile)
         }
-        NativeBridge.nativeSetOption("MW2_PIPELINE_CACHE", "${filesDir.absolutePath}/pipeline.cache")
+        NativeBridge.nativeSetOption("MW2_PIPELINE_CACHE", "${filesDir.absolutePath}/pipeline${title.cacheSuffix}.cache")
+        // What the other title left for this one to read at its start
+        // (XamLoaderGetLaunchData), across the restart between the two.
+        if (launchData.isNotEmpty()) NativeBridge.nativeSetOption("MW2_LAUNCH_DATA", launchData)
         NativeBridge.nativeSetOption("MW2_SHADER_CACHE", shaderCacheFile.absolutePath)
 
         // Identity on the network and lobby behaviour. Empty name means the
@@ -1044,7 +1073,7 @@ val mode60 = modes
         val gameDir = prefs.gameDirectory.ifEmpty {
             (getExternalFilesDir(null) ?: filesDir).absolutePath + "/game"
         }
-        return java.io.File(java.io.File(gameDir).parent ?: filesDir.absolutePath, "saves")
+        return java.io.File(title.home(java.io.File(gameDir)), "saves")
     }
 
     private fun runCheat(label: Int, cheat: (java.io.File) -> Int) {
@@ -1368,6 +1397,19 @@ val mode60 = modes
         }
     }
 
+    /**
+     * The title's own way between the campaign and the multiplayer
+     * (XamLoaderLaunchTitle). The other executable is another library, and a
+     * process holds one, so the launcher's process is asked to start the run
+     * again once this one has ended, which it does as soon as this returns
+     * (runtime/main.cpp, crash::RequestExit). An app that does not carry the
+     * title asked for does nothing here, and the run simply ends.
+     */
+    override fun onNextTitle(executable: String, launchData: String) {
+        val next = Title.forExecutable(executable) ?: return
+        HandOffActivity.start(this, RunRequest(next, launchData))
+    }
+
     override fun onStatus(text: String) {
         handler.post {
             if (isFinishing) return@post
@@ -1388,7 +1430,8 @@ val mode60 = modes
 
     companion object {
         /** Started by the launcher once the files are in place. */
-        fun start(activity: Activity) {
+        fun start(activity: Activity, title: Title) {
+            RunRequest(title, "").write(activity)
             activity.startActivity(Intent(activity, GameActivity::class.java))
         }
     }

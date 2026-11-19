@@ -26,11 +26,15 @@ val repositoryRoot = file("../..")
 //   MW2_KEYSTORE and friends  a signing key, so the apk is installable
 fun setting(name: String): String? = System.getenv(name)?.trim()?.ifEmpty { null }
 
-// -PmpInstance=2: a second copy of the MW3 multiplayer app beside the first
-// (com.mw3.recomp.mp2, "CoD: MW3 Multiplayer (2)"), so that two can play each
-// other on one device (docs/MW3-MP-BRINGUP.md). Debug builds only. The native
-// library is the same; the copy has its own settings, game folder and saves.
+// -PmpInstance=2: a copy of Modern Warfare 3's multiplayer alone, as an app
+// of its own beside the game (com.mw3.recomp.mp2, "CoD: MW3 Multiplayer (2)"),
+// so that two can play each other on one device (docs/MW3-MP-BRINGUP.md).
+// Debug builds only. It is the game's libmw3mp.so; the copy has its own
+// settings, game folder and saves.
 val mpInstance = (findProperty("mpInstance") as String?)?.toIntOrNull()?.coerceIn(1, 9) ?: 1
+// Where the mw3 flavour's native build leaves libmw3mp.so (cmake/android.cmake,
+// MW3_MP_LIBRARY_DIRECTORY), under the ABI's name as jniLibs folders are.
+val mw3mpLibraries = layout.buildDirectory.dir("mw3mp-jni").get().asFile
 
 // The app's own sources have to be here. They went missing once -- written,
 // built against, and never committed -- and the result was an apk that
@@ -117,9 +121,13 @@ android {
     }
 
     // The disc carries two executables and each is recompiled into a tree of
-    // its own (build.sh TITLE=sp|mp). They are separate apps: each is a
-    // hundred-odd megabytes of recompiled code, and nobody wants both in one
-    // download.
+    // its own (build.sh TITLE=sp|mp). Modern Warfare 2's are separate apps:
+    // each is a hundred-odd megabytes of recompiled code, and nobody wants
+    // both in one download. Modern Warfare 3's are one app (the mw3 flavour).
+    //
+    // LIBRARY_SP and LIBRARY_MP are what System.loadLibrary is given for the
+    // campaign and for the multiplayer; empty for a title the app does not
+    // carry (Title.kt).
     //
     // Each title comes in two game versions that never interoperate (TU0 plays
     // only with TU0, TU6 only with TU6): the second dimension. TU0 keeps the
@@ -136,6 +144,8 @@ android {
             applicationIdSuffix = ".sp"
             resValue("string", "app_name", "CoD: Modern Warfare 2")
             buildConfigField("String", "UPDATE_REPO", "\"flavinxs0/mw2-android\"")
+            buildConfigField("String", "LIBRARY_SP", "\"mw2\"")
+            buildConfigField("String", "LIBRARY_MP", "\"\"")
             externalNativeBuild { cmake { arguments += listOf("-DMW2_TITLE=sp", "-DMW2_ONLINE=none") } }
         }
         create("multiplayer") {
@@ -144,55 +154,68 @@ android {
             versionNameSuffix = "-multiplayer"
             resValue("string", "app_name", "CoD: MW2 Multiplayer")
             buildConfigField("String", "UPDATE_REPO", "\"flavinxs0/mw2-android\"")
+            buildConfigField("String", "LIBRARY_SP", "\"\"")
+            buildConfigField("String", "LIBRARY_MP", "\"mw2\"")
             // LAN backend: plain UDP system-link between phones/PCs. Steam
             // makes no sense on Android (no Steam client), and "none" would
             // leave MP with system-link on one device only.
             externalNativeBuild { cmake { arguments += listOf("-DMW2_TITLE=mp", "-DMW2_ONLINE=lan") } }
         }
-        // Modern Warfare 3: the disc's single-player executable (campaign and
-        // Special Ops), recompiled into ppc_mw3/ by tools/recomp_mw3.sh. An
-        // app of its own, with the disc's version only (mw3Tu0*; the tu6
-        // variants are switched off below). No published builds, so nothing
-        // to check for updates against.
+        // Modern Warfare 3, the whole game in one app: the disc's two
+        // executables, the campaign's (default.xex, with Special Ops;
+        // ppc_mw3/) and the multiplayer's (default_mp.xex; ppc_mw3_mp/,
+        // docs/MW3-MP-BRINGUP.md), as two libraries. The launcher offers
+        // both, the run's process loads the one chosen (Title.kt), and both
+        // read the one folder of game files. -DMW3_BOTH_TITLES=ON is what
+        // makes the second library (cmake/android.cmake). The disc's version
+        // only (mw3Tu0*; the tu6 variants are switched off below). No
+        // published builds, so nothing to check for updates against. The
+        // multiplayer's network is what the player chooses in Settings,
+        // NETWORK (GameActivity sets MW2_NETWORK): a relay, the local
+        // network, or none.
         create("mw3") {
             dimension = "title"
             applicationId = "com.mw3.recomp"
             resValue("string", "app_name", "CoD: Modern Warfare 3")
-            // The launcher emblem's ring: amber for the campaign.
+            // The launcher emblem's ring: amber for the game.
             resValue("color", "icon_accent", "#E8A33D")
             buildConfigField("String", "UPDATE_REPO", "\"\"")
+            buildConfigField("String", "LIBRARY_SP", "\"mw3\"")
+            buildConfigField("String", "LIBRARY_MP", "\"mw3mp\"")
             externalNativeBuild {
                 cmake {
                     arguments += listOf(
                         "-DMW2_TITLE=mw3", "-DMW3_RECOMP_ONLY=ON", "-DMW3_LINK_PROBE=ON",
-                        "-DMW2_ONLINE=none",
+                        "-DMW2_ONLINE=none", "-DMW3_BOTH_TITLES=ON",
+                        "-DMW3_MP_LIBRARY_DIRECTORY=${File(mw3mpLibraries, "arm64-v8a").invariantSeparatorsPath}",
                     )
-                    setting("MW3_XEX_SHA256")?.let { arguments += listOf("-DMW3_XEX_SHA256=$it") }
+                    setting("MW3_XEX_SHA256")?.let { arguments += listOf("-DMW3_XEX_SHA256_SP=$it") }
+                    setting("MW3_XEX_SHA256_MP")?.let { arguments += listOf("-DMW3_XEX_SHA256_MP=$it") }
                     setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
                 }
             }
         }
-        // Its multiplayer: the disc's default_mp.xex, recompiled into
-        // ppc_mw3_mp/ (docs/MW3-MP-BRINGUP.md). Beside the campaign app, as
-        // MW2's two are. Its network is what the player chooses in Settings,
-        // NETWORK (GameActivity sets MW2_NETWORK): a relay, the local network,
-        // or none.
+        // The multiplayer alone, as an app beside the game: the test harness
+        // for two players on one device (-PmpInstance above), not something
+        // a player installs.
         create("mw3mp") {
             dimension = "title"
             applicationId = "com.mw3.recomp.mp" + if (mpInstance > 1) "$mpInstance" else ""
             versionNameSuffix = "-multiplayer"
             resValue("string", "app_name", "CoD: MW3 Multiplayer" + if (mpInstance > 1) " ($mpInstance)" else "")
-            // Green for multiplayer, so the two apps tell apart at a glance.
+            // Green, so it and the game tell apart at a glance.
             resValue("color", "icon_accent", "#3FCF8E")
             buildConfigField("String", "UPDATE_REPO", "\"\"")
             buildConfigField("int", "MP_INSTANCE", "$mpInstance")
+            buildConfigField("String", "LIBRARY_SP", "\"\"")
+            buildConfigField("String", "LIBRARY_MP", "\"mw3mp\"")
             externalNativeBuild {
                 cmake {
                     arguments += listOf(
                         "-DMW2_TITLE=mw3mp", "-DMW3_RECOMP_ONLY=ON", "-DMW3_LINK_PROBE=ON",
                         "-DMW2_ONLINE=none",
                     )
-                    setting("MW3_XEX_SHA256_MP")?.let { arguments += listOf("-DMW3_XEX_SHA256=$it") }
+                    setting("MW3_XEX_SHA256_MP")?.let { arguments += listOf("-DMW3_XEX_SHA256_MP=$it") }
                     setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
                 }
             }
@@ -228,11 +251,17 @@ android {
         }
     }
 
-    // The MW3 wording and the bundled driver (src/mw3) are for both MW3 apps.
+    // The MW3 wording and the bundled driver (src/mw3) are for both MW3
+    // flavours. The game's second library, the multiplayer's, comes out of
+    // the native build as a file rather than as one of its targets, so it is
+    // packaged from the folder that build leaves it in.
     sourceSets {
         getByName("mw3mp") {
             res.srcDir("src/mw3/res")
             assets.srcDir("src/mw3/assets")
+        }
+        getByName("mw3") {
+            jniLibs.srcDir(mw3mpLibraries)
         }
     }
 
@@ -296,6 +325,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+}
+
+// libmw3mp.so is in its folder only once the native build has run, and Gradle
+// does not know the folder is that build's output: say so, or the packaging
+// could read it first and leave the multiplayer out.
+tasks.configureEach {
+    Regex("merge(Mw3Tu0\\w+)JniLibFolders").matchEntire(name)?.let {
+        dependsOn("externalNativeBuild${it.groupValues[1]}")
     }
 }
 
