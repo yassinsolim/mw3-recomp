@@ -949,3 +949,39 @@ if(MW2_USE_SDL)
         target_link_options(map-port PRIVATE -static-libstdc++ -static-libgcc)
     endif()
 endif()
+
+# ---- mods: the script compiler ---------------------------------------------
+# Modern Warfare 3 on this console loads compiled scripts only, so a mod's
+# .gsc is compiled before the title sees it (runtime/mods_gsc.cpp), by
+# gsc-tool (xensik, GPL-3.0, THIRD_PARTY.md): the compiler, and the tables of
+# this build's instruction, function, method and name numbers. Only the
+# sources that the Xbox 360 build of IW5 needs are compiled.
+if(MW2_IS_MW3)
+    include(FetchContent)
+    FetchContent_Declare(gsc_tool
+        URL https://github.com/xensik/gsc-tool/archive/6dc1aa3712b8b0bfda23afa304846383c18153d1.tar.gz
+        URL_HASH SHA256=e06dbdfe7f21d2cd85190aca635386673303870cd5e060f3725c7e14e9fa9f62)
+    # It has no CMakeLists.txt of its own (it builds with premake), so this
+    # only fetches it.
+    FetchContent_MakeAvailable(gsc_tool)
+    file(GLOB GSC_TOOL_SOURCES
+        "${gsc_tool_SOURCE_DIR}/src/gsc/*.cpp"
+        "${gsc_tool_SOURCE_DIR}/src/gsc/common/*.cpp"
+        "${gsc_tool_SOURCE_DIR}/src/gsc/engine/iw5_xb*.cpp")
+    add_library(gsc_iw5 STATIC ${GSC_TOOL_SOURCES}
+        "${gsc_tool_SOURCE_DIR}/src/utils/reader.cpp"
+        "${gsc_tool_SOURCE_DIR}/src/utils/writer.cpp"
+        "${gsc_tool_SOURCE_DIR}/src/utils/string.cpp")
+    target_include_directories(gsc_iw5 PUBLIC "${gsc_tool_SOURCE_DIR}/include")
+    target_compile_options(gsc_iw5 PRIVATE -w ${MW2_ARCH_OPTIONS})
+    target_link_libraries(mw2 PRIVATE gsc_iw5)
+    target_compile_definitions(mw2 PRIVATE MW2_GSC=1)
+    # zlib, for the deflated halves of a script file and a raw file: the
+    # system's on Android, the launcher's copy on the desktop.
+    if(ANDROID)
+        target_link_libraries(mw2 PRIVATE z)
+    elseif(NOT TARGET zlibstatic)
+        find_package(ZLIB REQUIRED)
+        target_link_libraries(mw2 PRIVATE ZLIB::ZLIB)
+    endif()
+endif()

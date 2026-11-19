@@ -13,6 +13,7 @@ time and are not stored here.
 | [SDL 3](https://github.com/libsdl-org/SDL) | fetched by CMake | zlib |
 | [Dear ImGui](https://github.com/ocornut/imgui) | fetched by CMake (desktop launcher) | MIT |
 | [zlib](https://github.com/madler/zlib) | fetched by CMake | zlib |
+| [gsc-tool](https://github.com/xensik/gsc-tool) by xensik: the GSC compiler and the Xbox 360 IW5 tables (instructions, built-in functions and methods, names) behind the Modern Warfare 3 mods folder | fetched by CMake at a pinned commit; used from `runtime/mods_gsc.cpp` | GPL-3.0 |
 | [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers) | fetched by CMake on Windows | Apache-2.0 / MIT |
 | FFmpeg, [has207's branch](https://github.com/has207/FFmpeg) with Xenia's XMA decoder | fetched by `third_party/ffmpeg-xenia/CMakeLists.txt`; the configuration headers and codec lists there are Xenia's | LGPL-2.1-or-later (FFmpeg); BSD-3-Clause (Xenia's files) |
 | [RenderDoc](https://github.com/baldurk/renderdoc) in-application API header | `third_party/renderdoc/renderdoc_app.h` | MIT (in the file) |
