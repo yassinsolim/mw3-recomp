@@ -806,6 +806,7 @@ val mode60 = modes
             NativeBridge.nativeSetOption("MW2_BOTS", if (prefs.botCount > 0) prefs.botCount.toString() else "")
             NativeBridge.nativeSetOption("MW2_BOT_SKILL", prefs.botSkill.toString())
             NativeBridge.nativeSetOption("MW2_BOT_TEAMS", if (prefs.botsAgainstPlayers) "against" else "")
+            NativeBridge.nativeSetOption("MW2_MAP_VOTE", if (prefs.mapVote) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE", if (voiceChat) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE_PTT", if (prefs.voicePushToTalk) "1" else "0")
         }

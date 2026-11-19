@@ -159,6 +159,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 }
             })
             switch(R.id.bots_against_players, prefs.botsAgainstPlayers) { prefs.botsAgainstPlayers = it }
+            switch(R.id.map_vote, prefs.mapVote) { prefs.mapVote = it }
         }
 
         val fovLabel: TextView = findViewById(R.id.fov_label)

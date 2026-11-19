@@ -175,6 +175,8 @@
         <item>Veteran</item>
     </string-array>
     <string name="bots_against_players">All bots against the players</string>
+    <string name="map_vote">Vote for the next map after my matches</string>
+    <string name="map_vote_hint">When a System Link or private match this device hosts is over, three maps and game types appear at the lower left and every player picks one with the Tactical, Use or Lethal button (LB, X, RB). The winner loads with everyone still in the match; nobody goes back to a menu. End Game in the pause menu ends it as before. Takes effect the next time the game starts.</string>
 
     <!-- network play -->
     <string name="network_mode">Play with</string>

@@ -260,6 +260,15 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_BOTS_AGAINST_PLAYERS, value).apply()
 
     /**
+     * Modern Warfare 3's multiplayer: the matches this device hosts end in a
+     * vote for the next map, which then loads with everyone in it
+     * (MW2_MAP_VOTE, runtime/map_vote.cpp).
+     */
+    var mapVote: Boolean
+        get() = store.getBoolean(KEY_MAP_VOTE, false)
+        set(value) = store.edit().putBoolean(KEY_MAP_VOTE, value).apply()
+
+    /**
      * Keep the driver's pipeline blob on disk between runs on Mali
      * (MW2_PERSIST_PIPELINE_CACHE). Off by default: it may be unstable.
      */
@@ -396,6 +405,7 @@ class Prefs(context: Context) {
         private const val KEY_BOT_COUNT = "botCount"
         private const val KEY_BOT_SKILL = "botSkill"
         private const val KEY_BOTS_AGAINST_PLAYERS = "botsAgainstPlayers"
+        private const val KEY_MAP_VOTE = "mapVote"
         /** A server has 18 slots and the host keeps one. */
         const val MAX_BOTS = 17
         private const val KEY_PERSIST_PIPELINE = "persistPipelineCache"

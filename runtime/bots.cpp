@@ -47,6 +47,7 @@
 #include "diagnostics.h"
 #include "env.h"
 #include "log.h"
+#include "map_vote.h"
 
 #include <algorithm>
 #include <atomic>
@@ -804,6 +805,9 @@ bool bots::ConsoleLine(const char* text)
 
 GUEST_HOOK(T_SV_BotUserMoves)
 {
+    // The one call the server makes every frame, so the vote between two
+    // matches (map_vote.cpp) is run from here as well, bots or none.
+    mapvote::ServerFrame(ctx, base);
     if (!g_engaged) {
         // Untouched until a bot is asked for: the stock think has nobody to move.
         if (Wanted().count.load() <= 0) { GUEST_ORIG(T_SV_BotUserMoves)(ctx, base); return; }

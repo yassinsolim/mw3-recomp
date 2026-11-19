@@ -519,6 +519,54 @@ stats to use; the automatic join answers Live (`set useonlinestats 1`), so the
 rank is the same in private matches and system link. With `none`, the Live menu
 refuses as signed out.
 
+## The next map
+
+Modern Warfare 3's multiplayer only (`MW2_MAP_VOTE=1`, the Android app's "Vote
+for the next map after my matches"; `MW2_MAP_ROTATION`). `runtime/map_vote.cpp`.
+
+A console match ends with everyone dropped ("match ended") and the host
+starting the next one from its menus; in System Link the others then have to
+find and join it again. With the vote on, a System Link or private match this
+copy hosts goes straight into another map with every player and bot still
+connected:
+
+1. The scripts set the dvar `scr_gameended` when the match is over (2 while a
+   round's result is up and another round follows, which is not the end). The
+   host looks for it twice a second and prints three choices -- a map and a
+   game type each -- as four lines of the message feed, under the winner's
+   banner. The names are the menus' own string references, so every player
+   reads them in his language, and each line starts with a button drawn from
+   the client's own bindings: tactical grenade, use, lethal grenade (LB, X and
+   RB on a pad).
+2. A press of one of the three is a vote, the last one counting. The host
+   reads them from the usercmds the server already has; a frozen player's
+   still carry his buttons, though not his sticks. Bots do not vote.
+3. The vote closes when every player has answered, when the script calls
+   `exitLevel`, or after `MW2_MAP_VOTE_SECONDS` (20). Chance settles a tie or
+   no answer. The killcam and the scoreboard draw no feed, so the choices are
+   seen for the first seconds only.
+4. The script's `exitLevel` is left out, and what the menu's Start Game queues
+   is queued for the chosen map. The title's `SV_SpawnServer` tells the
+   clients to load it; the runtime carries the server's clients over the
+   load, which on the console frees them (`runtime/title.h`, "The
+   end-of-match vote").
+
+The maps offered are the ones the menus list whose fastfile is in the game's
+folder (or the entries of `MW2_MAP_ROTATION`); the first choice keeps the game
+type just played, the others draw one of the game types the menus list
+(`MW2_MAP_VOTE_MODES` narrows them). A new game type starts with its own
+default rules. `MW2_MAP_ROTATION` without the vote goes through its maps in
+order and prints only "Next map".
+
+End Game in the host's pause menu is meant to end the match as it always did
+(the menu responses `endround` and `endgame` are watched for).
+
+Run on the PC build: a System Link match with bots ended by its time limit,
+the vote answered by the host and by a second copy that had joined through a
+relay, and both loading the chosen map and game type with the bots (Seatown
+Team Deathmatch to Outpost Capture the Flag, to Village Search and Destroy,
+to Dome Domination by rotation). Not run: a private match, End Game, a phone.
+
 ## Voice chat
 
 Modern Warfare 3's multiplayer only, and off by default (`MW2_VOICE=1`, the
