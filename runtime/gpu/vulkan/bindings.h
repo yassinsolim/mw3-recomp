@@ -95,7 +95,9 @@ namespace vk::bindings
     // One hardware draw is many records, so the vertex stage indexes its
     // texture arrays NonUniform; the pixel stage takes one record at a time
     // across the wave (a loop over the records it holds, docs/shaders.md), so
-    // its record and texture handles are uniform within each pass of it.
+    // its record and texture handles are uniform within each pass of it --
+    // or, on a device without subgroup ballot there, reads each pixel's own
+    // and indexes NonUniform too (shader::PixelRecord).
     // The base vertex rather than the first instance, because a run of draws
     // without indices made with one vkCmdDrawMultiEXT shares its first
     // instance and not its first vertices.

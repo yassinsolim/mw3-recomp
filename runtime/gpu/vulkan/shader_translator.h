@@ -62,10 +62,19 @@ namespace shader
         uint32_t droppedMemoryExports = 0;
     };
 
+    // How a pixel shader reads its draw's record, when one group of pixels
+    // the GPU runs together (a subgroup) may hold more than one draw:
+    // Subgroup runs the program once for each record the subgroup holds, the
+    // record one value across it, and needs subgroup ballot in the fragment
+    // stage; Pixel reads each pixel's own record and indexes the textures
+    // NonUniform, which is slower and runs on any device the renderer takes.
+    enum class PixelRecord { Subgroup, Pixel };
+
     // `words` is the program in host byte order, `count` its length in dwords.
     // `scaled`: the render targets may be larger than the title's, and the
     // shader reads the record's bindings::kRecordScaled.
-    Translation Translate(Type type, const uint32_t* words, size_t count, bool scaled = false);
+    Translation Translate(Type type, const uint32_t* words, size_t count, bool scaled = false,
+                          PixelRecord record = PixelRecord::Subgroup);
 
     std::string Describe(const Translation& result);
 }

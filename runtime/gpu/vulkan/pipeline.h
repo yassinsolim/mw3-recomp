@@ -96,6 +96,10 @@ namespace vk::pipeline
     bool     LegacyMode();
     // Whether the device supports BC texture compression (BC1..BC5).
     bool     TextureCompressionBC();
+    // Whether a pixel shader can take one draw record for its whole subgroup
+    // (subgroup ballot in the fragment stage); without it each pixel reads its
+    // own (shader::PixelRecord).
+    bool     SubgroupPixelRecords();
 
     // The device has one queue, and the window thread and the GPU thread both
     // submit to it; Vulkan requires a queue to be externally synchronised.

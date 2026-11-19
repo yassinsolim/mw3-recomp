@@ -5,6 +5,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **GPUs without subgroup ballot in pixel shaders** (the Retroid Pocket
+  Flip 2's Adreno 650 under Turnip) draw the game instead of running it with
+  a black screen: there a pixel shader reads its own draw record and indexes
+  its textures non-uniformly, the form before the waterfall. Devices with
+  ballot keep the waterfall; the log names the form at start
+  ([docs/shaders.md](docs/shaders.md)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they
