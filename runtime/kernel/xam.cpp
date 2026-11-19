@@ -8,6 +8,7 @@
 #include <ppc_recomp_shared.h>
 #include "kernel.h"
 #include "objects.h"
+#include "voice.h"
 #include "../guest.h"
 #include "../log.h"
 #include "../friends.h"
@@ -296,6 +297,20 @@ PPC_FUNC(__imp__XamUserCheckPrivilege)
     for (uint32_t index = 0; index < 4; index++)
         if (user == index || user == 0xFF) local |= WhoIs(index).state == kSignedInLocally;
     if (auto* result = GuestPtr<be32>(ctx.r5.u32)) *result = !local && WhoIs(user).state == kSignedInToLive ? 1 : 0;
+    // Refused the communications privilege, the title registers no talker
+    // for the player and never opens the headset (voice.cpp); said once,
+    // since nothing else tells a player why voice chat does nothing.
+    constexpr uint32_t kCommunications = 252;
+    if (local && ctx.r4.u32 == kCommunications && voice::On())
+    {
+        static bool said = false;
+        if (!said)
+        {
+            said = true;
+            LOGW("voice: the title keeps voice chat for players signed in to Xbox LIVE; "
+                 "this one is not, so nobody hears or is heard (play through a relay, or set MW2_LIVE=1)");
+        }
+    }
     ctx.r3.u64 = local ? kNotLoggedOn : X_ERROR_SUCCESS;
 }
 

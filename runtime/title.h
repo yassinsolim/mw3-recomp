@@ -335,8 +335,9 @@
 // "map %s" line is built: sub_822EC8A0 queues a call), the command time print
 // (sub_822C18A8 drops the command without one).
 
-// Voice chat (kernel/voice.cpp). XHV is linked into the title and sends the
-// headset 4-bit ADPCM at 16 kHz; sub_8251B358(mode, source, target, samples,
+// Voice chat (kernel/voice.cpp). XHV is linked into the title and talks to the
+// headset in 4-bit ADPCM, 16 kHz from its microphone and 8 kHz to its
+// earpiece; sub_8251B358(mode, source, target, samples,
 // state) is its coder (mode 0 encodes, 1 decodes; the headset pump
 // sub_82519EF8 calls it at 8251A088 just before XamVoiceSubmitPacket), and
 // the 54 bytes at 8205B060 are the coder state the title starts each headset

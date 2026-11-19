@@ -85,8 +85,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   library asks XAM for, made of the microphone (SDL, or AAudio on Android)
   and the game's sound output. Push-to-talk by default (T, or the on-screen
   Talk button); the Android app asks for the microphone only when voice chat
-  is turned on. Speech passes through the relay unencrypted. Compiled, not
-  yet run ([docs/multiplayer.md](docs/multiplayer.md#voice-chat)).
+  is turned on. Speech passes through the relay unencrypted. The earpiece is
+  8 kHz, and a profile with no stored voice volume reads as 100, where it
+  read as 0 and silenced every other player
+  ([docs/multiplayer.md](docs/multiplayer.md#voice-chat)).
 - **One-command Windows setup** (`setup/setup.cmd`, `setup/setup.ps1`): fetches
   pinned, hash-checked tools into `.toolchain/`, asks for the player's own disc
   image, checks its executables (`tools/check_mw3_xex.py`), recompiles them and
