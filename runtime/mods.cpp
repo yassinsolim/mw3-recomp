@@ -55,12 +55,14 @@ namespace
     constexpr uint32_t kRawFile = 0x24, kScriptFile = 0x25;
     // A script's name goes through a 64-byte buffer in the title's loader ("%s.gsc").
     constexpr size_t kLongestScriptName = 59;
+    // What is set aside of the script pool's 2 MB for the mods' code. A
+    // Team Deathmatch on a disc map leaves 1260 KB of it unused.
+    constexpr uint32_t kCodeRoom = 384 * 1024;
 #ifdef MW3_TITLE_MP
     constexpr const char* kOwnEntries = "scripts/mp/";
 #else
     constexpr const char* kOwnEntries = "scripts/sp/";
 #endif
-    constexpr uint32_t kPoolLow = 0xC, kPoolHigh = 0x118;   // the script pool's two positions
 
     struct ModFile
     {
@@ -97,8 +99,8 @@ namespace
     std::vector<Entry> g_entries;
     uint32_t g_load = 1;
     uint32_t g_scratch = 0;                 // a guest buffer for a name handed to the title
-    // The room in the script pool this run's mods have, as positions in the
-    // pool: [start, end) taken from the title's allocator, used up to `next`.
+    // The room in the script pool the mods' code has, as positions in the
+    // pool: [start, end), used up to `next` by the level that is loaded.
     uint32_t g_arenaStart = 0, g_arenaEnd = 0, g_arenaNext = 0;
 
     // A path as text whatever is in it (path::string() throws on Windows for
@@ -300,43 +302,24 @@ namespace
     }
 
     // Room for a script's code. The title runs code only out of its script
-    // pool: a function's handle is its offset from the pool's start, and
-    // Scr_GetFunctionHandle answers 0 for code that lies outside the pool's
-    // 2 MB. The pool is { buffer, low { , count, pos, list }, high { ... } },
-    // the fastfiles' scripts filling it from both ends, and the room between
-    // the two is lent to the streamed textures: it has to be asked for
-    // through the title's allocator, which takes it back from them (writing
-    // there unasked, the code is under a texture a few seconds later).
-    // Protection 4 (read and write) is what puts the request at the low end.
-    uint32_t PoolAlloc(PPCContext& ctx, uint8_t* base, uint32_t size)
+    // pool: a function's handle is its offset from the pool's start,
+    // Scr_GetFunctionHandle answers 0 for code outside the pool's 2 MB, and a
+    // call into another script is stored as a 22-bit distance. The pool is
+    // { buffer, low { , count, pos, list }, high { ... } }, the fastfiles'
+    // scripts filling it from both ends, and the room between the two is lent
+    // to the streamed textures, which the title's allocator takes it back
+    // from. Taken during a level load, that goes wrong in this port (code
+    // written there unasked is under a texture seconds later; asked for
+    // through PMem_Alloc, 64 KB at a time, the match crashed in the title's
+    // audio code), so the mods' room is set aside once, as the game starts:
+    // see the PMem_EndAlloc hook.
+    uint32_t PoolAlloc(uint8_t* base, uint32_t size)
     {
         size = (size + 3) & ~3u;
-        const uint32_t buffer = PPC_LOAD_U32(T_DATA_ScriptPool);
-        if (!buffer) return 0;
-        if (g_arenaNext + size <= g_arenaEnd)
-        {
-            const uint32_t at = g_arenaNext;
-            g_arenaNext += size;
-            return buffer + at;
-        }
-        // More, from the title's allocator, which stops the game when it
-        // runs out and may skip to the next 64 KB page: asked only with that
-        // much to spare. Asked for exactly what the script needs: a run that
-        // asked for 64 KB at a time crashed in the title's audio code some
-        // seconds into the match, and why is not yet known (docs/mods.md).
-        const uint32_t low = PPC_LOAD_U32(T_DATA_ScriptPool + kPoolLow), high = PPC_LOAD_U32(T_DATA_ScriptPool + kPoolHigh);
-        const uint32_t asked = size;
-        if (uint64_t(low) + asked + 0x20000 > high) return 0;
-        const uint32_t address = Call(ctx, base, GUEST_FUNC(T_PMem_Alloc), asked, 4, 4, 3);
-        const uint32_t at = address - buffer, top = PPC_LOAD_U32(T_DATA_ScriptPool + kPoolLow);
-        if (top != at + asked) g_arenaStart = g_arenaEnd = g_arenaNext = 0;    // not the low end's top: nothing to keep
-        else
-        {
-            if (at != g_arenaEnd || !g_arenaEnd) g_arenaStart = at;
-            g_arenaEnd = top;
-            g_arenaNext = at + size;
-        }
-        return address;
+        if (g_arenaNext + size > g_arenaEnd) return 0;
+        const uint32_t at = g_arenaNext;
+        g_arenaNext += size;
+        return PPC_LOAD_U32(T_DATA_ScriptPool) + at;
     }
 
     // What the compiler reads for `#include`: a mod's script first, then the
@@ -417,14 +400,18 @@ namespace
             LOGI("mods: %s %s script %s (%zu bytes of code)", file->mod.c_str(), replaces ? "replaces" : "adds",
                  path.c_str(), asset.bytecode.size());
         }
-        // Every load places the code again, as compiled: the pool's room is
-        // the level's, and the title's loader writes the strings and
-        // functions it resolves into the code it is given.
-        const uint32_t code = PoolAlloc(ctx, base, uint32_t(asset.bytecode.size()));
+        // Every load places the code again, as compiled: the title's loader
+        // writes the strings and functions it resolves into the code it is
+        // given.
+        const uint32_t code = PoolAlloc(base, uint32_t(asset.bytecode.size()));
         if (!code)
         {
-            LOGE("mods: no room for %s in the game's script memory (%zu bytes of code)", path.c_str(),
-                 asset.bytecode.size());
+            if (g_arenaEnd)
+                LOGE("mods: no room for %s (%zu bytes of code): the mods' scripts together are over %u KB",
+                     path.c_str(), asset.bytecode.size(), kCodeRoom >> 10);
+            else
+                LOGE("mods: %s is not loaded: the room for the mods' code is set aside as the game starts, and "
+                     "no mod was on then. Start the game again", path.c_str());
             asset.served = false;
             return 0;
         }
@@ -477,22 +464,15 @@ namespace
 
     // A level's scripts are about to load: the folders are read again, so a
     // file edited between two matches is the one that runs.
-    void BeginLoad(uint8_t* base)
+    void BeginLoad()
     {
         std::lock_guard held(g_lock);
         Scan();
         g_load++;
         g_entries.clear();
         mods::script::Begin();
-        // The room the last load took holds the previous level's code, which
-        // has ended. It is used again when it is still the pool's top; when a
-        // zone was freed or loaded since, the title has it back already or
-        // has built on it, and this load asks for its own.
-        if (g_arenaEnd && PPC_LOAD_U32(T_DATA_ScriptPool + kPoolLow) == g_arenaEnd) g_arenaNext = g_arenaStart;
-        else g_arenaStart = g_arenaEnd = g_arenaNext = 0;
-        if (g_any.load(std::memory_order_relaxed))
-            LOGI("mods: the game's script memory has %u KB free for the mods' code",
-                 (PPC_LOAD_U32(T_DATA_ScriptPool + kPoolHigh) - PPC_LOAD_U32(T_DATA_ScriptPool + kPoolLow)) >> 10);
+        // The last load's code is the previous level's, which has ended.
+        g_arenaNext = g_arenaStart;
     }
 
     bool IsEntry(const std::string& path)
@@ -586,6 +566,27 @@ static void DumpScript(PPCContext& ctx, uint8_t* base, const std::string& asked)
     if (!out) LOGW("mods: %s cannot be written", Utf8(to).c_str());
 }
 
+// The same for the raw files the game reads, as they are.
+static void DumpRawFile(PPCContext& ctx, uint8_t* base, const std::string& asked)
+{
+    static const char* const folder = env::Text("MW2_SCRIPT_DUMP");
+    static std::set<std::string> written;
+    if (!folder || asked.find_first_of("*?:<>|\"") != std::string::npos || asked.find("..") != std::string::npos) return;
+    if (!written.insert(asked).second) return;
+    const uint32_t entry = Call(ctx, base, GUEST_FUNC(T_DB_FindXAssetEntry), kRawFile, GuestName(base, asked));
+    if (!entry || !PPC_LOAD_U8(entry + 8)) return;
+    const uint32_t asset = PPC_LOAD_U32(entry + 4);
+    const uint32_t compressed = PPC_LOAD_U32(asset + 4), length = PPC_LOAD_U32(asset + 8), buffer = PPC_LOAD_U32(asset + 12);
+    std::vector<uint8_t> data(length);
+    uLongf size = length;
+    if (length && uncompress(data.data(), &size, base + buffer, compressed) != Z_OK) return;
+    const fs::path to = fs::path(folder) / asked;
+    std::error_code ec;
+    fs::create_directories(to.parent_path(), ec);
+    std::ofstream out(to, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char*>(data.data()), std::streamsize(size));
+}
+
 // (type, name, allowCreateDefault) -> the asset
 GUEST_HOOK(T_DB_FindXAssetHeader)
 {
@@ -608,6 +609,7 @@ GUEST_HOOK(T_DB_FindXAssetHeader)
             if (asset) { ctx.r3.u64 = asset; return; }
         }
         if (type == kScriptFile) DumpScript(ctx, base, asked);
+        else DumpRawFile(ctx, base, asked);
     }
     GUEST_ORIG(T_DB_FindXAssetHeader)(ctx, base);
 }
@@ -629,8 +631,31 @@ GUEST_HOOK(T_DB_IsXAssetDefault)
 
 GUEST_HOOK(T_G_LoadScripts)
 {
-    BeginLoad(base);
+    BeginLoad();
     GUEST_ORIG(T_G_LoadScripts)(ctx, base);
+}
+
+// (name, end). The title's start-up brackets what it keeps for the whole run
+// in "$init", at the pools' low end, before any fastfile is loaded and before
+// anything is streamed. The mods' room is taken inside it, with the title's
+// own allocator (source 3: the script pool; protection 4, read and write),
+// so it lies under every zone's scripts and no zone's freeing gives it away.
+GUEST_HOOK(T_PMem_EndAlloc)
+{
+    const uint32_t name = ctx.r3.u32;
+    if (name && ctx.r4.u32 == 0 && !std::strcmp(reinterpret_cast<const char*>(base + name), "$init"))
+    {
+        std::lock_guard held(g_lock);
+        ScanOnce();
+        if (g_any.load(std::memory_order_relaxed) && !g_arenaEnd && PPC_LOAD_U32(T_DATA_ScriptPool))
+        {
+            const uint32_t address = Call(ctx, base, GUEST_FUNC(T_PMem_Alloc), kCodeRoom, 4, 4, 3);
+            g_arenaStart = g_arenaNext = address - PPC_LOAD_U32(T_DATA_ScriptPool);
+            g_arenaEnd = g_arenaStart + kCodeRoom;
+            LOGI("mods: %u KB of the game's script memory set aside for the mods' code", kCodeRoom >> 10);
+        }
+    }
+    GUEST_ORIG(T_PMem_EndAlloc)(ctx, base);
 }
 
 #ifdef T_GScr_LoadGameTypeScript

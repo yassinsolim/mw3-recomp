@@ -7,6 +7,7 @@ the script compiler is [gsc-tool](https://github.com/xensik/gsc-tool) by
 xensik (GPL-3.0, `runtime/mods_gsc.cpp`, [THIRD_PARTY.md](../THIRD_PARTY.md)).
 
 **Status: experimental.** See [What is verified](#what-is-verified-and-what-is-not).
+Android was compiled, not run.
 
 ## Installing a mod
 
@@ -56,9 +57,10 @@ mod's.
 ### Seeing the game's own scripts and files
 
 - `MW2_SCRIPT_DUMP=<folder>` writes every stock script a level loads there as
-  source (decompiled; local variables are `var_0`...). Start a match once and
-  you have the scripts to read, or to copy into a mod and change. They are
-  the game's: do not publish them.
+  source (decompiled; local variables are `var_0`...), and every raw file
+  the game reads as it is. Start a match once and you have the files to
+  read, or to copy into a mod and change. They are the game's: do not
+  publish them.
 - `MW2_TRACE_MODS=1` logs each script and raw file the game asks for, once:
   the paths a mod can replace.
 
@@ -88,42 +90,50 @@ not there; bots are the port's own ([switches.md](switches.md), `MW2_BOTS`).
 - A `.gsc` is compiled by gsc-tool's IW5 Xbox 360 target. Includes of stock
   scripts are read from the fastfiles' compiled copies in memory.
 - The title runs code only out of its 2 MB script pool (a function handle is
-  an offset into it), and the pool's free room is lent to the streamed
-  textures, so the code's room is asked for through the title's own
-  allocator (`PMem_Alloc`).
+  an offset into it, a call into another script a 22-bit distance), and the
+  pool's unused room is lent to the streamed textures. Taking room from it
+  during a level load went wrong in this port (code written there unasked
+  was under a texture seconds later; asked for through the title's
+  allocator at that point, matches crashed in the title's audio code). So
+  the mods' room is taken once, with the title's own `PMem_Alloc`, inside
+  the start-up's `$init` bracket: before any fastfile is loaded or anything
+  streamed, below every zone's scripts, and never given back.
 - Own scripts are loaded while the title's loader is open and their `main`
   and `init` run through `Scr_ExecThread`, as the title runs its own.
 - Addresses and the evidence for each: `runtime/title.h`, "Mods".
 
 ## What is verified, and what is not
 
-On the PC build of the multiplayer (Team Deathmatch, System Link, host):
+On the PC build of the multiplayer (Team Deathmatch on two disc maps, System
+Link, host, 3 bots):
 
-- an own script compiled, loaded and ran: `iPrintLnBold` text and a HUD line
-  on screen, custom fields on `level` and the player, `#include` of a stock
-  script, calls into stock scripts, `main()` and `init()`;
-- `MW2_SCRIPT_DUMP` wrote 271 stock scripts; `MW2_TRACE_MODS` listed the raw
-  files asked for;
-- a replaced stock script (`maps/mp/gametypes/war`, from its dump) compiled
-  and was loaded in place of the game's.
+- the shipped `mods-examples/hello`: three runs of 150 s each played to
+  their end with the HUD line on screen through kills, deaths and respawns,
+  and nothing in the log;
+- an own script's `main()` and `init()`, custom fields on `level` and the
+  player, `#include` of a stock script and calls into stock scripts;
+- a replaced stock script (`maps/mp/gametypes/war`, from its dump, with a
+  line added) compiled, was loaded in place of the game's and the match
+  played;
+- a replaced raw file (`maps/mp/gametypes/war.txt` holding
+  `dm.txt`'s three lines): the loading screen read "Free-for-all";
+- `MW2_SCRIPT_DUMP` wrote 271 stock scripts and the raw files asked for;
+  `MW2_TRACE_MODS` listed them.
 
-Not verified, or known wrong:
+Not verified, or limits:
 
-- **Stability.** Of the runs that took the code's room through `PMem_Alloc`,
-  one that asked for exactly the script's size played to its end; two that
-  asked for 64 KB crashed in the title's audio code a few seconds into the
-  match. The cause is not known (the suspicion: the port's delayed copy of a
-  moved texture, `runtime/image_move.cpp`, landing after the code was
-  placed). The committed code asks for the exact size; it has not been run
-  enough to call it stable, and not at all with a large mod.
-- The first request for room waits for the renderer, which added about 3 s
-  to a level load.
-- A replaced stock script was not seen running to the end of a match, and a
-  replaced raw file was not tried.
-- The campaign: its hooks were found by the same code patterns and are
-  compiled in, but that title was neither built nor run with them.
-- Android: not built, not run. The app's MODS entry only explains the folder.
-- The launcher's script-mod install: written, not compiled or run.
+- The mods' scripts share 384 KB of compiled code, set aside when the game
+  starts and only when a mod is on then: turn a mod on, then start the game.
+  It comes out of the 2 MB all scripts share (a Team Deathmatch on a disc
+  map leaves 1260 KB unused); a map or mode with far more script than those
+  was not tried with mods on.
+- A large mod was not tried, nor a second match in one run, nor another
+  game type.
+- The campaign: its hooks were found by the same code patterns and compile
+  (Android), but that title was not run with them.
+- Android: both apps compile and link with the loader; not run on a device.
+  The app's MODS entry only explains the folder.
+- The launcher's script-mod install compiles; it was not run.
 - Map entities (`.ents`) are not replaced.
 - A campaign save holds script state; loading one made with other mods on is
   untested.

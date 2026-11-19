@@ -423,6 +423,10 @@
 // end for protection 4, the high end for any other.
 #define T_DATA_ScriptPool         0x83827BB8u
 #define T_PMem_Alloc            82329350   // (size, alignment, protection, source)
+// PMem_EndAlloc(name, end) closes what PMem_BeginAlloc (sub_82329020) opened:
+// Com_Init (sub_8229BE80) brackets "$hunk", then "$init" (end 0) and "$init2"
+// (end 1), which are never freed.
+#define T_PMem_EndAlloc         82329128
 
 #elif defined(MW3_TITLE)
 
@@ -508,6 +512,7 @@
 // its PMem_GetBuffer).
 #define T_DATA_ScriptPool         0x83C7E3C0u
 #define T_PMem_Alloc            82303878   // (size, alignment, protection, source)
+#define T_PMem_EndAlloc         82303650   // (name, end); Com_Init (sub_8229DA48) closes "$init" with it
 
 #elif defined(MW2_TITLE_MP) && !defined(MW2_VERSION_TU0)
 
