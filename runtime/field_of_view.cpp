@@ -19,12 +19,25 @@
 // Each hook scales the function's result, which is the result it would have
 // had with the scale in the setting, except for a view already held at one of
 // the two bounds before the scale: that one is scaled from the bound.
+//
+// Modern Warfare 3's multiplayer turns by the view's angle in two places, and
+// both compare it with a hip view that is no longer the player's. The pad's
+// turn rate is multiplied by tan(half the view) over tan(half of 65 degrees
+// times cg_fovScale), kept by T_AimAssist_FovScale: 1 from the hip and
+// smaller down a sight, which is how a sight turns slower. The input's
+// sensitivity scale is the same ratio against a fixed 65, kept by
+// T_CG_SetViewFov. Left alone, a view of 100 would turn 1.87 times faster
+// from the hip. Each hook divides its factor by what the hip's became, so
+// the hip turns as on the console and a sight slows by its zoom against the
+// view the player chose.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "env.h"
 #include "log.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
 namespace
 {
@@ -45,7 +58,7 @@ namespace
     }
 }
 
-#if !defined(MW3_TITLE) // MW2 FOV entry points are not located in MW3
+#ifdef T_CG_ViewFov     // not located in Modern Warfare 3's campaign
 GUEST_HOOK(T_CG_ViewFov)
 {
     GUEST_ORIG(T_CG_ViewFov)(ctx, base);
@@ -58,4 +71,49 @@ GUEST_HOOK(T_CG_CullZoom)
     ctx.f1.f64 = double(float(ctx.f1.f64 / Scale()));
 }
 
+#endif
+
+#ifdef T_CG_SetViewFov
+namespace
+{
+    // tan(half the hip's view) before the scale over the same after it, for a
+    // hip view of 65 degrees times `own`, the title's cg_fovScale.
+    float HipRatio(double own)
+    {
+        const double half = kConsole * own * 0.5 * 3.14159265358979323846 / 180.0;
+        return float(std::tan(half) / std::tan(std::min(half * Scale(), 1.5)));
+    }
+
+    void Multiply(uint8_t* base, uint32_t address, float by)
+    {
+        uint32_t bits = PPC_LOAD_U32(address);
+        float value;
+        std::memcpy(&value, &bits, 4);
+        value *= by;
+        std::memcpy(&bits, &value, 4);
+        PPC_STORE_U32(address, bits);
+    }
+}
+
+// (local client, the angle T_CG_ViewFov answered)
+GUEST_HOOK(T_CG_SetViewFov)
+{
+    const uint32_t client = ctx.r3.u32;
+    GUEST_ORIG(T_CG_SetViewFov)(ctx, base);
+    if (Scale() == 1.0) return;
+    static const float hip = HipRatio(1.0);
+    Multiply(base, PPC_LOAD_U32(T_DATA_CgArray) + client * T_CG_STRIDE + T_CG_ZOOM_SENSITIVITY, hip);
+}
+
+// (the aim assist's state, tan(half the view's height))
+GUEST_HOOK(T_AimAssist_FovScale)
+{
+    const uint32_t state = ctx.r3.u32;
+    GUEST_ORIG(T_AimAssist_FovScale)(ctx, base);
+    if (Scale() == 1.0) return;
+    const uint32_t bits = PPC_LOAD_U32(PPC_LOAD_U32(T_DATA_FovScaleDvar) + T_DVAR_CURRENT);
+    float own;
+    std::memcpy(&own, &bits, 4);
+    Multiply(base, state + T_AIM_TURN_RATE_SCALE, HipRatio(own));
+}
 #endif

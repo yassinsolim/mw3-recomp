@@ -273,6 +273,56 @@ Not covered: a menu that reads the bits an entitlement sets (`unlockedCamo`,
 `unlockedReticles`, written by `823C6980` and `823C6AC8`; no unlock check in
 the executable names them). The rank and prestige shown are the real ones.
 
+## Match options
+
+`runtime/match_options.cpp`. What the disc carries, read from its fastfiles
+(LZX in 0x8000-byte chunks behind the `IWffs100` header, window 2^19):
+
+| | where | in Game Setup |
+|---|---|---|
+| `dm war sd sab dom koth ctf dd conf tdef` | a recipe in `common_mp.ff` (`mp/recipes/<mode>.recipe`), a script, a button of `settings_recipe_choosetype_standard` in `ui_mp.ff` | Standard Modes, as on the console |
+| `grnd tjugg jugg gun infect oic` (Drop Zone, Team Juggernaut, Juggernaut, Gun Game, Infected, One in the Chamber) | a recipe, a script, a button of `settings_recipe_choosetype_alternate` | hidden: the Mode menu had no Alternate Modes entry |
+| `arena oneflag gtnw ctfpro vip` | a script only (`maps/mp/gametypes/<mode>`): no recipe, no button | none; `MW2_CUT_MODE` for the first three |
+
+Sharpshooter and All or Nothing are not MW3 modes, and the later title
+updates' modes are not on the disc.
+
+The hidden menus are shown by nine integer dvars the executable registers at
+0 in `823CCEB8` (`pm_gamesetup_mode_altmodes`, one for each of the six modes,
+`pm_gamesetup_options_createdefaultclass`,
+`pm_gamesetup_options_customclassrestrictions`); the console set them from its
+playlist data after release. The runtime sets them to 1 once the last is
+registered. Game Setup's Options menu is the stock one and already has time
+and score limits, lives, health, regeneration, spectating, killcam, radar,
+respawn delays, friendly fire, perks, hardcore, third person, headshots only
+and killstreaks; nothing here repeats those.
+
+IW5 has no `g_gravity`, `g_speed`, `jump_height` or `player_sprintUnlimited`:
+
+| option | switch, console line | how | the other players |
+|---|---|---|---|
+| gravity | `MW2_MATCH_GRAVITY`, `match gravity` | `ClientEndFrame` (`82229AC8`) stores 800 in the player state's `gravity` every server frame; the hook stores the host's after it | a field of the player state's delta table (16 bits): every client predicts with it |
+| speed | `MW2_MATCH_SPEED`, `match speed` | the same function copies the scripts' speed scale (gclient `+0x33C0`) to `moveSpeedScaleMultiplier`; the hook stores it times the host's | the same (a float) |
+| sprint | `MW2_MATCH_SPRINT`, `match sprint` | the sprint time left (`820E1C98`) is the whole time while `perks[0]` has bit 14, `specialty_marathon`; the hook sets it | the same (`perks[0]`, 32 bits) |
+| fall damage | `MW2_MATCH_FALL_DAMAGE`, `match falldamage` | `G_Damage` (`82235940`) returns at once for means of death 11, `MOD_FALLING` (the landing event's call is `82227BC8`) | the server's alone |
+| jump height | `MW2_MATCH_JUMP`, `match jump` | the 39 at `82001C10`, which only the jump code loads, is rewritten | not sent by the title: the host sends `q mw3_jump_height "<n>"`, the script's `setClientDvar` command, to each player once a gamestate, and this port's client takes the name in `command_dvars_from_host.cpp` and sets its own constant; it is 39 again when the client is in no server. A console predicts 39 and is corrected |
+
+Measured on the PC build with `MW2_TRACE_MATCH=1` (System Link, Seatown, the
+server's 50 ms frames): a standing jump is 650 ms in the air and rises 31
+units; at gravity 200 it is 1200 ms and 32 units; at gravity 200 and jump
+height 150, 2400 ms and 134 units; at gravity 800 and jump height 150, 1200
+ms and 120 units; a running jump leaves the ground at 185 units a second and
+at 342 with speed 200. A second copy on the same PC, joined over `lan`,
+logged `match: the host's jump height is 150`.
+
+`MW2_CUT_MODE`: the menu's `StartServer` sets `g_gametype` from `ui_gametype`
+(`822EC92C`), and the hook on `Dvar_SetStringByName` (`82326500`) hands it
+the cut mode at that call alone. Started that way with three bots on Seatown,
+`arena`, `oneflag` and `gtnw` load and play (One Flag shows its flag markers);
+`ctfpro` falls back to the menu and `vip` never leaves the loading screen. A
+private match over Xbox LIVE starts through the party (`82194E80`), which is
+left alone.
+
 ## Installing and starting
 
 The app copies `default_mp.xex` (checked against the hash above) and the game

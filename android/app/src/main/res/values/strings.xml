@@ -175,6 +175,14 @@
         <item>Veteran</item>
     </string-array>
     <string name="bots_against_players">All bots against the players</string>
+    <string name="section_match_options">Match options</string>
+    <string name="match_options_hint">For the matches this device hosts: everybody in them plays by these, and a match somebody else hosts is played by that host\'s. Game Setup in the game has the rest, and now shows its Alternate Modes (Gun Game, Infected, One in the Chamber, Juggernaut, Team Juggernaut, Drop Zone). They take effect the next time the game starts.</string>
+    <string name="match_gravity">Gravity: %1$d</string>
+    <string name="match_speed">Movement speed: %1$d%%</string>
+    <string name="match_jump">Jump height: %1$d</string>
+    <string name="match_stock">%1$s (the game\'s)</string>
+    <string name="match_sprint">Unlimited sprint</string>
+    <string name="match_fall_damage">Fall damage</string>
 
     <!-- network play -->
     <string name="network_mode">Play with</string>

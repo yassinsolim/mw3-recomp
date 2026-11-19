@@ -76,6 +76,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private val isMultiplayer: Boolean
         get() = packageName.contains(".mp")
 
+    /** Modern Warfare 3's multiplayer (com.mw3.recomp.mp, .mp2). */
+    private val isMw3Multiplayer: Boolean
+        get() = isMultiplayer && !isMw2Multiplayer
+
     /**
      * Voice chat, for Modern Warfare 3's multiplayer: the player turned it
      * on in Settings and the microphone permission asked for there is still
@@ -476,11 +480,15 @@ val mode60 = modes
         pads.refreshDevices()
         startHardwareMonitor()
         handler.post(statsTick)
-        handler.postDelayed({
-            if (started) {
-                NativeBridge.nativeRunConsoleCommand("cg_fov ${prefs.fov}")
-            }
-        }, 2500)
+        // Modern Warfare 3's multiplayer takes the field of view as MW2_FOV
+        // (applyOptions): its scripts put cg_fov back at every spawn.
+        if (!isMw3Multiplayer) {
+            handler.postDelayed({
+                if (started) {
+                    NativeBridge.nativeRunConsoleCommand("cg_fov ${prefs.fov}")
+                }
+            }, 2500)
+        }
     }
 
     // ---- the screen ---------------------------------------------------------
@@ -799,13 +807,20 @@ val mode60 = modes
         // Settings; otherwise the tiered instant-boot budget + background warmup.
         NativeBridge.nativeSetOption("MW2_SHADER_PREWARM_ALL", if (prefs.prewarmAllShaders) "1" else "")
         NativeBridge.nativeSetOption("MW2_ASYNC_PIPELINES", if (prefs.asyncPipelines) "1" else "0")
-        // Modern Warfare 3's multiplayer: every item unlocked, and voice
-        // chat (the other titles read neither).
-        if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
+        // Modern Warfare 3's multiplayer: every item unlocked, bots, the
+        // host's match options, the field of view and voice chat (the other
+        // titles read none of them here).
+        if (isMw3Multiplayer) {
             NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
             NativeBridge.nativeSetOption("MW2_BOTS", if (prefs.botCount > 0) prefs.botCount.toString() else "")
             NativeBridge.nativeSetOption("MW2_BOT_SKILL", prefs.botSkill.toString())
             NativeBridge.nativeSetOption("MW2_BOT_TEAMS", if (prefs.botsAgainstPlayers) "against" else "")
+            NativeBridge.nativeSetOption("MW2_MATCH_GRAVITY", prefs.matchGravity.toString())
+            NativeBridge.nativeSetOption("MW2_MATCH_SPEED", prefs.matchSpeed.toString())
+            NativeBridge.nativeSetOption("MW2_MATCH_JUMP", prefs.matchJump.toString())
+            NativeBridge.nativeSetOption("MW2_MATCH_SPRINT", if (prefs.matchUnlimitedSprint) "1" else "")
+            NativeBridge.nativeSetOption("MW2_MATCH_FALL_DAMAGE", if (prefs.matchFallDamage) "1" else "0")
+            NativeBridge.nativeSetOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
             NativeBridge.nativeSetOption("MW2_VOICE", if (voiceChat) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE_PTT", if (prefs.voicePushToTalk) "1" else "0")
         }

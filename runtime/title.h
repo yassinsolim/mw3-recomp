@@ -74,8 +74,8 @@
 
 // Located, not enabled, for the campaign's reason (MW2 structure offsets):
 //   T_Memcard_InitializeSystem   82355E60
-// Not located: T_CG_CullZoom (the campaign's sub_821067A8 has no twin by its
-// first 8 instructions), and everything the campaign block lists as not located.
+// Not located: everything the campaign block lists as not located, but for the
+// field of view's functions, which are at the end of this block.
 
 // the kernel's data imports, by their (library, ordinal) words as the campaign's
 #define T_DATA_TimeStampBundlePtr 0x820007B8u   // the KeTimeStampBundle import record
@@ -389,6 +389,68 @@
 #define T_PS_VIEW_ANGLES          0x158u
 #define T_PS_VIEW_HEIGHT          0x168u
 #define T_PS_WEAPON               0x370u
+
+// ---- match options (match_options.cpp) ----
+// ClientEndFrame(gentity): stores 800 in the player state's gravity (li r10,800
+// at 82229ADC, stw at 82229AFC) and copies the script's speed scale (gclient
+// +0x33C0, what setMoveSpeedScale writes) to moveSpeedScaleMultiplier. Both
+// player state fields are in the delta table (gravity and speed 16 bits,
+// the multiplier a float), so a client predicts with what the server stored.
+#define T_ClientEndFrame        82229AC8
+#define T_PS_GRAVITY              0x58u
+#define T_PS_SPEED_SCALE          0x228u
+#define T_PS_GROUND_ENTITY        0x6Cu     // 0x7FF in the air
+#define T_PS_VELOCITY             0x28u
+#define T_PS_PERKS                0x4ECu
+#define T_GCLIENT_SPEED_SCALE     0x33C0u
+// perks[0] bit 14 is specialty_marathon (the perk names at 82005520 are the
+// table backwards; bit 4, specialty_longersprint, is the one BG_GetMaxSprintTime
+// sub_820E01A8 tests): the sprint time left, sub_820E1C98, answers the whole
+// time while it is set.
+#define T_PERK_MARATHON           0x4000u
+// G_Damage(target, inflictor, attacker, direction, point, damage, flags, means
+// of death, ...): the landing event's call (82227BC8) passes 11, MOD_FALLING.
+#define T_G_Damage              82235940
+#define T_MOD_FALLING             11u
+// The jump height, 39: one float the five functions of the jump code load
+// (sub_820DA7B0 returns it; 820DA7EC, 820DA844, 820DAA04, 820DB1A4), and
+// nothing else in the executable.
+#define T_DATA_JumpHeight         0x82001C10u
+// SV_GameSendServerCommand(client number, reliable, text); the script's
+// setClientDvar sends `q <name> "<value>"` through it (8222F434..50), which
+// the client hands to T_CG_SetClientDvarFromServer.
+#define T_SV_GameSendServerCommand 822C2D90
+// The private match menus the disc hides: Game Setup's Alternate Modes and its
+// six modes, and Options' two class menus, each shown by an integer dvar
+// registered at 0 (sub_823CCEB8, 823CD944..823CDAA4; "Disable menu Option
+// Private Match/Game Setup/..."). The last of them to be registered is kept here.
+#define T_DATA_LastGameSetupDvar  0x83BCEFBCu
+// Dvar_SetStringByName(name, value), and where the menu's StartServer returns
+// to after setting g_gametype from ui_gametype with it (822EC92C..3C).
+#define T_Dvar_SetStringByName  82326500
+#define T_RET_StartServerGametype 0x822EC940u
+
+// ---- field of view (field_of_view.cpp) ----
+// CG_ViewFov (the campaign's shape: cg_fov, or the weapon's, a turret's or a
+// kill camera's, times cg_fovScale at 8214C6FC, held between cg_fovMin and
+// 170); the zoom the distance culls take, a leaf that divides by cg_fovScale;
+// and what stores the view's angle: (local client, angle), which also keeps
+// tan(angle / 2) / tan(32.5 degrees) at cg + 0x76580, the sensitivity scale
+// sub_82115498 hands the client's input every frame (sub_821641D8). cg is
+// [8260C160] + client * 0x105900.
+#define T_CG_ViewFov           8214C5A0
+#define T_CG_CullZoom          8214C8B0
+#define T_CG_SetViewFov        8214C7B0
+#define T_DATA_CgArray            0x8260C160u
+#define T_CG_STRIDE               0x105900u
+#define T_CG_ZOOM_SENSITIVITY     0x76580u
+// The aim assist's (state, tan(half the view's height)): the pad's turn rate
+// is multiplied by state + 280, that tangent over tan(65 * cg_fovScale / 2) *
+// 0.75 (820D31D0..820D321C), which is 1 from the hip and less down a sight.
+// The dvar's pointer is where sub_82125880 stored it.
+#define T_AimAssist_FovScale   820D31A0
+#define T_AIM_TURN_RATE_SCALE     280u
+#define T_DATA_FovScaleDvar       0x8261098Cu
 
 #elif defined(MW3_TITLE)
 

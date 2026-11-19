@@ -5,6 +5,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **MW3 multiplayer: match options** (`runtime/match_options.cpp`; the app's
+  "Match options"): Game Setup shows the Alternate Modes the disc hides (Gun
+  Game, Infected, One in the Chamber, Juggernaut, Team Juggernaut, Drop Zone)
+  and its two class menus; the host sets gravity, movement speed, jump
+  height, unlimited sprint and fall damage for its matches (`MW2_MATCH_*`,
+  `match ...` on the host's console), sent to every player; `MW2_CUT_MODE`
+  starts three modes the disc left unfinished
+  ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#match-options)).
+- **MW3 multiplayer: field of view** (`MW2_FOV`, the app's slider): lasts
+  through every spawn, with the turn rate from the hip unchanged and a
+  sight's following the wider view ([docs/gameplay.md](docs/gameplay.md#field-of-view)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they
