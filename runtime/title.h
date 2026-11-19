@@ -299,6 +299,23 @@
 #define T_Scr_GetString         822B8E00   // (index) -> text
 #define T_Scr_AddInt            822B97B0   // (value)
 
+// Custom camouflages in Create a Class (mw3_custom_camos.cpp). The menus are
+// the context's (sub_822E7DA0 gives 0x836897A8 + 5796 per local client):
+// UI_AddMenuList (sub_82306280, called there with ui_mp/menus.txt's list)
+// stores each menu at context + 52 and counts them at context + 2612. The
+// menu commands are a table of {name, function} at 0x820316F8;
+// "setPlayerData" is sub_82303008, which calls the first below, and
+// "scriptmenuresponse" the second. A command's arguments are the rest of the
+// script's text, through the pointer in r5. The menu's local variables are
+// at context + 2684, 12 bytes each: {type, name, value}, type 0 an integer,
+// 1 a float, anything else a string (sub_822E2AF0 and sub_822E2BD0 read them).
+// StringTable_Lookup is what the menu's tableLookup calls (at 822D942C).
+#define T_UI_AddMenuList        82306280   // (context, menu list, open)
+#define T_UI_SetPlayerData      82302E80   // (local client, context, arguments)
+#define T_UI_ScriptMenuResponse 822FB340   // (context, item, arguments)
+#define T_UI_FindLocalVar       822E2978   // (context + 2684, name) -> variable, or 0
+#define T_StringTable_Lookup    823158B8   // (table, column, value, column to return) -> text
+
 // ---- the network (docs/MW3-MP-BRINGUP.md, "The network") ----
 // The protocol number every version check compares: (sub_82286A88() << 16) +
 // 0x56, the high half being the online update's version (a halfword at

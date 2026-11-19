@@ -297,6 +297,21 @@
                         android:layout_height="wrap_content"
                         android:text="@string/unlock_all_items_hint" />
 
+                    <Button
+                        android:id="@+id/camo_packs"
+                        android:background="@drawable/bg_button_action"
+                        android:textColor="#E8EAED"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/camo_packs" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/camo_packs_hint" />
+
                     <TextView
                         android:id="@+id/bot_count_label"
                         style="@style/SettingLabel"

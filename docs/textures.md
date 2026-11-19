@@ -403,8 +403,9 @@ in the gold materials' specular slot, loaded at three sizes: keys
 `d6caf021a5eda72a` (32x32). Replacing all three turns Gold into another camo
 on every weapon; seen on the Thor with an original animated plasma
 (2026-11-18). The menu's swatch for Gold is `73c9431503b443a9` (128x128) and
-the banner behind the weapon `6fd4265d799d5a74` (408x152). Original art for
-them, made from nothing of the game's:
+the banner behind the weapon `6fd4265d799d5a74` (408x152). The camouflage
+packs ([below](#camouflage-packs)) are drawn through these five. Original art
+for them, made from nothing of the game's:
 
     for k in a8357229dfcf400c:128x128 2f7e28ad8644733c:64x64 d6caf021a5eda72a:32x32 73c9431503b443a9:128x128; do
       python tools/camo_gen.py --key ${k%%:*} --size ${k##*:} --style plasma --frames 12 --fps 8 --out replace
@@ -506,7 +507,10 @@ python tools/camo_gen.py dumps/0123456789abcdef.png --style iridescent --frames 
 
 Styles: `carbon` (woven fibre), `voronoi` (scales), `marble` (domain-warped
 noise with veins), `digital` (pixel camo in four colours), `iridescent`
-(thin-film colours) and `plasma`. `marble`, `iridescent` and `plasma` also
+(thin-film colours), `plasma`, `nebula` (violet gas and stars), `neon_grid`
+(glowing circuit traces), `toxic` (bubbling green), `magma` (lava in the
+cracks of a crust), `glitch` (sliding blocks with split colour channels),
+`aurora` and `frost`. All but `carbon`, `voronoi` and `digital` also
 animate with `--frames N`, writing `<key>.0.png` ... `<key>.<N-1>.png` and
 `<key>.txt` (`fps=`) in the form of *Animated replacements* above; the loop is
 seamless. Keep frames times size inside the decoded-picture bound (the tool
@@ -515,6 +519,123 @@ matters for textures whose alpha is a cut-out; a dump that is opaque leaves
 the output opaque. Pick the dump of a texture the game draws as a colour map:
 a skin on a normal, specular or other data texture is read by the shaders as
 data and will look wrong.
+
+`--pack DIR` writes the same styles as a camouflage pack (below) and
+`--gallery FILE` a contact sheet of them.
+
+### Camouflage packs
+
+Modern Warfare 3's multiplayer lists extra camouflages below Gold in Create a
+Class: thirteen of the project's own, and whatever packs are in the game
+folder. Each has its own name, preview and description, is chosen per class
+and per weapon like any other, and is drawn on the weapon in a match. None of
+the game's camouflages is replaced. `MW2_CUSTOM_CAMOS=0` leaves the list as
+the game has it.
+
+**A pack** is a folder `camos/<pack-id>/` in the game folder:
+
+```
+camos/carbon-pack/
+  pack.json
+  tiger.png
+  lava/0.png lava/1.png ...
+```
+
+```json
+{
+  "name": "Carbon Pack",
+  "author": "Their Name",
+  "url": "https://example.org/carbon-pack",
+  "permission": "Used with the author's permission, 2026-11-19.",
+  "camos": [
+    { "id": "tiger", "name": "Tiger", "image": "tiger.png", "swatch": "tiger_swatch.png" },
+    { "id": "lava", "name": "Lava", "frames": ["lava/0.png", "lava/1.png"], "fps": 8 }
+  ]
+}
+```
+
+`image` is one picture and `frames` an animation at `fps` (12 when absent);
+`swatch` (or `swatch_frames`) is the menu's preview, the camouflage itself
+when absent. Pictures are PNG or binary PNM of any size and are made the size
+of the texture they stand in for (128x128 on a weapon), so larger ones only
+cost disc space. Forty camouflages are listed at most, packs in the order of
+their folders' names. The log names each pack as it is read and each entry it
+leaves out.
+
+**Whose they are.** `name`, `author`, `url` and `permission` are the pack's
+credit: the game shows the pack and its author in each camouflage's
+description, and the Android app lists every installed pack with its author,
+link and permission note under Settings, Multiplayer, Camo packs. A pack of
+somebody else's art is used only with their permission, is never committed
+to this repository and is never rehosted: `setup/camo-packs.json` lists the
+packs the project has permission for (`id`, `name`, `author`, `url`,
+`download`, `sha256`, `permission`, optionally `only`), and
+`setup/setup.ps1` downloads each from its author's own link, checks the
+SHA-256 and converts it. A player may equally drop a pack's folder into
+`camos` by hand.
+
+**The project's own pack**, `mw3-recomp-originals`, is drawn by
+`tools/camo_gen.py --pack` when the game is set up (`setup/setup.ps1`,
+`android/fetch_deps.sh`): 2.7 MB of pictures that a script in the repository
+reproduces exactly are not worth keeping in git, and generating them leaves
+no doubt about where each texel came from. On Android the packs are assets of
+the multiplayer app, copied into the game folder when the game starts.
+
+**From a PC mod: `tools/import_pack.py`.** A PC camouflage mod as its author
+published it -- a folder, `.zip` or `.iwd` of `.iwi` images, or of PNG, DDS,
+TGA or JPEG pictures -- becomes a pack:
+
+```
+python tools/import_pack.py mods/carbon_pack.zip --out game/camos/carbon-pack \
+    --name "Carbon Pack" --author "Their Name" --url https://example.org/carbon-pack \
+    --permission "Used with the author's permission, 2026-11-19."
+```
+
+Every colour picture is one camouflage named after its file
+(`~weapon_camo_carbon-rgb&detail_~1a2b3c4d` is `carbon`); `ui_camoskin_<x>`,
+`<x>_swatch`, `<x>_icon` and `<x>_preview` are previews; normal, specular and
+other technical maps are skipped; numbered pictures are the frames of one
+animation. `--only` and `--rename` choose and name. The credit options are
+required: the tool does not write a pack that does not say whose it is.
+
+**How it works** (`runtime/mw3_custom_camos.cpp`, which has the detail). The
+camouflage menus do not read `mp/camoTable.csv` by row: each camouflage is
+six items written out in the menu, with its name and row number constants of
+their expressions, and the rows are a button group that already scrolls
+within fourteen. When the menus are added to the UI the runtime copies Gold's
+row once per camouflage in guest memory, changing those constants, and gives
+every row the test that hides it outside the fourteen. A copy's button still
+writes `gold` to the class, since that is all the stats' enum can hold; the
+runtime notes which copy it was in `saves/custom_camos.txt`
+(`customClasses.0.weaponSetups.0=mw3-recomp-originals/magma`), and answers the
+menus' reads of that class with the copy's name, so the list, the class
+summary and a copied class all show what was chosen. Choosing one of the
+game's camouflages or another weapon removes the record.
+
+The pictures go through Gold's (above): its weapon image, preview and banner
+are *switchable* replacements (`gpu::replace::Switchable`, `Select`), images
+always made in a replacement's form -- of the title's own picture until
+something is chosen -- so that a choice reaches them as an animation's next
+frame does, with no image made anew. The preview follows the row with focus,
+the banner the class being looked at, and the weapon image the class chosen
+in the match.
+
+**Limits.**
+
+- Gold on a weapon is one image, so one custom camouflage is drawn at a time
+  on this device: that of the class the player chose in the match (its
+  primary weapon's, or its secondary's when the primary has none). Every
+  Gold weapon in view is drawn with it, other players' and a real Gold
+  included, until a class without one is chosen.
+- Other players see Gold: the choice is local and nothing but `gold` leaves
+  the device.
+- The class in use is learned from the class menu of the match
+  (`custom<n>`), and kept in the same file; a match that starts on the class
+  of the one before without the menu shows the last one chosen.
+- A class copied or reset outside the menus' own scripts keeps Gold and
+  loses the record.
+- The private match's editor of the default classes (the `..._gamesettings`
+  menus) keeps the game's list.
 
 ## The image pool's block copy
 

@@ -134,6 +134,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
             findViewById<android.view.View>(R.id.unlock_all_items_group).visibility = android.view.View.VISIBLE
             switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
+            findViewById<Button>(R.id.camo_packs).setOnClickListener { showCamoPacks() }
 
             val botCountLabel: TextView = findViewById(R.id.bot_count_label)
             val botCount: SeekBar = findViewById(R.id.bot_count)
@@ -334,6 +335,31 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 button.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 button.setTextColor(0xFFE8EAED.toInt())
             }
+        }
+    }
+
+    /** The credits of the camouflage packs in the game folder: whose each is, and by what permission. */
+    private fun showCamoPacks() {
+        val gameDir = prefs.gameDirectory.ifEmpty {
+            (getExternalFilesDir(null) ?: filesDir).absolutePath + "/game"
+        }
+        val packs = CamoPacks.installed(gameDir)
+        val text = if (packs.isEmpty()) getString(R.string.camo_packs_none, gameDir + "/camos")
+        else packs.joinToString("\n\n") {
+            getString(
+                R.string.camo_pack_entry, it.name, it.camos,
+                it.author.ifEmpty { getString(R.string.camo_pack_unnamed) }, it.url, it.permission,
+            ).trim()
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.camo_packs)
+            .setMessage(text)
+            .setPositiveButton(R.string.close, null)
+            .show()
+        // The authors' links open where they published their packs.
+        dialog.findViewById<TextView>(android.R.id.message)?.let {
+            android.text.util.Linkify.addLinks(it, android.text.util.Linkify.WEB_URLS)
+            it.movementMethod = android.text.method.LinkMovementMethod.getInstance()
         }
     }
 

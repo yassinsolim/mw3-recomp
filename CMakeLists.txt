@@ -59,6 +59,8 @@ if(BUILD_TESTING)
     # The PM4 command processor, fed streams built by the test, with a recording fake
     # standing in for the Vulkan renderer.
     mw3_runtime_test(gpu_command_processor_test runtime/gpu/command_processor.cpp)
+    # The camouflage pack reader, on packs the test writes.
+    mw3_runtime_test(camo_packs_test runtime/camo_packs.cpp)
 endif()
 # Stop before title selection, generated PPC sources and dependency downloads.
 if(MW2_TESTS_ONLY)
