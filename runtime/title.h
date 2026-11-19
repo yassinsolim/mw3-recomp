@@ -1160,11 +1160,14 @@
 #define T_DATA_TimeStampBundlePtr 0x82000780u
 #define T_DATA_DebugMonitorPtr    0x820007F8u
 #define T_DATA_DeviceTable        0x83A53020u
-#define T_DATA_ClientStates       0u
-#define T_CLIENT_STRIDE           0u
-#define T_CLIENT_VALID            0u
-#define T_CLIENT_ORIGIN           0u
-#define T_CLIENT_ANGLES           0u
+// The update's data, at the update's addresses: the disc's `viewpos`
+// (sub_820E1D40, before the one function the update changes) forms the same.
+#define T_DATA_ClientStates       0x8244C2C0u
+#define T_CLIENT_STATES_ARE_HERE  1
+#define T_CLIENT_STRIDE           0x0002F1E4u
+#define T_CLIENT_VALID            32u
+#define T_CLIENT_ORIGIN           133188u
+#define T_CLIENT_ANGLES           149388u
 
 // The title's SPA, its XEX resource named after the title id, as the image
 // holds it: the presence strings (presence.cpp).

@@ -25,8 +25,9 @@ time and are not stored here.
 
 ## Mesa Turnip (Vulkan driver for Qualcomm Adreno)
 
-The Modern Warfare 3 Android app (`com.mw3.recomp`) and its multiplayer test
-copy (`com.mw3.recomp.mp2`) use
+The Modern Warfare 3 Android app (`com.mw3.recomp`), its multiplayer test
+copy (`com.mw3.recomp.mp2`) and the Modern Warfare 2 apps
+(`cod.modern.warfare2.sp`, `.mp`) use
 a build of the Mesa Turnip driver as their default graphics driver on
 Qualcomm devices.
 

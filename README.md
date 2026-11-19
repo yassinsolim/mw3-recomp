@@ -38,6 +38,16 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 
 The detailed log is [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md).
 
+*Modern Warfare 2*, which this port grew from, still builds from its own disc
+(`setup\setup.cmd -Game mw2`, Android only, two apps) and shares every
+renderer fix made since ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md)):
+
+| Modern Warfare 2 (disc version) | Android |
+|---|---|
+| Campaign | plays (S.S.D.D. at 60 FPS, Team Player at about 57) |
+| Multiplayer, System Link | plays (Terminal and Rust at 60 FPS) |
+| Split screen, two devices in a match, title update 6 | not tested |
+
 ## What you need
 
 - Your own Xbox 360 *Modern Warfare 3* disc, dumped to an `.iso`. The build
