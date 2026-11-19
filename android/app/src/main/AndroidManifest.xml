@@ -34,6 +34,16 @@
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- Modern Warfare 2's campaign and multiplayer are apps of their own, and
+         each offers to start the other (MainActivity.otherApp): from Android 11
+         an app sees another only when it names it here. -->
+    <queries>
+        <package android:name="cod.modern.warfare2.sp" />
+        <package android:name="cod.modern.warfare2.mp" />
+        <package android:name="cod.modern.warfare2.sp.tu6" />
+        <package android:name="cod.modern.warfare2.mp.tu6" />
+    </queries>
+
     <application
         android:name=".MW2Application"
         android:allowBackup="false"

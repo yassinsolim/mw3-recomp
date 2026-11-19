@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The dependencies the Android build has that are not fetched by CMake:
 # libadrenotools, which is what lets a driver the player imported be loaded
-# on a phone that has not been rooted, and the Turnip driver the mw3 app
-# bundles (last step below).
+# on a phone that has not been rooted, and the Turnip driver the apps bundle
+# (last step below).
 #
 # Neither is vendored here -- they are somebody else's code, under their own
 # licences, and libadrenotools carries submodules. Without them the app still
@@ -28,10 +28,13 @@ fi
 # Its own dependency: the linker shim it loads the driver through.
 git -C "${TARGET}" submodule update --init --recursive --depth 1
 
-# The Turnip (Mesa, MIT) Vulkan driver the Modern Warfare 3 app unpacks and
-# uses by default on Qualcomm phones, where the stock driver is slow and draws
-# corrupted textures. Downloaded, never committed (THIRD_PARTY.md); only the
-# mw3 flavor packages it, and a build without it simply has no bundled driver.
+# The Turnip (Mesa, MIT) Vulkan driver the apps unpack and use by default on
+# Qualcomm phones, where the stock driver is slow and draws corrupted textures
+# (and, in Modern Warfare 2, leaves surfaces out for minutes while it compiles
+# their pipelines). Downloaded, never committed (THIRD_PARTY.md); it is kept
+# under the mw3 flavour's assets, the MW2 flavours package a copy of it
+# (android/app/build.gradle.kts, bundledDriverAssets), and a build without it
+# simply has no bundled driver.
 TURNIP_URL="${TURNIP_URL:-https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip}"
 TURNIP_SHA256="8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781"
 TURNIP_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_v27_r2.zip"
@@ -74,4 +77,4 @@ fi
 
 echo
 echo "Done. The next Gradle build will find libadrenotools (cmake/android.cmake)"
-echo "and the mw3 app will carry the Turnip driver."
+echo "and the apps will carry the Turnip driver."

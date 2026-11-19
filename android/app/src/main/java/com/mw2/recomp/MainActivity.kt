@@ -443,10 +443,10 @@ class MainActivity : AppCompatActivity() {
         detailText.text = text
     }
 
-    /** An app of the multiplayer alone (com.mw2.recomp.mp, .mp.tu6, com.mw3.recomp.mp). */
+    /** An app of the multiplayer alone (cod.modern.warfare2.mp, .mp.tu6, com.mw3.recomp.mp). */
     private fun isMp(): Boolean = firstTitle == Title.MULTIPLAYER
 
-    /** com.mw2.recomp.sp.tu6 / .mp.tu6 run title update 6. */
+    /** cod.modern.warfare2.sp.tu6 / .mp.tu6 run title update 6. */
     private fun isTu6(): Boolean = packageName.endsWith(".tu6")
 
     /** The other flavor's package, or null when it is not installed. */
@@ -456,7 +456,10 @@ class MainActivity : AppCompatActivity() {
         val pkg = if (Title.isMw3) {
             "com.mw3.recomp"
         } else {
-            "com.mw2.recomp" + (if (isMp()) ".sp" else ".mp") + if (isTu6()) ".tu6" else ""
+            // MW2's own package with the other title's suffix
+            // (build.gradle.kts: cod.modern.warfare2.sp / .mp, then .tu6).
+            packageName.removeSuffix(".tu6").substringBeforeLast('.') +
+                (if (isMp()) ".sp" else ".mp") + if (isTu6()) ".tu6" else ""
         }
         val label = getString(
             R.string.launch_other,

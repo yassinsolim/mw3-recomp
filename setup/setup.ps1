@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-Builds Modern Warfare 3 for Android (APK) and/or Windows from your own disc image.
+Builds Modern Warfare 3 for Android (APK) and/or Windows from your own disc image;
+with -Game mw2, Modern Warfare 2's two Android apps from that game's disc image.
 
 .DESCRIPTION
 One command for a Windows PC: setup\setup.cmd (or this script). It
@@ -23,6 +24,10 @@ for your own devices only. Never upload or share it.
 Re-runnable: finished steps are skipped. A first run takes one to several
 hours and about 40 GB of disk (60 GB with the Windows game).
 
+.PARAMETER Game
+mw3 (default) or mw2. Modern Warfare 2 is built for Android only, as two apps
+(campaign, multiplayer) from the disc's own executables (no title update);
+docs/MW2-ANDROID.md.
 .PARAMETER Iso
 The disc image. Asked for when not given.
 .PARAMETER Title
@@ -58,6 +63,7 @@ setup\setup.cmd -Check
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('mw3', 'mw2')][string]$Game = 'mw3',
     [string]$Iso,
     [ValidateSet('both', 'sp', 'mp')][string]$Title,
     [ValidateSet('android', 'pc', 'both')][string]$Build,
@@ -124,13 +130,27 @@ $Xenon     = Join-Path $Repo 'XenonRecomp'
 $XenonExe  = Join-Path $Xenon 'build\XenonRecomp\XenonRecomp.exe'
 $AnalyseExe = Join-Path $Xenon 'build\XenonAnalyse\XenonAnalyse.exe'
 
-# What differs between the disc's two executables (win_build.ps1's table).
-$Titles = @{
+# What differs between the disc's two executables (win_build.ps1's table), for
+# each game. Modern Warfare 2's are the disc's version (tu0): its trees,
+# configs and tables carry that in their names (tools/title.py).
+$Mw2 = $Game -eq 'mw2'
+$GameName = if ($Mw2) { 'Modern Warfare 2' } else { 'Modern Warfare 3' }
+$Disc = "$Game/tu0"
+$Titles = if ($Mw2) { @{
+    sp = @{ Name = 'sp'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_tu0'; Toml = 'MW2.tu0.toml'
+            Tables = 'mw2_switch_tables.tu0.toml'; Files = 113; Jump = 100
+            Sha = '990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff'
+            Task = 'assembleCampaignTu0Debug'; Variant = 'campaignTu0'; Apk = 'mw2-sp-debug.apk' }
+    mp = @{ Name = 'mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mp_tu0'; Toml = 'MW2MP.tu0.toml'
+            Tables = 'mw2mp_switch_tables.tu0.toml'; Files = 117; Jump = 121
+            Sha = 'aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde'
+            Task = 'assembleMultiplayerTu0Debug'; Variant = 'multiplayerTu0'; Apk = 'mw2-mp-debug.apk' }
+} } else { @{
     sp = @{ Name = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
             Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
     mp = @{ Name = 'mw3mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mw3_mp'; Toml = 'MW3MP.toml'
             Tables = 'mw3mp_switch_tables.toml'; Files = 153; Jump = 156 }
-}
+} }
 
 $Clock = [Diagnostics.Stopwatch]::StartNew()
 function Step($text) { Write-Host ("[{0:hh\:mm\:ss}] {1}" -f $Clock.Elapsed, $text) -ForegroundColor Cyan }
@@ -175,6 +195,18 @@ function Exec {
 }
 
 function Sha256Of($path) { (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() }
+
+# Whether an extracted executable is a disc build this port supports, as one
+# line of text; throws when it is not. Modern Warfare 3's builds are listed by
+# tools/check_mw3_xex.py; Modern Warfare 2 has the one disc (CMakeLists.txt,
+# MW2_XEX_SHA256_SP/MP).
+function Test-Xex($python, $t) {
+    $xexRel = "$Disc/$($t.Xex).xex"
+    if (-not $Mw2) { return Exec $python @('tools/check_mw3_xex.py', $xexRel) -Cwd $Repo }
+    $sha = Sha256Of (Join-Path $Repo $xexRel)
+    if ($sha -ne $t.Sha) { throw "${xexRel}: SHA-256 $sha is not the Modern Warfare 2 disc's ($($t.Sha))" }
+    "${xexRel}: the Modern Warfare 2 disc's (1.0.557)"
+}
 
 # Downloads a pinned file into .toolchain\dl (once) and checks its hash.
 function Fetch($pin) {
@@ -344,12 +376,12 @@ if ($Check) {
     Note "Android SDK packages: $(if ($missing) { "would install $($missing -join ', ')" } else { 'present' })"
     Note "XenonRecomp: $(if (Test-Path $XenonExe) { 'built' } else { "would clone hedge-dev/XenonRecomp at $($XenonCommit.Substring(0, 12)), patch and build it" })"
     foreach ($key in 'sp', 'mp') {
-        $t = $Titles[$key]; $xex = Join-Path $Repo "mw3\tu0\$($t.Xex).xex"
+        $t = $Titles[$key]; $xex = Join-Path $Repo "$Disc\$($t.Xex).xex"
         $state = 'not extracted yet'
         if (Test-Path $xex) {
             if ($py) {
                 $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-                $verdict = & $py (Join-Path $Repo 'tools\check_mw3_xex.py') $xex 2>&1
+                $verdict = try { Test-Xex $py $t } catch { $_.Exception.Message }
                 $ErrorActionPreference = $old
                 $state = "extracted; $verdict"
             } else { $state = 'extracted (no Python to check it)' }
@@ -363,7 +395,7 @@ if ($Check) {
     return
 }
 
-Write-Host 'Modern Warfare 3 (Xbox 360) recompiled: setup' -ForegroundColor Green
+Write-Host "$GameName (Xbox 360) recompiled: setup" -ForegroundColor Green
 Write-Host 'This builds the game from your own disc image. What it makes contains code'
 Write-Host 'from your copy of the game: keep it to your own devices, never share it.'
 Write-Host ''
@@ -371,24 +403,32 @@ if ($freeGb -lt 40) { Warn "only $freeGb GB free on ${drive}: about 40 GB is wan
 if ($memGb -lt 16) { Warn "$memGb GB of memory: the recompiled code is large, and the build may run out below 16 GB." }
 
 # ---- 1. what to build --------------------------------------------------------
+if ($Mw2) {
+    # Two apps, one a title; the Windows game of Modern Warfare 2 is build.sh's (docs/building.md).
+    if ($Build -and $Build -ne 'android') { throw '-Game mw2 builds the Android apps only (-Build android).' }
+    if ($Instance -gt 1) { throw '-Instance is for Modern Warfare 3.' }
+    $Build = 'android'
+    if (-not $Title) { $Title = Choose 'Which app: both, sp (campaign and Special Ops) or mp (multiplayer)?' @('both', 'sp', 'mp') 'both' }
+}
 if (-not $Title) { $Title = Choose 'Which part of the game for Windows: both, sp (campaign and Special Ops) or mp (multiplayer)? The Android app always holds both.' @('both', 'sp', 'mp') 'both' }
 if (-not $Build) { $Build = Choose 'Build for android, pc (Windows) or both?' @('android', 'pc', 'both') 'android' }
 if ($Instance -gt 1 -and $Title -ne 'mp') { throw '-Instance is for -Title mp' }
 $ForAndroid = $Build -in 'android', 'both'
 $ForPc = $Build -in 'pc', 'both'
 $TestCopy = $Instance -gt 1
-# The Windows game is an executable for each title asked for. The Android app
-# carries both, so it needs both recompiled whatever -Title says; the
-# multiplayer test copy (-Instance) needs only its own.
+# The Windows game is an executable for each title asked for. Modern Warfare
+# 3's Android app carries both, so it needs both recompiled whatever -Title
+# says; the multiplayer test copy (-Instance) needs only its own, and so does
+# each of Modern Warfare 2's apps.
 $PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
-$Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
+$Keys = if ($ForAndroid -and -not $TestCopy -and -not $Mw2) { @('sp', 'mp') } else { $PcKeys }
 
 $needIso = ($ForPc -and -not (Test-Path (Join-Path $Out 'pc\game\default.xex'))) -or
-           @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "mw3\tu0\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
+           @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
 while ($needIso -and -not ($Iso -and (Test-Path -LiteralPath $Iso -PathType Leaf))) {
     if ($Iso) { Warn "no file at $Iso" }
     if (-not $Interactive) { throw 'Give the disc image with -Iso <path>.' }
-    $Iso = (Read-Host 'Path to your Modern Warfare 3 disc image (.iso; you can drag the file into this window)').Trim().Trim('"')
+    $Iso = (Read-Host "Path to your $GameName disc image (.iso; you can drag the file into this window)").Trim().Trim('"')
 }
 if ($Iso) { $Iso = (Resolve-Path -LiteralPath $Iso).Path }
 
@@ -460,22 +500,22 @@ if ($ForAndroid) {
 # ---- 3. the executables, out of the disc image -------------------------------
 foreach ($key in @($Keys)) {
     $t = $Titles[$key]
-    $xexRel = "mw3/tu0/$($t.Xex).xex"
+    $xexRel = "$Disc/$($t.Xex).xex"
     if (-not (Test-Path (Join-Path $Repo $xexRel))) {
         Step "extract $($t.Xex).xex from the disc image (read-only)"
-        Exec $Python @('tools/xdvdfs.py', $Iso, 'mw3/tu0', "$($t.Xex).xex") -Cwd $Repo -Log "extract_$($t.Xex).log" -Quiet
-        if (-not (Test-Path (Join-Path $Repo $xexRel))) { throw "$($t.Xex).xex is not on that disc image: is it Modern Warfare 3 for the Xbox 360?" }
+        Exec $Python @('tools/xdvdfs.py', $Iso, $Disc, "$($t.Xex).xex") -Cwd $Repo -Log "extract_$($t.Xex).log" -Quiet
+        if (-not (Test-Path (Join-Path $Repo $xexRel))) { throw "$($t.Xex).xex is not on that disc image: is it $GameName for the Xbox 360?" }
     }
-    try { Exec $Python @('tools/check_mw3_xex.py', $xexRel) -Cwd $Repo }
+    try { Test-Xex $Python $t }
     catch {
         if ($Keys.Count -gt 1) {
             Warn "$($t.Xex).xex is not a build this port supports; skipping the $($t.Label)."
             $Keys = @($Keys | Where-Object { $_ -ne $key })
-        } else { throw "$($t.Xex).xex is not a disc build this port supports (tools/check_mw3_xex.py lists them)." }
+        } else { throw "$($t.Xex).xex is not a disc build this port supports: $($_.Exception.Message)" }
     }
 }
 $PcKeys = @($PcKeys | Where-Object { $_ -in $Keys })
-if ($ForAndroid -and -not $TestCopy -and $Keys.Count -lt 2) {
+if ($ForAndroid -and -not $TestCopy -and -not $Mw2 -and $Keys.Count -lt 2) {
     throw 'The Android app holds the campaign and the multiplayer, and needs both executables to be disc builds this port supports (tools/check_mw3_xex.py lists them).'
 }
 
@@ -535,14 +575,14 @@ if ($toRecompile.Count -and -not ((Test-Path $XenonExe) -and (Test-Path $Analyse
 
 foreach ($key in @($Keys)) {
     $t = $Titles[$key]
-    $xexRel = "mw3/tu0/$($t.Xex).xex"
+    $xexRel = "$Disc/$($t.Xex).xex"
     $ppcDir = Join-Path $Repo $t.Ppc
     $env:MW2_TITLE = $t.Name; $env:MW2_VERSION = 'tu0'
     if ($key -in $toRecompile) {
         Step "recompile $($t.Xex).xex ($($t.Label)); this takes a while"
         # tools/xexdump.py decrypts with openssl.exe, found on PATH.
         $savedPath = $env:PATH; $env:PATH = "$OpenSslDir;$env:PATH"
-        try { Exec $Python @('tools/xexdump.py', $xexRel, "mw3/tu0/$($t.Xex).pe") -Cwd $Repo -Log "$($t.Name)_xexdump.log" -Quiet }
+        try { Exec $Python @('tools/xexdump.py', $xexRel, "$Disc/$($t.Xex).pe") -Cwd $Repo -Log "$($t.Name)_xexdump.log" -Quiet }
         finally { $env:PATH = $savedPath }
         Exec $AnalyseExe @($xexRel, "config/$($t.Tables)") -Cwd $Repo -Log "$($t.Name)_analyse.log" -Quiet
         # XenonRecomp crashes, rather than complaining, when its output directory is missing.
@@ -576,7 +616,7 @@ if ($ForAndroid) {
         Exec $GitTools.Git @('clone', '-q', '--depth', '1', '-c', 'core.autocrlf=false', $AdrenoRemote, $adreno)
         Exec $GitTools.Git @('-C', $adreno, 'submodule', 'update', '-q', '--init', '--recursive', '--depth', '1')
     }
-    # The Turnip driver the campaign app bundles (THIRD_PARTY.md): downloaded,
+    # The Turnip driver the apps bundle (THIRD_PARTY.md): downloaded,
     # hash-checked, never committed. A failure leaves the APK without it
     # rather than stopping the build.
     $turnip = Join-Path $Repo 'android\app\src\mw3\assets\drivers\turnip_v27_r2.zip'
@@ -594,27 +634,32 @@ if ($ForAndroid) {
     }
     # The multiplayer app carries its camouflage packs as assets and copies
     # them into the game folder when it starts (CamoPacks.kt).
-    if (@($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $Repo 'android\app\src\mw3\assets\camos') }
+    if (-not $Mw2 -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $Repo 'android\app\src\mw3\assets\camos') }
     [IO.File]::WriteAllText((Join-Path $Repo 'android\local.properties'), "sdk.dir=$($Sdk -replace '\\', '/')`n")
     $env:MW2_LTO = 'OFF'
-    # One app with both titles: the campaign's build makes the multiplayer's
-    # library as well (cmake/android.cmake, MW3_BOTH_TITLES).
-    $app = if ($TestCopy) {
-        @{ Label = "multiplayer test copy $Instance"; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Apk = "mw3mp$Instance-debug.apk" }
+    # Modern Warfare 3 is one app with both titles: the campaign's build makes
+    # the multiplayer's library as well (cmake/android.cmake, MW3_BOTH_TITLES).
+    # Modern Warfare 2 is an app for each title.
+    $apps = if ($Mw2) {
+        @($Keys | ForEach-Object { $t = $Titles[$_]; @{ Label = "$($t.Label) app"; Task = $t.Task; Variant = $t.Variant; Apk = $t.Apk } })
+    } elseif ($TestCopy) {
+        @(@{ Label = "multiplayer test copy $Instance"; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Apk = "mw3mp$Instance-debug.apk" })
     } else {
-        @{ Label = 'app (campaign, Special Ops and multiplayer)'; Task = 'assembleMw3Tu0Debug'; Variant = 'mw3Tu0'; Apk = 'mw3-debug.apk' }
+        @(@{ Label = 'app (campaign, Special Ops and multiplayer)'; Task = 'assembleMw3Tu0Debug'; Variant = 'mw3Tu0'; Apk = 'mw3-debug.apk' })
     }
-    Step "build the $($app.Label) (gradle $($app.Task); the longest step, log: out\logs\gradle_android.log)"
-    # A modest daemon: most of the memory goes to the compilers it starts.
-    $gradleArgs = @('--no-daemon', '-Dorg.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8')
-    if ($TestCopy) { $gradleArgs += "-PmpInstance=$Instance" }
-    Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + $app.Task) -Cwd (Join-Path $Repo 'android') -Log 'gradle_android.log' -Quiet
-    $built = Get-ChildItem (Join-Path $Repo "android\app\build\outputs\apk\$($app.Variant)\debug\*.apk") | Sort-Object LastWriteTime | Select-Object -Last 1
-    if (-not $built) { throw "gradle finished but no APK under android\app\build\outputs\apk\$($app.Variant)\debug" }
-    $apk = Join-Path $Out $app.Apk
-    Copy-Item $built.FullName $apk -Force
-    $Apks += $apk
-    Note ("{0} ({1:N1} MB)" -f $apk, ((Get-Item $apk).Length / 1MB))
+    foreach ($app in $apps) {
+        Step "build the $($app.Label) (gradle $($app.Task); the longest step, log: out\logs\gradle_$($app.Variant).log)"
+        # A modest daemon: most of the memory goes to the compilers it starts.
+        $gradleArgs = @('--no-daemon', '-Dorg.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8')
+        if ($TestCopy) { $gradleArgs += "-PmpInstance=$Instance" }
+        Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + $app.Task) -Cwd (Join-Path $Repo 'android') -Log "gradle_$($app.Variant).log" -Quiet
+        $built = Get-ChildItem (Join-Path $Repo "android\app\build\outputs\apk\$($app.Variant)\debug\*.apk") | Sort-Object LastWriteTime | Select-Object -Last 1
+        if (-not $built) { throw "gradle finished but no APK under android\app\build\outputs\apk\$($app.Variant)\debug" }
+        $apk = Join-Path $Out $app.Apk
+        Copy-Item $built.FullName $apk -Force
+        $Apks += $apk
+        Note ("{0} ({1:N1} MB)" -f $apk, ((Get-Item $apk).Length / 1MB))
+    }
 }
 
 # ---- 6. the Windows game -----------------------------------------------------
@@ -682,7 +727,7 @@ if ($ForAndroid -and $Apks.Count) {
             # multiplayer keeps as mp\saves; an app cannot read another's
             # folder on a current Android, adb can. Never over saves already
             # there, and the old app and its files are left as they are.
-            if (-not $TestCopy) {
+            if (-not $TestCopy -and -not $Mw2) {
                 $oldSaves = '/sdcard/Android/data/com.mw3.recomp.mp/files/saves'
                 $home3 = '/sdcard/Android/data/com.mw3.recomp/files/mp'
                 try {

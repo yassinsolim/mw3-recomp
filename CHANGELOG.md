@@ -5,6 +5,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Modern Warfare 2 on Android, again** ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md)):
+  the campaign and multiplayer apps build from the disc's executables with
+  `setup\setup.cmd -Game mw2`, carry the Turnip driver Modern Warfare 3's app
+  carries and use it by default on Qualcomm phones (the phone's own driver
+  left surfaces out for minutes while it compiled their pipelines), and each
+  launcher finds the other app (it looked for a package name the apps never
+  had). The disc's campaign has its player position (`runtime/title.h`), so
+  recorded flights and `MW2_TRACE_VIEWPOS` work in it.
 - **MW3 multiplayer: match options** (`runtime/match_options.cpp`; the app's
   "Match options"): Game Setup shows the Alternate Modes the disc hides (Gun
   Game, Infected, One in the Chamber, Juggernaut, Team Juggernaut, Drop Zone)

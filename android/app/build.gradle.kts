@@ -36,6 +36,10 @@ val mpInstance = (findProperty("mpInstance") as String?)?.toIntOrNull()?.coerceI
 // MW3_MP_LIBRARY_DIRECTORY), under the ABI's name as jniLibs folders are.
 val mw3mpLibraries = layout.buildDirectory.dir("mw3mp-jni").get().asFile
 
+// Where the MW2 flavours' copy of the bundled graphics driver is put
+// (bundledDriverAssets, at the end of this file).
+val mw2DriverAssets = layout.buildDirectory.dir("mw2-driver-assets").get().asFile
+
 // The app's own sources have to be here. They went missing once -- written,
 // built against, and never committed -- and the result was an apk that
 // installed, launched, and died on a manifest pointing at classes that did
@@ -263,6 +267,10 @@ android {
         getByName("mw3") {
             jniLibs.srcDir(mw3mpLibraries)
         }
+        // Modern Warfare 2's apps carry the same Turnip driver and nothing
+        // else of src/mw3/assets (the camouflage packs are MW3's): a copy of
+        // the drivers folder alone, made by bundledDriverAssets below.
+        listOf("campaign", "multiplayer").forEach { getByName(it) { assets.srcDir(mw2DriverAssets) } }
     }
 
     externalNativeBuild {
@@ -335,6 +343,17 @@ tasks.configureEach {
     Regex("merge(Mw3Tu0\\w+)JniLibFolders").matchEntire(name)?.let {
         dependsOn("externalNativeBuild${it.groupValues[1]}")
     }
+}
+
+// The bundled Turnip package (android/fetch_deps.sh puts it under src/mw3),
+// for the MW2 flavours' assets; empty when the download was skipped, and the
+// app then has no bundled driver (DriverStore.installBundledDefault).
+val bundledDriverAssets = tasks.register<Sync>("bundledDriverAssets") {
+    from("src/mw3/assets") { include("drivers/**") }
+    into(mw2DriverAssets)
+}
+tasks.configureEach {
+    if (Regex("merge(Campaign|Multiplayer)\\w+Assets").matches(name)) dependsOn(bundledDriverAssets)
 }
 
 dependencies {
