@@ -82,11 +82,11 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 | `MW2_LAN_ACCEPT=1` | lan and server: accepts invitations |
 | `MW2_STEAM_APPID=<id>` | steam: the app id to run as (480, Spacewar) |
 | `MW2_STEAM_ROOT=<path>` | steam: the Steam install to use, when it is not found or several are running |
-| `MW2_VOICE=1` | MW3's multiplayer: voice chat. Off by default; on, the microphone is opened and what the player says goes to the other players through the service, unencrypted ([multiplayer.md](multiplayer.md#voice-chat)). The Android app's "Voice chat" sets it |
+| `MW2_VOICE=1` | MW3's multiplayer: voice chat. Off by default; on, the microphone is opened and what the player says goes to the other players through the service, unencrypted ([multiplayer.md](multiplayer.md#voice-chat)). The title gives a headset only to a player signed in to Xbox LIVE: a relay, or `MW2_LIVE=1`. The Android app's "Voice chat" sets it |
 | `MW2_VOICE_PTT=0\|1` | voice: send only while the push-to-talk key (T) or the on-screen Talk button is held. Default 1; 0 is an open microphone, as the console had |
 | `MW2_VOICE_VOLUME=<percent>` | voice: how loud the other players are, in percent of what the title sent (100; at most 400) |
 | `MW2_VOICE_TONE=1` | voice: a 440 Hz tone stands in for the microphone, which is then not opened; still gated by push-to-talk (diagnostic) |
-| `MW2_VOICE_DUMP=<file.wav>` | voice: writes what the other players said, as decoded, to a 16 kHz mono WAV file (diagnostic) |
+| `MW2_VOICE_DUMP=<file.wav>` | voice: writes what the other players said, as decoded, to an 8 kHz mono WAV file (diagnostic) |
 | `MW2_TRACE_ONLINE=1` | every datagram through the service (diagnostic) |
 | `MW2_TRACE_NET=1` | the same in every build, with the session messages, the sockets' ports, what the service drops, and a line every five seconds while the title's main thread runs; `net-trace:` lines |
 | `MW2_TRACE_DW=1` | MW3's multiplayer: a line for the logon to the DemonWare lobby stand-in and for every task the title sends it, with the service, the task number, the file it names, the error and the size of the reply; `dw:` lines, in every build |

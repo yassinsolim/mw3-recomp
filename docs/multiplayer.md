@@ -585,7 +585,7 @@ XAM did, a headset:
 | `XamVoiceCreate` | voice on and the first player: opens the microphone and writes a handle. Otherwise succeeds with no handle, which XHV reads as no headset |
 | `XamVoiceHeadsetPresent` | 1 while that headset is open |
 | `XamVoiceSubmitPacket`, direction 1 | capture: the packet is queued and filled with 16 kHz 16-bit big-endian samples as the microphone delivers them, four times the bytes asked for with format 0, which XHV takes as already decoded |
-| `XamVoiceSubmitPacket`, direction 0 | playback: 4-bit ADPCM at 16 kHz, decoded by calling the title's own coder (`T_XHV_AdpcmCoder` in `runtime/title.h`), resampled to 48 kHz and added to the front channels of the mix (`runtime/apu/audio.cpp`) |
+| `XamVoiceSubmitPacket`, direction 0 | playback: 4-bit ADPCM at 8 kHz, 64 bytes every 16 ms, decoded by calling the title's own coder (`T_XHV_AdpcmCoder` in `runtime/title.h`), resampled to 48 kHz and added to the front channels of the mix (`runtime/apu/audio.cpp`) |
 | `XamVoiceClose` | drops the queued packets and closes the microphone |
 
 The microphone is SDL's default recording device on the desktop and an AAudio
@@ -602,15 +602,34 @@ unaffected. Speech is not encrypted, as it was not on the console: with the
 `server` service it passes through the relay, whose operator could record it.
 Nothing is written to disk except by `MW2_VOICE_DUMP`.
 
-**Testing with two copies.** On copy A set `MW2_VOICE=1`, `MW2_VOICE_TONE=1`
-and `MW2_VOICE_PTT=0`; on copy B `MW2_VOICE=1` and `MW2_VOICE_DUMP=b.wav`.
-With both in one lobby, A's tone is in `b.wav` and B shows A's talker icon.
-Each copy logs its first three packets in each direction (`voice: capture
-packet ...`, `voice: playback packet ...`) with their size and format.
+**Who is heard.** The title decides, as on the console:
 
-Not yet run: everything above is from the title's code. Whether a player
-without the communications privilege (the `none` service) is allowed to talk,
-and the title's scoreboard mute, are untested.
+- Only a player signed in to Xbox LIVE has a headset: the title asks for the
+  communications privilege and registers no talker without it. A relay
+  (`MW2_NETWORK=server`) signs in; `lan` does not unless `MW2_LIVE=1`, and the
+  log then says so once (`voice: the title keeps voice chat for players signed
+  in to Xbox LIVE`).
+- In a match the title sends a player's voice only to those its rules let
+  hear him (`sub_821659C8`: team, alive or dead, and the dead-chat dvars), so
+  two players on opposite teams of a Team Deathmatch hear nothing of each
+  other. Players who have not chosen a team yet hear each other.
+- XHV scales what is heard by the profile's voice volume
+  (`XPROFILE_OPTION_VOICE_VOLUME`, `0x1004000E`); a profile that never stored
+  one reads as 100 (`runtime/kernel/profile.cpp`), as at 0 nobody is heard.
+
+**Testing with two copies.** On copy A set `MW2_VOICE=1`, `MW2_VOICE_TONE=1`
+and `MW2_VOICE_PTT=0`; on copy B `MW2_VOICE=1` and `MW2_VOICE_DUMP=b.wav`,
+both through a relay. A hosts a System Link game and B joins it and stays at
+CHOOSE TEAM: A's tone is in `b.wav` (8 kHz; the codec is a speech codec, so
+the tone comes back as a narrow band around 440 Hz, not a line). Each copy
+logs its first three packets in each direction (`voice: capture packet ...`,
+`voice: playback packet ...`) with their size and format. With
+`MW2_NO_AUDIO=1` on Windows the mixer runs at about 0.7 of real time, and
+the earpiece, which is fed from the mix, with it.
+
+Run that way on two Windows copies through a local relay. Not yet run: a
+real microphone, the Android capture path, push-to-talk, the talker icon and
+the title's scoreboard mute.
 
 ## Switches
 

@@ -45,7 +45,13 @@ namespace
     // XUSER_DATA begins at +24: a byte type, seven reserved bytes, then value.
     // Public ABI cross-check: Xenia's kernel/xam/user_profile.h.
     constexpr uint32_t kSource = 0, kUser = 8, kId = 16, kType = 24, kValue = 32, kData = 36;
-    constexpr uint32_t kSourceTitle = 2;
+    constexpr uint32_t kSourceDefault = 1, kSourceTitle = 2;
+
+    // A system setting a console always has a value for: the voice chat
+    // volume, 0..100. The title's voice library reads the value without
+    // looking at the source and scales every other player's voice by it, so
+    // a profile that has never stored one heard nobody (voice.cpp).
+    constexpr uint32_t kVoiceVolumeId = 0x1004000E, kVoiceVolumeDefault = 100;
 
     // The type is the top nibble of the setting id: 6 is a byte blob, and
     // everything else fits in the eight bytes at +32.
@@ -258,7 +264,16 @@ PPC_FUNC(__imp__XamUserReadProfileSettings)
         entry[kId / 4]   = id;
 
         auto it = settings.find(id);
-        if (it == settings.end()) continue;      // source stays zero: not set
+        if (it == settings.end())
+        {
+            if (id == kVoiceVolumeId)
+            {
+                entry[kSource / 4] = kSourceDefault;
+                guest::Base()[address + kType] = uint8_t(TypeOf(id));
+                entry[kValue / 4] = kVoiceVolumeDefault;
+            }
+            continue;                            // otherwise source stays zero: not set
+        }
 
         const Setting& setting = it->second;
         entry[kSource / 4] = setting.source;

@@ -19,10 +19,18 @@
 //   as they are, big-endian: four times the bytes asked for, format 0. XHV
 //   turns the size back down when it queues the packet again (sub_8251C998).
 //
-//   Playback (direction 0). XHV has already encoded the samples to the
-//   headset's format, 4-bit ADPCM at 16 kHz, with its own coder. That coder
-//   is called back to decode them (title.h, T_XHV_AdpcmCoder), which is exact
-//   where a second implementation of it here could only be close.
+//   Playback (direction 0). XHV plays the other players through the title's
+//   XAudio2, into a mix with a channel for each local player, and its effect
+//   on that mix (the loop at 82514FFC) takes a player's channel out three
+//   mixer frames at a time, brings the 768 samples down to 128 at 8 kHz, and
+//   encodes them to the headset's format, 4-bit ADPCM, with its own coder:
+//   64 bytes every 16 ms. That coder is called back to decode them (title.h,
+//   T_XHV_AdpcmCoder), which is exact where a second implementation of it
+//   here could only be close. So the earpiece is 8 kHz though the microphone
+//   is 16, and it runs at the pace of the sound output: a run whose mixer
+//   falls behind (MW2_NO_AUDIO on Windows does) hears voices slowed with it.
+//   XHV scales the samples by the profile's voice volume, which is why an
+//   unset one reads as 100 (profile.cpp): at 0 every packet is silence.
 //
 // The console's title is open microphone: it has no push-to-talk and sends
 // whenever its detector hears speech. So the gate is here. Voice is off unless
@@ -68,7 +76,9 @@ namespace
 {
     using Clock = std::chrono::steady_clock;
 
-    constexpr uint32_t kVoiceRate = 16000;            // XHV's own rate
+    constexpr uint32_t kVoiceRate = 16000;            // what XHV takes from the microphone
+    constexpr uint32_t kPlaybackRate = 8000;          // what it sends the earpiece
+    constexpr uint32_t kMixRate = 48000;              // the game's sound output
     constexpr uint32_t kHandle = 0x564F4943u;         // any non-zero value: there is one headset
     constexpr uint32_t kCapture = 1, kPlayback = 0;   // XamVoiceSubmitPacket's direction
     constexpr uint32_t kFormatPcm = 0, kFormatAdpcm = 1;
@@ -77,8 +87,8 @@ namespace
     constexpr uint32_t kMaxBacklog = kVoiceRate / 5;
     // What is held before the other players are heard, so that packets
     // arriving unevenly do not stutter, and the most that is ever held.
-    constexpr uint32_t kPlaybackLead = kVoiceRate * 60 / 1000;
-    constexpr uint32_t kPlaybackRoom = kVoiceRate / 2;
+    constexpr uint32_t kPlaybackLead = kPlaybackRate * 60 / 1000;
+    constexpr uint32_t kPlaybackRoom = kPlaybackRate / 2;
 
     struct Packet
     {
@@ -313,7 +323,8 @@ namespace
     uint32_t g_ringRead = 0, g_ringHeld = 0;
     bool g_playing = false;               // past the lead, until the ring runs dry
     float g_previous = 0.0f, g_next = 0.0f;
-    uint32_t g_step = 3;                  // 48 kHz samples since g_next was taken; 3 takes another
+    constexpr uint32_t kUpsample = kMixRate / kPlaybackRate;
+    uint32_t g_step = kUpsample;          // output samples since g_next was taken; kUpsample takes another
 
     // MW2_VOICE_VOLUME, in percent of the level the title sent.
     float Volume()
@@ -358,7 +369,7 @@ namespace
             char fmt[4]; uint32_t fmtSize; uint16_t tag, channels; uint32_t rate, byteRate;
             uint16_t blockAlign, bits; char data[4]; uint32_t dataSize;
         } header{ { 'R', 'I', 'F', 'F' }, 36 + bytes, { 'W', 'A', 'V', 'E' },
-                  { 'f', 'm', 't', ' ' }, 16, 1, 1, kVoiceRate, kVoiceRate * 2,
+                  { 'f', 'm', 't', ' ' }, 16, 1, 1, kPlaybackRate, kPlaybackRate * 2,
                   2, 16, { 'd', 'a', 't', 'a' }, bytes };
         std::fseek(file, 0, SEEK_SET);
         std::fwrite(&header, sizeof header, 1, file);
@@ -368,7 +379,7 @@ namespace
     }
 
     // Guest memory for the coder: its state, and where it decodes to.
-    constexpr uint32_t kDecodeRoom = 8192;            // bytes; a packet is 640
+    constexpr uint32_t kDecodeRoom = 8192;            // bytes; a packet decodes to 256
     uint32_t g_coderState = 0, g_decoded = 0;
 
     void ResetCoder()
@@ -418,6 +429,8 @@ namespace
     }
 }
 
+bool kernel::voice::On() { return Enabled(); }
+
 void kernel::voice::Mix(float* interleaved, uint32_t frames, uint32_t channels)
 {
     if (!Enabled() || channels < 2) return;
@@ -430,8 +443,10 @@ void kernel::voice::Mix(float* interleaved, uint32_t frames, uint32_t channels)
     const float volume = Volume();
     for (uint32_t i = 0; i < frames; i++)
     {
-        // 16 kHz to 48: three output samples along the line between two.
-        if (g_step == 3)
+        // 8 kHz to 48: six output samples along the line between two. Plain
+        // interpolation leaves some of the image above 4 kHz; on speech the
+        // title's codec has already narrowed it is a slight edge, not noise.
+        if (g_step == kUpsample)
         {
             if (!g_ringHeld) { g_playing = false; return; }
             g_previous = g_next;
@@ -440,7 +455,7 @@ void kernel::voice::Mix(float* interleaved, uint32_t frames, uint32_t channels)
             g_ringHeld--;
             g_step = 0;
         }
-        const float sample = (g_previous + (g_next - g_previous) * (float(g_step) / 3.0f)) * volume;
+        const float sample = (g_previous + (g_next - g_previous) * (float(g_step) / float(kUpsample))) * volume;
         g_step++;
         interleaved[size_t(i) * channels] += sample;
         interleaved[size_t(i) * channels + 1] += sample;
@@ -502,11 +517,12 @@ PPC_FUNC(__imp__XamVoiceSubmitPacket)
     if (direction < 2 && said[direction] < 3)
     {
         said[direction]++;
-        LOGI("voice: %s packet %08X: %u bytes at %08X, format %u (expected: format 1, and 160 bytes for 20 ms)",
+        LOGI("voice: %s packet %08X: %u bytes at %08X, format %u (expected: format 1, and %s)",
              direction == kCapture ? "capture" : "playback", address, uint32_t(packet->size),
-             uint32_t(packet->buffer), uint32_t(packet->format));
+             uint32_t(packet->buffer), uint32_t(packet->format),
+             direction == kCapture ? "160 bytes for 20 ms at 16 kHz" : "64 bytes for 16 ms at 8 kHz");
     }
-    // A packet is 20 ms; one far larger is not a packet.
+    // A packet is 20 ms or less; one far larger is not a packet.
     if (!packet->buffer || !packet->size || packet->size > kDecodeRoom / 4)
     {
         ctx.r3.u64 = X_STATUS_INVALID_PARAMETER;
@@ -568,6 +584,7 @@ PPC_FUNC(__imp__XamVoiceClose)
 
 // A title whose voice library has not been looked at: no headset, and the
 // answers these imports gave before there was voice chat.
+bool kernel::voice::On() { return false; }
 void kernel::voice::Mix(float*, uint32_t, uint32_t) {}
 
 PPC_FUNC(__imp__XamVoiceCreate)         { ctx.r3.u64 = 0; }
