@@ -260,6 +260,32 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_BOTS_AGAINST_PLAYERS, value).apply()
 
     /**
+     * Modern Warfare 3's multiplayer: what the matches this device hosts are
+     * played with (MW2_MATCH_*, runtime/match_options.cpp) -- gravity (800 is
+     * the game's), movement speed in percent, jump height (39 is the game's),
+     * whether sprinting never runs out, and whether a fall hurts.
+     */
+    var matchGravity: Int
+        get() = store.getInt(KEY_MATCH_GRAVITY, 800).let { if (it in MATCH_GRAVITIES) it else 800 }
+        set(value) = store.edit().putInt(KEY_MATCH_GRAVITY, value).apply()
+
+    var matchSpeed: Int
+        get() = store.getInt(KEY_MATCH_SPEED, 100).let { if (it in MATCH_SPEEDS) it else 100 }
+        set(value) = store.edit().putInt(KEY_MATCH_SPEED, value).apply()
+
+    var matchJump: Int
+        get() = store.getInt(KEY_MATCH_JUMP, 39).let { if (it in MATCH_JUMPS) it else 39 }
+        set(value) = store.edit().putInt(KEY_MATCH_JUMP, value).apply()
+
+    var matchUnlimitedSprint: Boolean
+        get() = store.getBoolean(KEY_MATCH_SPRINT, false)
+        set(value) = store.edit().putBoolean(KEY_MATCH_SPRINT, value).apply()
+
+    var matchFallDamage: Boolean
+        get() = store.getBoolean(KEY_MATCH_FALL_DAMAGE, true)
+        set(value) = store.edit().putBoolean(KEY_MATCH_FALL_DAMAGE, value).apply()
+
+    /**
      * Keep the driver's pipeline blob on disk between runs on Mali
      * (MW2_PERSIST_PIPELINE_CACHE). Off by default: it may be unstable.
      */
@@ -398,6 +424,15 @@ class Prefs(context: Context) {
         private const val KEY_BOTS_AGAINST_PLAYERS = "botsAgainstPlayers"
         /** A server has 18 slots and the host keeps one. */
         const val MAX_BOTS = 17
+        private const val KEY_MATCH_GRAVITY = "matchGravity"
+        private const val KEY_MATCH_SPEED = "matchSpeed"
+        private const val KEY_MATCH_JUMP = "matchJump"
+        private const val KEY_MATCH_SPRINT = "matchUnlimitedSprint"
+        private const val KEY_MATCH_FALL_DAMAGE = "matchFallDamage"
+        /** What the match option sliders stop at; the game's own value is in each. */
+        val MATCH_GRAVITIES = intArrayOf(100, 200, 400, 600, 800, 1200, 1600)
+        val MATCH_SPEEDS = intArrayOf(50, 75, 100, 125, 150, 200, 300)
+        val MATCH_JUMPS = intArrayOf(20, 39, 60, 80, 120, 200, 400)
         private const val KEY_PERSIST_PIPELINE = "persistPipelineCache"
         private const val KEY_PLAYER_NAME = "playerName"
         private const val KEY_LAN_ACCEPT = "lanAccept"

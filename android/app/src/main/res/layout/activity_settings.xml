@@ -333,6 +333,68 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/bots_against_players" />
+
+                    <TextView
+                        style="@style/SectionHeading"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/section_match_options" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/match_options_hint" />
+
+                    <TextView
+                        android:id="@+id/match_gravity_label"
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <SeekBar
+                        android:id="@+id/match_gravity"
+                        style="@style/SettingSeek"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/match_speed_label"
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <SeekBar
+                        android:id="@+id/match_speed"
+                        style="@style/SettingSeek"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/match_jump_label"
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <SeekBar
+                        android:id="@+id/match_jump"
+                        style="@style/SettingSeek"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/match_sprint"
+                        style="@style/SettingSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/match_sprint" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/match_fall_damage"
+                        style="@style/SettingSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/match_fall_damage" />
                 </LinearLayout>
             </LinearLayout>
 

@@ -40,11 +40,14 @@
 // Modern Warfare 3's multiplayer: the same handler (sub_82141250, source 0
 // through sub_823266D0), the same resolveError reader (sub_822FAC08), and one
 // more dvar read the same way beside it, com_completionResolveCommand
-// (sub_822FAC80, flags 0x2000 too), refused there as well.
+// (sub_822FAC80, flags 0x2000 too), refused there as well. One name is not a
+// dvar's at all there: the jump height a host of this port sends
+// (match_options.cpp), which is taken here and goes no further.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "log.h"
 #include "guest.h"
+#include "match_options.h"
 
 #include <cctype>
 #include <cstdint>
@@ -90,6 +93,11 @@ GUEST_HOOK(T_CG_SetClientDvarFromServer)
             return;
         }
     }
+#ifdef T_ClientEndFrame
+    const char* value = GuestPtr<const char>(ctx.r5.u32);
+    if (name && value && match_options::FromHost(name, value))
+        return;
+#endif
     GUEST_ORIG(T_CG_SetClientDvarFromServer)(ctx, base);
 }
 

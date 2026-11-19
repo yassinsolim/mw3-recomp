@@ -70,6 +70,7 @@ class SettingsActivity : AppCompatActivity() {
             R.id.resolution_label, R.id.render_scale_label, R.id.fps_limit_label,
             R.id.fov_label, R.id.texture_label, R.id.look_x_label,
             R.id.look_y_label, R.id.smoothing_label, R.id.bot_count_label, R.id.bot_skill_label,
+            R.id.match_gravity_label, R.id.match_speed_label, R.id.match_jump_label,
         )
         title = getString(R.string.settings)
 
@@ -159,6 +160,15 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 }
             })
             switch(R.id.bots_against_players, prefs.botsAgainstPlayers) { prefs.botsAgainstPlayers = it }
+
+            matchOption(R.id.match_gravity_label, R.id.match_gravity, R.string.match_gravity,
+                Prefs.MATCH_GRAVITIES, 800, prefs.matchGravity) { prefs.matchGravity = it }
+            matchOption(R.id.match_speed_label, R.id.match_speed, R.string.match_speed,
+                Prefs.MATCH_SPEEDS, 100, prefs.matchSpeed) { prefs.matchSpeed = it }
+            matchOption(R.id.match_jump_label, R.id.match_jump, R.string.match_jump,
+                Prefs.MATCH_JUMPS, 39, prefs.matchJump) { prefs.matchJump = it }
+            switch(R.id.match_sprint, prefs.matchUnlimitedSprint) { prefs.matchUnlimitedSprint = it }
+            switch(R.id.match_fall_damage, prefs.matchFallDamage) { prefs.matchFallDamage = it }
         }
 
         val fovLabel: TextView = findViewById(R.id.fov_label)
@@ -451,6 +461,31 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
     private fun botCountText(count: Int): String =
         if (count == 0) getString(R.string.bot_count_none)
         else getString(R.string.bot_count, count)
+
+    /**
+     * A match option's slider: it stops at `values`, and the label says which
+     * of them is the game's own.
+     */
+    private fun matchOption(
+        labelId: Int, barId: Int, text: Int, values: IntArray, stock: Int, initial: Int,
+        onChange: (Int) -> Unit,
+    ) {
+        val label: TextView = findViewById(labelId)
+        val bar: SeekBar = findViewById(barId)
+        fun show(value: Int) {
+            val named = getString(text, value)
+            label.text = if (value == stock) getString(R.string.match_stock, named) else named
+        }
+        bar.max = values.size - 1
+        bar.progress = values.indexOf(initial).coerceAtLeast(0)
+        show(values[bar.progress])
+        bar.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                show(values[value])
+                if (fromUser) onChange(values[value])
+            }
+        })
+    }
 
     private fun switch(id: Int, initial: Boolean, onChange: (Boolean) -> Unit) {
         val view: SwitchCompat = findViewById(id)

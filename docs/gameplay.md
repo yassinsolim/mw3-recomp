@@ -254,6 +254,21 @@ under the title's 170 again, the second divides it. That is the result the
 function would have had with the scale in the setting, except for a view the
 title was already holding at one of its bounds, which is scaled from the bound.
 
+Modern Warfare 3's multiplayer has the same two functions at `8214C5A0` and
+`8214C8B0` (a leaf), and reads the switch as well; its campaign's are not
+located. The Android app's field of view slider sets `MW2_FOV` there, since
+the `cg_fov` it sends the other titles is put back to 65 at the next spawn.
+That executable also turns by the view's angle, in two places that compare it
+with the hip view the scripts know of: the pad's turn rate is multiplied by
+tan(half the view) over tan(half of 65 times `cg_fovScale`), which the aim
+assist keeps (`820D31A0`, at its state `+280`), and the input's sensitivity
+scale is the same ratio against a fixed 65 (`8214C7B0` stores it at cg
+`+0x76580`). Both hooks divide by what the hip's ratio became, so the hip
+turns as on the console and a sight slows by its zoom against the wider view.
+Measured with `MW2_TRACE_MATCH=1`, the right stick held 0.4 s three times: 83
+degrees a press from the hip at 65 and 80 at 100; 26 down a red dot sight at
+65 and 23 at 100.
+
 Everything the title draws is scaled by the same factor, as its own
 `cg_fovScale` does: a sight zooms in less at a wider view, and a scripted zoom
 or split screen's narrower view keeps its proportion. The weapon in the
