@@ -1,0 +1,94 @@
+package com.mw2.recomp
+
+import android.content.Context
+import org.json.JSONObject
+import java.io.File
+
+/**
+ * Camouflage packs: what Modern Warfare 3's multiplayer lists below Gold in
+ * Create a Class (runtime/camo_packs.h, docs/textures.md). A pack is a folder
+ * `camos/<pack-id>/` in the game folder with `pack.json` and its pictures.
+ *
+ * The packs the APK was built with (the project's own generated one, and any
+ * the builder imported from their authors' downloads) are assets under
+ * `camos/` and are copied into the game folder; a pack the player put there
+ * by hand is left alone.
+ */
+object CamoPacks {
+    private const val ASSETS = "camos"
+    private const val PACK_FILE = "pack.json"
+
+    /** What a pack says of itself, for the credits. */
+    data class Pack(
+        val name: String,
+        val author: String,
+        val url: String,
+        val permission: String,
+        val camos: Int,
+    )
+
+    private fun folder(gameDirectory: String) = File(gameDirectory, ASSETS)
+
+    /**
+     * Copies each bundled pack whose pack.json is not the one in the game
+     * folder: a first start, or an APK built with a newer pack. Never throws:
+     * a pack that cannot be copied is a camouflage list without it.
+     */
+    fun installBundled(context: Context, gameDirectory: String) {
+        val assets = context.assets
+        val bundled = try {
+            assets.list(ASSETS) ?: emptyArray()
+        } catch (_: Throwable) {
+            emptyArray()
+        }
+        for (id in bundled) {
+            try {
+                val wanted = assets.open("$ASSETS/$id/$PACK_FILE").use { it.readBytes() }
+                val target = File(folder(gameDirectory), id)
+                val have = File(target, PACK_FILE)
+                if (have.isFile && have.readBytes().contentEquals(wanted)) continue
+                target.deleteRecursively()
+                copy(context, "$ASSETS/$id", target)
+            } catch (_: Throwable) {
+                // Not a pack, or no room for it.
+            }
+        }
+    }
+
+    /** An asset folder, whole. pack.json goes last, so a copy cut short is taken up again. */
+    private fun copy(context: Context, asset: String, target: File) {
+        val children = context.assets.list(asset) ?: emptyArray()
+        target.mkdirs()
+        for (child in children.sortedBy { it == PACK_FILE }) {
+            val from = "$asset/$child"
+            val to = File(target, child)
+            if ((context.assets.list(from) ?: emptyArray()).isNotEmpty()) {
+                copy(context, from, to)
+            } else {
+                context.assets.open(from).use { input ->
+                    to.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+    }
+
+    /** Every pack in the game folder, in the order the game lists them. */
+    fun installed(gameDirectory: String): List<Pack> =
+        (folder(gameDirectory).listFiles() ?: emptyArray())
+            .filter { it.isDirectory }
+            .sortedBy { it.name }
+            .mapNotNull { pack ->
+                try {
+                    val json = JSONObject(File(pack, PACK_FILE).readText())
+                    Pack(
+                        name = json.optString("name").ifEmpty { pack.name },
+                        author = json.optString("author"),
+                        url = json.optString("url"),
+                        permission = json.optString("permission"),
+                        camos = json.optJSONArray("camos")?.length() ?: 0,
+                    )
+                } catch (_: Throwable) {
+                    null
+                }
+            }
+}

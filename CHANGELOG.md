@@ -5,6 +5,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **MW3 multiplayer: camouflage packs** (`runtime/mw3_custom_camos.cpp`,
+  `runtime/camo_packs.cpp`, `tools/import_pack.py`; `MW2_CUSTOM_CAMOS=0` turns
+  it off): the camouflages of the packs in the game folder's `camos` are
+  listed below Gold in Create a Class, each with its own name, preview and
+  description, chosen per class and weapon and drawn on the weapon in a
+  match. None of the game's camouflages is replaced and only Gold is written
+  to the stats. The project's own pack of thirteen is drawn by
+  `tools/camo_gen.py --pack` at set-up (new styles: nebula, neon grid, toxic,
+  magma, glitch, aurora, frost) and never committed; a pack of somebody
+  else's is fetched from its author's link by `setup/setup.ps1`
+  (`setup/camo-packs.json`) or made from a PC mod by `tools/import_pack.py`,
+  and credited in the game and under the app's Settings, Camo packs. One
+  custom camouflage is drawn at a time on a device, and other players see
+  Gold ([docs/textures.md](docs/textures.md#camouflage-packs)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they

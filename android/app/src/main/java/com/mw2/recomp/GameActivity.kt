@@ -461,6 +461,10 @@ val mode60 = modes
             fail(getString(R.string.error_not_installed))
             return
         }
+        // The camouflage packs this APK was built with, where the runtime reads them.
+        if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
+            CamoPacks.installBundled(this, gameDirectory)
+        }
         Trail.note(this, "game: handing over to the runtime")
         if (!NativeBridge.nativeStart(gameDirectory)) {
             fail(NativeBridge.nativeStatus().ifEmpty { getString(R.string.error_start) })

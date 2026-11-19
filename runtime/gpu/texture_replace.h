@@ -19,9 +19,16 @@
 // shown in turn by the clock at the `fps=<n>` of `<key>.txt`, or twelve a
 // second. Every frame is decoded when the first is, so showing the next is a
 // copy into the image the texture already has (Due).
+//
+// A texture may also be switchable: the title names one image for something
+// the port has several pictures of (MW3's Gold camouflage, which the custom
+// camouflages are drawn through, mw3_custom_camos.cpp). Its image is always
+// made as a replacement's, of the title's own picture until one is chosen,
+// and a choice reaches it as an animation's next frame does.
 #include <cstdint>
+#include <filesystem>
 #include <memory>
-
+#include <vector>
 #include "texture.h"
 
 namespace gpu::replace
@@ -32,6 +39,16 @@ namespace gpu::replace
     // Whether there is anything to do: replacements were found, or textures
     // are being dumped. A run with neither never hashes a texture.
     bool On();
+
+    // Makes the texture of `key` switchable, as one of `group`. Before the
+    // texture is first read: an image already made stays as it was made.
+    void Switchable(uint32_t group, uint64_t key);
+    // What the textures of `group` show from now on: the frames in order, at
+    // `fps` when there are several, each made the size of the title's own
+    // picture; or with no frames, the folder's replacement where there is one
+    // and the title's own picture where there is not. Decodes on the calling
+    // thread. Callable from any thread.
+    void Select(uint32_t group, const std::vector<std::filesystem::path>& frames, double fps);
 
     // The level the key is taken over: the lowest the sampler may use, which
     // is the base unless the title has yet to stream the base in. A streamed

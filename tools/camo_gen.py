@@ -13,21 +13,37 @@ Styles
   digital      blocky pixel camo in a 4-colour palette
   iridescent   thin-film interference colours over warped noise
   plasma       sum-of-sines plasma with a cosine palette
-Animated (--frames N): marble, iridescent, plasma. The loop is seamless: frame N
-would equal frame 0. Frames are written as <key>.0.png .. <key>.<N-1>.png plus
-<key>.txt holding `fps=<number>`; put them in the game's replace/ folder.
+  nebula       violet and blue gas over deep space, with twinkling stars
+  neon_grid    glowing green and cyan circuit traces on black, pulses running along them
+  toxic        green sludge with bubbles that swell and burst
+  magma        dark crust with glowing lava in its cracks
+  glitch       blocks sliding sideways with split colour channels
+  aurora       curtains of green and violet light over a night sky
+  frost        pale ice crystals with needles and passing glints
+Animated (--frames N): every style but carbon, voronoi and digital. The loop is
+seamless: frame N would equal frame 0. Frames are written as <key>.0.png ..
+<key>.<N-1>.png plus <key>.txt holding `fps=<number>`; put them in the game's
+replace/ folder.
+
+--pack DIR writes every style as a camouflage pack (pack.json and pictures;
+docs/textures.md, "Camouflage packs"), which Modern Warfare 3's multiplayer
+lists below Gold when DIR is `camos/<pack-id>` in the game folder. --gallery
+FILE writes a contact sheet of the same camouflages.
 
     python tools/camo_gen.py dumps/0123456789abcdef.png --style carbon --out replace
     python tools/camo_gen.py dumps/0123456789abcdef.png --style digital --palette 1e2a1c,3a4a2a,6b7a4a,a89a6a
     python tools/camo_gen.py dumps/0123456789abcdef.png --style marble --keep-alpha
     python tools/camo_gen.py dumps/0123456789abcdef.png --style iridescent --frames 24 --fps 15
     python tools/camo_gen.py --key 0123456789abcdef --size 512x512 --style voronoi --seed 7
+    python tools/camo_gen.py --pack game/camos/mw3-recomp-originals
+    python tools/camo_gen.py --gallery camo_gallery.png
     python tools/camo_gen.py --self-test
 
 Same seed, style and size give the same picture (on one numpy build; floating
 point may differ in the last bit between builds). Requires Python 3, Pillow, numpy.
 """
 import argparse
+import json
 import math
 import os
 import re
@@ -37,8 +53,10 @@ import tempfile
 import numpy as np
 from PIL import Image
 
-STATIC_STYLES = ("carbon", "voronoi", "marble", "digital", "iridescent", "plasma")
-ANIMATED_STYLES = ("marble", "iridescent", "plasma")
+STATIC_STYLES = ("carbon", "voronoi", "marble", "digital", "iridescent", "plasma",
+                 "nebula", "neon_grid", "toxic", "magma", "glitch", "aurora", "frost")
+ANIMATED_STYLES = ("marble", "iridescent", "plasma",
+                   "nebula", "neon_grid", "toxic", "magma", "glitch", "aurora", "frost")
 TAU = 2.0 * math.pi
 
 
@@ -285,6 +303,218 @@ def plasma(w, h, rng, hue, t):
     return (0.5 + 0.5 * np.cos(ang)).astype(np.float32) * (0.35 + 0.65 * k[..., None])
 
 
+def cells(px, py, rng):
+    """Jittered Voronoi over a wrapped 256x256 lattice: the distance to the nearest
+    and second-nearest feature point, and three random numbers of the nearest's cell."""
+    ci, cj = np.floor(px).astype(np.int64), np.floor(py).astype(np.int64)
+    jit = rng.random((256, 256, 2)).astype(np.float32)
+    rnd = rng.random((256, 256, 3)).astype(np.float32)
+    d1 = np.full(px.shape, 9.0, np.float32)
+    d2 = np.full(px.shape, 9.0, np.float32)
+    bi = np.zeros(px.shape, np.int64)
+    bj = np.zeros(px.shape, np.int64)
+    for dj in (-1, 0, 1):
+        for di in (-1, 0, 1):
+            gi, gj = ci + di, cj + dj
+            jj = jit[gj & 255, gi & 255]
+            d = np.hypot(px - (gi + jj[..., 0]), py - (gj + jj[..., 1]))
+            nearer = d < d1
+            d2 = np.where(nearer, d1, np.minimum(d2, d))
+            bi, bj = np.where(nearer, gi, bi), np.where(nearer, gj, bj)
+            d1 = np.where(nearer, d, d1)
+    return d1, d2, rnd[bj & 255, bi & 255]
+
+
+def nebula(w, h, rng, hue, t):
+    na, nb = Noise(rng, 6), Noise(rng, 6)
+    h0 = 0.72 if hue is None else hue                        # violet, towards blue and magenta
+    u, v = coords(w, h)
+    phase = TAU * t
+
+    def f(x, y, octaves=5):
+        return loop_mix(na.fbm(x, y, octaves), nb.fbm(x, y, octaves), phase)
+
+    wx, wy = f(u * 2.0 + 3.1, v * 2.0 + 7.7, 4), f(u * 2.0 + 9.4, v * 2.0 + 1.2, 4)
+    gas = f(u * 2.6 + 1.8 * (wx - 0.5), v * 2.6 + 1.8 * (wy - 0.5), 6)
+    dust = f(u * 4.5 + 11.0 + wy, v * 4.5 + 5.0 + wx, 5)
+    gas = smoothstep(0.30, 0.78, gas)
+    col = (hsv(h0 - 0.10, 0.85, 0.10) * (1 - gas[..., None])                     # deep blue space
+           + hsv(h0 + 0.06 * (dust - 0.5), 0.8, 0.75) * (gas ** 1.4)[..., None]  # violet gas
+           + hsv(h0 + 0.16, 0.7, 1.0) * (smoothstep(0.62, 0.9, dust) * gas * 0.6)[..., None])   # magenta knots
+    col = col + hsv(h0 - 0.18, 0.6, 1.0) * (smoothstep(0.55, 0.85, wx) * (1 - gas) * 0.35)[..., None]
+    # Stars: one to a lattice cell at most, each twinkling a whole number of times a loop.
+    d1, _, r = cells(u * 26.0, v * 26.0, rng)
+    lit = r[..., 0] < 0.38
+    twinkle = 0.55 + 0.45 * np.sin(phase * (1 + np.floor(r[..., 1] * 3)) + r[..., 2] * TAU)
+    star = np.where(lit, np.clip(1.0 - d1 / (0.07 + 0.16 * r[..., 2]), 0.0, 1.0) ** 2 * twinkle, 0.0)
+    return col + (star * (1 - 0.6 * gas))[..., None] * np.array([0.9, 0.95, 1.0], np.float32)
+
+
+def neon_grid(w, h, rng, hue, t):
+    h0 = 0.40 if hue is None else hue                        # green, towards cyan
+    u, v = coords(w, h)
+    n = 9.0
+    gx, gy = u * n, v * n
+    ci, cj = np.floor(gx).astype(np.int64) & 63, np.floor(gy).astype(np.int64) & 63
+    fx, fy = gx - np.floor(gx), gy - np.floor(gy)
+    # A trace runs along a row or a column of cells; which cells it crosses is random,
+    # so the traces start, stop and meet as on a circuit board.
+    row_on = rng.random((64, 64)) < 0.55
+    col_on = rng.random((64, 64)) < 0.45
+    row_speed = rng.integers(1, 4, 64) * rng.choice([-1, 1], 64)
+    col_speed = rng.integers(1, 4, 64) * rng.choice([-1, 1], 64)
+    row_off, col_off = rng.random(64), rng.random(64)
+    hor, ver = row_on[cj, ci], col_on[cj, ci]
+    dh = np.where(hor, np.abs(fy - 0.5), 9.0)
+    dv = np.where(ver, np.abs(fx - 0.5), 9.0)
+    pad = np.where(hor & ver, np.abs(np.hypot(fx - 0.5, fy - 0.5) - 0.16), 9.0)     # a ring where two cross
+
+    def glow(d):
+        return np.exp(-d * 34.0) + 0.35 * np.exp(-d * 7.0)
+
+    # Pulses travel along each trace a whole number of times a loop.
+    ph = 0.5 + 0.5 * np.sin(TAU * (gx * 0.31 + row_off[cj] - t * row_speed[cj]))
+    pv = 0.5 + 0.5 * np.sin(TAU * (gy * 0.31 + col_off[ci] - t * col_speed[ci]))
+    eh = glow(dh) * (0.30 + 0.70 * ph ** 3)
+    ev = glow(dv) * (0.30 + 0.70 * pv ** 3)
+    ep = glow(pad) * 0.9
+    green, cyan = hsv(h0, 0.95, 1.0), hsv(h0 + 0.12, 0.9, 1.0)
+    board = 0.02 + 0.025 * ((ci + cj) & 1)
+    col = board[..., None] * hsv(h0 + 0.05, 0.6, 1.0)
+    col = col + eh[..., None] * green + ev[..., None] * cyan + ep[..., None] * (0.5 * green + 0.5 * cyan)
+    return col + (np.maximum(eh, ev) ** 3 * 0.5)[..., None]                       # the core runs white-hot
+
+
+def toxic(w, h, rng, hue, t):
+    na, nb = Noise(rng, 5), Noise(rng, 5)
+    h0 = 0.30 if hue is None else hue
+    u, v = coords(w, h)
+    phase = TAU * t
+    sludge = loop_mix(na.fbm(u * 3.0, v * 3.0, 5), nb.fbm(u * 3.0, v * 3.0, 5), phase)
+    swirl = np.sin((u * 5.0 + v * 3.0 + 3.0 * sludge) * TAU + phase) * 0.5 + 0.5
+    col = gradient(np.clip(0.65 * sludge + 0.35 * swirl, 0.0, 1.0),
+                   [hsv(h0 + 0.04, 0.9, 0.05), hsv(h0, 0.95, 0.30), hsv(h0 - 0.05, 0.9, 0.62)])
+    # Bubbles: each swells from nothing and bursts, once or twice a loop, out of step with the rest.
+    count = 46
+    bx, by = rng.random(count), rng.random(count) * (h / float(max(w, h)))
+    size = 0.03 + 0.07 * rng.random(count) ** 2
+    rate = rng.integers(1, 3, count)
+    off = rng.random(count)
+    span = np.array([1.0, h / float(max(w, h))], np.float32)
+    for k in range(count):
+        life = (t * rate[k] + off[k]) % 1.0
+        radius = size[k] * smoothstep(0.0, 0.75, life)
+        fade = 1.0 - smoothstep(0.82, 1.0, life)
+        dx = (u - bx[k] + 0.5 * span[0]) % span[0] - 0.5 * span[0]     # wrapped, so the picture tiles
+        dy = (v - by[k] + 0.5 * span[1]) % span[1] - 0.5 * span[1]
+        d = np.hypot(dx, dy) / max(radius, 1e-4)
+        inside = (1.0 - smoothstep(0.92, 1.0, d)) * fade
+        rim = np.exp(-((d - 0.9) / 0.09) ** 2) * fade
+        glint = np.exp(-(((dx + 0.35 * radius) ** 2 + (dy + 0.35 * radius) ** 2) / (0.05 * radius * radius + 1e-9))) * fade
+        col = col * (1 - 0.35 * inside[..., None]) + hsv(h0 - 0.03, 0.75, 0.9) * (0.25 * inside * (1 - d.clip(0, 1) ** 2))[..., None]
+        col = col + hsv(h0 - 0.06, 0.6, 1.0) * (0.8 * rim)[..., None] + (0.7 * glint)[..., None]
+    return col
+
+
+def magma(w, h, rng, hue, t):
+    na, nb = Noise(rng, 5), Noise(rng, 5)
+    h0 = 0.03 if hue is None else hue
+    u, v = coords(w, h)
+    phase = TAU * t
+    wob = na.fbm(u * 5.0, v * 5.0, 4) - 0.5
+    d1, d2, r = cells(u * 6.5 + 0.9 * wob, v * 6.5 - 0.9 * wob, rng)
+    crack = 1.0 - smoothstep(0.0, 0.32, d2 - d1)                # the seams between plates of crust
+    heat = loop_mix(na.fbm(u * 2.5 + 4.0, v * 2.5, 4), nb.fbm(u * 2.5, v * 2.5 + 4.0, 4), phase)
+    throb = 0.5 + 0.5 * np.sin(phase + TAU * r[..., 0])
+    glow = np.clip(crack ** 1.6 * (0.45 + 0.9 * heat) + 0.10 * throb * crack, 0.0, 1.0)
+    crust = (0.035 + 0.11 * nb.fbm(u * 14.0, v * 14.0, 4) * (0.5 + 0.5 * r[..., 1]))
+    ember = smoothstep(0.55, 0.9, heat) * (1 - crack) * 0.16     # the plates glow faintly where it is hottest
+    lava = gradient(glow, [hsv(h0, 1.0, 0.0), hsv(h0, 1.0, 0.75), hsv(h0 + 0.05, 1.0, 1.0),
+                           hsv(h0 + 0.11, 0.75, 1.0), hsv(h0 + 0.14, 0.25, 1.0)])
+    return crust[..., None] * hsv(h0 + 0.02, 0.35, 1.0) * (1 - glow[..., None]) + lava + ember[..., None] * hsv(h0, 1.0, 1.0)
+
+
+def glitch(w, h, rng, hue, t):
+    h0 = rng.random() if hue is None else hue
+    steps = 8                                                 # the blocks jump this many times a loop
+    step = int(math.floor(t * steps + 1e-6)) % steps
+    jump = np.random.default_rng([int(rng.integers(1 << 30)), step])
+    nz = Noise(rng, 4)
+    u, v = coords(w, h)
+    base = nz.fbm(np.floor(u * 24.0) * 0.21, np.floor(v * 40.0) * 0.21, 3)        # coarse blocks, wider than tall
+    bars = (np.floor(v * 64.0) % 2) * 0.12
+
+    def channel(shift_px):
+        # Bands of rows slide sideways by a whole number of blocks; the three
+        # colour channels by different amounts, which is the colour fringe.
+        bands = np.repeat(jump.integers(-3, 4, 12) * (jump.random(12) < 0.45), -(-h // 12))[:h]
+        cols = (np.arange(w)[None, :] + (bands[:, None] * max(1, w // 24)) + shift_px) % w
+        return np.take_along_axis(base, cols.astype(np.int64), axis=1)
+
+    split = max(1, w // 48)
+    r, g, b = channel(split * 2), channel(0), channel(-split * 2)
+    ink = lambda x: smoothstep(0.42, 0.58, x)
+    col = np.stack([ink(r), ink(g), ink(b)], axis=-1).astype(np.float32)
+    tint = hsv(h0, 0.55, 1.0)
+    col = 0.04 + col * (0.55 + 0.45 * tint) * (0.85 - bars[..., None])
+    for _ in range(5):                                        # a few blocks of pure colour or nothing
+        bw, bh = int(jump.integers(w // 10, w // 3 + 1)), int(jump.integers(max(1, h // 32), h // 10 + 1))
+        x0, y0 = int(jump.integers(0, w)), int(jump.integers(0, h))
+        block = hsv(jump.random(), 1.0, 1.0) if jump.random() < 0.7 else np.zeros(3, np.float32)
+        ys = np.arange(y0, y0 + bh) % h
+        xs = np.arange(x0, x0 + bw) % w
+        col[np.ix_(ys, xs)] = 0.35 * col[np.ix_(ys, xs)] + 0.65 * block
+    roll = np.exp(-(((v / v.max() - t) % 1.0 - 0.5) / 0.06) ** 2)                # a bright line rolls down once a loop
+    return col + 0.35 * roll[..., None]
+
+
+def aurora(w, h, rng, hue, t):
+    na, nb = Noise(rng, 5), Noise(rng, 5)
+    h0 = 0.38 if hue is None else hue
+    u, v = coords(w, h)
+    phase = TAU * t
+    vv = v / float(v.max())
+    col = gradient(vv, [hsv(0.66, 0.8, 0.05), hsv(0.70, 0.7, 0.10), hsv(0.62, 0.6, 0.03)])     # the night sky
+    for k, (shift, top, strength) in enumerate(((0.0, 0.18, 1.0), (0.11, 0.38, 0.8), (0.42, 0.58, 0.6))):
+        sway = loop_mix(na.fbm(u * 1.6 + 7.0 * k, vv * 0.8, 3), nb.fbm(u * 1.6, vv * 0.8 + 7.0 * k, 3), phase)
+        x = u * 3.0 + 2.2 * (sway - 0.5) + 0.35 * vv
+        fold = 0.5 + 0.5 * np.sin(TAU * (x + 0.13 * k))
+        rays = 0.6 + 0.4 * loop_mix(na.fbm(x * 9.0, 0.3 + k, 2), nb.fbm(x * 9.0, 0.7 + k, 2), phase)
+        curtain = fold ** 4 * rays * smoothstep(top - 0.16, top + 0.02, vv) * (1 - smoothstep(top, top + 0.50, vv)) ** 1.5
+        col = col + (curtain * strength)[..., None] * hsv(h0 + shift + 0.10 * (vv[..., None][..., 0] - top), 0.8, 1.0)
+    d1, _, r = cells(u * 30.0, v * 30.0, rng)
+    star = np.where(r[..., 0] < 0.25, np.clip(1.0 - d1 / 0.12, 0.0, 1.0) ** 2, 0.0) * (0.6 + 0.4 * np.sin(phase + TAU * r[..., 1]))
+    return col + (0.5 * star)[..., None]
+
+
+def frost(w, h, rng, hue, t):
+    na, nb = Noise(rng, 6), Noise(rng, 6)
+    h0 = 0.56 if hue is None else hue
+    u, v = coords(w, h)
+    phase = TAU * t
+    d1, d2, r = cells(u * 7.0, v * 7.0, rng)
+    # Each crystal grows needles out of its seed: ridges of a noise stretched
+    # along a direction of the crystal's own.
+    ang = r[..., 0] * np.pi
+    a = (u * np.cos(ang) + v * np.sin(ang)) * 46.0
+    b = (v * np.cos(ang) - u * np.sin(ang)) * 5.0
+    needles = 1.0 - np.abs(2.0 * na.fbm(a, b, 3) - 1.0)
+    feather = (1.0 - np.abs(2.0 * nb.fbm(u * 18.0, v * 18.0, 4) - 1.0)) ** 3
+    edge = 1.0 - smoothstep(0.0, 0.10, d2 - d1)                 # where crystals meet
+    ice = np.clip(0.30 + 0.45 * needles ** 2 + 0.35 * feather - 0.25 * edge + 0.18 * (r[..., 1] - 0.5), 0.0, 1.0)
+    col = gradient(ice, [hsv(h0 + 0.06, 0.75, 0.22), hsv(h0, 0.55, 0.62), hsv(h0 - 0.03, 0.22, 0.93), hsv(h0, 0.04, 1.0)])
+    # Glints: facets catch the light in turn as it passes over, once a loop.
+    sweep = loop_mix(na.fbm(u * 3.0 + 9.0, v * 3.0, 3), nb.fbm(u * 3.0, v * 3.0 + 9.0, 3), phase)
+    glint = smoothstep(0.80, 1.0, needles) * smoothstep(0.52, 0.70, sweep)
+    sparkle = np.clip(1.0 - d1 / 0.10, 0.0, 1.0) ** 3 * (0.5 + 0.5 * np.sin(phase * (1 + np.floor(r[..., 2] * 2)) + TAU * r[..., 1]))
+    return col + (0.55 * glint + 0.8 * sparkle)[..., None]
+
+
+STYLES = {"carbon": carbon, "voronoi": voronoi, "marble": marble, "iridescent": iridescent, "plasma": plasma,
+          "nebula": nebula, "neon_grid": neon_grid, "toxic": toxic, "magma": magma, "glitch": glitch,
+          "aurora": aurora, "frost": frost}
+
+
 def render(style, w, h, seed=0, t=0.0, hue=None, palette=None):
     """One picture as (h, w, 3) uint8. `t` in [0, 1) is the loop position of the
     animated styles; the others ignore it."""
@@ -294,8 +524,7 @@ def render(style, w, h, seed=0, t=0.0, hue=None, palette=None):
     if style == "digital":
         img = digital(w, h, rng, hue, t, palette)
     else:
-        img = {"carbon": carbon, "voronoi": voronoi, "marble": marble, "iridescent": iridescent,
-               "plasma": plasma}[style](w, h, rng, hue, t)
+        img = STYLES[style](w, h, rng, hue, t)
     return (np.clip(img, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
 
 
@@ -345,6 +574,79 @@ def generate(style, key, w, h, out, seed=0, mask=None, hue=None, palette=None, f
     return [save(os.path.join(out, key + ".png"), render(style, w, h, seed, 0.0, hue, palette))]
 
 
+# The pack --pack writes: (id, name, style, seed, hue, frames, fps). Stills have
+# no frames. A weapon's camouflage image is 128x128 in the game, so that is
+# the size, and twelve frames of it are well inside what the port keeps decoded.
+PACK_ID = "mw3-recomp-originals"
+PACK_SIZE = 128
+PACK = (
+    ("nebula", "Nebula", "nebula", 1, None, 12, 8),
+    ("neon-grid", "Neon Grid", "neon_grid", 1, None, 12, 10),
+    ("toxic", "Toxic", "toxic", 1, None, 12, 8),
+    ("magma", "Magma", "magma", 1, None, 12, 8),
+    ("glitch", "Glitch", "glitch", 1, None, 8, 8),
+    ("aurora", "Aurora", "aurora", 1, None, 12, 8),
+    ("frost", "Frost", "frost", 1, None, 12, 6),
+    ("plasma", "Plasma", "plasma", 2, None, 12, 8),
+    ("oil-slick", "Oil Slick", "iridescent", 0, None, 12, 8),
+    ("marble", "Marble", "marble", 2, 0.05, 12, 6),
+    ("carbon", "Carbon", "carbon", 0, None, 0, 0),
+    ("scales", "Scales", "voronoi", 3, 0.45, 0, 0),
+    ("pixel", "Pixel", "digital", 1, 0.58, 0, 0),
+)
+
+
+def write_pack(out):
+    """The built-in pack in `out`: pack.json and each camouflage's pictures."""
+    os.makedirs(out, exist_ok=True)
+    camos = []
+    for ident, name, style, seed, hue, frames, fps in PACK:
+        entry = {"id": ident, "name": name}
+        if frames:
+            os.makedirs(os.path.join(out, ident), exist_ok=True)
+            entry["frames"] = []
+            for n in range(frames):
+                rel = "%s/%d.png" % (ident, n)
+                Image.fromarray(render(style, PACK_SIZE, PACK_SIZE, seed, n / frames, hue)).save(os.path.join(out, rel))
+                entry["frames"].append(rel)
+            entry["fps"] = fps
+        else:
+            entry["image"] = ident + ".png"
+            Image.fromarray(render(style, PACK_SIZE, PACK_SIZE, seed, 0.0, hue)).save(os.path.join(out, entry["image"]))
+        camos.append(entry)
+    pack = {
+        "name": "MW3 Recomp Originals",
+        "author": "the MW3 Recomp contributors",
+        "url": "https://github.com/yassinsolim/mw3-android",
+        "permission": "Original procedural art drawn by tools/camo_gen.py of this project (GPL-3.0-only); "
+                      "no picture of the game's or of anyone else's is read or copied.",
+        "camos": camos,
+    }
+    with open(os.path.join(out, "pack.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump(pack, f, indent=2)
+        f.write("\n")
+    return len(camos)
+
+
+def write_gallery(path, cell=160):
+    """A contact sheet of the built-in pack: a row each, an animated one as four
+    frames a quarter of the loop apart."""
+    from PIL import ImageDraw
+    label_w, pad = 150, 6
+    sheet = Image.new("RGB", (label_w + 4 * (cell + pad) + pad, len(PACK) * (cell + pad) + pad), (16, 16, 18))
+    draw = ImageDraw.Draw(sheet)
+    for row, (ident, name, style, seed, hue, frames, fps) in enumerate(PACK):
+        y = pad + row * (cell + pad)
+        draw.text((pad, y + 4), name, fill=(240, 240, 240))
+        draw.text((pad, y + 22), "style: " + style, fill=(150, 150, 150))
+        draw.text((pad, y + 36), "%d frames, %g fps" % (frames, fps) if frames else "still", fill=(150, 150, 150))
+        for col in range(4 if frames else 1):
+            sheet.paste(Image.fromarray(render(style, cell, cell, seed, col / 4, hue)),
+                        (label_w + pad + col * (cell + pad), y))
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    sheet.save(path)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Original procedural camo for a texture dump key. Styles: " + ", ".join(STATIC_STYLES) +
@@ -362,10 +664,19 @@ def main(argv=None):
     ap.add_argument("--palette", type=parse_palette, metavar="RRGGBB,x4", help="digital: the four colours, dark to light")
     ap.add_argument("--frames", type=int, default=0, metavar="N", help="animate: write N looping frames")
     ap.add_argument("--fps", type=float, default=12.0, help="animation speed written to <key>.txt (default 12)")
+    ap.add_argument("--pack", metavar="DIR", help="write every style as a camouflage pack into DIR")
+    ap.add_argument("--gallery", metavar="FILE", help="write a contact sheet of the pack's camouflages")
     ap.add_argument("--self-test", action="store_true", help="render every style to a temp folder and check it")
     args = ap.parse_args(argv)
     if args.self_test:
         return self_test()
+    if args.pack or args.gallery:
+        if args.pack:
+            print("%s: %d camos" % (args.pack, write_pack(args.pack)))
+        if args.gallery:
+            write_gallery(args.gallery)
+            print(args.gallery)
+        return 0
     if not args.style:
         ap.error("--style is required")
     key, mask, size = args.key, None, args.size

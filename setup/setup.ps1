@@ -255,6 +255,63 @@ function Get-Devices {
         $parts = $_ -split '\s+'; @{ Serial = $parts[0]; State = $parts[1] } })
 }
 
+# The multiplayer's camouflage packs (docs/textures.md, "Camouflage packs"),
+# into $dest -- the game folder's `camos`, or the app's assets: the project's
+# own, drawn by tools/camo_gen.py, and those listed in setup\camo-packs.json,
+# each downloaded from where its author published it, checked against the
+# SHA-256 noted when permission was given, and converted by
+# tools/import_pack.py. None is committed or rehosted. A failure leaves the
+# list without that pack rather than stopping the build.
+$CamoPackList = Join-Path $PSScriptRoot 'camo-packs.json'
+$PyLibs    = Join-Path $Tc 'pylibs'
+$PyImaging = 'pillow==12.3.0', 'numpy==2.4.4'
+function Install-CamoPacks($dest) {
+    try {
+        # No double quotes in the -c program (Find-Python).
+        $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        & $Python -c 'import PIL, numpy' 2>$null | Out-Null
+        $have = $LASTEXITCODE -eq 0
+        if (-not $have -and -not (Test-Path (Join-Path $PyLibs 'PIL'))) {
+            & $Python -m pip --version 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0) { & $Python -m ensurepip --default-pip 2>$null | Out-Null }
+        }
+        $ErrorActionPreference = $old
+        if (-not $have) {
+            if (-not (Test-Path (Join-Path $PyLibs 'PIL'))) {
+                Step 'Pillow and numpy, for the camouflage tools'
+                Exec $Python (@('-m', 'pip', 'install', '--disable-pip-version-check', '--quiet', '--target', $PyLibs) + $PyImaging) -Log 'pip_imaging.log' -Quiet
+            }
+            $env:PYTHONPATH = $PyLibs
+        }
+        Step "camouflage packs into $dest"
+        Exec $Python @('tools/camo_gen.py', '--pack', (Join-Path $dest 'mw3-recomp-originals')) -Cwd $Repo -Log 'camo_pack.log' -Quiet
+    } catch {
+        Warn "no camouflage packs: $($_.Exception.Message)"
+        return
+    }
+    # Not @(...): PowerShell 5.1 hands the list over as one object, which that would wrap.
+    foreach ($pack in (Get-Content -Raw $CamoPackList | ConvertFrom-Json)) {
+        try {
+            foreach ($field in 'id', 'name', 'author', 'url', 'download', 'sha256', 'permission') {
+                if (-not $pack.$field) { throw "its entry in setup\camo-packs.json has no $field" }
+            }
+            $archive = Join-Path $Dl "camo-$($pack.id)$([IO.Path]::GetExtension(([Uri]$pack.download).AbsolutePath))"
+            if (-not ((Test-Path $archive) -and (Sha256Of $archive) -eq $pack.sha256.ToLowerInvariant())) {
+                Step "download the camouflage pack $($pack.name) from $($pack.download)"
+                Exec 'curl.exe' @('-fsSL', '--retry', '3', '-o', "$archive.part", $pack.download)
+                if ((Sha256Of "$archive.part") -ne $pack.sha256.ToLowerInvariant()) { throw 'SHA-256 of the download does not match the one permission was given for' }
+                Move-Item -Force "$archive.part" $archive
+            }
+            $arguments = @('tools/import_pack.py', $archive, '--out', (Join-Path $dest $pack.id), '--name', $pack.name, '--author', $pack.author,
+                           '--url', $pack.url, '--permission', $pack.permission)
+            foreach ($pattern in @($pack.only)) { if ($pattern) { $arguments += '--only', $pattern } }
+            Exec $Python $arguments -Cwd $Repo -Log "camo_pack_$($pack.id).log" -Quiet
+        } catch {
+            Warn "camouflage pack $($pack.id) is left out: $($_.Exception.Message)"
+        }
+    }
+}
+
 # ---- 0. preflight ------------------------------------------------------------
 if (-not [Environment]::Is64BitOperatingSystem) { throw 'A 64-bit Windows is needed.' }
 if (-not (Test-Path $Tar)) { throw "$Tar is missing (Windows 10 1803 or later has it)." }
@@ -525,6 +582,9 @@ if ($ForAndroid) {
             Remove-Item -Force -ErrorAction SilentlyContinue $turnip, "$turnip.part"
         }
     }
+    # The multiplayer app carries its camouflage packs as assets and copies
+    # them into the game folder when it starts (CamoPacks.kt).
+    if (@($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $Repo 'android\app\src\mw3\assets\camos') }
     [IO.File]::WriteAllText((Join-Path $Repo 'android\local.properties'), "sdk.dir=$($Sdk -replace '\\', '/')`n")
     $env:MW2_LTO = 'OFF'
     foreach ($key in @($Keys)) {
@@ -575,6 +635,7 @@ if ($ForPc) {
                  'cd /d "%~dp0"', "$($t.Name).exe game\$($t.Xex).xex game"
         [IO.File]::WriteAllText((Join-Path $pc $launcher), (($lines -join "`r`n") + "`r`n"))
     }
+    if (@($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $game 'camos') }
     $envFile = Join-Path $pc '.env'
     if (-not (Test-Path $envFile)) {
         $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }

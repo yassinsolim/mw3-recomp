@@ -30,6 +30,7 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 | Bots in your matches (Settings, 0 to 17) | join, fight and score | same |
 | Voice chat (off by default; push-to-talk) | built, not yet tested | built, not yet tested |
 | Everything unlocked in multiplayer | yes, chosen camos show in matches | yes |
+| Extra camouflages below Gold in multiplayer ([packs](docs/textures.md#camouflage-packs)) | built, not yet tested on a phone | works |
 | Custom skins (texture replacement, animated) | works | should work, not tested |
 | Audio | works | not checked |
 | Controls | touch overlay, Bluetooth/USB controllers | controller, keyboard and mouse |

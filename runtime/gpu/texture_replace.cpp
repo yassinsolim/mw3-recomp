@@ -7,6 +7,7 @@
 #include "../png.h"
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cctype>
 #include <chrono>
@@ -66,6 +67,22 @@ namespace
         size_t bytes = 0;     // of `pictures`
         bool gamma = false;   // how the pictures' levels were averaged
         uint64_t used = 0;    // State::clock when it was last asked for
+
+        // A switchable texture (Switchable): the group it answers to; what
+        // Select last chose for it, empty for none; and how many times it has
+        // chosen, which with the frame is what an image says it shows.
+        uint32_t group = 0;
+        bool switchable = false;
+        std::vector<fs::path> chosen;
+        double chosenFps = 12.0;
+        uint32_t choice = 0;
+        // The original's format and the size of its keyed level, known from
+        // its first Load on; every picture of a switchable texture is made
+        // that size, so that one image can take any of them.
+        bool shaped = false;
+        uint32_t format = 0, width = 0, height = 0;
+        // The title's own picture in a replacement's form, to go back to.
+        std::shared_ptr<const gpu::TextureData> own;
     };
 
     struct State
@@ -84,6 +101,8 @@ namespace
         uint64_t advanced = 0; // frames handed out to be staged over another (Due)
         // What an animation's frame is counted from.
         std::chrono::steady_clock::time_point started;
+        // Whether any texture is switchable, which also turns replacement on.
+        std::atomic<bool> switchable{ false };
     };
     State s;
 
@@ -342,10 +361,9 @@ namespace
         }
     }
 
-    // A replacement's file as the texture the cache uploads in the original's
-    // place. `format` is the original's.
-    bool Decode(const fs::path& path, uint32_t format, bool gamma, gpu::TextureData& out,
-                const char*& error)
+    // A picture's file as RGBA.
+    bool ReadPicture(const fs::path& path, std::vector<uint8_t>& rgba, uint32_t& width,
+                     uint32_t& height, const char*& error)
     {
         std::ifstream in(path, std::ios::binary | std::ios::ate);
         if (!in) { error = "it cannot be opened"; return false; }
@@ -354,12 +372,45 @@ namespace
         in.read(reinterpret_cast<char*>(file.data()), std::streamsize(file.size()));
         if (!in) { error = "it cannot be read"; return false; }
 
-        uint32_t width = 0, height = 0;
         const bool isPng = file.size() >= 4 && std::memcmp(file.data(), "\x89PNG", 4) == 0;
-        if (!(isPng ? png::Read(file, out.bytes, width, height, error)
-                    : ReadPnm(file, out.bytes, width, height, error)))
-            return false;
+        return isPng ? png::Read(file, rgba, width, height, error)
+                     : ReadPnm(file, rgba, width, height, error);
+    }
 
+    // RGBA at another size: each texel the average of the area it covers
+    // when the picture shrinks, the nearest when it grows.
+    void Resize(std::vector<uint8_t>& rgba, uint32_t& width, uint32_t& height, uint32_t toWidth,
+                uint32_t toHeight)
+    {
+        if (width == toWidth && height == toHeight) return;
+        std::vector<uint8_t> out(size_t(toWidth) * toHeight * 4);
+        for (uint32_t y = 0; y < toHeight; y++)
+        {
+            const uint32_t y0 = uint32_t(uint64_t(y) * height / toHeight);
+            const uint32_t y1 = std::max(y0 + 1, uint32_t(uint64_t(y + 1) * height / toHeight));
+            for (uint32_t x = 0; x < toWidth; x++)
+            {
+                const uint32_t x0 = uint32_t(uint64_t(x) * width / toWidth);
+                const uint32_t x1 = std::max(x0 + 1, uint32_t(uint64_t(x + 1) * width / toWidth));
+                uint32_t sum[4] = {};
+                for (uint32_t v = y0; v < y1; v++)
+                    for (uint32_t u = x0; u < x1; u++)
+                        for (int channel = 0; channel < 4; channel++)
+                            sum[channel] += rgba[(size_t(v) * width + u) * 4 + channel];
+                const uint32_t count = (y1 - y0) * (x1 - x0);
+                for (int channel = 0; channel < 4; channel++)
+                    out[(size_t(y) * toWidth + x) * 4 + channel] = uint8_t((sum[channel] + count / 2) / count);
+            }
+        }
+        rgba = std::move(out);
+        width = toWidth;
+        height = toHeight;
+    }
+
+    // RGBA in `out.bytes` as the texture the cache uploads in the original's
+    // place. `format` is the original's.
+    void Shape(uint32_t width, uint32_t height, uint32_t format, bool gamma, gpu::TextureData& out)
+    {
         // The picture is in the order the dump wrote it, which for 8_8_8_8 is
         // not the order the bytes are held in: DecodeToRgba shows red and blue
         // exchanged, as the title's swizzle for these reads them, and the view
@@ -395,7 +446,43 @@ namespace
             Halve(out.bytes.data() + out.levels[i - 1].offset, out.levels[i - 1],
                   out.bytes.data() + out.levels[i].offset, out.levels[i], gamma);
         out.ok = true;
+    }
+
+    // A replacement's file as the texture the cache uploads in the original's
+    // place, at the size given when there is one.
+    bool Decode(const fs::path& path, uint32_t format, bool gamma, gpu::TextureData& out,
+                const char*& error, uint32_t toWidth = 0, uint32_t toHeight = 0)
+    {
+        uint32_t width = 0, height = 0;
+        if (!ReadPicture(path, out.bytes, width, height, error)) return false;
+        if (toWidth && toHeight) Resize(out.bytes, width, height, toWidth, toHeight);
+        Shape(width, height, format, gamma, out);
         return true;
+    }
+
+    // The pictures of a switchable texture as things stand: what was chosen,
+    // else the folder's replacement, else the title's own. Called without the
+    // lock, with what it reads of the entry copied out under it.
+    std::vector<std::shared_ptr<const gpu::TextureData>> Chosen(
+        const std::vector<fs::path>& files, const std::shared_ptr<const gpu::TextureData>& own,
+        uint32_t format, bool gamma, uint32_t width, uint32_t height)
+    {
+        std::vector<std::shared_ptr<const gpu::TextureData>> pictures;
+        // An image's frame is a byte of what it says it shows (Showing).
+        for (size_t i = 0; i < files.size() && i < 255; i++)
+        {
+            const auto decoded = std::make_shared<gpu::TextureData>();
+            const char* error = nullptr;
+            if (!Decode(files[i], format, gamma, *decoded, error, width, height))
+            {
+                LOGW("textures: %s is not used: %s", Utf8(files[i]).c_str(),
+                     error ? error : "it does not decode");
+                continue;
+            }
+            pictures.push_back(decoded);
+        }
+        if (pictures.empty()) pictures.push_back(own);
+        return pictures;
     }
 
     // The decoded pictures back under the bound, the least recently asked for
@@ -410,7 +497,8 @@ namespace
         {
             Entry* oldest = nullptr;
             for (auto& [key, entry] : s.index)
-                if (!entry.pictures.empty() && key != keep && (!oldest || entry.used < oldest->used))
+                if (!entry.pictures.empty() && key != keep && !entry.switchable &&
+                    (!oldest || entry.used < oldest->used))
                     oldest = &entry;
             if (!oldest) return;
             if (oldest->pictures.size() > 1)
@@ -429,14 +517,79 @@ namespace
         if (entry.pictures.size() < 2) return 0;
         const double seconds =
             std::chrono::duration<double>(std::chrono::steady_clock::now() - s.started).count();
-        return uint32_t(uint64_t(seconds * entry.fps) % entry.pictures.size());
+        const double fps = entry.switchable && !entry.chosen.empty() ? entry.chosenFps : entry.fps;
+        return uint32_t(uint64_t(seconds * fps) % entry.pictures.size());
+    }
+
+    // What an image of a switchable texture shows: the choice and its frame,
+    // so that a new choice is due as a new frame is. Called with the lock held.
+    uint32_t Showing(const Entry& entry)
+    {
+        return (entry.choice << 8 | FrameNow(entry)) & 0x7FFFFFFFu;
+    }
+
+    // The files a switchable texture shows. Called with the lock held.
+    std::vector<fs::path> FilesOf(const Entry& entry)
+    {
+        if (!entry.chosen.empty()) return entry.chosen;
+        if (!entry.frames.empty()) return entry.frames;
+        if (!entry.file.empty()) return { entry.file };
+        return {};
     }
 }
 
 bool gpu::replace::On()
 {
     static const bool on = Start();
-    return on;
+    return on || s.switchable.load(std::memory_order_relaxed);
+}
+
+void gpu::replace::Switchable(uint32_t group, uint64_t key)
+{
+    std::lock_guard lock(s.lock);
+    Entry& entry = s.index[key];
+    entry.group = group;
+    entry.switchable = true;
+    s.switchable.store(true, std::memory_order_relaxed);
+}
+
+void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::path>& frames,
+                          double fps)
+{
+    // Decoded here, on the caller's thread, for the textures whose shape is
+    // known: the renderer then only copies (Due). The rest decode when they
+    // are first read (Load).
+    struct Shaped
+    {
+        Entry* entry;
+        uint32_t choice, format, width, height;
+        bool gamma;
+        std::vector<fs::path> files;
+        std::shared_ptr<const gpu::TextureData> own;
+    };
+    std::vector<Shaped> shaped;
+    {
+        std::lock_guard lock(s.lock);
+        for (auto& [key, entry] : s.index)
+        {
+            if (!entry.switchable || entry.group != group) continue;
+            if (entry.chosen == frames && entry.chosenFps == fps) continue;
+            entry.chosen = frames;
+            entry.chosenFps = fps;
+            entry.choice++;
+            if (entry.shaped)
+                shaped.push_back({ &entry, entry.choice, entry.format, entry.width, entry.height,
+                                   entry.gamma, FilesOf(entry), entry.own });
+        }
+    }
+    for (Shaped& one : shaped)
+    {
+        auto pictures = Chosen(one.files, one.own, one.format, one.gamma, one.width, one.height);
+        std::lock_guard lock(s.lock);
+        // Chosen again meanwhile: that call's pictures are the ones to keep.
+        if (one.entry->choice != one.choice) continue;
+        one.entry->pictures = std::move(pictures);
+    }
 }
 
 uint32_t gpu::replace::KeyedLevel(const TextureData& data)
@@ -494,6 +647,7 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
     // An entry is never removed, so it stays where it is while the file is
     // decoded outside the lock: two textures decode side by side.
     Entry* entry = nullptr;
+    bool switchable = false;
     {
         std::lock_guard lock(s.lock);
         const auto found = s.index.find(key);
@@ -504,13 +658,51 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
             Fail(*entry, "cube, volume and array textures are not replaced");
             return nullptr;
         }
+        switchable = entry->switchable;
         if (!entry->pictures.empty() && entry->gamma == gamma)
         {
             entry->used = ++s.clock;
             const uint32_t now = FrameNow(*entry);
-            if (frame && entry->pictures.size() > 1) *frame = now;
+            if (frame && switchable) *frame = Showing(*entry);
+            else if (frame && entry->pictures.size() > 1) *frame = now;
             return entry->pictures[now];
         }
+    }
+
+    if (switchable)
+    {
+        // The title's own picture first, in a replacement's form: the image
+        // is made of that when nothing is chosen, and takes what is chosen
+        // later as an animation takes its next frame.
+        const uint32_t keyed = KeyedLevel(original);
+        const auto own = std::make_shared<TextureData>();
+        if (!DecodeToRgba(original, fetch.Format(), own->bytes, keyed))
+        {
+            Refuse(key, "its format is not one that decodes, so it cannot be switched");
+            return nullptr;
+        }
+        const uint32_t width = original.levels[keyed].width, height = original.levels[keyed].height;
+        Shape(width, height, fetch.Format(), gamma, *own);
+
+        std::vector<fs::path> files;
+        uint32_t choice = 0;
+        {
+            std::lock_guard lock(s.lock);
+            entry->shaped = true;
+            entry->format = fetch.Format();
+            entry->width = width;
+            entry->height = height;
+            entry->gamma = gamma;
+            entry->own = own;
+            files = FilesOf(*entry);
+            choice = entry->choice;
+        }
+        auto pictures = Chosen(files, own, fetch.Format(), gamma, width, height);
+        std::lock_guard lock(s.lock);
+        // Chosen again meanwhile, and decoded there now that the shape is known.
+        if (entry->choice == choice || entry->pictures.empty()) entry->pictures = std::move(pictures);
+        if (frame) *frame = Showing(*entry);
+        return entry->pictures[FrameNow(*entry)];
     }
 
     // Every frame now, so that showing the next one later is a copy and no
@@ -581,6 +773,15 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Due(uint64_t key, uint32_t
     const auto found = s.index.find(key);
     if (found == s.index.end()) return nullptr;
     Entry& entry = found->second;
+    if (entry.switchable)
+    {
+        if (entry.pictures.empty()) return nullptr;
+        const uint32_t now = Showing(entry);
+        if (now == shown) return nullptr;
+        shown = now;
+        s.advanced++;
+        return entry.pictures[now & 0xFF];
+    }
     // Let go, or decoded again as fewer frames: never decoded here.
     if (entry.pictures.size() < 2) return nullptr;
     const uint32_t now = FrameNow(entry);

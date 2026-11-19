@@ -58,6 +58,20 @@ else
     mv "${TURNIP_ASSET}.part" "${TURNIP_ASSET}"
 fi
 
+# The camouflage pack the multiplayer app carries (docs/textures.md,
+# "Camouflage packs"): the project's own, drawn here by tools/camo_gen.py and
+# never committed. It needs Python with Pillow and numpy; without them the
+# app is built without the pack and lists the game's camouflages alone. The
+# packs of other authors (setup/camo-packs.json) are fetched by
+# setup/setup.ps1 only.
+CAMO_PACK="${REPOSITORY_ROOT}/android/app/src/mw3/assets/camos/mw3-recomp-originals"
+if python3 -c 'import PIL, numpy' >/dev/null 2>&1; then
+    echo "Drawing the bundled camouflage pack"
+    python3 "${REPOSITORY_ROOT}/tools/camo_gen.py" --pack "${CAMO_PACK}"
+else
+    echo "No Python with Pillow and numpy: the multiplayer app is built without its camouflage pack." >&2
+fi
+
 echo
 echo "Done. The next Gradle build will find libadrenotools (cmake/android.cmake)"
 echo "and the mw3 app will carry the Turnip driver."

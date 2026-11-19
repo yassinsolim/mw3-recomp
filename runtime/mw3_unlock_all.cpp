@@ -65,6 +65,7 @@
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "env.h"
+#include "mw3_custom_camos.h"
 #include "log.h"
 
 #include <algorithm>
@@ -159,11 +160,15 @@ namespace
 // (controller = r3, operands = r4, first operand = r5, result = r6)
 GUEST_HOOK(T_UI_GetPlayerData)
 {
-    if (!UnlockAll()) { GUEST_ORIG(T_UI_GetPlayerData)(ctx, base); return; }
-
     const uint32_t operands = ctx.r4.u32;
     const uint32_t first = ctx.r5.u32;
     const uint32_t result = ctx.r6.u32;
+    if (!UnlockAll()) {
+        GUEST_ORIG(T_UI_GetPlayerData)(ctx, base);
+        mw3camo::PlayerDataRead(base, operands, first, result);
+        return;
+    }
+
     enum { kNeither, kRank, kExperience } which = kNeither;
     if (first < 10 && first < PPC_LOAD_U32(operands + 0x50) && PPC_LOAD_U32(operands + first * 8) == 2) {
         if (const uint32_t text = PPC_LOAD_U32(operands + first * 8 + 4)) {
@@ -174,6 +179,7 @@ GUEST_HOOK(T_UI_GetPlayerData)
     }
 
     GUEST_ORIG(T_UI_GetPlayerData)(ctx, base);
+    mw3camo::PlayerDataRead(base, operands, first, result);
     if (which == kNeither || PPC_LOAD_U32(result) != 0) return;
 
     const WeaponMax most = WeaponMaximum(ctx, base);
