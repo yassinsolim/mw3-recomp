@@ -62,9 +62,9 @@ The custom Vulkan pipeline renderer requires:
 
 Modern mobile SoCs use heterogeneous CPU clusters (e.g., 1 Prime + 3 Gold + 4 Silver, or 2+2+4 on Tensor). Left to the default OS scheduler, critical guest threads can be scheduled onto low-frequency efficiency cores.
 
-### Core Affinity (`runtime/android/perf.cpp`)
+### Core Affinity (`runtime/platform.cpp`, `runtime/android/perf.cpp`)
 - At startup, the runtime queries `/sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_max_freq` to identify the fastest CPU cores.
-- Guest execution threads and the Vulkan renderer thread are pinned to performance and prime clusters using `sched_setaffinity`.
+- The ring consumer, which parses every draw of a frame and is the one stage the title's render thread waits on, is pinned to the prime core and has it to itself. The title's main thread, the guest threads, the command recorder and the texture readers are pinned to the performance cores; a thread takes the cores of the thread that started it, so the presenter, the guest's blank and the audio worker are there too. (With the main thread on the prime core they all were, and the consumer got two thirds of it: 61.7 against 74.4 FPS in Survival on the AYN Thor at 120 Hz.)
 - Efficiency cores (Cortex-A55 / A510) are reserved for background OS services and audio downmix processing.
 
 ### Dynamic Memory Management & Texture Budget

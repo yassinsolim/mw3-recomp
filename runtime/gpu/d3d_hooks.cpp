@@ -111,18 +111,21 @@ bool gpu::CheckArenaWaitDeadlock(uint64_t maxWaitUs, uint32_t& outSeq, uint32_t&
 // D3D9's wait for arena space, which is where the block the command processor
 // reports its progress through is learnt (arena.cpp): the device holds a
 // pointer to it, and it holds a sequence counter at +0 and a position at +4.
-// The device's other fields are in docs/d3d9-seam.md.
+// The device's other fields are in docs/d3d9-seam.md. The wait itself is
+// made asleep first (gpu::AwaitArenaProgress); the title's, which spins, then
+// finds it over.
 GUEST_HOOK(T_D3D_ArenaWait)
 {
     constexpr uint32_t kProgressBlock = T_DEV_ProgressBlock;   // in D3D9's device structure
-    if (const uint32_t block = *GuestPtr<be32>(ctx.r3.u32 + kProgressBlock))
-        gpu::SetArenaProgressBlock(block);
+    const uint32_t block = *GuestPtr<be32>(ctx.r3.u32 + kProgressBlock);
+    if (block) gpu::SetArenaProgressBlock(block);
 
     g_arenaWaitNeededPos.store(ctx.r4.u32, std::memory_order_relaxed);
     g_arenaWaitNeededSeq.store(ctx.r5.u32, std::memory_order_relaxed);
     g_arenaWaitStartTimeUs.store(pacing::Microseconds(), std::memory_order_relaxed);
     g_arenaWaitActive.store(true, std::memory_order_release);
 
+    if (block) gpu::AwaitArenaProgress(block, ctx.r4.u32, ctx.r5.u32);
     GUEST_ORIG(T_D3D_ArenaWait)(ctx, base);
 
     g_arenaWaitActive.store(false, std::memory_order_release);

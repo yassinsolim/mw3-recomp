@@ -23,8 +23,8 @@ namespace platform
     void IdleThreadPriority();
 
     enum class ThreadAffinityRole {
-        PrimeCore,       // Main recompiled game loop (highest frequency core)
-        PerformanceCore, // GPU submit / command recorder / rendering
+        PrimeCore,       // The ring consumer: the one stage every frame goes through, alone on the fastest core
+        PerformanceCore, // The title's threads, the command recorder, the texture readers
         WorkerCore,      // Background shader warmup / audio / file I/O
         Default          // OS scheduler default
     };

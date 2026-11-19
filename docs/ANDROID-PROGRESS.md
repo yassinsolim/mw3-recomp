@@ -198,6 +198,58 @@ Status words: **verified** (observed on the device or by a run), **built**
   107 -> 49, 59.1 world FPS, no fault. The few long stutters left (5 of 16+
   frames) come with the restarts the test forces after each game over.
 
+## 2026-11-19
+
+120 FPS on the Thor's 120 Hz display (FPS limit 120, Turnip R2), measured
+with 150 s runs, play from about 65 s.
+
+- The ring consumer has the fastest core to itself (`gpu.cpp`,
+  `platform::ThreadAffinityRole::PrimeCore`) and the title's main thread is
+  with its other threads on the performance cores (`main.cpp`). The main
+  thread was pinned to the one prime core and every thread started from it
+  took that with it: the consumer, the presenter, the guest's blank and the
+  audio shared one core, the consumer got 63% of it and was "at work" 96% of
+  the time. Survival 61.7 -> 74.4 world FPS (frames within two display
+  periods 67% -> 94%). The multiplayer on Seatown, whose spawn differs from
+  run to run: 92-100 in play in five runs of seven with 36-58% of frames
+  within one period, 115-119 every second where the spawn looks indoors,
+  76 at the plaza and 68 at the yard (67 in the one run before the change).
+- D3D's wait for arena space is made asleep (`gpu::AwaitArenaProgress`,
+  `arena.cpp`) before the title's own wait, which spins: by simpleperf half
+  of the render thread's processor time was `sub_8209B5E8` and the delay
+  loop it calls. Three to five waits a frame are longer than 100 us. The
+  render thread 66% -> 34% of a core; the frame rate does not move, since
+  the thread was waiting either way.
+- What holds Survival at 74-76 FPS is the GPU: 12.5-12.8 ms a frame at
+  680 MHz, 94-95% busy. By temporary switches (removed): 4.3 ms of it is
+  pixels (every scene draw scissored to one pixel: 8.6 ms), about 2.7 ms the
+  shadow maps and depth prepass, about 2.6 ms what is left with no scene
+  draw at all (the 1280x720 passes, resolves, copies, uploads). The draws
+  are 2.45 million indices a world frame, in about 650 hardware draws; 96%
+  of the runs end at a pipeline change. The game with no scene draws holds
+  119 FPS, so the title's own threads and the parse are not the limit.
+- Tried and not kept: `TU_DEBUG=gmem` 20.8 ms a frame and `noubwc` 14.8
+  (12.5 without); `MW2_ADRENO_BC=hw` 12.4 ms and the same picture in two
+  screenshots, with a third of the texture memory (96 MB against 326), not
+  made the default for 2% without a soak for the flicker textures.md
+  describes; a pixel program of no instructions for depth-only draws 12.4
+  (the title already loads a small one); one command buffer and render pass
+  across the segments that upload nothing 11.9 ms (-0.6) but not safe as
+  tried, and the safe rule -- ending the buffer at any segment that binds a
+  rewritten texture -- ends it at 78% of them and gains nothing; a frame
+  queued behind the one the GPU is drawing, no gain and a deeper queue.
+- Not found: the multiplayer outdoors (the plaza and the yard spawns) runs
+  57-80 FPS with the GPU 60-80% busy and the consumer at half a core, so
+  neither is the limit there; the spawn is random and no run was traced at
+  one.
+- Heat: the hottest zone is at 93-96 C within a minute of play and stays
+  there; in a 7-minute run (77 s of play, then the game-over screen, which
+  still draws the world) the GPU held 680 MHz and 76-77 FPS throughout. A
+  run started with the zones at 80 C ran at 475-550 MHz and 45 FPS. A fifth
+  of the processor's time in play is other programs: the launcher shell on
+  the lower screen plays video (30% of a core, and its layer is composed by
+  the GPU), SurfaceFlinger and the composer 20% and 17%.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

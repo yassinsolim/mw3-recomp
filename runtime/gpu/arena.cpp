@@ -7,10 +7,14 @@
 #include <ppc_recomp_shared.h>
 #include "internal.h"
 #include "gpu.h"
+#include "../guest.h"
 #include "../log.h"
 #include "../kernel/kernel.h"
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 
 namespace
 {
@@ -20,6 +24,21 @@ namespace
     uint32_t g_pendingPosition = 0;            // GPU thread only, as is the rest
     bool     g_havePosition = false;
     uint32_t g_sequence = 0;
+
+    // For D3D's wait for arena space (gpu::AwaitArenaProgress): taken around
+    // nothing by the command processor after each report, so a waiter that
+    // looked under it either saw the report or is already asleep.
+    std::mutex g_reportLock;
+    std::condition_variable g_reported;
+
+    // D3D's own test in its wait: the low two bits of the position are the
+    // sequence's, and the wait is over when they are the ones asked for, or
+    // one behind with the position reached.
+    bool Reached(uint32_t current, uint32_t position, uint32_t sequence)
+    {
+        const uint32_t behind = (sequence - current) & 3;
+        return behind == 0 || (behind == 1 && position <= (current & ~3u));
+    }
 }
 
 // A segment is allocated at a fixed size but filled only as far as the frame
@@ -72,6 +91,8 @@ bool gpu::detail::ArenaProgress(uint32_t address, uint32_t value)
         g_havePosition = false;
     }
     WritePhysical(block, value);
+    { std::lock_guard held(g_reportLock); }
+    g_reported.notify_all();
     return true;
 }
 
@@ -96,6 +117,17 @@ void gpu::SetArenaProgressBlock(uint32_t address)
 uint32_t gpu::GetArenaProgressBlock()
 {
     return g_block.load(std::memory_order_relaxed);
+}
+
+void gpu::AwaitArenaProgress(uint32_t block, uint32_t position, uint32_t sequence)
+{
+    const be32* current = GuestPtr<be32>(block + 4);
+    if (Reached(*current, position, sequence)) return;
+    // No longer than this asleep: the title's loop also watches a flag of
+    // the device's and counts its own time-out, and takes over from here.
+    constexpr auto kLongest = std::chrono::milliseconds(20);
+    std::unique_lock held(g_reportLock);
+    g_reported.wait_for(held, kLongest, [&] { return Reached(*current, position, sequence); });
 }
 
 uint32_t gpu::GetArenaSequence()

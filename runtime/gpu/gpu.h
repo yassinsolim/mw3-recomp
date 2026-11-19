@@ -33,6 +33,12 @@ namespace gpu
     void SetArenaProgressBlock(uint32_t address);
     uint32_t GetArenaProgressBlock();
     uint32_t GetArenaSequence();
+    // D3D9's wait for arena space, asleep: returns once the block at guest
+    // address `block` reports the position and sequence D3D asked for, or
+    // after 20 ms without. The title's own wait spins, which
+    // was a third of a core of its render thread whenever the command
+    // processor was the slower of the two (AYN Thor, Survival).
+    void AwaitArenaProgress(uint32_t block, uint32_t position, uint32_t sequence);
 #if defined(MW2_ANDROID) && !defined(MW3_TITLE)
     void ForceArenaProgress(uint32_t sequence, uint32_t position);
 #endif

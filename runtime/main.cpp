@@ -258,7 +258,10 @@ int mw2::Run(int argc, char** argv)
     LOGI("function table: %zu entries", mapped);
 
     crash::RegisterThread("main thread");
-    platform::SetThreadAffinity(platform::ThreadAffinityRole::PrimeCore);
+    // With the title's other threads, and not on the fastest core: that one
+    // is the ring consumer's alone (gpu.cpp), and the threads started from
+    // here take this thread's cores with them.
+    platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
     player::Record();
     kernel::Initialise(launch.gameRoot, launch.xexHeader);
     launch.xexHeader.clear();

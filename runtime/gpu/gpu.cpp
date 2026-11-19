@@ -14,6 +14,7 @@
 #include "../guest.h"
 #include "../image_move.h"
 #include "../log.h"
+#include "../platform.h"
 #include "../kernel/kernel.h"
 #include "vulkan/pipeline.h"
 #include "vulkan/presenter.h"
@@ -109,6 +110,11 @@ namespace
     void Worker()
     {
         crash::RegisterThread("gpu ring consumer");
+        // Every draw of a frame is parsed here, one after another, and the
+        // title's render thread waits when this falls behind. Sharing the
+        // fastest core with the title's main thread, which started it, it
+        // got two thirds of it (AYN Thor, 120 Hz).
+        platform::SetThreadAffinity(platform::ThreadAffinityRole::PrimeCore);
         t_guestPcr = g.gpuPcr;
         LOGI("gpu: ring consumer started");
         g.consumerStarted = std::chrono::steady_clock::now();
