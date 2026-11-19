@@ -154,7 +154,9 @@ vk::shaders::Built vk::shaders::Build(shader::Type type, const uint32_t* code, s
                                       VkFormat depthFormat)
 {
     Built built;
-    built.translation = shader::Translate(type, code, words, scaled);
+    built.translation = shader::Translate(type, code, words, scaled,
+                                          vk::pipeline::SubgroupPixelRecords()
+                                              ? shader::PixelRecord::Subgroup : shader::PixelRecord::Pixel);
     if (!built.translation.ok) return built;
     VkShaderModuleCreateInfo info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
     info.codeSize = built.translation.spirv.size() * 4;

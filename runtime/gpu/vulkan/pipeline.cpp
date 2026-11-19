@@ -28,6 +28,7 @@ bool     vk::pipeline::HasDynamicRendering() { return false; }
 bool     vk::pipeline::HasExtendedDynamicState() { return false; }
 bool     vk::pipeline::LegacyMode() { return false; }
 bool     vk::pipeline::TextureCompressionBC() { return false; }
+bool     vk::pipeline::SubgroupPixelRecords() { return false; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CacheMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CreationMutex() { static std::mutex m; return m; }
@@ -110,6 +111,7 @@ namespace
         bool hasExtendedDynamicState = false;
         bool legacyMode = false;
         bool textureCompressionBC = false;
+        bool subgroupPixelRecords = false;
         std::string name = "none";
 
         VkDescriptorSetLayout sets[3]{};
@@ -388,9 +390,10 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     // many of the title's, each with its own textures, so the index into the
     // set is not the same across the draw: a vertex shader says so, and a
     // pixel shader runs once for each record its subgroup holds, which takes
-    // the subgroup's first invocation. Vulkan 1.2 has all of it; a 1.1
-    // device on the render pass fallback needs the descriptor indexing
-    // extension.
+    // the subgroup's first invocation, or where the fragment stage has no
+    // subgroup ballot says so too (shader::PixelRecord). Vulkan 1.2 has the
+    // rest; a 1.1 device on the render pass fallback needs the descriptor
+    // indexing extension.
     VkPhysicalDeviceDescriptorIndexingFeatures indexing{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
     VkPhysicalDeviceShaderDrawParametersFeatures drawParameters{
@@ -431,8 +434,6 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             : !supported.shaderSampledImageArrayDynamicIndexing ? "dynamically indexed textures"
             : !drawParameters.shaderDrawParameters ? "shader draw parameters"
             : !indexing.shaderSampledImageArrayNonUniformIndexing ? "non-uniformly indexed textures"
-            : !(subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) ||
-              !(subgroup.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT) ? "subgroup ballot in pixel shaders"
             : limits.maxPerStageDescriptorUpdateAfterBindSampledImages < bindings::kImageCount ||
               limits.maxDescriptorSetUpdateAfterBindSampledImages < bindings::kImageCount ||
               limits.maxPerStageDescriptorUpdateAfterBindSamplers < bindings::kSamplerCount ||
@@ -451,6 +452,19 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             LOGW("vulkan: the device lacks %s, which the renderer needs", missing);
             return false;
         }
+        // Turnip on the Adreno 650 (Retroid Pocket Flip 2) has the ballot
+        // operations (0x67F) but offers subgroups to compute shaders alone
+        // (stages 0x20): the stages are what differ, not the operations.
+        g.subgroupPixelRecords = (subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) &&
+                                 (subgroup.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT);
+        LOGI("vulkan: subgroups of %u, stages 0x%X, operations 0x%X, size control %s: a pixel shader %s",
+             subgroup.subgroupSize, subgroup.supportedStages, subgroup.supportedOperations,
+             properties.apiVersion >= VK_API_VERSION_1_3 ||
+             DeviceHasExtension(physical, VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME) ? "yes" : "no",
+             g.subgroupPixelRecords
+                 ? "runs once for each draw record its subgroup holds"
+                 : "reads its own draw record and indexes textures non-uniformly (no subgroup ballot"
+                   " in the fragment stage)");
         enabled.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
         indexing = VkPhysicalDeviceDescriptorIndexingFeatures{
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
@@ -1164,6 +1178,7 @@ bool     vk::pipeline::HasDynamicRendering() { return g.hasDynamicRendering; }
 bool     vk::pipeline::HasExtendedDynamicState() { return g.hasExtendedDynamicState; }
 bool     vk::pipeline::LegacyMode() { return g.legacyMode; }
 bool     vk::pipeline::TextureCompressionBC() { return g.textureCompressionBC; }
+bool     vk::pipeline::SubgroupPixelRecords() { return g.subgroupPixelRecords; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CacheMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CreationMutex() { static std::mutex m; return m; }

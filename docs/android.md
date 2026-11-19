@@ -132,6 +132,16 @@ For devices with Qualcomm Adreno GPUs, Mesa **Turnip** drivers offer substantial
 3. Tap **Import Driver** and choose the downloaded zip.
 4. The runtime extracts the driver into private storage and loads it using `libadrenotools` in a dedicated linker namespace.
 
+### Adreno 6xx (Snapdragon 865 class)
+
+Measured on the Retroid Pocket Flip 2 (Adreno 650, kernel 4.19, 60 Hz), in Modern Warfare 3's Survival (Resistance). The runtime reads the chip's name from `/sys/class/kgsl/kgsl-3d0/gpu_model` before Vulkan starts (`android::perf::Adreno6xx`) and does three things on that class:
+
+- **No UBWC.** Turnip is started with `TU_DEBUG=noubwc` (added to whatever `MW2_DRIVER_ENV` gives). With Turnip's image compression on, the whole device hard-reset within a second of a level's world first being drawn: no kgsl fault in the kernel log, the power controller reporting a shutdown the SoC asked for (`kernel.panic_on_oops` is 1 and there is no pstore, so the kernel's last words are lost). It happened at every one of a dozen level starts, with Mesa 25.1.0 and 27.0.0 alike, with `sysmem`, with draw merging off and with multi-draw off, and at none of the eighteen since with `noubwc`. Which image class trips it was not narrowed down; frame time with and without it is the same. `MW2_ADRENO6_UBWC=1` leaves the compression on, to study the reset.
+- **30 frames a second, a frame every second blank.** The chip is the limit: 38 ms of GPU a frame at the console's sizes (the scene's 5,500 draws at 1024x600 are 20 ms of it, the 1280x720 passes 9, the sun's shadow maps and their resolves the rest), so 25 frames a second with the cap at 60, as a mix of two- and three-blank frames. The app's FPS cap therefore starts at 30 for Modern Warfare 3 on this class (`Prefs.fpsLimit`), which is the console's pacing at half rate ([switches.md](switches.md), `MW2_FPS_LIMIT`).
+- **No sun shadows** (`MW2_SHADOWS`, unset): 31 ms a frame instead of 38, which is what lets 30 be held. `MW2_SHADOWS=1` in `.env` keeps them.
+
+With those defaults, 246 s of play: 29.6 frames a second, 7,246 frames shown, 152 of them (2.1%) a blank late, none early. 60 is out of reach there: neither `TU_DEBUG=sysmem`, nor effects off (`fx_enable 0`, 33 frames a second uncapped), nor cheaper texture filtering brings the GPU's frame under 30 ms, and `MW2_RENDER` cannot yet give the Modern Warfare 3 campaign a smaller frame.
+
 ---
 
 ## 7. Building from Source

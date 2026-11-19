@@ -192,6 +192,16 @@ the draw's record:
   primitive's edges. The loop ends because the first invocation equals
   itself, which rests on the broadcast answering only with an invocation
   still in the loop.
+
+  The waterfall needs subgroup ballot in the fragment stage. A device
+  without it -- Turnip on the Adreno 650 of the Retroid Pocket Flip 2 offers
+  subgroup operations to compute shaders only -- gets the form above the
+  waterfall replaced (`shader::PixelRecord::Pixel`): each pixel reads the flat
+  value as its record, and the texture and sampler arrays are indexed
+  `NonUniform` as in a vertex shader. That costs the pixel work the waterfall
+  saves and draws the same picture. The renderer picks the form once, when
+  the device is made (`vk::pipeline::SubgroupPixelRecords`), and says which
+  in the log.
 - **Each record word is loaded once**, where a driver would sink the load:
   in the narrowest block that dominates every read of it, ahead of the first
   (`RecordWord`, `PlaceRecordLoads`). A straight-line program is one block,

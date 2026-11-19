@@ -25,6 +25,7 @@
 #ifdef MW2_ANDROID
 
 #include "android.h"
+#include "../env.h"
 #include "../log.h"
 
 #include <dlfcn.h>
@@ -32,6 +33,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -174,6 +176,38 @@ namespace
         struct stat info{};
         return ::stat(path.c_str(), &info) == 0;
     }
+
+    // Turnip compresses the images it can (UBWC), and on an Adreno 6xx that
+    // hard-resets the whole device the moment a level's world is first drawn:
+    // no fault in the kernel log, the power controller reporting a shutdown
+    // the SoC asked for. Seen on the Adreno 650 (Retroid Pocket Flip 2,
+    // kernel 4.19) with Mesa 25.1 and 27.0 alike, at every one of a dozen
+    // level starts, and at none with TU_DEBUG=noubwc, which costs no
+    // measurable frame time there. The driver reads TU_DEBUG once, as its
+    // first instance is made, so it is set here, before the driver is opened.
+    // MW2_ADRENO6_UBWC=1 leaves the compression on, to study the reset.
+    void KeepTurnipOffUbwcOnAdreno6()
+    {
+        if (!android::perf::Adreno6xx()) return;
+        const char* model = android::perf::AdrenoModel();
+        if (env::Flag("MW2_ADRENO6_UBWC"))
+        {
+            LOGW("driver: %s with Turnip's image compression left on (MW2_ADRENO6_UBWC):"
+                 " expect the device to reset when a level starts", model);
+            return;
+        }
+        // Whatever MW2_DRIVER_ENV asked of the driver stays.
+        const char* asked = std::getenv("TU_DEBUG");
+        std::string flags = asked ? asked : "";
+        if (flags.find("noubwc") == std::string::npos)
+        {
+            if (!flags.empty()) flags += ',';
+            flags += "noubwc";
+            setenv("TU_DEBUG", flags.c_str(), 1);
+        }
+        LOGI("driver: %s: Turnip draws without image compression (TU_DEBUG=%s); with it an"
+             " Adreno 6xx resets the device when a level starts", model, flags.c_str());
+    }
 }
 
 void android::driver::Select(const char* directory, const char* libraryName)
@@ -200,6 +234,8 @@ void* android::driver::Open(std::string& error)
 
     if (!g_directory.empty() && !g_libraryName.empty())
     {
+        // An imported driver on this hardware is Turnip, however it is loaded.
+        KeepTurnipOffUbwcOnAdreno6();
 #if MW2_HAVE_ADRENOTOOLS
         // The imported driver, loaded so that Android's WSI stays above it.
         // The temporary folder is where the loader writes the patched copy of

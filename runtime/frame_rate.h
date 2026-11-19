@@ -2,9 +2,13 @@
 // MW2_FPS_LIMIT: how many frames a second the title draws at most.
 //
 // Unset or 60 is the console's pacing: D3D retires a frame at the guest's
-// blank and the title's own limiter (com_maxfps) is at its 60. Any other
-// number takes the title off the blank the way the console's D3D offers it
-// (d3d_hooks.cpp), and what paces it then depends on the display:
+// blank and the title's own limiter (com_maxfps) is at its 60. 30 is the
+// console's pacing too, a frame held for two of the guest's blanks, which is
+// D3D's own half-rate interval (d3d_hooks.cpp): every frame is as long as the
+// last, where a limiter counting 33 ms against blanks 33.3 ms apart shows a
+// frame for one blank or three every second or so. Any other number takes
+// the title off the blank the way the console's D3D offers it, and what
+// paces it then depends on the display:
 //
 //   * the number is the display's refresh rate (120 on a 120 Hz panel): the
 //     display paces it. The title's limiter is off, every frame is shown, and
@@ -32,8 +36,17 @@ namespace frame_rate
         return limit;
     }
 
-    // Frames are retired at the blank, one a blank, as on the console.
-    inline bool Console() { return Limit() == kConsole; }
+    // How many of the guest's 60 blanks a frame is held for where the
+    // console's own pacing keeps the limit: one at 60, two at 30. 0 where the
+    // limit is not the console's to keep.
+    inline uint32_t ConsoleBlanks()
+    {
+        const uint32_t limit = Limit();
+        return limit == kConsole ? 1 : limit * 2 == kConsole ? 2 : 0;
+    }
+
+    // Frames are retired at the guest's blank, as on the console.
+    inline bool Console() { return ConsoleBlanks() != 0; }
 
     // The display the window is on, as the presenter knows it: the rate its
     // mode gives, which the pacing is chosen by, and its blank's period, which

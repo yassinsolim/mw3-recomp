@@ -611,9 +611,11 @@ update-after-bind and partially bound sampled images, room for 65,536 of them
 and 4,096 samplers in one set (counted, with set 2's two storage buffers and
 the colour target, against each per-stage, per-set and pool limit as the
 specification sums it), shader
-draw parameters, non-uniform indexing of sampled images, subgroup ballot in
-the fragment stage and seventeen interpolators. A device without one says
-which at the start.
+draw parameters, non-uniform indexing of sampled images and seventeen
+interpolators. A device without one says which at the start. Subgroup ballot
+in the fragment stage is used where there is one; a device without it reads
+a draw's record a pixel at a time
+([shaders.md](shaders.md#the-module-interface)).
 `VK_EXT_multi_draw` is used where there is one.
 
 On the console a shader is ready as soon as it is loaded. With

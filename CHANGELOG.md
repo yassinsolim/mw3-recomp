@@ -56,6 +56,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   now only the two-players-on-one-device test copy (`-Instance 2`). Run on
   an AYN Thor: both launcher entries, and the hand-off in both directions
   ([docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md#one-app-two-libraries)).
+- **GPUs without subgroup ballot in pixel shaders** (the Retroid Pocket
+  Flip 2's Adreno 650 under Turnip) draw the game instead of running it with
+  a black screen: there a pixel shader reads its own draw record and indexes
+  its textures non-uniformly, the form before the waterfall. Devices with
+  ballot keep the waterfall; the log names the form at start
+  ([docs/shaders.md](docs/shaders.md)).
+- **Adreno 6xx (Retroid Pocket Flip 2): a level no longer resets the
+  device, and Modern Warfare 3 holds 30 frames a second there.** Turnip is
+  started without image compression (`TU_DEBUG=noubwc`), which hard-reset
+  the device as a level's world was first drawn; the FPS cap starts at 30
+  and the sun's shadows off (`MW2_SHADOWS`), the two things that turn 25
+  uneven frames a second into 30 even ones
+  ([docs/android.md](docs/android.md#adreno-6xx-snapdragon-865-class)).
+- **`MW2_FPS_LIMIT=30` is the console's pacing at half rate**: every frame
+  on screen for two blanks of a 60 Hz display, instead of the title's
+  limiter, whose 33 ms frames showed for one blank or three every second or
+  so ([docs/switches.md](docs/switches.md)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they
