@@ -27,6 +27,12 @@
 #if defined(__aarch64__)
 #include <sys/ucontext.h>   // faulting host PC + registers in the crash log
 #endif
+// The Android library's file name, which cmake/android.cmake gives (MW3's is
+// named for its title). An arm64 desktop build is an executable: nothing in
+// its maps has this name, and no address is marked.
+#ifndef MW2_LIBRARY_FILE
+#define MW2_LIBRARY_FILE "libmw2.so"
+#endif
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -218,7 +224,7 @@ namespace
                             char perms[8] = {};
                             if (std::sscanf(line.c_str(), "%llx-%llx %7s", &from, &to, perms) == 3 &&
                                 perms[0] == 'r' && perms[2] == 'x' &&
-                                line.find("libmw2.so") != std::string::npos)
+                                line.find(MW2_LIBRARY_FILE) != std::string::npos)
                             {
                                 libFrom = from;
                                 libTo = to;

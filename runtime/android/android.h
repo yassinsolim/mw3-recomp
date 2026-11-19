@@ -71,6 +71,11 @@ namespace android
     // Whether this process is running under the Android app at all. Only
     // false in a unit test that links the layer without starting it.
     bool Started();
+    // The title asked for its other executable (XamLoaderLaunchTitle): the
+    // app is told, with the launch data the title left as hexadecimal, and
+    // starts the run again with that executable's library once this process
+    // has gone. Returns when the app has taken the request.
+    void StartTitle(const std::string& xex, const std::string& launchData);
 
     // What the app should show when something went wrong before the first
     // frame ("no Vulkan device", "the game files are missing", ...).

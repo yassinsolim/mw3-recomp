@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var footer: TextView
     private lateinit var play: Button
     private lateinit var installButton: Button
-    private lateinit var otherAppButton: Button
+    private lateinit var secondButton: Button
     private lateinit var modsButton: Button
     private lateinit var tu6Button: Button
     private lateinit var updatesButton: Button
@@ -50,6 +50,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var versionTag: TextView
     private lateinit var directLaunchSwitch: androidx.appcompat.widget.SwitchCompat
     private var detectedIsoFile: File? = null
+
+    /** What the large button starts: the campaign, where the app carries it. */
+    private val firstTitle = Title.carried.first()
+
+    /** The multiplayer, in the app that carries the whole game. */
+    private val secondTitle = Title.carried.getOrNull(1)
     private var nativeReady = false
     private var hasAutoLaunched = false
     private var pendingInstallId: Long = -1
@@ -78,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         footer = findViewById(R.id.footer)
         play = findViewById(R.id.play)
         installButton = findViewById(R.id.install)
-        otherAppButton = findViewById(R.id.other_app)
+        secondButton = findViewById(R.id.other_app)
         modsButton = findViewById(R.id.entry_mods)
         tu6Button = findViewById(R.id.entry_tu6)
         updatesButton = findViewById(R.id.entry_updates)
@@ -94,7 +100,7 @@ class MainActivity : AppCompatActivity() {
             else info.versionCode
             val tu = BuildConfig.MW2_TU.uppercase()
             val build = when {
-                isMw3() -> "DISC VERSION"
+                Title.isMw3 -> "DISC VERSION"
                 isTu6() -> "TITLE UPDATE 6"
                 else -> "DISC VERSION 1.0.557"
             }
@@ -105,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         if (isTu6()) tu6Button.text = getString(R.string.entry_tu0)
         // MW3 has one game version and no published builds: neither entry
         // has anything to point at.
-        if (isMw3()) {
+        if (Title.isMw3) {
             tu6Button.visibility = android.view.View.GONE
             updatesButton.visibility = android.view.View.GONE
         }
@@ -118,27 +124,21 @@ class MainActivity : AppCompatActivity() {
         play.setOnClickListener {
             select(play)
             showDetail(getString(R.string.play), status.text.toString())
-            val gameDirectory = prefs.gameDirectory
-            val installed = gameDirectory.isNotEmpty() && safely(false) {
-                NativeBridge.nativeGameInstalled(gameDirectory)
-            }
-            if (installed) {
-                startGame()
-            } else if (detectedIsoFile != null) {
-                val intent = Intent(this, InstallActivity::class.java).apply {
-                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, detectedIsoFile!!.absolutePath)
-                    putExtra(InstallActivity.EXTRA_AUTO_START, true)
-                }
-                startActivity(intent)
-            } else {
-                startActivity(Intent(this, InstallActivity::class.java))
-            }
+            launch(firstTitle)
         }
-        // The other half of the game, when it is installed: campaign jumps
-        // straight into multiplayer and back, no home screen in between.
-        otherAppButton.setOnClickListener {
-            select(otherAppButton)
-            launchOtherApp()
+        // The app with the whole game: its multiplayer. An app of one title:
+        // the other half of the game, when that app is installed, so the
+        // campaign jumps straight into multiplayer and back, no home screen
+        // in between.
+        secondButton.setOnClickListener {
+            select(secondButton)
+            val second = secondTitle
+            if (second != null) {
+                showDetail(getString(R.string.title_multiplayer), getString(R.string.multiplayer_detail))
+                launch(second)
+            } else {
+                launchOtherApp()
+            }
         }
         installButton.setOnClickListener {
             select(installButton)
@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         // is reported rather than fatal. The breadcrumb is what identifies a
         // native crash inside the load itself, which no handler can catch.
         Trail.note(this, "launcher: loading the runtime library")
-        nativeReady = NativeBridge.load()
+        nativeReady = NativeBridge.load(firstTitle)
         if (nativeReady) {
             Trail.note(this, "launcher: library loaded, initialising")
             try {
@@ -229,6 +229,12 @@ class MainActivity : AppCompatActivity() {
             android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        // What the multiplayer kept when it was an app of its own, where the
+        // system lets this app read it. Off the main thread: it is files.
+        val gameDirectory = File(
+            prefs.gameDirectory.ifEmpty { File(getExternalFilesDir(null) ?: filesDir, "game").absolutePath },
+        )
+        thread(name = "old-saves", isDaemon = true) { OldMultiplayerApp.adoptSaves(gameDirectory) }
         checkForUpdates()
     }
 
@@ -263,73 +269,39 @@ class MainActivity : AppCompatActivity() {
             )
             return
         }
-        refreshOtherApp()
-
         var gameDirectory = prefs.gameDirectory
         if (gameDirectory.isEmpty()) {
             val defaultGameDir = File(getExternalFilesDir(null) ?: filesDir, "game")
-            if (defaultGameDir.exists() && safely(false) { NativeBridge.nativeGameInstalled(defaultGameDir.absolutePath) }) {
+            if (firstTitle.installed(defaultGameDir.absolutePath)) {
                 gameDirectory = defaultGameDir.absolutePath
                 prefs.gameDirectory = gameDirectory
             }
         }
-        val installed = gameDirectory.isNotEmpty() && safely(false) {
-            NativeBridge.nativeGameInstalled(gameDirectory)
-        }
+        val installed = firstTitle.installed(gameDirectory)
+        // An install made by the campaign's app of old has every game file
+        // but the multiplayer's executable.
+        val missing = Title.carried.filterNot { it.installed(gameDirectory) }
+        // A disc to install from is looked for only while something is missing.
+        detectedIsoFile = if (missing.isEmpty()) null else findDisc()
+        refreshSecondEntry(gameDirectory)
 
         if (installed) {
             play.isEnabled = true
-            play.text = "▶ LAUNCH GAME"
-            status.text = "Status: Game Ready\nLocation: $gameDirectory"
-            installButton.visibility = android.view.View.GONE
+            play.text = if (Title.both) "▶ " + getString(R.string.title_campaign) else "▶ LAUNCH GAME"
+            status.text = if (missing.isEmpty()) "Status: Game Ready\nLocation: $gameDirectory"
+            else getString(R.string.status_multiplayer_missing)
+            installButton.visibility = if (missing.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
+            installButton.text = getString(R.string.install_game)
             directLaunchSwitch.visibility = android.view.View.VISIBLE
 
             if (prefs.autoLaunch && !hasAutoLaunched) {
                 hasAutoLaunched = true
-                startGame()
+                // The title played last, while its files are still there.
+                val last = RunRequest.read(this).title
+                startGame(if (last.installed(gameDirectory)) last else firstTitle)
                 return
             }
         } else {
-            // MP needs the FULL disc: mw2_campaign_lean.iso pruned the
-            // multiplayer fastfiles to save 2.7 GB, so it can never satisfy
-            // a multiplayer install. SP accepts either, preferring lean.
-            // (TU6 installs from the same disc; the update applies after.)
-            val isMp = isMp()
-            val candidateIsos = if (isMw3()) {
-                listOf(
-                    File("/sdcard/Download/mw3.iso"),
-                    File("/sdcard/Download/Call of Duty - Modern Warfare 3.iso"),
-                    File("/sdcard/Download/Call of Duty - Modern Warfare 3 (USA, Europe).iso"),
-                    File(getExternalFilesDir(null) ?: filesDir, "mw3.iso"),
-                )
-            } else if (isMp) {
-                listOf(
-                    File("/sdcard/Download/mw2.iso"),
-                    File("/sdcard/Download/Call of Duty - Modern Warfare 2 (USA, Europe).iso"),
-                    File(getExternalFilesDir(null) ?: filesDir, "mw2.iso"),
-                    // Lean last: detected but installer will report missing MP zones.
-                    File("/sdcard/Download/mw2_campaign_lean.iso"),
-                )
-            } else {
-                listOf(
-                    File("/sdcard/Download/mw2_campaign_lean.iso"),
-                    File("/sdcard/Download/mw2.iso"),
-                    File("/sdcard/Download/Call of Duty - Modern Warfare 2 (USA, Europe).iso"),
-                    File(getExternalFilesDir(null) ?: filesDir, "mw2_campaign_lean.iso"),
-                    File(getExternalFilesDir(null) ?: filesDir, "mw2.iso")
-                )
-            }
-            val downloadFolder = File("/sdcard/Download")
-            val anyDownloadIso = if (downloadFolder.exists() && downloadFolder.isDirectory) {
-                downloadFolder.listFiles { f ->
-                    f.isFile && f.name.endsWith(".iso", ignoreCase = true) && f.length() > 500_000_000L &&
-                        // Lean ISO has no MP zones; don't offer it as fallback for MP.
-                        (!isMp || !f.name.contains("lean", ignoreCase = true))
-                }?.firstOrNull()
-            } else null
-
-            detectedIsoFile = candidateIsos.firstOrNull { it.exists() && it.length() > 500_000_000L } ?: anyDownloadIso
-
             if (detectedIsoFile != null) {
                 play.isEnabled = true
                 play.text = "⚡ INSTALL & PLAY"
@@ -350,6 +322,69 @@ class MainActivity : AppCompatActivity() {
         footer.text = getString(
             R.string.footer, device(), currentDriverName(),
             BuildConfig.BUILD_SHA, BuildConfig.BUILD_STAMP,
+        )
+    }
+
+    /** A disc image where players usually leave one, or null. */
+    private fun findDisc(): File? {
+        // MW2's multiplayer needs the FULL disc: mw2_campaign_lean.iso pruned
+        // the multiplayer fastfiles to save 2.7 GB, so it can never satisfy
+        // a multiplayer install. SP accepts either, preferring lean.
+        // (TU6 installs from the same disc; the update applies after.)
+        val isMp = isMp()
+        val candidateIsos = if (Title.isMw3) {
+            listOf(
+                File("/sdcard/Download/mw3.iso"),
+                File("/sdcard/Download/Call of Duty - Modern Warfare 3.iso"),
+                File("/sdcard/Download/Call of Duty - Modern Warfare 3 (USA, Europe).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "mw3.iso"),
+            )
+        } else if (isMp) {
+            listOf(
+                File("/sdcard/Download/mw2.iso"),
+                File("/sdcard/Download/Call of Duty - Modern Warfare 2 (USA, Europe).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "mw2.iso"),
+                // Lean last: detected but installer will report missing MP zones.
+                File("/sdcard/Download/mw2_campaign_lean.iso"),
+            )
+        } else {
+            listOf(
+                File("/sdcard/Download/mw2_campaign_lean.iso"),
+                File("/sdcard/Download/mw2.iso"),
+                File("/sdcard/Download/Call of Duty - Modern Warfare 2 (USA, Europe).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "mw2_campaign_lean.iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "mw2.iso")
+            )
+        }
+        val downloadFolder = File("/sdcard/Download")
+        val anyDownloadIso = if (downloadFolder.exists() && downloadFolder.isDirectory) {
+            downloadFolder.listFiles { f ->
+                f.isFile && f.name.endsWith(".iso", ignoreCase = true) && f.length() > 500_000_000L &&
+                    // Lean ISO has no MP zones; don't offer it as fallback for MP.
+                    (!isMp || !f.name.contains("lean", ignoreCase = true))
+            }?.firstOrNull()
+        } else null
+
+        return candidateIsos.firstOrNull { it.exists() && it.length() > 500_000_000L } ?: anyDownloadIso
+    }
+
+    /**
+     * Starts a title, or the install that has to come first: from the disc
+     * image found on the phone when there is one, else by asking for it.
+     */
+    private fun launch(title: Title) {
+        if (title.installed(prefs.gameDirectory)) {
+            startGame(title)
+            return
+        }
+        startActivity(
+            Intent(this, InstallActivity::class.java).apply {
+                putExtra(InstallActivity.EXTRA_TITLE, title.name)
+                detectedIsoFile?.let {
+                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, it.absolutePath)
+                    putExtra(InstallActivity.EXTRA_AUTO_START, true)
+                }
+            },
         )
     }
 
@@ -391,15 +426,15 @@ class MainActivity : AppCompatActivity() {
         return File(directory).name
     }
 
-    private fun startGame() {
+    private fun startGame(title: Title) {
         if (!nativeReady) return
         // A physical pad means a second player can join (split-screen Spec
         // Ops / multiplayer). Warn once: two viewports cost frames and heat.
         if (!prefs.seenPadWarning && physicalPadCount() > 0) {
-            showSplitscreenWarning()
+            showSplitscreenWarning(title)
             return
         }
-        GameActivity.start(this)
+        GameActivity.start(this, title)
     }
 
     private fun showDetail(title: String, text: String) {
@@ -407,8 +442,8 @@ class MainActivity : AppCompatActivity() {
         detailText.text = text
     }
 
-    /** com.mw2.recomp.mp, com.mw2.recomp.mp.tu6 and com.mw3.recomp.mp are multiplayer. */
-    private fun isMp(): Boolean = packageName.contains(".mp")
+    /** An app of the multiplayer alone (com.mw2.recomp.mp, .mp.tu6, com.mw3.recomp.mp). */
+    private fun isMp(): Boolean = firstTitle == Title.MULTIPLAYER
 
     /** com.mw2.recomp.sp.tu6 / .mp.tu6 run title update 6. */
     private fun isTu6(): Boolean = packageName.endsWith(".tu6")
@@ -416,9 +451,9 @@ class MainActivity : AppCompatActivity() {
     /** The other flavor's package, or null when it is not installed. */
     private fun otherApp(): Pair<String, String>? {
         // Same game and version on both ends: TU6 cross-launches the TU6
-        // sibling, and MW3's two apps (com.mw3.recomp, .mp) each other.
-        val pkg = if (isMw3()) {
-            if (isMp()) "com.mw3.recomp" else "com.mw3.recomp.mp"
+        // sibling, and MW3's multiplayer test copy the game itself.
+        val pkg = if (Title.isMw3) {
+            "com.mw3.recomp"
         } else {
             "com.mw2.recomp" + (if (isMp()) ".sp" else ".mp") + if (isTu6()) ".tu6" else ""
         }
@@ -434,13 +469,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshOtherApp() {
+    /**
+     * The second entry: the multiplayer in the app that carries both titles,
+     * else the game's other app when that is installed.
+     */
+    private fun refreshSecondEntry(gameDirectory: String) {
+        val second = secondTitle
+        if (second != null) {
+            secondButton.visibility = android.view.View.VISIBLE
+            secondButton.text = getString(
+                if (second.installed(gameDirectory)) R.string.title_multiplayer
+                else R.string.title_multiplayer_install,
+            )
+            return
+        }
         val other = otherApp()
         if (other == null) {
-            otherAppButton.visibility = android.view.View.GONE
+            secondButton.visibility = android.view.View.GONE
         } else {
-            otherAppButton.visibility = android.view.View.VISIBLE
-            otherAppButton.text = other.second
+            secondButton.visibility = android.view.View.VISIBLE
+            secondButton.text = other.second
         }
     }
 
@@ -480,15 +528,15 @@ class MainActivity : AppCompatActivity() {
         return count
     }
 
-    private fun showSplitscreenWarning() {
+    private fun showSplitscreenWarning(title: Title) {
         AlertDialog.Builder(this)
             .setTitle(R.string.splitscreen_title)
             .setMessage(R.string.splitscreen_warning)
-            .setPositiveButton(R.string.play_anyway) { _, _ -> GameActivity.start(this) }
+            .setPositiveButton(R.string.play_anyway) { _, _ -> GameActivity.start(this, title) }
             .setNegativeButton(R.string.cancel, null)
             .setNeutralButton(R.string.dont_show_again) { _, _ ->
                 prefs.seenPadWarning = true
-                GameActivity.start(this)
+                GameActivity.start(this, title)
             }
             .show()
     }
@@ -604,9 +652,6 @@ class MainActivity : AppCompatActivity() {
         if (BuildConfig.UPDATE_REPO.isEmpty()) return
         openPage("https://github.com/${BuildConfig.UPDATE_REPO}/releases")
     }
-
-    /** com.mw3.recomp is Modern Warfare 3; everything else here is MW2. */
-    private fun isMw3(): Boolean = packageName.startsWith("com.mw3.")
 
     private fun downloadAndInstall(apkUrl: String) {
         if (!packageManager.canRequestPackageInstalls()) {

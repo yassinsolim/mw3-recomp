@@ -12,20 +12,23 @@ object NativeBridge {
     @Volatile
     var listener: NativeListener? = null
 
-    private var loaded = false
+    private var loadedTitle: Title? = null
     private var loadError: String? = null
 
     /**
-     * Loads libmw2.so. Called once, late, and allowed to fail: a device whose
-     * Vulkan is too old, or an apk built for another ABI, still reaches the
-     * launcher, which then says what is wrong instead of disappearing.
+     * Loads a title's library. Called once, late, and allowed to fail: a
+     * device whose Vulkan is too old, or an apk built for another ABI, still
+     * reaches the launcher, which then says what is wrong instead of
+     * disappearing. One title to a process: both libraries export the names
+     * below, and the first loaded is the one they are bound to, so asking for
+     * the other afterwards is refused.
      */
     @Synchronized
-    fun load(): Boolean {
-        if (loaded) return true
+    fun load(title: Title): Boolean {
+        loadedTitle?.let { return it == title }
         return try {
-            System.loadLibrary("mw2")
-            loaded = true
+            System.loadLibrary(title.library)
+            loadedTitle = title
             true
         } catch (error: Throwable) {
             loadError = error.message ?: error.toString()
@@ -33,7 +36,10 @@ object NativeBridge {
         }
     }
 
-    fun isLoaded(): Boolean = loaded
+    fun isLoaded(): Boolean = loadedTitle != null
+
+    /** The title this process has loaded, if any. */
+    fun title(): Title? = loadedTitle
     fun loadError(): String? = loadError
 
     /**
@@ -58,7 +64,8 @@ object NativeBridge {
     /** One of the runtime's MW2_* switches (docs/switches.md). */
     external fun nativeSetOption(key: String, value: String)
 
-    external fun nativeStart(gameDir: String): Boolean
+    /** [homeDir] is where the run keeps saves/ (Title.home). */
+    external fun nativeStart(gameDir: String, homeDir: String): Boolean
     external fun nativeRequestStop()
     external fun nativeIsRunning(): Boolean
     external fun nativeStatus(): String
@@ -192,4 +199,11 @@ interface NativeListener {
 
     /** A sentence for the player: what the run is doing, or why it stopped. */
     fun onStatus(text: String)
+
+    /**
+     * The title asked for its other executable, by its name on the disc, with
+     * the launch data it left as hexadecimal. The process ends when this
+     * returns, so whatever starts the next run has to be under way by then.
+     */
+    fun onNextTitle(executable: String, launchData: String)
 }

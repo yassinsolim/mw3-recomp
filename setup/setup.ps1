@@ -13,9 +13,10 @@ One command for a Windows PC: setup\setup.cmd (or this script). It
      (the image is only ever opened for reading);
   3. checks each executable's SHA-256 against the disc builds this port
      supports (tools/check_mw3_xex.py) and refuses any other;
-  4. recompiles them to C++ (XenonRecomp) and builds the Android apps and, if
-     asked, the Windows game;
-  5. installs the apps on a phone connected over USB, if asked.
+  4. recompiles them to C++ (XenonRecomp) and builds the Android app (one app
+     with the campaign, Special Ops and the multiplayer) and, if asked, the
+     Windows game;
+  5. installs the app on a phone connected over USB, if asked.
 Everything it makes is in the git-ignored out\, mw3\, ppc_mw3*\ and
 XenonRecomp\ folders: it contains code made from your copy of the game and is
 for your own devices only. Never upload or share it.
@@ -25,16 +26,18 @@ hours and about 40 GB of disk (60 GB with the Windows game).
 .PARAMETER Iso
 The disc image. Asked for when not given.
 .PARAMETER Title
-both (default), sp (campaign and Special Ops) or mp (multiplayer).
+both (default), sp (campaign and Special Ops) or mp (multiplayer): which
+Windows executables to build. The Android app always holds both.
 .PARAMETER Build
 android (default), pc, or both. Asked for when not given.
 .PARAMETER Install
-Install the built APKs on the connected phone (adb) without asking.
+Install the built APK on the connected phone (adb) without asking.
 .PARAMETER PushIso
 Copy the disc image to the phone's Download folder, for the app's installer.
 .PARAMETER Instance
-2..9 with -Title mp: a second copy of the multiplayer app (com.mw3.recomp.mp2)
-to run beside the first on one phone.
+2..9 with -Title mp: instead of the app, a copy of the multiplayer alone
+(com.mw3.recomp.mp2) to run beside it on one phone, for testing two players
+on one device.
 .PARAMETER Recomp
 Recompile even when a recompiled tree is already there.
 .PARAMETER Check
@@ -124,11 +127,9 @@ $AnalyseExe = Join-Path $Xenon 'build\XenonAnalyse\XenonAnalyse.exe'
 # What differs between the disc's two executables (win_build.ps1's table).
 $Titles = @{
     sp = @{ Name = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
-            Tables = 'mw3_switch_tables.toml'; Task = 'assembleMw3Tu0Debug'; Variant = 'mw3Tu0'; Files = 146; Jump = 128
-            Package = 'com.mw3.recomp' }
+            Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
     mp = @{ Name = 'mw3mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mw3_mp'; Toml = 'MW3MP.toml'
-            Tables = 'mw3mp_switch_tables.toml'; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Files = 153; Jump = 156
-            Package = 'com.mw3.recomp.mp' }
+            Tables = 'mw3mp_switch_tables.toml'; Files = 153; Jump = 156 }
 }
 
 $Clock = [Diagnostics.Stopwatch]::StartNew()
@@ -313,12 +314,17 @@ if ($freeGb -lt 40) { Warn "only $freeGb GB free on ${drive}: about 40 GB is wan
 if ($memGb -lt 16) { Warn "$memGb GB of memory: the recompiled code is large, and the build may run out below 16 GB." }
 
 # ---- 1. what to build --------------------------------------------------------
-if (-not $Title) { $Title = Choose 'Which part of the game: both, sp (campaign and Special Ops) or mp (multiplayer)?' @('both', 'sp', 'mp') 'both' }
+if (-not $Title) { $Title = Choose 'Which part of the game for Windows: both, sp (campaign and Special Ops) or mp (multiplayer)? The Android app always holds both.' @('both', 'sp', 'mp') 'both' }
 if (-not $Build) { $Build = Choose 'Build for android, pc (Windows) or both?' @('android', 'pc', 'both') 'android' }
 if ($Instance -gt 1 -and $Title -ne 'mp') { throw '-Instance is for -Title mp' }
-$Keys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
 $ForAndroid = $Build -in 'android', 'both'
 $ForPc = $Build -in 'pc', 'both'
+$TestCopy = $Instance -gt 1
+# The Windows game is an executable for each title asked for. The Android app
+# carries both, so it needs both recompiled whatever -Title says; the
+# multiplayer test copy (-Instance) needs only its own.
+$PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
+$Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
 
 $needIso = ($ForPc -and -not (Test-Path (Join-Path $Out 'pc\game\default.xex'))) -or
            @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "mw3\tu0\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
@@ -410,6 +416,10 @@ foreach ($key in @($Keys)) {
             $Keys = @($Keys | Where-Object { $_ -ne $key })
         } else { throw "$($t.Xex).xex is not a disc build this port supports (tools/check_mw3_xex.py lists them)." }
     }
+}
+$PcKeys = @($PcKeys | Where-Object { $_ -in $Keys })
+if ($ForAndroid -and -not $TestCopy -and $Keys.Count -lt 2) {
+    throw 'The Android app holds the campaign and the multiplayer, and needs both executables to be disc builds this port supports (tools/check_mw3_xex.py lists them).'
 }
 
 # ---- 4. recompile ------------------------------------------------------------
@@ -527,22 +537,24 @@ if ($ForAndroid) {
     }
     [IO.File]::WriteAllText((Join-Path $Repo 'android\local.properties'), "sdk.dir=$($Sdk -replace '\\', '/')`n")
     $env:MW2_LTO = 'OFF'
-    foreach ($key in @($Keys)) {
-        $t = $Titles[$key]
-        $copy = if ($key -eq 'mp' -and $Instance -gt 1) { "$Instance" } else { '' }
-        Step "build the $($t.Label) app (gradle $($t.Task); the longest step, log: out\logs\gradle_$($t.Name).log)"
-        $env:MW2_TITLE = $t.Name; $env:MW2_VERSION = 'tu0'
-        # A modest daemon: most of the memory goes to the compilers it starts.
-        $gradleArgs = @('--no-daemon', '-Dorg.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8')
-        if ($copy) { $gradleArgs += "-PmpInstance=$Instance" }
-        Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + $t.Task) -Cwd (Join-Path $Repo 'android') -Log "gradle_$($t.Name).log" -Quiet
-        $built = Get-ChildItem (Join-Path $Repo "android\app\build\outputs\apk\$($t.Variant)\debug\*.apk") | Sort-Object LastWriteTime | Select-Object -Last 1
-        if (-not $built) { throw "gradle finished but no APK under android\app\build\outputs\apk\$($t.Variant)\debug" }
-        $apk = Join-Path $Out "$($t.Name)$copy-debug.apk"
-        Copy-Item $built.FullName $apk -Force
-        $Apks += $apk
-        Note ("{0} ({1:N1} MB)" -f $apk, ((Get-Item $apk).Length / 1MB))
+    # One app with both titles: the campaign's build makes the multiplayer's
+    # library as well (cmake/android.cmake, MW3_BOTH_TITLES).
+    $app = if ($TestCopy) {
+        @{ Label = "multiplayer test copy $Instance"; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Apk = "mw3mp$Instance-debug.apk" }
+    } else {
+        @{ Label = 'app (campaign, Special Ops and multiplayer)'; Task = 'assembleMw3Tu0Debug'; Variant = 'mw3Tu0'; Apk = 'mw3-debug.apk' }
     }
+    Step "build the $($app.Label) (gradle $($app.Task); the longest step, log: out\logs\gradle_android.log)"
+    # A modest daemon: most of the memory goes to the compilers it starts.
+    $gradleArgs = @('--no-daemon', '-Dorg.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8')
+    if ($TestCopy) { $gradleArgs += "-PmpInstance=$Instance" }
+    Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + $app.Task) -Cwd (Join-Path $Repo 'android') -Log 'gradle_android.log' -Quiet
+    $built = Get-ChildItem (Join-Path $Repo "android\app\build\outputs\apk\$($app.Variant)\debug\*.apk") | Sort-Object LastWriteTime | Select-Object -Last 1
+    if (-not $built) { throw "gradle finished but no APK under android\app\build\outputs\apk\$($app.Variant)\debug" }
+    $apk = Join-Path $Out $app.Apk
+    Copy-Item $built.FullName $apk -Force
+    $Apks += $apk
+    Note ("{0} ({1:N1} MB)" -f $apk, ((Get-Item $apk).Length / 1MB))
 }
 
 # ---- 6. the Windows game -----------------------------------------------------
@@ -558,7 +570,7 @@ if ($ForPc) {
         Exec $Python @('tools/xdvdfs.py', $Iso, $game) -Cwd $Repo -Log 'extract_pc_game.log' -Quiet
     }
     $fwd = { param($p) $p -replace '\\', '/' }
-    foreach ($key in @($Keys)) {
+    foreach ($key in @($PcKeys)) {
         $t = $Titles[$key]
         $buildDir = Join-Path $Out "build-pc-$($t.Name)"
         Step "build the Windows $($t.Label) (log: out\logs\pc_$($t.Name).log)"
@@ -595,7 +607,7 @@ if ($ForAndroid -and $Apks.Count) {
     } else {
         $serial = $ready[0].Serial
         if ($ready.Count -gt 1) { Warn "more than one phone connected; using $serial" }
-        if ($Install -or (Ask "Install the app(s) on $serial now?" $true)) {
+        if ($Install -or (Ask "Install the app on $serial now?" $true)) {
             foreach ($apk in $Apks) {
                 Step "adb install $(Split-Path -Leaf $apk)"
                 # A copy built elsewhere (another clone, another PC) is signed with
@@ -603,6 +615,22 @@ if ($ForAndroid -and $Apks.Count) {
                 # build is done by now, so say what to do rather than fail the run.
                 try { Exec $Adb @('-s', $serial, 'install', '-r', $apk) }
                 catch { Warn "could not install $(Split-Path -Leaf $apk) on ${serial}: an app of that name built on another PC or from another copy of this folder is probably installed. Uninstall it on the phone (its game files go with it) and install $apk again, or copy the APK over and open it there." }
+            }
+            # The multiplayer used to be an app of its own (com.mw3.recomp.mp).
+            # Its profile and rank are that app's saves folder, which the app's
+            # multiplayer keeps as mp\saves; an app cannot read another's
+            # folder on a current Android, adb can. Never over saves already
+            # there, and the old app and its files are left as they are.
+            if (-not $TestCopy) {
+                $oldSaves = '/sdcard/Android/data/com.mw3.recomp.mp/files/saves'
+                $home3 = '/sdcard/Android/data/com.mw3.recomp/files/mp'
+                try {
+                    $moved = Exec $Adb @('-s', $serial, 'shell', "if [ -d $oldSaves ] && [ ! -e $home3/saves ]; then mkdir -p $home3 && cp -r $oldSaves $home3/saves && echo copied; fi")
+                    if ("$moved" -match 'copied') { Note 'the old multiplayer app''s profile and rank were copied into the app.' }
+                    if ("$(Exec $Adb @('-s', $serial, 'shell', 'pm', 'list', 'packages', 'com.mw3.recomp.mp'))" -match 'com\.mw3\.recomp\.mp\s*$') {
+                        Note 'the old multiplayer app (CoD: MW3 Multiplayer) is no longer needed: uninstalling it on the phone frees its copy of the game files.'
+                    }
+                } catch { Warn "could not look for the old multiplayer app's saves: $($_.Exception.Message)" }
             }
         }
         if ($Iso -and ($PushIso -or (Ask 'Copy the disc image to the phone''s Download folder for the app''s installer (7-8 GB, several minutes)?' $false))) {

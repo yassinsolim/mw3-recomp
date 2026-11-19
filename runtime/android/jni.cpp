@@ -62,6 +62,7 @@ namespace
     jobject g_listener = nullptr;       // a global reference; the app's callbacks
     jmethodID g_onRumble = nullptr;
     jmethodID g_onStatus = nullptr;
+    jmethodID g_onNextTitle = nullptr;
 
     android::Paths g_paths;
     std::atomic<bool> g_started{ false };
@@ -237,6 +238,7 @@ MW2_NATIVE(jboolean, nativeInit)(JNIEnv* env, jobject, jstring filesDir, jstring
         jclass type = env->GetObjectClass(g_listener);
         g_onRumble = env->GetMethodID(type, "onRumble", "(III)V");
         g_onStatus = env->GetMethodID(type, "onStatus", "(Ljava/lang/String;)V");
+        g_onNextTitle = env->GetMethodID(type, "onNextTitle", "(Ljava/lang/String;Ljava/lang/String;)V");
         if (env->ExceptionCheck()) env->ExceptionClear();
         env->DeleteLocalRef(type);
     }
@@ -301,7 +303,7 @@ MW2_NATIVE(jstring, nativeDriverDescription)(JNIEnv* env, jobject)
     return FromString(env, text);
 }
 
-MW2_NATIVE(jboolean, nativeStart)(JNIEnv* env, jobject, jstring gameDirectory)
+MW2_NATIVE(jboolean, nativeStart)(JNIEnv* env, jobject, jstring gameDirectory, jstring homeDirectory)
 {
     if (g_started.exchange(true, std::memory_order_acq_rel))
     {
@@ -311,11 +313,13 @@ MW2_NATIVE(jboolean, nativeStart)(JNIEnv* env, jobject, jstring gameDirectory)
     g_gameFolder = ToString(env, gameDirectory);
     if (g_gameFolder.empty()) g_gameFolder = g_paths.external + "/game";
 
-    // Saves and the caches are written relative to the current directory, so
-    // it is the folder the game lives in.
-    const std::string parent = g_gameFolder.substr(0, g_gameFolder.find_last_of('/'));
-    if (!parent.empty() && chdir(parent.c_str()) != 0)
-        LOGW("android: could not change directory to %s", parent.c_str());
+    // Saves are written relative to the current directory. The app names it
+    // (Title.home): the folder the game folder is in, or one of the title's
+    // own where the app carries both titles.
+    std::string home = ToString(env, homeDirectory);
+    if (home.empty()) home = g_gameFolder.substr(0, g_gameFolder.find_last_of('/'));
+    if (!home.empty() && chdir(home.c_str()) != 0)
+        LOGW("android: could not change directory to %s", home.c_str());
     install::SetGameFolder(g_gameFolder);
 
     android::perf::ApplyMemoryDefaults();
@@ -676,6 +680,19 @@ const android::Paths& android::GetPaths()
 }
 
 bool android::Started() { return g_started.load(std::memory_order_acquire); }
+
+void android::StartTitle(const std::string& xex, const std::string& launchData)
+{
+    if (!g_listener || !g_onNextTitle) return;
+    JNIEnv* env = Env();
+    if (!env) return;
+    jstring name = FromString(env, xex);
+    jstring data = FromString(env, launchData);
+    env->CallVoidMethod(g_listener, g_onNextTitle, name, data);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(name);
+    env->DeleteLocalRef(data);
+}
 
 void android::PublishStats(const Stats& stats)
 {

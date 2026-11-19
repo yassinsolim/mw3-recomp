@@ -128,9 +128,9 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         switch(R.id.prewarm_all, prefs.prewarmAllShaders) { prefs.prewarmAllShaders = it }
         switch(R.id.async_pipelines, prefs.asyncPipelines) { prefs.asyncPipelines = it }
         switch(R.id.persist_pipeline, prefs.persistPipelineCache) { prefs.persistPipelineCache = it }
-        // The unlock switch is for Modern Warfare 3's multiplayer, the only
-        // title that reads it.
-        if (packageName.startsWith("com.mw3.") && packageName.contains(".mp")) {
+        // The unlock switch and the bots are for Modern Warfare 3's
+        // multiplayer, the only title that reads them.
+        if (Title.isMw3 && Title.MULTIPLAYER.carried) {
             findViewById<android.view.View>(R.id.unlock_all_items_group).visibility = android.view.View.VISIBLE
             switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
 
@@ -203,9 +203,9 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         val playerName: EditText = findViewById(R.id.player_name)
         playerName.setText(prefs.playerName)
         playerName.doAfterTextChanged { prefs.playerName = it.toString() }
-        // How the multiplayer apps reach other players (GameActivity sets
-        // MW2_NETWORK from it); the campaign apps have no network.
-        if (packageName.contains(".mp")) {
+        // How the multiplayer reaches other players (GameActivity sets
+        // MW2_NETWORK from it); the campaign has no network.
+        if (Title.MULTIPLAYER.carried) {
             findViewById<android.view.View>(R.id.network_mode_group).visibility = android.view.View.VISIBLE
             val modes = mapOf(
                 Prefs.NETWORK_ONLINE to R.id.network_online,
@@ -220,7 +220,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
             val relayAddress: EditText = findViewById(R.id.relay_address)
             relayAddress.setText(prefs.relayAddress)
             relayAddress.doAfterTextChanged { prefs.relayAddress = it.toString() }
-            if (packageName.startsWith("com.mw3.")) {
+            if (Title.isMw3) {
                 findViewById<android.view.View>(R.id.live_sign_in_group).visibility = android.view.View.VISIBLE
                 switch(R.id.live_sign_in, prefs.liveSignIn) { prefs.liveSignIn = it }
                 findViewById<android.view.View>(R.id.voice_chat_group).visibility = android.view.View.VISIBLE
@@ -392,13 +392,16 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
 
     private fun gameBase(): java.io.File = getExternalFilesDir(null) ?: filesDir
 
+    /** Every title's caches (GameActivity.applyOptions names them). */
     private fun shaderCacheFiles(): List<java.io.File> {
         val base = gameBase()
-        return listOf(
-            java.io.File(base, "shader_cache.bin"),
-            java.io.File(filesDir, "shader_cache.bin"),
-            java.io.File(filesDir, "pipeline.cache"),
-        )
+        return Title.carried.flatMap {
+            listOf(
+                java.io.File(base, "shader_cache${it.cacheSuffix}.bin"),
+                java.io.File(filesDir, "shader_cache${it.cacheSuffix}.bin"),
+                java.io.File(filesDir, "pipeline${it.cacheSuffix}.cache"),
+            )
+        }
     }
 
     private fun refreshStorage(view: TextView) {        view.text = getString(R.string.storage_computing)
@@ -410,13 +413,14 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 0L
             }
             val gameDir = prefs.gameDirectory.ifEmpty { null }?.let { java.io.File(it) }
-            val base = gameBase()
-            val saves = java.io.File(
-                (gameDir?.parent ?: base.absolutePath) + "/saves",
-            )
+            // Each title's saves (Title.home), which is one folder unless the
+            // app carries both.
+            val saves = Title.carried
+                .map { java.io.File(it.home(gameDir ?: java.io.File(gameBase(), "game")), "saves") }
+                .distinct()
             val rows = listOf(
                 getString(R.string.storage_game) to (gameDir?.let { sizeOf(it) } ?: 0L),
-                getString(R.string.saves_files) to sizeOf(saves),
+                getString(R.string.saves_files) to saves.sumOf { sizeOf(it) },
                 getString(R.string.storage_shaders) to shaderCacheFiles().sumOf {
                     try {
                         it.length()

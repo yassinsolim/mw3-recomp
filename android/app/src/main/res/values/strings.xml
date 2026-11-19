@@ -31,6 +31,12 @@
     <string name="other_name_campaign">MW2 Campaign</string>
     <string name="other_name_multiplayer">MW2 Multiplayer</string>
     <string name="other_missing">%1$s is not installed.</string>
+    <!-- the app that carries the campaign and the multiplayer -->
+    <string name="title_campaign">CAMPAIGN · SPECIAL OPS</string>
+    <string name="title_multiplayer">MULTIPLAYER</string>
+    <string name="title_multiplayer_install">MULTIPLAYER · INSTALL</string>
+    <string name="multiplayer_detail">Online through a relay, on the local network, or split screen with bots. Network, bots and voice chat are in Settings.</string>
+    <string name="status_multiplayer_missing">The campaign is ready.\nThe multiplayer\'s executable is not in the game folder yet: install from your disc image once more. Only what is missing is copied.</string>
 
     <!-- launcher -->
     <string name="play">Play</string>

@@ -161,11 +161,22 @@ namespace
 #ifdef MW2_ANDROID
     struct Title { const char* xex; const char* sha256; const char* disc; };
 #ifdef MW3_TITLE
-    // MW3: each app is one executable of the disc, the campaign's (default.xex,
-    // with Special Ops) or the multiplayer's (default_mp.xex); the other is
-    // neither checked nor copied.
     constexpr uint32_t kTitleId = 0x415608CB;
     constexpr const char* kTitleName = "Modern Warfare 3";
+#ifdef MW3_BOTH_TITLES
+    // MW3, the app that carries both titles: one install puts both of the
+    // disc's executables in the one game folder, each checked, so the folder
+    // either runs the campaign and the multiplayer or is not installed.
+    constexpr bool kEveryTitleNeeded = true;
+    constexpr Title kTitles[] = {
+        { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
+        { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
+    };
+#else
+    // MW3, an app of one title: the campaign's executable (default.xex, with
+    // Special Ops) or the multiplayer's (default_mp.xex); the other is
+    // neither checked nor copied.
+    constexpr bool kEveryTitleNeeded = false;
     constexpr Title kTitles[] = {
 #ifdef MW3_TITLE_MP
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
@@ -173,9 +184,11 @@ namespace
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
 #endif
     };
+#endif
 #else
     constexpr uint32_t kTitleId = 0x41560817;
     constexpr const char* kTitleName = "Modern Warfare 2";
+    constexpr bool kEveryTitleNeeded = false;
     constexpr Title kTitles[] = {
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
@@ -247,7 +260,7 @@ namespace
             const auto* file = source->Find(title.xex);
             if (!file)
             {
-                if (std::string(title.xex) == kXex)
+                if (kEveryTitleNeeded || std::string(title.xex) == kXex)
                 {
                     error = std::string("There is no ") + title.xex + " in " + Utf8(from) +
                             ": it is not a " + kTitleName + " disc.";
@@ -668,11 +681,36 @@ bool install::CompileShaders(const std::string& device, const std::string& why)
 
 void install::SetNextTitle(const std::string& xex) { g_nextTitle = xex; }
 
+#if defined(MW2_ANDROID) || defined(MW2_USE_SDL)
+namespace
+{
+    // The launch data as it crosses to the next program: hexadecimal text.
+    std::string LaunchDataHex()
+    {
+        std::string hex;
+        for (const uint8_t byte : install::LaunchData())
+        {
+            char text[3];
+            std::snprintf(text, sizeof(text), "%02x", byte);
+            hex += text;
+        }
+        return hex;
+    }
+}
+#endif
+
 void install::StartNextTitle()
 {
     if (g_nextTitle.empty()) return;
     const char* program = ProgramFor(g_nextTitle);
     if (!program) { LOGE("the title asked for %s, which is not one of its executables", g_nextTitle.c_str()); return; }
+#ifdef MW2_ANDROID
+    // The app is what starts a run here, and it holds the other executable's
+    // library when it carries both titles: it is told, and starts that one
+    // once this process has ended (GameActivity.onNextTitle).
+    LOGI("the title asked for %s: handing over to the app", g_nextTitle.c_str());
+    android::StartTitle(g_nextTitle, LaunchDataHex());
+#else
     // A development run was given its image and game folder by hand, and
     // nothing says where the other title's are.
     if (!g_playerStart)
@@ -684,13 +722,7 @@ void install::StartNextTitle()
     std::error_code ec;
     const fs::path file = fs::absolute(program, ec);
     if (!fs::is_regular_file(file, ec)) { ShowError(std::string(program) + " is not beside this program."); return; }
-    std::string hex;
-    for (const uint8_t byte : LaunchData())
-    {
-        char text[3];
-        std::snprintf(text, sizeof(text), "%02x", byte);
-        hex += text;
-    }
+    const std::string hex = LaunchDataHex();
     SDL_Environment* environment = SDL_GetEnvironment();
     if (hex.empty()) SDL_UnsetEnvironmentVariable(environment, kLaunchDataVariable);
     else SDL_SetEnvironmentVariable(environment, kLaunchDataVariable, hex.c_str(), true);
@@ -704,5 +736,6 @@ void install::StartNextTitle()
     LOGI("started %s", path.c_str());
 #else
     LOGE("this build cannot start %s", program);
+#endif
 #endif
 }
