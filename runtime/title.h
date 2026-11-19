@@ -468,6 +468,7 @@
 #define T_AimAssist_FovScale   820D31A0
 #define T_AIM_TURN_RATE_SCALE     280u
 #define T_DATA_FovScaleDvar       0x8261098Cu
+
 // The end-of-match vote (map_vote.cpp, MW2_MAP_VOTE and MW2_MAP_ROTATION). The
 // script's exitLevel (builtin 0xED) marks the level finished, calls SV_MatchEnd
 // (sub_822C97D8), which has the next server frame shut the server down with
@@ -536,6 +537,44 @@
 #define T_USERCMD_SIZE            0x2Cu
 #define T_USERCMD_BUTTONS         0x4u
 
+// Mods (mods.cpp, docs/mods.md). The script loader, sub_822BA050, asks the
+// asset database for a `scriptfile` (type 0x25: { name, compressedLen, len,
+// bytecodeLen, buffer, bytecode }) by the name it was given, a stock script's
+// being its number in decimal, and skips it when DB_IsXAssetDefault says the
+// database has only its stand-in; a raw file (type 0x24: { name,
+// compressedLen, len, buffer }) is read through sub_821EEB70, which always
+// inflates. GScr_LoadScripts (the title's G_LoadScripts) loads
+// codescripts/delete and struct, then the game type's script
+// ("maps/mp/gametypes/%s", main is name 0x2B2) and the map's ("maps/mp/%s");
+// G_InitGame (sub_822405A8) then runs the game type's main (Scr_LoadGameType),
+// the map's (Scr_LoadLevel) and CodeCallback_StartGameType
+// (Scr_StartupGameType), each through Scr_ExecThread and Scr_FreeThread.
+#define T_DB_FindXAssetHeader   821E9BC8   // (type, name, allowCreateDefault) -> the asset
+#define T_DB_IsXAssetDefault    821E9EB0   // (type, name) -> bool
+#define T_DB_FindXAssetEntry    821E98F0   // (type, name) -> the database's entry, 0 when it has none; takes no lock
+#define T_G_LoadScripts         8225C360
+#define T_GScr_LoadGameTypeScript 8225BF40
+#define T_Scr_LoadScript        822ABBB8   // (name) -> nonzero when it is loaded
+#define T_Scr_GetFunctionHandle 822AB630   // (file, the function name's number) -> handle, 0 when none
+#define T_Scr_LoadGameType      822610A8
+#define T_Scr_LoadLevel         8224C0A0
+#define T_Scr_StartupGameType   822610E0
+#define T_Scr_ExecThread        822BDE40   // (handle, parameter count) -> thread
+#define T_Scr_FreeThread        822B8628   // (thread)
+// The script pool: 2 MB that every script's code lies in (PMem_GetBuffer,
+// sub_82329568, hands Scr_BeginLoadScripts its start and that size, and a
+// function handle is an offset from the start). +0 the buffer; +0xC and
+// +0x118 the positions its allocator, PMem_Alloc with source 3, has reached
+// from the low and the high end. The room between the two is the streamed
+// textures' until PMem_Alloc takes it from them (sub_823F92A8), at the low
+// end for protection 4, the high end for any other.
+#define T_DATA_ScriptPool         0x83827BB8u
+#define T_PMem_Alloc            82329350   // (size, alignment, protection, source)
+// PMem_EndAlloc(name, end) closes what PMem_BeginAlloc (sub_82329020) opened:
+// Com_Init (sub_8229BE80) brackets "$hunk", then "$init" (end 0) and "$init2"
+// (end 1), which are never freed.
+#define T_PMem_EndAlloc         82329128
+
 #elif defined(MW3_TITLE)
 
 #define MW2_TITLE_NAME  "MW3 campaign"
@@ -598,6 +637,29 @@
 #define T_CLIENT_VALID            0u
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
+
+// Mods (mods.cpp, docs/mods.md): the campaign's twins of the multiplayer's
+// entries, each found by the same code around it. G_LoadScripts (map name,
+// the list its script handles go in) opens the loader, loads
+// codescripts/delete (file 0x204) and struct (0x205), "maps/%s", then calls
+// T_G_LoadLevelScripts with the list and closes the loader; a mod's own
+// scripts are loaded after that call, while the loader is still open.
+// Scr_LoadLevel runs the map's main() ([83171E38]).
+#define T_DB_FindXAssetHeader   8217D6D8   // (type, name, allowCreateDefault) -> the asset
+#define T_DB_IsXAssetDefault    8217D9C0   // (type, name) -> bool
+#define T_DB_FindXAssetEntry    8217D400   // (type, name) -> the database's entry, 0 when it has none
+#define T_G_LoadScripts         8221B260
+#define T_G_LoadLevelScripts    8221B008
+#define T_Scr_LoadScript        822ABDE8   // (name) -> nonzero when it is loaded
+#define T_Scr_GetFunctionHandle 822AB878   // (file, the function name's number) -> handle, 0 when none
+#define T_Scr_LoadLevel         8221B360
+#define T_Scr_ExecThread        822BE0E8   // (handle, parameter count) -> thread
+#define T_Scr_FreeThread        822B8900   // (thread)
+// The script pool and its allocator, as the multiplayer's (sub_82303A90 is
+// its PMem_GetBuffer).
+#define T_DATA_ScriptPool         0x83C7E3C0u
+#define T_PMem_Alloc            82303878   // (size, alignment, protection, source)
+#define T_PMem_EndAlloc         82303650   // (name, end); Com_Init (sub_8229DA48) closes "$init" with it
 
 #elif defined(MW2_TITLE_MP) && !defined(MW2_VERSION_TU0)
 

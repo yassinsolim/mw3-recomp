@@ -38,6 +38,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   and credited in the game and under the app's Settings, Camo packs. One
   custom camouflage is drawn at a time on a device, and other players see
   Gold ([docs/textures.md](docs/textures.md#camouflage-packs)).
+- **MW3: a mods folder** (`<game>/mods/<name>/`, turned on in `mods/mods.txt`;
+  `runtime/mods.cpp`): a mod's `.gsc` scripts replace the fastfiles' own by
+  path or add new ones, `scripts/` scripts run `main()` and `init()` as a
+  level starts, and other files replace raw files. Scripts are compiled in
+  the game by gsc-tool (xensik, GPL-3.0), since this build loads compiled
+  scripts only. `MW2_SCRIPT_DUMP` writes the game's scripts as source,
+  `MW2_TRACE_MODS` logs what the game asks for. The launcher's MODS installs
+  and toggles a script mod. Host only; experimental
+  ([docs/mods.md](docs/mods.md)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they

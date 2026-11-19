@@ -1757,7 +1757,11 @@ namespace
                 "Custom maps: maps other people made, such as maps converted from the PC game, in the multiplayer. "
                 "In beta: some maps don't convert, and some that do don't play yet.")->shown.tag = "BETA";
             add(Action::Mods, "MODS", installed, "MODS",
+#ifdef MW3_TITLE
+                installed ? "Mods for this install's game version.\n\nChoose a mod's extracted folder. A script mod (a folder with .gsc scripts) is copied into the game's mods folder and turned on; choose it there again to turn it off. Its .ff, .pak and .bik files are copied into the game folder. Programs and console plugins are reported and left alone, with why."
+#else
                 installed ? "Extra maps, weapons and modes from mod packs, for this install's game version.\n\nChoose the extracted folder: its .ff, .pak and .bik files are copied into the game folder. Anything else in it (scripts, plugins, documents) is reported and left alone, with why."
+#endif
                           : "Install the game first.");
 #ifdef MW2_VERSION_TU0
             add(Action::GetOtherBuild, "GET TU6 BUILD", true, "TITLE UPDATE 6",
