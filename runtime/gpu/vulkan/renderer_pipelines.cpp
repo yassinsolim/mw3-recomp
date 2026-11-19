@@ -660,16 +660,28 @@ namespace vk::renderer::detail
         if (AsyncPipelines()) warmup::g_demandThread = std::thread(warmup::Worker, true);
     }
 
+    // How many frames a draw is skipped for before the consumer builds its
+    // pipeline itself. The phones' drivers are given one creation at a time
+    // (BuildPipeline), so the worker gets through a first visit's hundred
+    // and more pipelines one after another: at 50 ms each on an Adreno 650
+    // the last of them left its walls undrawn for 288 frames, ten seconds
+    // of looking through them (Retroid Pocket Flip 2, a first Seatown
+    // match). A frame held up is the lesser fault from here on. Where the
+    // worker keeps up, a wait is over well inside this and nothing changes.
+    constexpr uint64_t kLongestSkip = 20;
+
     // MW2_ASYNC_PIPELINES: the pipeline for a draw if it is built, and
     // otherwise null with `compiling` set, once the worker has been asked
-    // for it. Null without `compiling` is a pipeline the driver refused. The
-    // consumer's alone, and on its path for every draw: a run of draws with a
+    // for it, or with `overdue` set once its draws have been skipped for
+    // kLongestSkip frames: then the caller builds it. Null with neither is a
+    // pipeline the driver refused. The consumer's alone, and on its path for
+    // every draw: a run of draws with a
     // built pipeline stops at the first comparison, a run waiting for one at
     // the second, and only a change of pipeline takes the lock.
     VkPipeline PipelineWhenReady(const PipelineKey& key, uint32_t depthControl, uint32_t modeCntl,
-                                 bool& compiling)
+                                 bool& compiling, bool& overdue)
     {
-        compiling = false;
+        compiling = overdue = false;
         TakeOptimisedPipelines();
         if (g.lastPipeline && g.lastPipelineSwaps == g.pipelinesOptimised && key == g.lastPipelineKey)
             return g.lastPipeline;
@@ -702,7 +714,9 @@ namespace vk::renderer::detail
                     return found->second;
                 }
             }
-            if (awaited.since.emplace(key, g.frames).second)
+            const auto [waiting, first] = awaited.since.emplace(key, g.frames);
+            awaited.lastSince = waiting->second;
+            if (first)
             {
                 const Recorded recorded{ key.vertexShader, key.pixelShader, key.colourFormat, key.depthFormat,
                                          key.topology, depthControl, key.blendControl, key.colourMask,
@@ -734,6 +748,14 @@ namespace vk::renderer::detail
             awaited.lastPublished = published;
             awaited.lastValid = true;
         }
+        if (g.frames - awaited.lastSince >= kLongestSkip)
+        {
+            // Asked again at its next draw, which finds it built.
+            awaited.lastValid = false;
+            g.pipelinesOverdue++;
+            overdue = true;
+            return VK_NULL_HANDLE;
+        }
         compiling = true;
         g.drawsAwaitingPipelines++;
         return VK_NULL_HANDLE;
@@ -743,9 +765,11 @@ namespace vk::renderer::detail
     {
         if (!AsyncPipelines()) return;
         LOGI("renderer: MW2_ASYNC_PIPELINES: %llu pipelines built in the background, %llu draws skipped"
-             " while waiting for one, the longest wait %llu frames",
+             " while waiting for one, the longest wait %llu frames; %llu built at their draw after"
+             " %llu frames of waiting",
              (unsigned long long)g_pipelinesBuiltForDraws.load(std::memory_order_relaxed),
-             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.longestPipelineWait);
+             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.longestPipelineWait,
+             (unsigned long long)g.pipelinesOverdue, (unsigned long long)kLongestSkip);
     }
 
     void StopWarmupScheduler()

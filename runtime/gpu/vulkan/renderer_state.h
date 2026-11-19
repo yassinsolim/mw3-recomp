@@ -428,10 +428,12 @@ namespace vk::renderer::detail
             // How many pipelines had been published when `since` was last
             // checked against them.
             uint64_t settledAt = 0;
-            // The last key answered "not yet", and how many pipelines had
-            // been published then: the draws after it with the same key ask
-            // nothing more until that number moves.
+            // The last key answered "not yet", the frame its first draw was
+            // skipped in, and how many pipelines had been published then:
+            // the draws after it with the same key ask nothing more until
+            // that number moves.
             PipelineKey lastKey{};
+            uint64_t lastSince = 0;
             uint64_t lastPublished = 0;
             bool lastValid = false;
             // The keys of `recorded` below, so that one waited for is not
@@ -550,8 +552,9 @@ namespace vk::renderer::detail
         uint64_t prewarmMicroseconds = 0;
         uint32_t prewarmed = 0, prewarmWanted = 0;
         // MW2_ASYNC_PIPELINES: draws skipped for a pipeline still compiling,
-        // and the longest any pipeline was waited for, in frames.
-        uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0;
+        // the longest any pipeline was waited for, in frames, and how many
+        // the consumer built itself because their draws had waited too long.
+        uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0, pipelinesOverdue = 0;
         uint64_t arenaOverflows = 0;
         uint64_t arenaWritten[kArenaKinds]{}, arenaReused[kArenaKinds]{};
         uint32_t arenaPeak = 0;
@@ -925,7 +928,7 @@ namespace vk::renderer::detail
                               bool* made = nullptr);
     // The pipeline of a draw that can wait for it (renderer_pipelines.cpp).
     VkPipeline PipelineWhenReady(const PipelineKey& key, uint32_t depthControl, uint32_t modeCntl,
-                                 bool& compiling);
+                                 bool& compiling, bool& overdue);
     void ReportAsyncPipelines();
     const char* ShaderCachePath();
     void WriteShaderCache();

@@ -135,6 +135,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   that key, as PNG ([docs/textures.md](docs/textures.md#texture-replacement-skins)).
 
 ### Fixed
+- **Walls no longer stay undrawn on a first visit** (`runtime/gpu/vulkan/renderer_pipelines.cpp`,
+  `PipelineWhenReady`): with pipelines compiled in the background
+  (`MW2_ASYNC_PIPELINES`, the Android app's default) a draw was skipped for as
+  long as its pipeline took to reach the front of the worker's queue, and the
+  phones' drivers are given one creation at a time. On a Retroid Pocket Flip 2
+  (Adreno 650) with empty caches a first Seatown match skipped 298,275 draws
+  and left walls, ground and props out for up to 288 frames, ten seconds of
+  seeing through them. A draw now waits 20 frames at most, and then the
+  consumer builds its pipeline itself: the same match skips 37,790 draws, none
+  for longer than 20 frames, at the cost of one long frame as a place is first
+  seen (4.4 s at the first spawn there). With the caches a run leaves behind
+  nothing is built at a draw and the match holds 30.0 frames a second.
 - **The Windows build holds the mouse** (`runtime/gpu/vulkan/presenter.cpp`,
   `runtime/kernel/input.cpp`): the cursor used to walk out of the window as
   the player looked round, and stop turning the view at the screen's edge.

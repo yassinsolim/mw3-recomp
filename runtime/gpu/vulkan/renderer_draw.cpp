@@ -717,8 +717,9 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     bool newPipeline = false;
     VkPipeline built = VK_NULL_HANDLE;
     // MW2_ASYNC_PIPELINES: a draw whose pipeline is not built yet is skipped
-    // while a worker compiles it. A pair with libraries is linked here all
-    // the same: that takes well under a millisecond, and loses no draw.
+    // while a worker compiles it, and built here once it has been skipped
+    // for too long (PipelineWhenReady). A pair with libraries is linked here
+    // all the same: that takes well under a millisecond, and loses no draw.
     //
     // The skip leaves nothing behind for the draws after it. No command was
     // queued and nothing in g.bound was touched, so the next draw sets what
@@ -727,10 +728,12 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     // before as though it followed it.
     if (AsyncPipelines() && !(vertex->library && pixel->library))
     {
-        bool compiling = false;
+        bool compiling = false, overdue = false;
         {
             Stopwatch watch(g.pipelineNanoseconds);
-            built = PipelineWhenReady(key, depthControl, modeCntl, compiling);
+            built = PipelineWhenReady(key, depthControl, modeCntl, compiling, overdue);
+            // Already in the shader cache's list, from when it was asked for.
+            if (overdue) built = EnsurePipeline(key, *vertex, *pixel);
         }
         if (compiling) { Skip("pipeline compiling in the background"); return; }
     }

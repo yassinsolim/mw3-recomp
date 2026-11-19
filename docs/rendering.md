@@ -657,8 +657,16 @@ warm-up worker keeps to the pipelines it is rebuilding from a previous run,
 at low priority and with its pauses. A skipped draw queues no command and
 changes none of the bound state, and the indices it wrote keep the next draw
 from joining the run before it. Creation stays one at a time
-(`vk::pipeline::CreationMutex`). The run's log counts the pipelines built
-this way, the draws skipped and the longest wait in frames.
+(`vk::pipeline::CreationMutex`), so the worker gets through a first visit's
+pipelines one after another, and a draw is skipped for 20 frames at most
+(`kLongestSkip`): after that the consumer builds its pipeline at the draw,
+and the frame waits as it would without the switch. Unbounded, a first
+Seatown match on an Adreno 650 with empty caches left walls out for 288
+frames (298,275 draws skipped); bounded, 37,790 draws are skipped and one
+frame at the first spawn takes 4.4 s. Where the worker keeps up no wait
+reaches the bound. The run's log counts the pipelines built in the
+background, the draws skipped, the longest wait in frames and the pipelines
+built at their draw.
 
 ### Every shader compiled before play
 
