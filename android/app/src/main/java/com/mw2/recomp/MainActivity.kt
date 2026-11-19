@@ -514,11 +514,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Controllers plugged in or paired, not the device's own: a handheld's
+     * built-in pad (Retroid, AYN) is player one's hands, not a second player,
+     * so it must not bring up the split-screen question at every start.
+     */
     private fun physicalPadCount(): Int {
         var count = 0
         for (id in InputDevice.getDeviceIds()) {
             val device = InputDevice.getDevice(id) ?: continue
             if (device.isVirtual) continue
+            // isExternal is Android 10+; before it, every pad counts as before.
+            if (android.os.Build.VERSION.SDK_INT >= 29 && !device.isExternal) continue
             val sources = device.sources
             if (sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
                 sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK) {
