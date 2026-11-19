@@ -596,7 +596,14 @@ if ($ForAndroid -and $Apks.Count) {
         $serial = $ready[0].Serial
         if ($ready.Count -gt 1) { Warn "more than one phone connected; using $serial" }
         if ($Install -or (Ask "Install the app(s) on $serial now?" $true)) {
-            foreach ($apk in $Apks) { Step "adb install $(Split-Path -Leaf $apk)"; Exec $Adb @('-s', $serial, 'install', '-r', $apk) }
+            foreach ($apk in $Apks) {
+                Step "adb install $(Split-Path -Leaf $apk)"
+                # A copy built elsewhere (another clone, another PC) is signed with
+                # another debug key, and Android refuses to update it in place. The
+                # build is done by now, so say what to do rather than fail the run.
+                try { Exec $Adb @('-s', $serial, 'install', '-r', $apk) }
+                catch { Warn "could not install $(Split-Path -Leaf $apk) on ${serial}: an app of that name built on another PC or from another copy of this folder is probably installed. Uninstall it on the phone (its game files go with it) and install $apk again, or copy the APK over and open it there." }
+            }
         }
         if ($Iso -and ($PushIso -or (Ask 'Copy the disc image to the phone''s Download folder for the app''s installer (7-8 GB, several minutes)?' $false))) {
             Step 'adb push the disc image to /sdcard/Download/'
