@@ -16,6 +16,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - **MW3 multiplayer: field of view** (`MW2_FOV`, the app's slider): lasts
   through every spawn, with the turn rate from the hip unchanged and a
   sight's following the wider view ([docs/gameplay.md](docs/gameplay.md#field-of-view)).
+- **MW3 multiplayer: map vote and rotation** (`MW2_MAP_VOTE=1`,
+  `MW2_MAP_ROTATION`, `MW2_MAP_VOTE_MODES`, `MW2_MAP_VOTE_SECONDS`,
+  `runtime/map_vote.cpp`; the app's "Vote for the next map after my matches",
+  off by default): a System Link or private match this copy hosts ends in a
+  vote between three maps and game types, answered with the tactical, use or
+  lethal button, and the winner loads with every player and bot still in the
+  match instead of everyone being dropped to a menu
+  ([docs/multiplayer.md](docs/multiplayer.md#the-next-map)).
 - **MW3 multiplayer: bots** (`MW2_BOTS=<n>`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`,
   `runtime/bots.cpp`; the app's "Bots in my matches"): the host's server adds
   computer players through the test-client path the executable kept, they

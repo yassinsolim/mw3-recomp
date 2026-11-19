@@ -169,6 +169,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 Prefs.MATCH_JUMPS, 39, prefs.matchJump) { prefs.matchJump = it }
             switch(R.id.match_sprint, prefs.matchUnlimitedSprint) { prefs.matchUnlimitedSprint = it }
             switch(R.id.match_fall_damage, prefs.matchFallDamage) { prefs.matchFallDamage = it }
+            switch(R.id.map_vote, prefs.mapVote) { prefs.mapVote = it }
         }
 
         val fovLabel: TextView = findViewById(R.id.fov_label)

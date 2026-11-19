@@ -821,6 +821,7 @@ val mode60 = modes
             NativeBridge.nativeSetOption("MW2_MATCH_SPRINT", if (prefs.matchUnlimitedSprint) "1" else "")
             NativeBridge.nativeSetOption("MW2_MATCH_FALL_DAMAGE", if (prefs.matchFallDamage) "1" else "0")
             NativeBridge.nativeSetOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
+            NativeBridge.nativeSetOption("MW2_MAP_VOTE", if (prefs.mapVote) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE", if (voiceChat) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE_PTT", if (prefs.voicePushToTalk) "1" else "0")
         }

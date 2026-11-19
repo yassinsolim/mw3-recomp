@@ -334,6 +334,19 @@
                         android:layout_height="wrap_content"
                         android:text="@string/bots_against_players" />
 
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/map_vote"
+                        style="@style/SettingSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/map_vote" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/map_vote_hint" />
+
                     <TextView
                         style="@style/SectionHeading"
                         android:layout_width="match_parent"

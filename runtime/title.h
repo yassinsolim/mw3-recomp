@@ -451,6 +451,73 @@
 #define T_AimAssist_FovScale   820D31A0
 #define T_AIM_TURN_RATE_SCALE     280u
 #define T_DATA_FovScaleDvar       0x8261098Cu
+// The end-of-match vote (map_vote.cpp, MW2_MAP_VOTE and MW2_MAP_ROTATION). The
+// script's exitLevel (builtin 0xED) marks the level finished, calls SV_MatchEnd
+// (sub_822C97D8), which has the next server frame shut the server down with
+// EXE_MATCHENDED and so sends everyone back to the lobby, and ExitLevel
+// (sub_82240A60). iPrintLnBold is the server command 'g', sent with
+// T_SV_GameSendServerCommand (client or -1, 0, text).
+#define T_Scr_ExitLevel         8225DFB8
+// The menu's StartServer queues a function, not a console line: it reads
+// ui_mapname and calls SV_Map (sub_822BEB18), which ends in SV_SpawnServer
+// (map, preloaded, migrating). With a server running that sends every client
+// "loadingnewmap\n<map>\n<game type>" and goes on to keep them -- but loading
+// the map's fastfile (sub_821EED80) frees the old one's memory, the server's
+// with it (g_serverHunkUser, sub_822C4210), and only a server that is not
+// running allocates its clients again: SV_Startup, called from the one place.
+// SV_ClearServer comes after the old level's scripts are shut down and before
+// the fastfile is loaded. A client holds two pointers into itself, the buffers
+// its netchan (+0x18) was set up with.
+#define T_Cbuf_AddCall          82282A20   // (localClient, function): called with the local client on the next Cbuf_Execute
+#define T_UI_StartServerCall      0x822E59B8u
+#define T_SV_SpawnServer        822C5548
+#define T_SV_ClearServer        822C4290
+#define T_SV_Startup            822C5270
+#define T_Dvar_SetBool          82325F68   // (dvar, value)
+#define T_DATA_SvRunningDvar      0x83077DB4u
+#define T_SVCLIENT_USERINFO       0x664u      // what follows the netchan
+#define T_SVCLIENT_UNSENT_BUFFER  0x214B4u
+#define T_SVCLIENT_FRAGMENT_BUFFER 0x314B4u
+// level: +0xF40 whether the players' script data outlives the level, which
+// map_restart(true) sets between rounds and exitLevel clears.
+#define T_DATA_Level              0x82FA8180u
+#define T_LEVEL_SAVE_PERSIST       0xF40u
+// The match rules of a private match: {?, in use, the 0xC00 bytes of rules}.
+// A game type's own are the rawfile mp/recipes/<game type>.recipe; applying
+// them sets ui_gametype and g_gametype and tells the party.
+#define T_MatchRules_Get        824813A8   // () -> the three words
+#define T_MatchRules_LoadDefaults 82483D98 // (rules, game type) -> bool
+#define T_MatchRules_Apply      82484AB0   // (rules)
+#define T_MATCHRULES_IN_USE       4u
+#define T_MATCHRULES_DATA         8u
+#define T_DATA_SystemLinkDvar     0x82643A48u
+#define T_DATA_PrivateMatchDvar   0x83902F9Cu
+#define T_DATA_UiMapNameDvar      0x836896E0u
+#define T_DATA_UiGameTypeDvar     0x83689780u
+#define T_DATA_GameTypeDvar       0x83463F74u
+#define T_Dvar_GetInt           82324448   // (name) -> its value, a text's as a number; 0 for none
+// What the menus know (sub_822E23A0 fills the maps from the .arena files,
+// sub_822E77B8 the game types from maps/mp/gametypes/_gametypes.txt). A map:
+// its name's string reference (32 bytes), the map (16), then the arena's
+// other keys. A game type: the script's name (12 bytes), then its name's
+// string reference (32).
+#define T_DATA_UiInfo             0x8368F260u
+#define T_UI_MAP_COUNT             0x35B4u
+#define T_UI_MAPS                  0x35B8u
+#define T_UI_MAP_SIZE              0xA78u
+#define T_UI_MAP_NAME               0x20u
+#define T_UI_GAMETYPE_COUNT        0x524u
+#define T_UI_GAMETYPES             0x528u
+#define T_UI_GAMETYPE_SIZE         0x6Cu
+#define T_UI_GAMETYPE_LABEL         0xCu
+// The usercmds a client has sent (SV_UserMove, sub_822C1AF0): the newest one
+// run, which SV_ClientThink stores, and a ring of eight waiting to be. A
+// usercmd is 0x2C bytes: its server time, then its buttons.
+#define T_SVCLIENT_LAST_USERCMD   0x20E88u
+#define T_SVCLIENT_QUEUED_USERCMDS 0x20EB4u
+#define T_SVCLIENT_QUEUED_USERCMD_COUNT 8u
+#define T_USERCMD_SIZE            0x2Cu
+#define T_USERCMD_BUTTONS         0x4u
 
 #elif defined(MW3_TITLE)
 
