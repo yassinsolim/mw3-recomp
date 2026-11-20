@@ -469,10 +469,15 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
                    " in the fragment stage)");
         // Without the ballot every pixel fetches each float constant it reads
         // from the arena, where its own record says: there the constants are a
-        // uniform block instead (shader::PixelConstants). MW2_PIXEL_UNIFORMS
-        // says otherwise, either way.
-        g.uniformPixelConstants = env::Text("MW2_PIXEL_UNIFORMS") ? env::Flag("MW2_PIXEL_UNIFORMS")
-                                                                 : !g.subgroupPixelRecords;
+        // uniform block instead (shader::PixelConstants). An Adreno is given
+        // them with the ballot too, measured: on the AYN Thor (Adreno 740,
+        // Turnip) MW2's S.S.D.D. went from 8.7 to 8.3 ms of GPU a frame
+        // and its opening from 11.3 to 11.0. MW2_PIXEL_UNIFORMS says
+        // otherwise, either way.
+        constexpr uint32_t kQualcomm = 0x5143;
+        g.uniformPixelConstants = env::Text("MW2_PIXEL_UNIFORMS")
+            ? env::Flag("MW2_PIXEL_UNIFORMS")
+            : !g.subgroupPixelRecords || properties.vendorID == kQualcomm;
         if (g.uniformPixelConstants)
             LOGI("vulkan: a pixel shader's float constants are a uniform block, bound when a draw's differ");
         enabled.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
