@@ -15,8 +15,28 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   no fence status is asked for without a shadow of guest memory. S.S.D.D.
   flown for five minutes: 115.9 frames a second, 85% of them a display
   period apart; its opening 84.7 to 93.1.
+- **Renderer: what a vertex loads** ([docs/shaders.md](docs/shaders.md)):
+  a vertex program loads a word of its constant table once for each block
+  of constants it reads instead of at every constant, its window transform
+  as one vec4, one dword for a vertex fetch, and exchanges a dword's bytes
+  in two steps. 66 loads from the arena a vertex became 27. On the AYN Thor
+  Modern Warfare 2's S.S.D.D. opening went from 93.7 to 104.1 frames a
+  second and Team Player's heaviest views from 65 to 71; the Retroid Pocket
+  Flip 2 is not measured yet. `MW2_SHADER_STATS` counts the loads by kind.
+
+### Fixed
+- **A game package holds its own game's libraries only**
+  ([docs/game-library.md](docs/game-library.md)): setup kept both games'
+  libraries in one folder and packaged the folder, so a PC that had built
+  both made a 98 MB Modern Warfare 2 package of what is 40 MB.
 
 ### Added
+- **Detail at distance** (Modern Warfare 2; Settings, Graphics;
+  `MW2_LOD_BIAS`, [docs/rendering.md](docs/rendering.md#detail-at-distance)):
+  models change to their coarser meshes at half or a quarter of the
+  console's distances, and nothing disappears sooner. The console's by
+  default. On the AYN Thor the opening of S.S.D.D. runs at 111 frames a
+  second at half against 102.
 - **Modern Warfare 2 on Android: one app that updates itself**
   ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):
   the campaign, Special Ops and the multiplayer are one app (`com.mw2.recomp`,

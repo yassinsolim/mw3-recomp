@@ -446,6 +446,49 @@ zone loads again is scaled again. `widescreen` itself stays 1: the menus also
 test it (the loading screen shows its bar `when( dvarbool(widescreen) )`), and
 a test makes a whole number of what it is given.
 
+## Detail at distance
+
+`MW2_LOD_BIAS=<1 to 8>` (`runtime/model_detail.cpp`, Modern Warfare 2's disc
+executables) has a model change to its coarser meshes that many times nearer
+than on the console. The app's Detail at distance setting gives 1 (as on the
+console), 2 (reduced) or 4 (low); unset it is 1 on every device. Whether an
+Adreno 6xx should start at 2 waits for a measurement of S.S.D.D. there.
+
+- **The title's own settings do nothing.** `R_RegisterDvars` (`sub_823A2F98`
+  in the campaign, `sub_823DB2F8` in the multiplayer) registers the PC
+  game's `r_highLodDist`, `r_mediumLodDist`, `r_lowLodDist`,
+  `r_lowestLodDist` and `r_forceLod`, all cheats (flag 4), and
+  `sub_82392EE0` hands their values to `XModelSetTestLods`
+  (`sub_82300BC8`), which in the console's build is a lone `blr`.
+  `r_forceLod lowest` in a level started with `devmap` draws the same
+  7.85 billion indices over the same views as without it. The PC's
+  `r_lodScaleRigid`, `r_lodBiasRigid` and their skinned pair are not in
+  either executable.
+- **Where it is done.** `XModelGetLodForDist` (`sub_82300B48`, `sub_8232D650`
+  in the multiplayer; a leaf with no unwind entry) takes a model and two
+  distances and walks the model's meshes, each with the distance it is drawn
+  within: the first distance picks the mesh, the second only says whether a
+  model past its last mesh's distance is drawn at all. Its eight callers are
+  the renderer's (`sub_822F0358`, which fills in a mesh for each model of
+  an object, and the scene's adders); they pass the distance to the
+  viewpoint scaled for the field of view. The hook multiplies the first
+  distance and leaves the second, so nothing disappears sooner than on the
+  console, a player sees of another what every other device shows, and
+  what a host or a client has set makes no difference to the other.
+- **What it gives** is the vertices of soldiers, vehicles and props, not of
+  the world's own surfaces, which have no coarser form. On the AYN Thor the
+  opening of S.S.D.D., rows of soldiers, goes from 101.9 frames a second to
+  111.2 at 2, 116.0 at 4 and 116.9 at 8 (8.0, 6.1, 5.3 and 5.2 billion
+  indices over the same 44 seconds), and its flight from 112.2 to 115.8 at
+  2. Team Player's heaviest views on the Adreno 650 are the city's own
+  surfaces: at 8, with 22% fewer indices, they stay within 3 frames a
+  second of the 35 to 39 they were.
+- **The picture.** At 2 the difference from the console's is of the order
+  of two screenshots of one setting: over six fixed views of S.S.D.D. the
+  mean difference is 1.1 to 2.7 of 255 (6.3 where the soldiers stand,
+  whose poses differ from run to run) against 0.7 to 2.7 between two runs
+  at 1. At 4 distant wire, railings and foliage are visibly simpler.
+
 ## Multisampling
 
 The title's 2x and 4x surfaces are drawn with that many samples. The count is in

@@ -16,6 +16,13 @@ flavours, which is how its title update 6 is built), the multiplayer test
 copy (`-Instance`) and the desktop game are still one library or executable
 each (`MW2_SPLIT=OFF`).
 
+A package holds its own game's two libraries and no others. Setup collects
+them in a folder for each game (`out\game-libraries\mw2`, `...\mw3`) and
+`android/game` packages all of the folder it is given, refusing one with any
+other file in it. With one folder for both games, as it was, a PC that had
+built both put all four libraries in each package: a Modern Warfare 2
+package of 98 MB where its own two are 40 (Modern Warfare 3's are 54).
+
 ## How the two halves find each other
 
 `-DMW2_SPLIT=runtime` builds the app's library, `-DMW2_SPLIT=game` the game's

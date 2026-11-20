@@ -13,24 +13,21 @@ class Prefs(context: Context) {
     private val store: SharedPreferences =
         context.applicationContext.getSharedPreferences("mw2", Context.MODE_PRIVATE)
 
-    /** An Adreno 6xx: the kernel's driver names the chip. */
-    private val adreno6xx: Boolean by lazy {
-        try {
+    /**
+     * Modern Warfare 3 on an Adreno 6xx (the kernel's driver names the
+     * chip): the Adreno 650 of a Snapdragon 865 draws a level of it at 25 to
+     * 33 frames a second, so a cap of 60 there is a frame time that swings
+     * between two and three blanks, and 30 is one it holds. Modern Warfare 2
+     * runs at 54 to 59 there with the runtime's defaults for that chip (no
+     * sun shadows, an 832x480 scene; docs/android.md) and starts at 60.
+     */
+    private val holdsThirty: Boolean by lazy {
+        Title.isMw3 && try {
             java.io.File("/sys/class/kgsl/kgsl-3d0/gpu_model").readText().startsWith("Adreno6")
         } catch (_: java.io.IOException) {
             false
         }
     }
-
-    /**
-     * Modern Warfare 3 on an Adreno 6xx: the Adreno 650 of a Snapdragon 865
-     * draws a level of it at 25 to 33 frames a second, so a cap of 60 there
-     * is a frame time that swings between two and three blanks, and 30 is
-     * one it holds. Modern Warfare 2 runs at 54 to 59 there with the
-     * runtime's defaults for that chip (no sun shadows, an 832x480 scene;
-     * docs/android.md) and starts at 60.
-     */
-    private val holdsThirty: Boolean get() = Title.isMw3 && adreno6xx
 
     // ---- graphics ---------------------------------------------------------
 
@@ -62,15 +59,11 @@ class Prefs(context: Context) {
     /**
      * Modern Warfare 2, detail at distance: how many times nearer than on
      * the console a model changes to its coarser meshes, one of
-     * DETAIL_BIASES (MW2_LOD_BIAS, runtime/model_detail.cpp). Until the
-     * player chooses it is the runtime's own choice for the chip: 2 on an
-     * Adreno 6xx, the console's 1 on any other.
+     * DETAIL_BIASES (MW2_LOD_BIAS, runtime/model_detail.cpp). The console's
+     * until the player chooses.
      */
     var detailBias: Int
-        get() {
-            val saved = store.getInt(KEY_DETAIL_BIAS, 0)
-            return if (saved in DETAIL_BIASES) saved else if (adreno6xx) 2 else 1
-        }
+        get() = store.getInt(KEY_DETAIL_BIAS, 1).let { if (it in DETAIL_BIASES) it else 1 }
         set(value) = store.edit().putInt(KEY_DETAIL_BIAS, if (value in DETAIL_BIASES) value else 1).apply()
 
     /**

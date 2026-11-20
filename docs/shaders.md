@@ -282,11 +282,18 @@ the draw's record:
   them the table, 15 the constants, 11 dwords of vertex data, 6 record
   words, 2 fetch constants and the draw table's 2 (`MW2_SHADER_STATS`
   counts them as the translator emits them). A driver joins equal loads but
-  not these, whose addresses it cannot tell are equal. Now the table is 2 of
-  36: the window transform is one vec4 instead of four words, a vertex fetch
-  one dword instead of two, and a packed format's components share their
-  dword's load. On the Adreno 740 the opening of S.S.D.D. went from 10.1 to
-  9.2 ms of GPU a frame, 93.7 to 101.6 frames a second.
+  not these, whose addresses it cannot tell are equal. Now a vertex of that
+  level loads 27 times, 2 of them the table: the window transform is one
+  vec4 instead of four words, a vertex fetch one dword instead of two, and a
+  packed format's components share their dword's load (the commonest world
+  shader went from 93 loads emitted to 39, the next from 38 to 19). A dword
+  of vertex data also goes through the two exchanges its endianness is made
+  of rather than all four forms. On the Adreno 740 the opening of S.S.D.D.
+  went from 10.1 to 9.1 ms of GPU a frame, 93.7 to 104.1 frames a second,
+  and Team Player's heaviest views from 12.5 to 11.5 ms for the scene, 65 to
+  71 frames a second. Fewer than half the loads for a twelfth of the time:
+  the loads are not most of what a vertex costs. The Adreno 650 has not
+  been measured with this yet.
 - The translator records the highest float constant a program reads
   (`Translation::constantsRead`) so the renderer copies only that much, unless
   the program addresses constants through a0/aL (`addressedConstants`), where

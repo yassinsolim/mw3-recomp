@@ -309,6 +309,59 @@ opening the first 18 s of the level, which is the heaviest view found.
   is on the `android` branch without any of these changes as well: that is
   the start, which skips what the menus set up, and not the renderer.
 
+### Later that day: the game package, a vertex's loads, detail at distance
+
+AYN Thor, as above. The Retroid Pocket Flip 2 ran flat during the work, so
+nothing below is measured on the Adreno 650 except where said.
+
+- **A game package held both games' libraries.** Setup collected them in
+  one `out\game-libraries` and `android/game` packages the folder it is
+  given, so once a PC had built both games each package had all four:
+  `mw2-game.apk` 98.3 MB. A folder for each game now, and the Gradle module
+  refuses a folder with anything else in it: 39.8 MB (`libmw2game.so`,
+  `libmw2mpgame.so`) and 53.9 MB (`libmw3game.so`, `libmw3mpgame.so`). The
+  Modern Warfare 2 package loads on both devices (campaign and multiplayer
+  on the Thor, campaign on the Flip), Modern Warfare 3's on the Thor.
+- **What a vertex loads** ([shaders.md](shaders.md#the-module-interface)): 66 loads
+  from the arena a vertex over Team Player (counted on the Flip,
+  `MW2_SHADER_STATS`), 30 of them words of the constant table. One load of
+  the table for each block of constants, the window transform as a vec4,
+  one dword a vertex fetch, a packed format's dword once, and the two-step
+  endian exchange: 27 loads.
+
+  | Thor, 120 Hz | before | after |
+  |---|---|---|
+  | S.S.D.D. opening, FPS / GPU ms a frame | 93.7 / 10.13 | 104.1 / 9.14 |
+  | S.S.D.D. flight, FPS (frames a display period apart) | 108.5 | 112.2 (69.7%) |
+  | Team Player, three fixed views of its opening, FPS | 65.0, 65.4, 72.3 | 71.4, 70.6, 76.7 |
+  | ...the scene's GPU ms a frame | 12.50 | 11.47 |
+  | Rust, five minutes, FPS | 117.5 (92.7%) | 118.5 (90.5%) |
+
+  Step by step in the opening: the table 100.4 FPS (9.32 ms), the vec4, the
+  fetch dword and the packed dwords 101.6 (9.24), the endian exchange 104.1
+  (9.14). Six fixed views of S.S.D.D. differ from the build before by no
+  more than two runs of one build do (0.2 to 1.9 of 255).
+- **Detail at distance** ([rendering.md](rendering.md#detail-at-distance)):
+  the title's LOD settings are registered and do nothing, so
+  `XModelGetLodForDist` is hooked (`MW2_LOD_BIAS`, the app's Detail at
+  distance). The opening of S.S.D.D. at 1, 2, 4, 8: 101.9, 111.2, 116.0,
+  116.9 FPS; its flight at 2: 115.8 (79.5%). On the Flip, before it ran
+  flat, 8 gave Team Player's heaviest views 0 to 3 FPS. The default is the
+  console's on every device until S.S.D.D. is measured on the Flip.
+- **The driver's pipeline cache file** is not loaded above 64 MB
+  (`pipeline.cpp`), and it keeps every form of a shader it ever compiled: a
+  cache of 60 MB went past that with these shaders' new forms, was refused
+  at the next start and begun again, after which each run compiled what it
+  reached (36 s of compiling in a 75 s run). A first session after this
+  update is slow in that way on a device whose file was near the limit.
+- Turnip aborts when a pipeline is built to capture its internal
+  representations on Android (`fputc` of a null `FILE*`), so the driver's
+  own listing of a shader is not to be had there; only its statistics.
+- Modern Warfare 3, Survival on Resistance from the menus in a `.dev` build:
+  the picture as before by eye, 85.9 FPS in play.
+- Not measured: the Flip 2 after these changes (S.S.D.D. five minutes, Team
+  Player's flight, Terminal).
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

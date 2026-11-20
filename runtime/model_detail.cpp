@@ -1,6 +1,5 @@
 // MW2_LOD_BIAS=<1 to 8>: how many times nearer than on the console a model
-// changes to its coarser meshes. 1 is the console's, and what any chip but
-// an Adreno 6xx starts with; that one starts with 2 (docs/android.md).
+// changes to its coarser meshes. 1, and unset, is the console's.
 //
 // A model carries up to four meshes, each with the distance it is drawn
 // within, and XModelGetLodForDist picks one: the first whose distance the
@@ -21,9 +20,6 @@
 #include "title.h"
 #include "env.h"
 #include "log.h"
-#ifdef MW2_ANDROID
-#include "android/android.h"
-#endif
 
 #ifdef T_XModelGetLodForDist
 
@@ -34,22 +30,14 @@ namespace
     double Bias()
     {
         static const double bias = [] {
-            double unasked = kConsole;
-#ifdef MW2_ANDROID
-            // An Adreno 650's frame is its vertices (docs/android.md), and
-            // where soldiers stand in rows a third of them are meshes this
-            // takes away.
-            if (android::perf::Adreno6xx()) unasked = 2.0;
-#endif
-            const double asked = env::Real("MW2_LOD_BIAS", unasked);
+            const double asked = env::Real("MW2_LOD_BIAS", kConsole);
             if (!(asked >= kConsole && asked <= kMost))
             {
                 LOGW("detail: MW2_LOD_BIAS is from 1 to 8, not %g", asked);
-                return unasked;
+                return kConsole;
             }
             if (asked != kConsole)
-                LOGI("detail: a model changes to its coarser meshes %g times nearer than on the console%s", asked,
-                     env::Text("MW2_LOD_BIAS") ? " (MW2_LOD_BIAS)" : ": an Adreno 6xx; MW2_LOD_BIAS=1 is the console's");
+                LOGI("detail: a model changes to its coarser meshes %g times nearer than on the console (MW2_LOD_BIAS)", asked);
             return asked;
         }();
         return bias;
