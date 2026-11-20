@@ -182,6 +182,7 @@ bool vk::renderer::Initialise()
     // combined format the device actually has.
     g.depthFormat = vk::shaders::DepthFormat(g.physical);
     if (g.depthFormat == VK_FORMAT_UNDEFINED) { LOGW("renderer: no depth format"); RollbackInitialise(); return false; }
+    if (g.depthFormat != VK_FORMAT_D24_UNORM_S8_UINT) vk::pipeline::NoteFallback("depth is D32S8 (no D24S8)");
 
     // The console's 2x and 4x surfaces are drawn with that many samples unless
     // MW2_NO_MSAA=1. A count is usable when colour, depth and stencil can all
@@ -216,10 +217,15 @@ bool vk::renderer::Initialise()
                  unsigned(HostSamples(1)), unsigned(HostSamples(2)),
                  env::Text("MW2_MSAA") ? " (MW2_MSAA)" : "");
         else
-            LOGI("renderer: multisampling off (%s): the title's 2x and 4x surfaces are drawn at 1x",
-                 off ? "MW2_NO_MSAA" : !modern && !vk::pipeline::DeviceHasExtension(g.physical, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME) ? "the device is Vulkan 1.1 without the depth resolve extension"
-                     : !depthResolve ? "no first-sample depth resolve"
-                     : "the device draws at 1x only");
+        {
+            const char* why = off ? "MW2_NO_MSAA"
+                : !modern && !vk::pipeline::DeviceHasExtension(g.physical, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME) ? "the device is Vulkan 1.1 without the depth resolve extension"
+                : !depthResolve ? "no first-sample depth resolve"
+                : "the device draws at 1x only";
+            LOGI("renderer: multisampling off (%s): the title's 2x and 4x surfaces are drawn at 1x", why);
+            // The switch is the player's choice (and Android's default), not the device's.
+            if (!off) vk::pipeline::NoteFallback("multisampled surfaces drawn at 1x");
+        }
     }
 
     // MW2_SCALE=2 or 3 draws everything that many times wider and taller. A
@@ -378,10 +384,14 @@ bool vk::renderer::Initialise()
     {
         LOGI("renderer: no shadow of guest memory: %u MB of arena and %u MB of shadow are past"
              " what one storage buffer reaches", wanted >> 20, shadowBytes >> 20);
+        vk::pipeline::NoteFallback("no shadow of guest memory (one storage buffer does not reach it)");
         withShadow = false;
     }
     if (uint64_t(wanted) > reach * kFrameSlots)
+    {
         wanted = uint32_t((reach * kFrameSlots) & ~uint64_t(0xFFFFF));
+        vk::pipeline::NoteFallback("the frame arena is held to three storage buffers' reach");
+    }
     for (; wanted >= kArenaLeast; withShadow ? (void)(withShadow = false) : (void)(wanted /= 2))
     {
         VkBufferCreateInfo buffer{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -544,6 +554,7 @@ bool vk::renderer::Initialise()
     LOGI("renderer: ready on %s, depth %s, %u MB frame arena%s", vk::pipeline::DeviceName(),
          g.depthFormat == VK_FORMAT_D24_UNORM_S8_UINT ? "D24S8" : "D32S8", g.arenaBytes >> 20,
          g.shadowBase ? " and a shadow of guest memory behind it" : ", no shadow of guest memory");
+    vk::pipeline::LogDeviceSummary();
     StartPreparing();
     PrewarmFromCache();
     // A lost device ends the run, the way closing the window does.

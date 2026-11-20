@@ -30,6 +30,9 @@ bool     vk::pipeline::LegacyMode() { return false; }
 bool     vk::pipeline::TextureCompressionBC() { return false; }
 bool     vk::pipeline::SubgroupPixelRecords() { return false; }
 bool     vk::pipeline::UniformPixelConstants() { return false; }
+bool     vk::pipeline::MirrorClampToEdge() { return false; }
+void     vk::pipeline::NoteFallback(const char*) {}
+void     vk::pipeline::LogDeviceSummary() {}
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t) { return nullptr; }
 void*    vk::pipeline::Layout() { return nullptr; }
@@ -124,6 +127,15 @@ namespace
         bool textureCompressionBC = false;
         bool subgroupPixelRecords = false;
         bool uniformPixelConstants = false;
+        // VK_KHR_sampler_mirror_clamp_to_edge is enabled: without it a sampler
+        // may not be made with that address mode.
+        bool mirrorClamp = false;
+        // Whose chip and whose driver this is, and each thing the device did
+        // not have and what is done in its place: one line of the log
+        // (LogDeviceSummary), which is what a tester of a device nobody here
+        // has sends back.
+        std::string deviceClass = "no device";
+        std::vector<std::string> fallbacks;
         std::string name = "none";
 
         VkDescriptorSetLayout sets[3]{};
@@ -208,6 +220,36 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     g.deviceProperties = physicalProperties;
     g.physical = physical;
 
+    // The driver's own name for itself (Vulkan 1.2, or VK_KHR_driver_properties
+    // before it; empty where it has neither).
+    VkPhysicalDeviceDriverProperties driver{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES };
+    {
+        VkPhysicalDeviceProperties2 properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+        properties.pNext = &driver;
+        vkGetPhysicalDeviceProperties2(physical, &properties);
+    }
+    {
+        constexpr uint32_t kArm = 0x13B5, kQualcomm = 0x5143, kImagination = 0x1010, kSamsung = 0x144D;
+        const uint32_t vendor = physicalProperties.vendorID;
+        const char* family = vendor == kArm ? "Arm Mali"
+                           : vendor == kQualcomm ? "Qualcomm Adreno"
+                           : vendor == kImagination ? "Imagination PowerVR"
+                           : vendor == kSamsung ? "Samsung Xclipse"
+                           : "another vendor's";
+        char text[512];
+        std::snprintf(text, sizeof text, "%s (%s, vendor %04X device %08X), driver %s %s (%u.%u.%u), Vulkan %u.%u.%u",
+                      family, physicalProperties.deviceName, vendor, physicalProperties.deviceID,
+                      driver.driverName[0] ? driver.driverName : "unnamed", driver.driverInfo,
+                      VK_VERSION_MAJOR(physicalProperties.driverVersion),
+                      VK_VERSION_MINOR(physicalProperties.driverVersion),
+                      VK_VERSION_PATCH(physicalProperties.driverVersion),
+                      VK_VERSION_MAJOR(physicalProperties.apiVersion),
+                      VK_VERSION_MINOR(physicalProperties.apiVersion),
+                      VK_VERSION_PATCH(physicalProperties.apiVersion));
+        g.deviceClass = text;
+        g.fallbacks.clear();
+    }
+
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo queue{ VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
     queue.queueFamilyIndex = family;
@@ -225,8 +267,11 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     // asks for the same thing for the same reason.
     enabled.robustBufferAccess = supported.robustBufferAccess;
     if (!supported.robustBufferAccess)
+    {
         LOGW("vulkan: the device offers no robust buffer access; an out-of-range vertex"
              " fetch will fault");
+        NoteFallback("no robust buffer access");
+    }
     // Compressed BC textures (BC1..BC5) used throughout the title. Strict drivers
     // (Mali, etc.) require this feature to be explicitly enabled before creating BC images.
     enabled.textureCompressionBC = supported.textureCompressionBC;
@@ -259,15 +304,20 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     }
     if (!supported.textureCompressionBC)
         LOGW("vulkan: the device does not report textureCompressionBC support");
+    if (!g.textureCompressionBC)
+        NoteFallback(supported.textureCompressionBC ? "BC textures decoded in software (the Adreno workaround)"
+                                                    : "BC textures decoded in software (the driver samples none)");
     // The title's occlusion queries are a sample count it compares against a
     // threshold, and without this a query is only allowed to answer "some".
     enabled.occlusionQueryPrecise = supported.occlusionQueryPrecise;
     g.preciseQueries = supported.occlusionQueryPrecise;
+    if (!g.preciseQueries) NoteFallback("occlusion queries answer some or none");
     // The title asks for anisotropic filtering on nearly every world texture
     // (2:1, once 4:1), and a sampler cannot give it unless the device enables it.
     enabled.samplerAnisotropy = supported.samplerAnisotropy;
     {
         if (supported.samplerAnisotropy) g.maxAnisotropy = physicalProperties.limits.maxSamplerAnisotropy;
+        else NoteFallback("no anisotropic filtering");
         // NVIDIA allows 4000 samplers in all, fewer than the set's slots; the
         // backdrop makes one of its own.
         g.samplers = std::min<uint32_t>(bindings::kSamplerCount,
@@ -280,6 +330,11 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     std::vector<const char*> extensions(extraExtensions, extraExtensions + extraCount);
     if (DeviceHasExtension(physical, VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME))
         extensions.push_back(VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME);
+    // The console's mirror-once address mode. An extension before Vulkan 1.2
+    // and one still offered after it, so asking for it by name serves both.
+    g.mirrorClamp = DeviceHasExtension(physical, VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME);
+    if (g.mirrorClamp) extensions.push_back(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME);
+    else NoteFallback("a mirror-once sampler mirrors and repeats");
     // The driver's word on whether a shader came out of the pipeline cache:
     // the bug report counts the ones the launcher's compile pass had not
     // put there.
@@ -320,6 +375,7 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             extensions.push_back(VK_EXT_NON_SEAMLESS_CUBE_MAP_EXTENSION_NAME);
     }
     g.nonSeamlessCubes = nonSeamless.nonSeamlessCubeMap;
+    if (!g.nonSeamlessCubes) NoteFallback("cube maps filtered across their edges");
 
     // Render passes give way to dynamic rendering, and cull mode, winding and
     // the depth and stencil tests become state set per draw: then a shader
@@ -382,6 +438,7 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         cacheControl.pNext = nullptr;
     }
     g.cacheControl = cacheControl.pipelineCreationCacheControl;
+    if (!g.cacheControl) NoteFallback("the pipeline cache is one file");
     if (g.cacheControl && cacheControlExtension)
         extensions.push_back(VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME);
 
@@ -409,6 +466,9 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     {
         LOGI("vulkan: legacy Vulkan 1.1 fallback active: classic VkRenderPass and static pipeline states%s",
              forceLegacy ? " (forced by MW2_FORCE_LEGACY_RENDERING)" : "");
+        NoteFallback(forceLegacy ? "render passes and static pipeline state (MW2_FORCE_LEGACY_RENDERING)"
+                     : !hasDynamicRendering ? "render passes and static pipeline state (no dynamic rendering)"
+                                            : "render passes and static pipeline state (no extended dynamic state)");
     }
 
     if (dynamicRenderingExtension) extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
@@ -480,34 +540,55 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         if (missing)
         {
             LOGW("vulkan: the device lacks %s, which the renderer needs", missing);
+            LOGW("device: %s; refused: it lacks %s", g.deviceClass.c_str(), missing);
             return false;
         }
         // Turnip on the Adreno 650 (Retroid Pocket Flip 2) has the ballot
         // operations (0x67F) but offers subgroups to compute shaders alone
         // (stages 0x20): the stages are what differ, not the operations.
-        g.subgroupPixelRecords = (subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) &&
-                                 (subgroup.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT);
+        const bool ballot = (subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) &&
+                            (subgroup.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT);
+        // A Mali offers the ballot to fragment shaders, in subgroups of 16,
+        // and is given a record a pixel all the same. No Mali has run either
+        // form: Arm's own compiler (tools/malioc_shaders.py) takes both, costs
+        // the record a pixel no more than the record a subgroup -- before the
+        // subgroup's loop runs a second time -- and spills less of it to the
+        // stack, and that form is the one a phone has drawn whole levels with
+        // (the Adreno 650). MW2_PIXEL_RECORDS=subgroup or pixel says
+        // otherwise where the device has the ballot, to compare the two on one.
+        constexpr uint32_t kQualcomm = 0x5143, kArm = 0x13B5;
+        const char* records = env::Text("MW2_PIXEL_RECORDS");
+        g.subgroupPixelRecords = ballot && (records ? std::strcmp(records, "subgroup") == 0
+                                                    : properties.vendorID != kArm);
         LOGI("vulkan: subgroups of %u, stages 0x%X, operations 0x%X, size control %s: a pixel shader %s",
              subgroup.subgroupSize, subgroup.supportedStages, subgroup.supportedOperations,
              properties.apiVersion >= VK_API_VERSION_1_3 ||
              DeviceHasExtension(physical, VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME) ? "yes" : "no",
              g.subgroupPixelRecords
                  ? "runs once for each draw record its subgroup holds"
-                 : "reads its own draw record and indexes textures non-uniformly (no subgroup ballot"
-                   " in the fragment stage)");
+                 : !ballot ? "reads its own draw record and indexes textures non-uniformly (no subgroup ballot"
+                             " in the fragment stage)"
+                 : records ? "reads its own draw record and indexes textures non-uniformly (MW2_PIXEL_RECORDS)"
+                           : "reads its own draw record and indexes textures non-uniformly (a Mali:"
+                             " MW2_PIXEL_RECORDS=subgroup for the other form)");
         // Without the ballot every pixel fetches each float constant it reads
         // from the arena, where its own record says: there the constants are a
         // uniform block instead (shader::PixelConstants). An Adreno is given
         // them with the ballot too, measured: on the AYN Thor (Adreno 740,
         // Turnip) MW2's S.S.D.D. went from 8.7 to 8.3 ms of GPU a frame
-        // and its opening from 11.3 to 11.0. MW2_PIXEL_UNIFORMS says
-        // otherwise, either way.
-        constexpr uint32_t kQualcomm = 0x5143;
+        // and its opening from 11.3 to 11.0. A Mali too, by Arm's compiler:
+        // a third fewer load and store cycles in the median pixel shader of
+        // either game. MW2_PIXEL_UNIFORMS says otherwise, either way.
         g.uniformPixelConstants = env::Text("MW2_PIXEL_UNIFORMS")
             ? env::Flag("MW2_PIXEL_UNIFORMS")
-            : !g.subgroupPixelRecords || properties.vendorID == kQualcomm;
+            : !g.subgroupPixelRecords || properties.vendorID == kQualcomm || properties.vendorID == kArm;
         if (g.uniformPixelConstants)
             LOGI("vulkan: a pixel shader's float constants are a uniform block, bound when a draw's differ");
+        if (!g.subgroupPixelRecords)
+            NoteFallback(!ballot ? "a draw record a pixel (no subgroup ballot in the fragment stage)"
+                         : records ? "a draw record a pixel (MW2_PIXEL_RECORDS)"
+                                   : "a draw record a pixel (a Mali's default)");
+        if (g.uniformPixelConstants) NoteFallback("pixel constants a uniform block");
         enabled.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
         indexing = VkPhysicalDeviceDescriptorIndexingFeatures{
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
@@ -524,12 +605,6 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     // of play -- and ran three minutes of the same campaign without fault
     // building whole pipelines. MW2_FORCE_PIPELINE_LIBRARIES=1 asks for them
     // anyway, to try a newer build.
-    VkPhysicalDeviceDriverProperties driver{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES };
-    {
-        VkPhysicalDeviceProperties2 properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-        properties.pNext = &driver;
-        vkGetPhysicalDeviceProperties2(physical, &properties);
-    }
     const bool turnip = driver.driverID == VK_DRIVER_ID_MESA_TURNIP;
     g.pipelineLibraries =
         !g.legacyMode &&
@@ -539,6 +614,7 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         libraries.graphicsPipelineLibrary;
     if (turnip && !g.pipelineLibraries)
         LOGI("vulkan: Turnip: whole pipelines, not libraries (MW2_FORCE_PIPELINE_LIBRARIES=1 to try them)");
+    if (!g.pipelineLibraries) NoteFallback("whole pipelines, not libraries");
     if (g.pipelineLibraries)
     {
         extensions.push_back(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
@@ -595,6 +671,7 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             g.multiDraw = most.maxMultiDrawCount;
         }
     }
+    if (!g.multiDraw) NoteFallback("no multi-draw");
     multiDraw = VkPhysicalDeviceMultiDrawFeaturesEXT{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT };
     multiDraw.multiDraw = VK_TRUE;
@@ -1196,6 +1273,7 @@ namespace
         {
             LOGI("pipeline: Mali GPU detected -- using in-session VkPipelineCache only;"
                  " set MW2_PERSIST_PIPELINE_CACHE=1 to keep the disk blob across runs");
+            vk::pipeline::NoteFallback("the pipeline cache is not kept between runs (Mali)");
         }
 
         bool taken = false;
@@ -1516,6 +1594,23 @@ bool     vk::pipeline::LegacyMode() { return g.legacyMode; }
 bool     vk::pipeline::TextureCompressionBC() { return g.textureCompressionBC; }
 bool     vk::pipeline::SubgroupPixelRecords() { return g.subgroupPixelRecords; }
 bool     vk::pipeline::UniformPixelConstants() { return g.uniformPixelConstants; }
+bool     vk::pipeline::MirrorClampToEdge() { return g.mirrorClamp; }
+void     vk::pipeline::NoteFallback(const char* what)
+{
+    // Once each: the pipeline cache is made again when the window is.
+    if (std::find(g.fallbacks.begin(), g.fallbacks.end(), what) == g.fallbacks.end())
+        g.fallbacks.emplace_back(what);
+}
+void     vk::pipeline::LogDeviceSummary()
+{
+    std::string list;
+    for (const std::string& fallback : g.fallbacks)
+    {
+        if (!list.empty()) list += "; ";
+        list += fallback;
+    }
+    LOGI("device: %s; fallbacks: %s", g.deviceClass.c_str(), list.empty() ? "none" : list.c_str());
+}
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t set) { return set < 3 ? g.sets[set] : nullptr; }
 void*    vk::pipeline::Layout() { return g.layout; }

@@ -799,16 +799,21 @@ namespace
 
     VkSamplerAddressMode AddressMode(gpu::TextureClamp clamp)
     {
+        // Mirror-once needs its extension enabled (pipeline.cpp). Without it
+        // the nearest mode mirrors and repeats, which is the same picture for
+        // coordinates within one texture of the edge.
+        const VkSamplerAddressMode mirrorOnce = vk::pipeline::MirrorClampToEdge()
+            ? VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
         switch (clamp)
         {
         case gpu::TextureClamp::Repeat:               return VK_SAMPLER_ADDRESS_MODE_REPEAT;
         case gpu::TextureClamp::MirroredRepeat:       return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
         case gpu::TextureClamp::ClampToEdge:          return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        case gpu::TextureClamp::MirrorClampToEdge:    return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+        case gpu::TextureClamp::MirrorClampToEdge:    return mirrorOnce;
         // "Halfway" clamps at the edge texel's centre rather than its outer edge,
         // which Vulkan has no mode for. Clamping is the near miss.
         case gpu::TextureClamp::ClampToHalfway:       return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        case gpu::TextureClamp::MirrorClampToHalfway: return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+        case gpu::TextureClamp::MirrorClampToHalfway: return mirrorOnce;
         case gpu::TextureClamp::ClampToBorder:        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
         case gpu::TextureClamp::MirrorClampToBorder:  return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
         }

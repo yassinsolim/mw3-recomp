@@ -96,15 +96,28 @@ namespace vk::pipeline
     bool     LegacyMode();
     // Whether the device supports BC texture compression (BC1..BC5).
     bool     TextureCompressionBC();
-    // Whether a pixel shader can take one draw record for its whole subgroup
-    // (subgroup ballot in the fragment stage); without it each pixel reads its
-    // own (shader::PixelRecord).
+    // Whether a pixel shader takes one draw record for its whole subgroup
+    // (shader::PixelRecord): where the device has subgroup ballot in the
+    // fragment stage and is not a Mali, or as MW2_PIXEL_RECORDS says. Without
+    // it each pixel reads its own.
     bool     SubgroupPixelRecords();
     // Whether pixel shaders take their float constants as a uniform block the
     // renderer binds at each draw's own (shader::PixelConstants::Uniform, and
     // set 2's third binding): by default where there are no subgroup pixel
-    // records and on any Adreno, and as MW2_PIXEL_UNIFORMS says.
+    // records and on any Adreno or Mali, and as MW2_PIXEL_UNIFORMS says.
     bool     UniformPixelConstants();
+    // Whether a sampler may be made with the mirror-once address mode
+    // (VK_KHR_sampler_mirror_clamp_to_edge).
+    bool     MirrorClampToEdge();
+
+    // One thing the device did not have and what is done in its place, for
+    // the line LogDeviceSummary writes: CreateDevice notes its own, and the
+    // renderer the ones it decides (the depth format, the arena's shadow).
+    void     NoteFallback(const char* what);
+    // "device: <whose chip, which driver, which Vulkan>; fallbacks: ...": the
+    // one line of the log that says what kind of device this is and what it
+    // is doing without (docs/TESTING-MALI.md).
+    void     LogDeviceSummary();
 
     // The device has one queue, and the window thread and the GPU thread both
     // submit to it; Vulkan requires a queue to be externally synchronised.

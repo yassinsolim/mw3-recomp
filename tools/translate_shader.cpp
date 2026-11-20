@@ -5,7 +5,8 @@
 // and the output wants checking with spirv-val, so the same code is also built
 // as a small tool:
 //
-//     translate-shader [--compile] <file.ucode> [out.spv]
+//     translate-shader [--compile] [--pixel-records] [--uniform-constants] [--scaled]
+//                      <file.ucode> [out.spv]
 //
 // The shader type comes from the file name, which is how MW2_DUMP_SHADERS
 // writes them (vertex_*.ucode / pixel_*.ucode).
@@ -13,6 +14,13 @@
 // --compile also hands the module to a real Vulkan driver. spirv-val checks the
 // binary against the specification; the driver checks it against what it will
 // actually compile, which is a stronger and less forgiving statement.
+//
+// The other switches pick the module a device class is given, so that each can
+// be put before a compiler the PC does not have (Arm's malioc, tools/malioc_shaders.py):
+// --pixel-records is a pixel shader for a device without subgroup ballot in the
+// fragment stage (shader::PixelRecord::Pixel), --uniform-constants one whose
+// float constants are a uniform block (shader::PixelConstants::Uniform), and
+// --scaled a shader for render targets larger than the title's.
 #include "../runtime/gpu/vulkan/shader_translator.h"
 #include "../runtime/gpu/vulkan/pipeline.h"
 
@@ -23,12 +31,20 @@
 
 int main(int argc, char** argv)
 {
-    bool compile = false;
+    bool compile = false, pixelRecords = false, uniformConstants = false, scaled = false;
     int arg = 1;
-    if (argc > 1 && std::strcmp(argv[1], "--compile") == 0) { compile = true; arg = 2; }
+    for (; arg < argc && std::strncmp(argv[arg], "--", 2) == 0; arg++)
+    {
+        if (std::strcmp(argv[arg], "--compile") == 0) compile = true;
+        else if (std::strcmp(argv[arg], "--pixel-records") == 0) pixelRecords = true;
+        else if (std::strcmp(argv[arg], "--uniform-constants") == 0) uniformConstants = true;
+        else if (std::strcmp(argv[arg], "--scaled") == 0) scaled = true;
+        else { std::fprintf(stderr, "translate-shader: no switch %s\n", argv[arg]); return 2; }
+    }
     if (argc <= arg)
     {
-        std::fprintf(stderr, "usage: translate-shader [--compile] <file.ucode> [out.spv]\n");
+        std::fprintf(stderr, "usage: translate-shader [--compile] [--pixel-records] [--uniform-constants]"
+                             " [--scaled] <file.ucode> [out.spv]\n");
         return 2;
     }
 
@@ -56,7 +72,10 @@ int main(int argc, char** argv)
     const bool pixel = path.find("pixel") != std::string::npos ||
                        path.find("ps_") != std::string::npos;
     auto result = shader::Translate(pixel ? shader::Type::Pixel : shader::Type::Vertex,
-                                    words.data(), words.size());
+                                    words.data(), words.size(), scaled,
+                                    pixelRecords ? shader::PixelRecord::Pixel : shader::PixelRecord::Subgroup,
+                                    uniformConstants ? shader::PixelConstants::Uniform
+                                                     : shader::PixelConstants::Arena);
 
     std::printf("%-40s %s\n", path.c_str(), shader::Describe(result).c_str());
     if (!result.ok) return 1;
