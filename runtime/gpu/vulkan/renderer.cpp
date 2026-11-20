@@ -415,6 +415,9 @@ bool vk::renderer::Initialise()
         {
             g.arenaBytes = wanted;
             if (withShadow) g.shadowBase = wanted;
+            vk::pipeline::ArenaHasShadow(withShadow);
+            LOGI("renderer: vertex data is copied in %s", vk::pipeline::HostOrderVertices()
+                     ? "host byte order" : "the guest's byte order, and exchanged by the vertex shaders");
             // The watch runs either way: without the shadow it still tells
             // texture and constant readers which pages are unwritten.
             gpu::watch::Start(withShadow ? g.arenaMapped + wanted : nullptr,

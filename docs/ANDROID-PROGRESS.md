@@ -402,6 +402,49 @@ AYN Thor, Turnip v27.0.0-R2, `.dev` builds.
   the game types the disc left unfinished; they are no longer drawn
   (compiled, not run again).
 
+### Vertex data in host byte order, and vertex attributes not
+
+AYN Thor, Turnip v27.0.0-R2, `.dev` builds, performance mode, every
+variant's pipelines compiled beforehand (`MW2_SHADER_PREWARM_ALL`), two runs
+each way unless said. `MW2_HOST_ORDER=0` is the build before.
+
+- **The copy exchanges the bytes, not the shader**
+  ([rendering.md](rendering.md#vertex-data-in-host-byte-order)). The log
+  says which at the start: "vertex data is copied in host byte order".
+- **S.S.D.D., the opening** (seconds 26 to 42): 103.4 and 103.1 frames a
+  second before, 105.9 and 105.9 after; 9.19 and 9.22 ms of GPU a frame to
+  8.99 and 8.99; the scene's pass 7.25 and 7.27 ms to 7.05 and 7.05.
+- **Team Player, three heavy views**: the scene's pass 11.81 and 11.25 ms
+  to 10.93 and 11.00, the GPU 13.77 and 13.22 ms to 12.89 and 12.96, the
+  run 73.5 and 75.4 frames a second to 76.4 and 76.5. Vertex data copied a
+  frame is 9 MB and drawn from kept copies 54 MB either way.
+- **S.S.D.D. flown** (one run each): 112.8 to 113.3 frames a second, the
+  scene 4.15 to 3.96 ms. **Rust** with bots, 150 s: 117.9 to 118.1, the
+  scene 3.79 to 3.64 ms.
+- **Modern Warfare 3, Survival on Resistance from the menus**: 86.4 and
+  88.1 frames a second in play before, 92.2 and 91.1 after.
+- **The picture.** S.S.D.D. at six fixed views, the mean difference of a
+  pixel's channels out of 255: 0.06 to 1.41 between the two at five of
+  them, where two runs of one differ by 0.03 to 1.78; 5.1 at the sixth,
+  where soldiers move, and 2.2 to 6.1 between runs of one. Survival's
+  first view: 4.9 between the two, 3.0 and 5.1 between runs of one.
+- **Retroid Pocket Flip 2** (experiment build, 60 cap): no change. Team
+  Player's views 41.4/41.2/46.4 before and 41.2/43.9/47.1 after, the scene
+  16.49 and 16.63 ms.
+- **Vertex attributes lose.** A vertex shader's first stream as a vertex
+  buffer, fetched by the fixed-function stage, the rest as before (branch
+  `vertex-input`, not merged). Merged draws need their vertices in one
+  buffer, so in Team Player 2,290 draws a frame had theirs under another
+  draw's record and 2,210 were copied again: 40 MB of vertex data a frame
+  against 9. In S.S.D.D.'s opening a hardware draw was 8.5 of the title's
+  against 11, and the ring consumer at 98% of its core against 81%. Thor:
+  that opening 103.6 to 82.3 frames a second (GPU 9.18 to 9.63 ms), Team
+  Player's views
+  74 to 49; for the world's shaders only (9 to 13% of the fetches) 103.8
+  and 62. Flip 2: the scene 16.49 to 17.32 ms, 18.05 and 19.39 for the
+  world's shaders only, and twice to four times the draws skipped for want
+  of arena.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

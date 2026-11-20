@@ -67,6 +67,43 @@ namespace vk::renderer::detail
         return at;
     }
 
+    // Vertex data into the arena in host byte order. The console stores a
+    // dword of it one of four ways, which its fetch constant names: as it
+    // is, the bytes of each half exchanged (8-in-16), all four reversed
+    // (8-in-32), the halves exchanged (16-in-32). Every Xenos vertex format
+    // is whole dwords, so the exchange is the same whatever the vertices
+    // are, and made here it is made once a copy; in the vertex shader it
+    // was ten operations for every dword of every vertex, each time the
+    // vertex was shaded (shader::VertexOrder). `endian` 0 copies the bytes
+    // as they are.
+#if !defined(_WIN32)
+    __attribute__((target_clones("avx2", "default")))
+#endif
+    void CopyVertices(uint8_t* to, const uint8_t* from, uint32_t bytes, uint32_t endian)
+    {
+        typedef uint32_t Unaligned __attribute__((aligned(1), may_alias));
+        const Unaligned* in = reinterpret_cast<const Unaligned*>(from);
+        Unaligned* out = reinterpret_cast<Unaligned*>(to);
+        const uint32_t count = bytes / 4;
+        switch (endian & 3)
+        {
+        case 1:
+            for (uint32_t i = 0; i < count; i++)
+                out[i] = ((in[i] & 0x00FF00FFu) << 8) | ((in[i] >> 8) & 0x00FF00FFu);
+            break;
+        case 2:
+            for (uint32_t i = 0; i < count; i++) out[i] = __builtin_bswap32(in[i]);
+            break;
+        case 3:
+            for (uint32_t i = 0; i < count; i++) out[i] = (in[i] >> 16) | (in[i] << 16);
+            break;
+        default:
+            std::memcpy(to, from, bytes);
+            return;
+        }
+        std::memcpy(to + count * 4, from + count * 4, bytes & 3);
+    }
+
     // Without a shadow of guest memory -- a storage buffer on Turnip reaches
     // 128 MB, the shadow is 512 -- every draw copied its vertex windows into
     // the arena: 12 to 31 MB a frame of Modern Warfare 2, half of the ring
@@ -99,8 +136,11 @@ namespace vk::renderer::detail
     // Where the slot's copy of the `bytes` at `physical` is in its share, made
     // now if it has none that still holds what guest memory does and has met
     // the range before; UINT32_MAX when the window is not one to keep, not
-    // yet, or there is no room.
-    uint32_t KeptWindow(uint32_t physical, uint32_t bytes)
+    // yet, or there is no room. A copy is in host byte order as `endian`
+    // makes it (CopyVertices), and serves the fetch constants that name
+    // that endianness: a range holds the vertex buffers of many draws, and
+    // a draw whose constant names another copies its own window.
+    uint32_t KeptWindow(uint32_t physical, uint32_t bytes, uint32_t endian)
     {
         State::Slot& slot = g.slots[g.slot];
         const uint32_t end = physical + bytes;
@@ -114,6 +154,7 @@ namespace vk::renderer::detail
             if (kept.at == kMet || kept.end < end) continue;
             if (gpu::watch::Unwritten(physical, bytes, kept.stamp))
             {
+                if (kept.endian != endian) return UINT32_MAX;
                 kept.frame = g.frames;
                 g.arenaReused[kArenaVertices] += bytes;
                 return kept.at + (physical - range->first);
@@ -127,7 +168,8 @@ namespace vk::renderer::detail
             const uint32_t length = kept.end - range->first;
             const uint64_t stamp = gpu::watch::TrackSteady(range->first, length, CompletedSerial, g.frames);
             if (!stamp) return UINT32_MAX;
-            std::memcpy(ArenaAt(kept.at), guest::Base() + guest::kPhysicalBase + range->first, length);
+            CopyVertices(ArenaAt(kept.at), guest::Base() + guest::kPhysicalBase + range->first, length, endian);
+            kept.endian = endian;
             g.arenaWritten[kArenaVertices] += length;
             kept.stamp = stamp;
             kept.frame = g.frames;
@@ -165,7 +207,7 @@ namespace vk::renderer::detail
             // The ranges of a ring nothing draws twice would be all the map
             // held in the end.
             if (slot.kept.size() >= kKeptRanges) slot.keptFull = true;
-            else slot.kept[from] = { to, kMet, seen, g.frames };
+            else slot.kept[from] = { to, kMet, seen, g.frames, 0 };
             return UINT32_MAX;
         }
         if (!stamp) return UINT32_MAX;
@@ -183,9 +225,9 @@ namespace vk::renderer::detail
         slot.keptBytes += size;
         g.keptPeak = std::max(g.keptPeak, slot.keptBytes);
         const uint32_t at = g.arenaSlotBytes - slot.keptBytes;
-        std::memcpy(ArenaAt(at), guest::Base() + guest::kPhysicalBase + from, to - from);
+        CopyVertices(ArenaAt(at), guest::Base() + guest::kPhysicalBase + from, to - from, endian);
         g.arenaWritten[kArenaVertices] += to - from;
-        slot.kept[from] = { to, at, stamp, g.frames };
+        slot.kept[from] = { to, at, stamp, g.frames, endian };
         return at + (physical - from);
     }
 
@@ -386,15 +428,21 @@ namespace vk::renderer::detail
         // What has been copied for this draw, so two of its fetch slots naming one
         // buffer copy it once. It does not outlive the draw: see below.
         constexpr uint32_t kFetchSlots = 32 * 3;
-        struct Made { uint32_t address, base, first, dwords; };
+        struct Made { uint32_t address, base, first, dwords, endian; };
         Made made[kFetchSlots];          // every entry is written before it is read
         uint32_t madeCount = 0;
+        // Where the vertex shaders load vertex data as it lies, every copy
+        // is made in host byte order (shader::VertexOrder::Host).
+        const bool hostOrder = vk::pipeline::HostOrderVertices();
         // Points the entry of a slot the vertex program fetches through at its
         // data; false when the arena has no room for the copy.
         const auto pointAtCopy = [&](uint32_t slot, uint32_t* entry) -> bool
         {
             const uint32_t type = entry[0] & 3;
             if (type != 3) return true;                        // not a vertex fetch
+            // The exchange a copy of this buffer is made with: none where
+            // the shader makes it.
+            const uint32_t endian = hostOrder ? entry[1] & 3 : 0;
             const uint32_t declared = (entry[1] >> 2) & 0xFFFFFF;
             if (!declared) { entry[0] = 0; return true; }
             const uint32_t va = kernel::FromPhysical(entry[0] & ~3u);
@@ -422,7 +470,8 @@ namespace vk::renderer::detail
                 std::memcpy(vertices, guest::Base() + va, have * 4);
                 for (uint32_t rect = 0; rect < rectangles; rect++)
                     BuildFourthCorner(vertices, stride, rect, given + rect);
-                std::memcpy(ArenaAt(at), vertices, corners.size() * 4);
+                CopyVertices(ArenaAt(at), reinterpret_cast<const uint8_t*>(vertices),
+                             uint32_t(corners.size() * 4), endian);
                 if (g.drawRecord) NoteVertexWindow(guest::Base() + va, have * 4);
                 entry[0] = at | type;
                 return true;
@@ -455,7 +504,7 @@ namespace vk::renderer::detail
             // A window the slot keeps from frame to frame (KeptWindow).
             if (KeepingVertices() && va == guest::kPhysicalBase + physical)
             {
-                const uint32_t at = KeptWindow(physical + first * 4, words * 4);
+                const uint32_t at = KeptWindow(physical + first * 4, words * 4, endian);
                 if (at != UINT32_MAX)
                 {
                     entry[0] = (at - first * 4) | type;
@@ -475,7 +524,7 @@ namespace vk::renderer::detail
             // copied per frame here, and cost correctness for it.
             Made* found = nullptr;
             for (uint32_t i = 0; i < madeCount; i++)
-                if (made[i].address == physical) { found = &made[i]; break; }
+                if (made[i].address == physical && made[i].endian == endian) { found = &made[i]; break; }
             const bool covered = found && found->dwords && found->first <= first &&
                                  found->first + found->dwords >= last;
             if (covered)
@@ -485,11 +534,11 @@ namespace vk::renderer::detail
                 // Never the union with what was cached: draws reaching into a
                 // shared heap from both ends would ratchet it out to the whole
                 // buffer, and every later miss would copy all of it.
-                const uint32_t at = CopyIntoArena(guest::Base() + va + first * 4,
-                                                  words * 4, kArenaVertices);
+                const uint32_t at = Allocate(words * 4, kArenaVertices);
                 if (at == UINT32_MAX) return false;
+                CopyVertices(ArenaAt(at), guest::Base() + va + first * 4, words * 4, endian);
                 if (!found) found = &made[madeCount++];
-                *found = { physical, at - first * 4, first, words };
+                *found = { physical, at - first * 4, first, words, endian };
             }
             entry[0] = found->base | type;
             return true;
@@ -515,7 +564,8 @@ namespace vk::renderer::detail
                     if (!pointAtCopy(pair, entry)) return out;
                     // The endianness where the type was, which a vertex
                     // program has no use for: it loads one dword a fetch.
-                    entry[0] = (entry[0] & ~3u) | (source[1] & 3u);
+                    // None where the copy is in host byte order already.
+                    entry[0] = (entry[0] & ~3u) | (hostOrder ? 0u : source[1] & 3u);
                 }
                 std::memcpy(ArenaAt(out.fetch + pair * 16), entry, sizeof entry);
                 written += 16;

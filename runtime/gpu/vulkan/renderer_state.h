@@ -315,12 +315,13 @@ namespace vk::renderer::detail
             // (renderer_arena.cpp, KeptWindow): ranges of guest physical
             // memory by where they start, each with where it ends, where
             // its copy is -- or that it was met once and is not copied yet
-            // -- the watch's stamp for its pages, and the last frame to
-            // draw from it or meet it. The copies are handed out from the
-            // share's end downwards, `keptBytes` of it, the frame's own
-            // from its start up. Full: emptied when the slot next begins a
-            // frame.
-            struct Kept { uint32_t end, at; uint64_t stamp, frame; };
+            // -- the watch's stamp for its pages, the last frame to draw
+            // from it or meet it, and the endianness its bytes were
+            // exchanged for as they were copied (CopyVertices). The copies
+            // are handed out from the share's end downwards, `keptBytes` of
+            // it, the frame's own from its start up. Full: emptied when the
+            // slot next begins a frame.
+            struct Kept { uint32_t end, at; uint64_t stamp, frame; uint32_t endian; };
             std::map<uint32_t, Kept> kept;
             uint32_t keptBytes = 0;
             bool keptFull = false;

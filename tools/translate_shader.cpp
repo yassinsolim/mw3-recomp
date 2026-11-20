@@ -5,8 +5,8 @@
 // and the output wants checking with spirv-val, so the same code is also built
 // as a small tool:
 //
-//     translate-shader [--compile] [--pixel-records] [--uniform-constants] [--scaled]
-//                      <file.ucode> [out.spv]
+//     translate-shader [--compile] [--pixel-records] [--uniform-constants] [--host-order]
+//                      [--scaled] <file.ucode> [out.spv]
 //
 // The shader type comes from the file name, which is how MW2_DUMP_SHADERS
 // writes them (vertex_*.ucode / pixel_*.ucode).
@@ -19,8 +19,11 @@
 // be put before a compiler the PC does not have (Arm's malioc, tools/malioc_shaders.py):
 // --pixel-records is a pixel shader for a device without subgroup ballot in the
 // fragment stage (shader::PixelRecord::Pixel), --uniform-constants one whose
-// float constants are a uniform block (shader::PixelConstants::Uniform), and
-// --scaled a shader for render targets larger than the title's.
+// float constants are a uniform block (shader::PixelConstants::Uniform),
+// --host-order a vertex shader for a device without a shadow of guest memory,
+// whose vertex data the renderer copies in host byte order
+// (shader::VertexOrder::Host), and --scaled a shader for render targets larger
+// than the title's.
 #include "../runtime/gpu/vulkan/shader_translator.h"
 #include "../runtime/gpu/vulkan/pipeline.h"
 
@@ -31,20 +34,21 @@
 
 int main(int argc, char** argv)
 {
-    bool compile = false, pixelRecords = false, uniformConstants = false, scaled = false;
+    bool compile = false, pixelRecords = false, uniformConstants = false, hostOrder = false, scaled = false;
     int arg = 1;
     for (; arg < argc && std::strncmp(argv[arg], "--", 2) == 0; arg++)
     {
         if (std::strcmp(argv[arg], "--compile") == 0) compile = true;
         else if (std::strcmp(argv[arg], "--pixel-records") == 0) pixelRecords = true;
         else if (std::strcmp(argv[arg], "--uniform-constants") == 0) uniformConstants = true;
+        else if (std::strcmp(argv[arg], "--host-order") == 0) hostOrder = true;
         else if (std::strcmp(argv[arg], "--scaled") == 0) scaled = true;
         else { std::fprintf(stderr, "translate-shader: no switch %s\n", argv[arg]); return 2; }
     }
     if (argc <= arg)
     {
         std::fprintf(stderr, "usage: translate-shader [--compile] [--pixel-records] [--uniform-constants]"
-                             " [--scaled] <file.ucode> [out.spv]\n");
+                             " [--host-order] [--scaled] <file.ucode> [out.spv]\n");
         return 2;
     }
 
@@ -75,7 +79,8 @@ int main(int argc, char** argv)
                                     words.data(), words.size(), scaled,
                                     pixelRecords ? shader::PixelRecord::Pixel : shader::PixelRecord::Subgroup,
                                     uniformConstants ? shader::PixelConstants::Uniform
-                                                     : shader::PixelConstants::Arena);
+                                                     : shader::PixelConstants::Arena,
+                                    hostOrder ? shader::VertexOrder::Host : shader::VertexOrder::Guest);
 
     std::printf("%-40s %s\n", path.c_str(), shader::Describe(result).c_str());
     if (!result.ok) return 1;

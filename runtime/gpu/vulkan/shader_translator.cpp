@@ -46,10 +46,12 @@ namespace
     {
     public:
         Translator(shader::Type type, const uint32_t* words, size_t count, bool scaled,
-                   shader::PixelRecord record, shader::PixelConstants constants)
+                   shader::PixelRecord record, shader::PixelConstants constants,
+                   shader::VertexOrder order)
             : m_type(type), m_words(words), m_count(count), m_scaled(scaled),
               m_waterfall(type == shader::Type::Pixel && record == shader::PixelRecord::Subgroup),
-              m_uniformConstants(type == shader::Type::Pixel && constants == shader::PixelConstants::Uniform) {}
+              m_uniformConstants(type == shader::Type::Pixel && constants == shader::PixelConstants::Uniform),
+              m_exchange(order == shader::VertexOrder::Guest) {}
 
         shader::Translation Run();
 
@@ -138,6 +140,10 @@ namespace
         // draw's own (shader::PixelConstants), rather than read from the arena
         // where the record says.
         bool m_uniformConstants;
+        // Vertex data is in the guest's byte order, and a vertex program
+        // exchanges each dword it loads as the fetch constant's endianness
+        // says (shader::VertexOrder); otherwise the renderer has.
+        bool m_exchange;
 
         Module m_module;
         shader::Translation m_result;
@@ -1445,11 +1451,14 @@ namespace
     }
 
     // The console stores everything big-endian, and the fetch constant says how:
-    // none, 8-in-16, 8-in-32 or 16-in-32. Which one is a run-time value, so the
-    // dword goes through both exchanges the four are made of, each taken or
-    // not: the bytes within each half for 8-in-16 and 8-in-32, then the halves
-    // for 8-in-32 and 16-in-32. Ten operations a dword where computing all
-    // four and choosing was fourteen, of some ten dwords a vertex.
+    // none, 8-in-16, 8-in-32 or 16-in-32. Where the renderer copies vertex
+    // data in host byte order the dword is loaded and that is all
+    // (shader::VertexOrder). Where it lies as the guest has it, which of the
+    // four is a run-time value, so the dword goes through both exchanges the
+    // four are made of, each taken or not: the bytes within each half for
+    // 8-in-16 and 8-in-32, then the halves for 8-in-32 and 16-in-32. Ten
+    // operations a dword where computing all four and choosing was fourteen,
+    // of some ten dwords a vertex.
     Id Translator::ReadGuestDword(Id addressInDwords, uint32_t index)
     {
         m_result.loads[shader::kLoadVertexData]++;
@@ -1461,6 +1470,7 @@ namespace
         Id zero = m_module.ConstantS(0);
         Id chain = Emit(Op::AccessChain, pointer, { m_arena, zero, at });
         Id raw = Emit(Op::Load, m_uint, { chain });
+        if (!m_exchange) return raw;
 
         Id endian = Emit(Op::Load, m_uint, { m_lastFetchEndian });
         // Bytes exchanged within each half: 1 and 2.
@@ -1638,11 +1648,13 @@ namespace
             // load for both. Vertex data is not always stored 8-in-32: a
             // mesh with 16-bit positions is 8-in-16, and swapping it as if
             // it were whole dwords exchanges the halves of every pair, which
-            // stretches triangles across the level.
+            // stretches triangles across the level. Where the renderer made
+            // the exchange as it copied, those two bits are zero and unread.
             Id word0 = FetchConstantWord(constant, 0);
             Id base = Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(2) });
-            Module::Emit(m_module.Code(), Op::Store,
-                         { m_lastFetchEndian, Emit(Op::BitwiseAnd, m_uint, { word0, m_module.ConstantU(3) }) });
+            if (m_exchange)
+                Module::Emit(m_module.Code(), Op::Store,
+                             { m_lastFetchEndian, Emit(Op::BitwiseAnd, m_uint, { word0, m_module.ConstantU(3) }) });
 
             // The vertex index arrives as a float, which is how the sequencer hands
             // it over.
@@ -2005,7 +2017,7 @@ namespace
         const bool needsSequencer = !m_linear && !m_forwardJumpsOnly;
         if (needsSequencer) scalar(m_pc, "pc");
         scalar(m_lastFetchBase, "vertex_fetch_address");
-        scalar(m_lastFetchEndian, "vertex_fetch_endian");
+        if (m_exchange) scalar(m_lastFetchEndian, "vertex_fetch_endian");
 
         Id floatPointer = m_module.Pointer(StorageClass::Function, m_float);
         m_previousScalar = m_module.Allocate();
@@ -2725,9 +2737,10 @@ namespace
 }
 
 shader::Translation shader::Translate(Type type, const uint32_t* words, size_t count,
-                                      bool scaled, PixelRecord record, PixelConstants constants)
+                                      bool scaled, PixelRecord record, PixelConstants constants,
+                                      VertexOrder order)
 {
-    Translator translator(type, words, count, scaled, record, constants);
+    Translator translator(type, words, count, scaled, record, constants, order);
     return translator.Run();
 }
 

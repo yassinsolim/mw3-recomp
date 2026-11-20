@@ -136,7 +136,8 @@ the draw's record:
   0   (5 words)  where each constant block is in the arena, in dwords:
                    0  the vertex constant table
                    1  vertex fetch constants (96 pairs of dwords, each padded to four;
-                      a vertex fetch's first dword holds its endianness below the address)
+                      a vertex fetch's first dword holds its endianness below the address,
+                      or nothing there where the data was copied in host byte order)
                    2  256 boolean constants, packed bits (8 dwords)
                    3  32 loop constants
                    4  pixel float constants, 256 vec4 from SQ_PS_CONST's base
@@ -294,8 +295,10 @@ the draw's record:
   went from 10.1 to 9.1 ms of GPU a frame, 93.7 to 104.1 frames a second,
   and Team Player's heaviest views from 12.5 to 11.5 ms for the scene, 65 to
   71 frames a second. Fewer than half the loads for a twelfth of the time:
-  the loads are not most of what a vertex costs. The Adreno 650 has not
-  been measured with this yet.
+  the loads are not most of what a vertex costs. Where the renderer copies
+  vertex data in host byte order the exchanges are not in the shader at all
+  ([rendering.md](rendering.md#vertex-data-in-host-byte-order)): 106 frames
+  a second and 9.0 ms in that opening.
 - The translator records the highest float constant a program reads
   (`Translation::constantsRead`) so the renderer copies only that much, unless
   the program addresses constants through a0/aL (`addressedConstants`), where
@@ -421,9 +424,14 @@ computation:
   read from the arena (set 2). The renderer copies what the draw reads into
   the arena and points the constant at the copy
   ([rendering.md](rendering.md)).
-- Endianness is a run-time value (none, 8-in-16, 8-in-32, 16-in-32); all four
-  swaps are computed and selected between. Vertex data is not always 8-in-32:
-  a mesh with 16-bit positions is 8-in-16.
+- Endianness is a run-time value (none, 8-in-16, 8-in-32, 16-in-32): a
+  dword goes through the two exchanges the four are made of, each taken or
+  not. Vertex data is not always 8-in-32: a mesh with 16-bit positions is
+  8-in-16. A shader built for vertex data in host byte order
+  (`shader::VertexOrder::Host`, where there is no shadow of guest memory)
+  has none of this: the renderer made the exchange as it copied, and the
+  dword is loaded as it lies
+  ([rendering.md](rendering.md#vertex-data-in-host-byte-order)).
 - A mini fetch has no index or fetch constant: it reuses the address of the
   preceding full fetch with its own offset and format. A full fetch whose
   destination selects nothing exists only to compute that address.
@@ -503,7 +511,7 @@ the sampler comes from the fetch constant alone.
 
 ```
 cmake --build build --target translate-shader
-./build/translate-shader [--compile] [--pixel-records] [--uniform-constants] [--scaled] vertex_<hash>.ucode out.spv
+./build/translate-shader [--compile] [--pixel-records] [--uniform-constants] [--host-order] [--scaled] vertex_<hash>.ucode out.spv
 spirv-val --target-env vulkan1.0 out.spv
 ```
 
