@@ -56,6 +56,7 @@ namespace vk::record::detail
     bool threaded = false;
     VkCommandBuffer into = VK_NULL_HANDLE;
     void (*settle)() = nullptr;
+    void (*release)() = nullptr;
 }
 
 namespace
@@ -102,6 +103,9 @@ namespace
         std::thread thread;
     };
     Queue q;
+    // Calls queued for one command buffer go into another: the recorder's
+    // alone (vk::record::Redirect).
+    VkCommandBuffer redirectFrom = VK_NULL_HANDLE, redirectTo = VK_NULL_HANDLE;
 
     void Run()
     {
@@ -141,7 +145,8 @@ namespace
                 if (header->run)
                 {
                     if (!header->joins && vk::record::detail::settle) vk::record::detail::settle();
-                    header->run(header + 1, header->command);
+                    header->run(header + 1,
+                                header->command == redirectFrom ? redirectTo : header->command);
                 }
                 at += header->bytes;
                 calls++;
@@ -228,6 +233,7 @@ void* vk::record::detail::Reserve(uint32_t bytes)
             report::Timed spent(report::kRecorderWait);
             // The room may be behind calls not published yet, which the
             // recorder would never reach.
+            if (release) release();
             PublishAll(false);
             WaitMade(end - kBytes);
             q.madeSeen = q.made.load(std::memory_order_acquire);
@@ -281,6 +287,8 @@ void vk::record::Start(void (*settle)())
 void vk::record::Stop()
 {
     if (!detail::threaded) return;
+    // The join below is a wait for the recorder like any other.
+    if (detail::release) detail::release();
     Host([] { q.stopping = true; });
     q.thread.join();
     detail::threaded = false;
@@ -309,10 +317,19 @@ bool vk::record::Done(uint64_t position)
 void vk::record::WaitFor(uint64_t position)
 {
     if (Done(position)) return;
+    if (detail::release) detail::release();
     q.waits++;
     report::Timed spent(report::kRecorderWait);
     WaitMade(position);
 }
+
+void vk::record::Redirect(VkCommandBuffer from, VkCommandBuffer to)
+{
+    redirectFrom = from;
+    redirectTo = to;
+}
+
+void vk::record::BeforeWaiting(void (*release)()) { detail::release = release; }
 
 void vk::record::Drain() { WaitFor(Position()); }
 

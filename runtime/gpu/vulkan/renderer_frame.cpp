@@ -9,12 +9,117 @@
 #include "../../pacing_trace.h"
 #include "../../report.h"
 
+#include <atomic>
+
 #include <cstring>
 
 #ifdef MW2_HAVE_VULKAN
 
 namespace vk::renderer::detail
 {
+    namespace
+    {
+        // The decisions the recorder waits for at segment boundaries
+        // (CloseSegment), a frame slot's own: the slot is not used again
+        // until the recorder has made its last frame's calls.
+        constexpr uint32_t kGates = 1024;
+        enum : uint32_t { kPending, kJoin, kSplit };
+        std::atomic<uint32_t> gates[kFrameSlots][kGates];
+        bool recorderInPass = false;
+        // The thread that queues the frame's commands, which alone settles a
+        // boundary, and the boundary it has pending, for any other thread
+        // that has to wait for the recorder (ReleaseGate).
+        thread_local bool consumer = false;
+        std::atomic<std::atomic<uint32_t>*> pending{ nullptr };
+
+        // MW2_JOIN_SEGMENTS=0 gives every segment a command buffer and
+        // rendering instance of its own, as before: what joining them saves,
+        // measured on the device, which runs a release build.
+        bool JoiningSegments()
+        {
+            static const bool on = !env::Text("MW2_JOIN_SEGMENTS") || env::Flag("MW2_JOIN_SEGMENTS");
+            return on;
+        }
+
+        // Sets 1 and 2 -- every texture, and the arena -- are the same for
+        // every draw, so they are bound once a command buffer (bindings.h).
+        void BeginRecordedBuffer(VkCommandBuffer command, VkPipelineLayout layout,
+                                 VkDescriptorSet textures, VkDescriptorSet memory,
+                                 uint32_t dynamicOffsets)
+        {
+            VkCommandBufferBeginInfo begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            if (vkBeginCommandBuffer(command, &begin) != VK_SUCCESS)
+                LOGW("renderer: a frame's command buffer would not begin");
+            const VkDescriptorSet sets[2] = { textures, memory };
+            const uint32_t nowhere = 0;
+            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, layout,
+                                    bindings::kTextureSet, 2, sets, dynamicOffsets, &nowhere);
+        }
+
+        void EndRecordedPass(VkCommandBuffer command)
+        {
+            if (!recorderInPass) return;
+            recorderInPass = false;
+            if (vk::pipeline::LegacyMode())
+                vkCmdEndRenderPass(command);
+            else
+                dispatch.endRendering(command);
+            // What a render pass's dependency out to the outside was: the
+            // copies, clears, passes and sampling after it see its writes.
+            VkMemoryBarrier after{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+            after.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            after.dstAccessMask = kColourAccess | kDepthAccess | VK_ACCESS_TRANSFER_READ_BIT |
+                                  VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(command, kColourStages | kDepthStages,
+                                 kColourStages | kDepthStages | VK_PIPELINE_STAGE_TRANSFER_BIT |
+                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0, 1, &after, 0, nullptr, 0, nullptr);
+        }
+
+        // The pending boundary, if there is one, settled: as a split, the
+        // buffer so far is the submission's next and the segment's draws are
+        // the start of the one after.
+        void SettleGate(bool split)
+        {
+            if (!g.gate) return;
+            pending.store(nullptr, std::memory_order_release);
+            // Already a split, if a thread waiting for the recorder made it
+            // one (ReleaseGate).
+            uint32_t undecided = kPending;
+            if (!g.gate->compare_exchange_strong(undecided, split ? kSplit : kJoin,
+                                                 std::memory_order_acq_rel))
+                split = true;
+            g.gate->notify_one();
+            g.gate = nullptr;
+            if (split)
+            {
+                g.ended.push_back(g.command);
+                g.command = g.gateNext;
+                g.segment++;
+                vk::record::Into(g.command);
+            }
+            else g.segmentsJoined++;
+        }
+    }
+
+    bool& RecorderInPass() { return recorderInPass; }
+
+    void ReleaseGate()
+    {
+        if (consumer) { SettleGate(true); return; }
+        // Another thread -- the one that ends the run, once the consumer has
+        // stopped -- has only the recorder to set going: the consumer's own
+        // account of the split is made when it next settles (SettleGate).
+        if (std::atomic<uint32_t>* gate = pending.load(std::memory_order_acquire))
+        {
+            uint32_t undecided = kPending;
+            if (gate->compare_exchange_strong(undecided, kSplit, std::memory_order_acq_rel))
+                gate->notify_one();
+        }
+    }
+
     // Destroying an image the GPU may still use. Waiting for the device is not
     // enough on its own: it covers work already submitted, and the command buffer
     // being recorded -- a render pass open on the very view about to go, or a
@@ -52,11 +157,18 @@ namespace vk::renderer::detail
         vk::textures::BeginUploads(g.slot);
         g.ended.clear();
         g.segment = 0;
+        g.gatesUsed = 0;
+        consumer = true;
+        vk::record::BeforeWaiting(ReleaseGate);
         g.command = slot.buffers[0];
         vk::record::Into(g.command);
         const VkDevice device = g.device;
         const VkCommandPool pool = slot.commands;
-        Record([=](VkCommandBuffer) { vkResetCommandPool(device, pool, 0); });
+        Record([=](VkCommandBuffer) {
+            vkResetCommandPool(device, pool, 0);
+            // The slot's buffers are named afresh: none stands for another.
+            vk::record::Redirect(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        });
         BeginSegmentBuffer();
         PassTimesBegin(g.slot);
         g.arenaUsed = 0;
@@ -85,39 +197,60 @@ namespace vk::renderer::detail
         const VkDescriptorSet sets[2] = { static_cast<VkDescriptorSet>(vk::textures::Set()),
                                           g.slots[g.slot].memorySet };
         const uint32_t dynamicOffsets = vk::pipeline::UniformPixelConstants() ? 1 : 0;
-        Record([=](VkCommandBuffer command) {
-            VkCommandBufferBeginInfo begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            if (vkBeginCommandBuffer(command, &begin) != VK_SUCCESS)
-                LOGW("renderer: a frame's command buffer would not begin");
-            const uint32_t nowhere = 0;
-            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, layout,
-                                    bindings::kTextureSet, 2, sets, dynamicOffsets, &nowhere);
+        Record([=, textures = sets[0], memory = sets[1]](VkCommandBuffer command) {
+            BeginRecordedBuffer(command, layout, textures, memory, dynamicOffsets);
         });
         // A fresh command buffer remembers nothing.
         g.bound = State::Bound{};
         g.currentColour = g.currentDepth = VK_NULL_HANDLE;
+        g.passUnsure = false;
         g.segmentDraws = false;
     }
 
     // The command processor is about to report the draws so far done
     // (vk::renderer::BeforeCompletion): the segment's textures are read for
-    // the last time, and its draws closed off in a command buffer of their
-    // own, so what is read after this reaches only the draws after it. The
-    // submission goes on in the next command buffer, and is still one.
+    // the last time, and what is read after this reaches only the draws
+    // after it. A segment's uploads -- a texture first bound in it, one the
+    // title rewrote under it -- run ahead of its draws and after the draws
+    // of the segments before, so its draws have to begin a command buffer
+    // when it has any.
+    //
+    // Whether it has any is known at its end, and one segment in twenty-five
+    // does (MW2, S.S.D.D.). So the boundary before a segment is left to the
+    // recorder, which waits there for the segment's end to say which it is
+    // (the gate):
+    //   - a join, when nothing was uploaded for the segment: its textures
+    //     are what the draws before it sampled, and its draws go on in the
+    //     same command buffer and the same rendering instance. Nothing
+    //     stands between them: a copy, resolve, clear or change of target
+    //     ends the instance itself wherever it comes (EndPass), boundary or
+    //     not, and the consumer sets every piece of state again at the
+    //     segment's first draw, as it does in a fresh buffer.
+    //   - a split, when something was: the instance and the buffer end at
+    //     the boundary, the uploads go between, and the segment's draws,
+    //     queued for the old buffer, are redirected into the next
+    //     (vk::record::Redirect), where its first draw opens the instance
+    //     again (ResumeRendering).
+    // Not left to the recorder, and so split as before: with no recorder
+    // thread, without dynamic rendering, inside the title's occlusion
+    // bracket (a query ends in the instance it began in), and with
+    // MW2_JOIN_SEGMENTS=0. On the AYN Thor MW2's S.S.D.D. opening went from
+    // 47 rendering instances a frame over its scene targets to 15.
     void CloseSegment()
     {
-        EndPass();
-        PassTimesBetween();
-        if (void* uploads = vk::textures::EndSegment())
-            g.ended.push_back(static_cast<VkCommandBuffer>(uploads));
-        g.ended.push_back(g.command);
-        Record([](VkCommandBuffer command) {
-            if (vkEndCommandBuffer(command) != VK_SUCCESS)
-                LOGW("renderer: a segment's command buffer would not end");
-        });
+        const bool defer = JoiningSegments() && vk::record::Threaded() &&
+                           !vk::pipeline::LegacyMode() && !g.guestCounting && g.gatesUsed < kGates;
+        if (!defer)
+        {
+            EndPass();
+            PassTimesBetween();
+        }
+        void* uploads = vk::textures::EndSegment();
+        SettleGate(uploads != nullptr);
+        if (uploads) g.ended.push_back(static_cast<VkCommandBuffer>(uploads));
+        g.segments++;
         State::Slot& slot = g.slots[g.slot];
-        if (++g.segment >= slot.buffers.size())
+        if (g.segment + 1 >= slot.buffers.size())
         {
             // The recorder may be making calls into the pool's other buffers:
             // it has to be done with them before the pool is touched here.
@@ -131,11 +264,44 @@ namespace vk::renderer::detail
             if (vkAllocateCommandBuffers(g.device, &allocate, slot.buffers.data() + had) != VK_SUCCESS)
                 LOGE("renderer: no command buffers for another segment");
         }
-        g.command = slot.buffers[g.segment];
+        if (defer)
+        {
+            std::atomic<uint32_t>* const gate = &gates[g.slot][g.gatesUsed++];
+            gate->store(kPending, std::memory_order_release);
+            g.gate = gate;
+            pending.store(gate, std::memory_order_release);
+            g.gateNext = slot.buffers[g.segment + 1];
+            const VkPipelineLayout layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
+            const VkDescriptorSet textures = static_cast<VkDescriptorSet>(vk::textures::Set());
+            const VkDescriptorSet memory = slot.memorySet;
+            const uint32_t dynamicOffsets = vk::pipeline::UniformPixelConstants() ? 1 : 0;
+            Record([=, queued = g.command, next = g.gateNext](VkCommandBuffer command) {
+                uint32_t decision;
+                while ((decision = gate->load(std::memory_order_acquire)) == kPending)
+                    gate->wait(kPending, std::memory_order_acquire);
+                if (decision == kJoin) return;
+                EndRecordedPass(command);
+                if (vkEndCommandBuffer(command) != VK_SUCCESS)
+                    LOGW("renderer: a segment's command buffer would not end");
+                vk::record::Redirect(queued, next);
+                BeginRecordedBuffer(next, layout, textures, memory, dynamicOffsets);
+            });
+            // What a fresh command buffer would not remember is set again
+            // either way, and the instance asked for again at the next draw.
+            g.bound = State::Bound{};
+            g.passUnsure = g.currentColour || g.currentDepth;
+            g.segmentDraws = false;
+            return;
+        }
+        g.ended.push_back(g.command);
+        Record([](VkCommandBuffer command) {
+            if (vkEndCommandBuffer(command) != VK_SUCCESS)
+                LOGW("renderer: a segment's command buffer would not end");
+        });
+        g.command = slot.buffers[++g.segment];
         vk::record::Into(g.command);
         BeginSegmentBuffer();
         PassTimesMark("texture uploads at a segment's end");
-        g.segments++;
     }
 
     // The title brackets the draws it wants counted with two EVENT_WRITE_ZPD
@@ -169,25 +335,10 @@ namespace vk::renderer::detail
     {
         CloseGuestQuery();
         if (g.currentColour || g.currentDepth)
-            Record([](VkCommandBuffer command) {
-                if (vk::pipeline::LegacyMode())
-                    vkCmdEndRenderPass(command);
-                else
-                    dispatch.endRendering(command);
-                // What a render pass's dependency out to the outside was: the
-                // copies, clears, passes and sampling after it see its writes.
-                VkMemoryBarrier after{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
-                after.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                                      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-                after.dstAccessMask = kColourAccess | kDepthAccess | VK_ACCESS_TRANSFER_READ_BIT |
-                                      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-                vkCmdPipelineBarrier(command, kColourStages | kDepthStages,
-                                     kColourStages | kDepthStages | VK_PIPELINE_STAGE_TRANSFER_BIT |
-                                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                     0, 1, &after, 0, nullptr, 0, nullptr);
-            });
+            Record([](VkCommandBuffer command) { EndRecordedPass(command); });
         PassTimesClose();
         g.currentColour = g.currentDepth = VK_NULL_HANDLE;
+        g.passUnsure = false;
     }
 
     // `wait` when the CPU is about to read what the submission produced -- a
@@ -211,10 +362,11 @@ namespace vk::renderer::detail
         State::Slot& slot = g.slots[g.slot];
         // The last segment's textures are read for the last time, and its
         // uploads go just ahead of its draws, after the segments before.
+        void* uploads = vk::textures::EndSubmission();
+        SettleGate(uploads != nullptr);
         std::vector<VkCommandBuffer> buffers;
         buffers.swap(g.ended);
-        if (void* uploads = vk::textures::EndSubmission())
-            buffers.push_back(static_cast<VkCommandBuffer>(uploads));
+        if (uploads) buffers.push_back(static_cast<VkCommandBuffer>(uploads));
         buffers.push_back(g.command);
         const VkDevice device = g.device;
         const VkQueue queue = g.queue;
