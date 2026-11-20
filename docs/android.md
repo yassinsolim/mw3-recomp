@@ -41,20 +41,73 @@ The app is structured into two separate processes in the Android manifest:
 - **Storage**: ~7-8 GB free internal storage for game assets.
 
 ### GPU & Vulkan Driver Requirements
-The custom Vulkan pipeline renderer requires:
-- **Vulkan 1.3** core support, OR
-- **Vulkan 1.1 / 1.2** with both `VK_KHR_dynamic_rendering` and `VK_EXT_extended_dynamic_state` extensions.
+The renderer requires **Vulkan 1.1** with descriptor indexing: one set holds every texture, updated after it is bound and indexed non-uniformly ([What the renderer asks of a device](#what-the-renderer-asks-of-a-device)). Dynamic rendering and extended dynamic state (Vulkan 1.3, or their extensions) are used where a driver has both; without them it draws through render passes.
 
 #### Compatibility by SoC / GPU Architecture
 
 | SoC Family | GPU Architecture | Compatibility Status | Notes |
 | **Qualcomm Snapdragon (Flagship & Mid-Range)** | Adreno 6xx, 7xx (SD 865–8 Gen 3, **SD 778G / 778G+**, 782G, 7 Gen 1/2/3, 7+ Gen 2/3) | **Supported (100% Native)** | Vulkan 1.3 supported out of the box via stock drivers or sideloadable Mesa **Turnip** drivers (`Adreno 642L` on 778G+ has complete Turnip support). Solid 60 FPS at 720p/1080p. |
 | **Qualcomm Snapdragon (Entry Mid-Range)** | Adreno 619, 710 (SD 695, SD 6 Gen 1, SD 4 Gen 2) | **Supported (30–60 FPS)** | Supports Turnip and stock Vulkan 1.1/1.3. Playable with 60%–75% resolution scale. |
-| **Google Tensor** | Mali-G78, Mali-G710, Immortalis-G715 (Pixel 6, 7, 8, 9) | **Supported (100%)** | Google ships native Vulkan 1.3 drivers on Android 13/14+. |
+| **Google Tensor** | Mali-G78, Mali-G710, Mali-G715 (Pixel 6, 7, 8, 9) | **Expected to run; no phone tested** | Meets every requirement by its driver's report, every shader compiles with Arm's compiler ([Mali](#mali)). |
 | **Samsung Exynos** | AMD RDNA2 / RDNA3 Xclipse (Exynos 2200, 2400) | **Supported (100%)** | Native Vulkan 1.3 driver support. |
-| **MediaTek Dimensity (Flagship)** | Mali-G710, Immortalis-G720 (Dimensity 8100, 8200, 9000, 9200, 9300) | **Supported (100%)** | Native Vulkan 1.3 driver support. |
-| **MediaTek Dimensity (Mid-Range)** | Mali-G57, Mali-G68 (Dimensity 700, 810, 920, 1080, 6080, 7050) | **Supported (100% Playable)** | Fully supported via dedicated Vulkan 1.1 `VkRenderPass` legacy mode (`runtime/gpu/vulkan/render_pass.cpp`) with non-blocking shader warmup, bypassing OEM lack of `VK_KHR_dynamic_rendering`. |
-| **MediaTek Helio (Budget)** | Mali-G52, Mali-G57 MC2, Mali-G76 (Helio G99, G96, G95, G88) | **Supported (Playable 30–60 FPS)** | Supported via Vulkan 1.1 `VkRenderPass` fallback + CPU BC1–BC5 texture decompressor. Playable at 540p–720p 60% scale. |
+| **MediaTek Dimensity, Samsung Exynos with Mali (Valhall and later)** | Mali-G57, G68, G77, G78, G610, G615, G710, G715, G720, Immortalis-G715 / G720 / G925 (Dimensity 700 to 9400, Helio G99, Exynos 1280 to 2100) | **Expected to run; no phone tested** | Driver r26 and later. Vulkan 1.1 drivers (r26 to r38) draw through render passes; BC textures are decoded by the runtime ([Mali](#mali)). |
+| **MediaTek Helio, older Exynos and Kirin (Mali Bifrost and Midgard)** | Mali-G31, G51, G52, G71, G72, G76, T-series (Helio G80 to G95, Exynos 9611 / 9820, Kirin 980 / 990) | **Not supported** | No descriptor indexing: 256 sampled images a stage, where the renderer binds every texture of the cache in one set. The run ends at start-up and the log's `device:` line says why. |
+
+### Mali
+
+No phone with a Mali has run this build. The Mali testing in this repository's history (the `fix/mali-runtime-stability` and `diagnose-mali-texture-bugs` branches, a Mali-G68 MC4 and a Poco X6 Pro's Mali-G615, October 2026) was of the renderer before 29 October, when it bound a draw's textures per draw: what those testers found is still here (render passes for Vulkan 1.1 drivers, one pipeline creation at a time, the pipeline cache not reloaded from disk, BC textures decoded in software, branches translated as selections because Mali's compiler took minutes over a loop and a switch, three swapchain images), and nothing since has been seen on one. What follows was established on a PC.
+
+**The Android Emulator cannot stand in for one.** Its guest has no GPU driver of its own: gfxstream serialises the guest's Vulkan calls and replays them on the host's driver ([Android Open Source Project, Cuttlefish GPU acceleration](https://source.android.com/docs/devices/cuttlefish/gpu): "OpenGL and Vulkan API calls are forwarded directly to the host"). The 111 reports the SDK's emulator images have filed at vulkan.gpuinfo.org name the host's chip and vendor, for example [`Goldfish GFXStream (NVIDIA GeForce RTX 3080 Laptop GPU)`, vendor NVIDIA](https://vulkan.gpuinfo.org/displayreport.php?id=52206), or llvmpipe and SwiftShader where there is none. On this PC it would be the RTX 5080's driver, limits and shader compiler under another name; and the app is `arm64-v8a` only, which an x86 system image does not load.
+
+**Driver reports.** `tools/check_device_report.py` walks the checks the runtime makes at start-up against the report a real phone filed at [vulkan.gpuinfo.org](https://vulkan.gpuinfo.org) and says what the runtime would do with each: `python tools/check_device_report.py 53552=Mali-G57 53386=Mali-G78` (a number is a report's id there). Run on 31 Mali reports and four Adreno ones as controls (2026-11-20):
+
+| GPU | Drivers checked | Verdict | The renderer's paths there |
+|---|---|---|---|
+| Mali-G57, G68 | r26, r32 (Vulkan 1.1) | runs | render passes, BC in software, no shadow of guest memory |
+| Mali-G57, G68 | r38 (1.3) | runs | dynamic rendering, BC in software, no shadow |
+| Mali-G57, G68 | r49, r54 (1.3) | runs | dynamic rendering, BC in software, shadow |
+| Mali-G77, G78 | r32, r38 (1.1) | runs | render passes, BC in software, no shadow |
+| Mali-G78 | r38 (1.3), r54 (1.4) | runs | dynamic rendering, BC in software; shadow from r44 |
+| Mali-G77 | r56 (1.4, Retroid Pocket 4 Pro) | runs | dynamic rendering, BC sampled by the driver, shadow |
+| Mali-G610, G710 | r32, r38 (1.1) | runs | render passes, BC in software, no shadow |
+| Mali-G610, G710, G715 | r38 (1.3), r54 (1.3, 1.4) | runs | dynamic rendering, BC in software; shadow from r44 |
+| Mali-G615, G720, Immortalis-G715, G720, G925 | r38, r44, r49 (1.3) | runs | dynamic rendering, BC in software; shadow from r44 |
+| Mali-G52, G76 | r26, r32, r49 | **refused** | no descriptor indexing (256 sampled images a stage) |
+| Adreno 650, stock and Turnip | 512.819, Mesa 26.0 | runs | a draw record a pixel (no fragment subgroup ballot), no shadow: as the Retroid Pocket Flip 2 does |
+| Adreno 740, stock and Turnip | 512.819, Mesa 25.3 | runs | a draw record a subgroup, no shadow: as the AYN Thor does |
+
+On every Mali that runs: D24S8 depth, 16:1 anisotropy, robust buffer access, 2x and 4x multisampling with a first-sample depth resolve, 32-bit indices, 128 interpolator components, half a million or more update-after-bind images and samplers, storage buffers of 256 MB (to r38) or 2 GB. Never there: multi-draw and present wait, and before r54 graphics pipeline libraries and non-seamless cube maps. Two warnings on most: the 16_16 and 16_16_16_16 unorm texture formats are sampled but not filtered linearly (a match of MW3's multiplayer uploads neither), and 32-bit float render targets do not blend (neither game draws into one).
+
+**Shaders.** `tools/malioc_shaders.py` translates each program as the runtime would and compiles it with Arm's Mali Offline Compiler (Arm Performance Studio 2026.6, malioc 2026.5.0: the Mali driver's own compiler, r51p0 for the Mali-G57 to G78 and r56p1 from the G610 on). The programs: the 13,919 pixel shaders of MW2's fastfiles (`zone-shaders --dump`), the 309 vertex and 799 pixel shaders five MW2 levels draw with and the 228 and 376 a match of MW3's multiplayer does (`MW2_DUMP_SHADERS`, PC build), each pixel shader in the three forms a device can be given. For the Mali-G57, G68, G77, G78, G610, G710, G715 and the Immortalis-G720 and G925 **malioc refused none of them** (the fastfiles' on the G57, G78, G715 and G925). A Mali-G76 or G52 compiles the vertex shaders and the record-a-subgroup form and refuses the record-a-pixel form (`Unsupported capability (5307)`, non-uniform indexing), which is the report check's verdict from the other side. What it costs there (MW2's five levels; the Mali-G57's numbers are the G77's, and the G68's and G78's but for a few more spills):
+
+| Pixel shader | Mali-G57: median / 95th / most load-store cycles | spills | Mali-G715 | spills | Immortalis-G925 | spills |
+|---|---|---|---|---|---|---|
+| a record a subgroup, constants in the arena | 40 / 74 / 113 | 516 of 799 | 38 / 63 / 92 | 449 | 38 / 63 / 93 | 391 |
+| a record a subgroup, constants uniform | 26 / 48 / 78 | 335 | 26 / 42 / 58 | 213 | 26 / 41 / 58 | 164 |
+| a record a pixel, constants uniform (a Mali's) | 27 / 47 / 69 | 211 | 26 / 42 / 58 | 198 | 26 / 41 / 58 | 133 |
+
+Every shader is bound by its loads and stores, not arithmetic or texturing. Nine pixel shaders in ten use more than 32 work registers, which halves the shader core's thread occupancy on these GPUs, and a quarter still spill to the stack. No shader was refused, so the translator's output was not changed; what that register pressure costs in frames is for a phone to say. A vertex shader is 19 to 21 cycles and spills nothing up to the Mali-G715; on the Immortalis-G720 and G925 the same module is 46 and three in four are at half occupancy. Not compiled: the two small modules the runtime builds by hand (the backdrop's fragment shader and the display table's compute shader). malioc compiles and counts; it draws nothing, so it says nothing about the picture.
+
+**What a Mali is given that another device is not** (`pipeline.cpp`, each named in the log's `device:` line):
+
+- **A draw record a pixel.** A Mali offers the subgroup ballot to fragment shaders, in subgroups of 16, and the pixel shader that takes one record a subgroup has never run on one. The form that reads each pixel's own record has no subgroup operations, is the one the Adreno 650 draws whole levels with, and costs no more by malioc. `MW2_PIXEL_RECORDS=subgroup` is the other form, for a tester to compare.
+- **Pixel constants in a uniform block** (`MW2_PIXEL_UNIFORMS`), as on an Adreno: by malioc a third fewer load and store cycles in the median pixel shader.
+- **The pipeline cache is not kept between runs** unless the player asks (Settings, `MW2_PERSIST_PIPELINE_CACHE=1`): the fork's testers had drivers reload it badly.
+- **Turnip is not loaded.** The bundled Turnip is only ever made the default on a Qualcomm chip (`DriverStore.installBundledDefault`), and a Turnip chosen by hand or restored from another phone's settings is refused where the chip is not an Adreno (`driver.cpp`): the log says so and the system's Vulkan is used.
+
+**Not verified, and only a phone can:** that anything is drawn at all, and correctly: the driver's handling of the 65,536-image update-after-bind set, non-uniform indexing in both stages, the draw tables' 32-bit indices and base vertices, render passes with these on r26 to r38; frame rate and heat; the shadow of guest memory, which no Android device has had (an Adreno's storage buffers reach 128 MB); the driver's BC sampling where r54 and later offer it; whether the pipeline cache reloads on current drivers. [TESTING-MALI.md](TESTING-MALI.md) is what to ask a tester for.
+
+#### What the renderer asks of a device
+
+In the order the runtime checks them; `tools/check_device_report.py` is the same list, executable.
+
+| | Required: the run ends without it | Preferred: the fallback |
+|---|---|---|
+| Version | Vulkan 1.1 (SPIR-V 1.3 modules) | 1.3's dynamic rendering and extended dynamic state, or their extensions: else render passes, framebuffers and static pipeline state |
+| Features | descriptor indexing (sampled images update after bind, partially bound, update unused while pending), `shaderSampledImageArrayDynamicIndexing` and `...NonUniformIndexing`, `shaderDrawParameters` | `robustBufferAccess` (a warning), `textureCompressionBC` (decoded at upload by `bc_decoder.cpp` into RGBA8, RG8, R8; always on an Adreno), `occlusionQueryPrecise`, `samplerAnisotropy`, subgroup ballot in the fragment stage (else a record a pixel), `pipelineCreationCacheControl` (else the cache is one file), graphics pipeline libraries (else whole pipelines), multi-draw, non-seamless cube maps, mirror clamp to edge, present id and wait |
+| Limits | 65,536 update-after-bind sampled images and 4,096 samplers a stage and a set, 68 vertex output and fragment input components, three descriptor sets, two storage buffers a stage, one dynamic uniform buffer of 4 KB, `maxStorageBufferRange` x 3 of at least 32 MB | `maxStorageBufferRange` of 1 GB for the shadow of guest memory (else vertex data is copied into the arena), 32-bit index values (else 256 draw table entries) |
+| Formats | D24S8 or D32S8 as a depth attachment; RGBA8 and A2B10G10R10 drawn into, blended and sampled; RGBA8 as a storage image and blitted; each texture format of [textures.md](textures.md) sampled | 2x or 4x samples with a first-sample depth resolve (else 1x; off on Android unless asked) |
+| Not used | push constants in the pipeline layout (the backdrop's own layout has 64 bytes), timeline semaphores, 64-bit integers or atomics in shaders, tessellation, geometry shaders | |
 
 ---
 

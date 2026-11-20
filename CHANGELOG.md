@@ -5,6 +5,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **Mali, worked out without one** ([docs/android.md](docs/android.md#mali),
+  [docs/TESTING-MALI.md](docs/TESTING-MALI.md)): `tools/check_device_report.py`
+  walks the runtime's start-up checks against a phone's report from
+  vulkan.gpuinfo.org, and `tools/malioc_shaders.py` compiles every translated
+  shader with Arm's Mali Offline Compiler. A Mali-G57 or newer meets every
+  requirement and its compiler takes every shader of both games; a Mali-G52,
+  G72 or G76 has no descriptor indexing and is refused. A Mali is given a
+  draw record a pixel (`MW2_PIXEL_RECORDS`) and its pixel constants as a
+  uniform block; Turnip is not loaded where the chip is not an Adreno; the
+  mirror-once address mode has its extension enabled; and the log's
+  `device:` line names the chip, the driver and every fallback chosen.
 - **Renderer, measured on the AYN Thor at 120 Hz with Modern Warfare 2**
   ([docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md), 2026-11-20): a
   segment of the frame that nothing was uploaded for goes on in the command

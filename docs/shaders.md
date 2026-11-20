@@ -203,9 +203,11 @@ the draw's record:
   waterfall replaced (`shader::PixelRecord::Pixel`): each pixel reads the flat
   value as its record, and the texture and sampler arrays are indexed
   `NonUniform` as in a vertex shader. That costs the pixel work the waterfall
-  saves and draws the same picture. The renderer picks the form once, when
-  the device is made (`vk::pipeline::SubgroupPixelRecords`), and says which
-  in the log.
+  saves and draws the same picture. A Mali has the ballot and is given this
+  form too, until one has run the waterfall: Arm's compiler costs the two the
+  same ([android.md](android.md#mali)), and `MW2_PIXEL_RECORDS=subgroup` is
+  the waterfall there. The renderer picks the form once, when the device is
+  made (`vk::pipeline::SubgroupPixelRecords`), and says which in the log.
 - **A pixel shader's float constants as a uniform block**
   (`shader::PixelConstants::Uniform`). Each pixel reading its own record
   fetched every float constant it read from the arena's storage buffer, at
@@ -501,7 +503,7 @@ the sampler comes from the fetch constant alone.
 
 ```
 cmake --build build --target translate-shader
-./build/translate-shader [--compile] vertex_<hash>.ucode out.spv
+./build/translate-shader [--compile] [--pixel-records] [--uniform-constants] [--scaled] vertex_<hash>.ucode out.spv
 spirv-val --target-env vulkan1.0 out.spv
 ```
 

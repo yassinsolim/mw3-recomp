@@ -32,7 +32,9 @@
 #include <cerrno>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/system_properties.h>
 
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
@@ -208,6 +210,39 @@ namespace
         LOGI("driver: %s: Turnip draws without image compression (TU_DEBUG=%s); with it an"
              " Adreno 6xx resets the device when a level starts", model, flags.c_str());
     }
+
+    std::string Property(const char* name)
+    {
+        char value[PROP_VALUE_MAX] = {};
+        __system_property_get(name, value);
+        return value;
+    }
+
+    // Whether the chip is a Qualcomm one: the kernel's Adreno driver names
+    // it, or the build says whose graphics libraries or whose chip it has.
+    // Any one of them, because a vendor's kernel may hide the first from an
+    // app and an old build has no ro.soc.manufacturer.
+    bool AdrenoHardware()
+    {
+        if (android::perf::AdrenoModel()[0]) return true;
+        for (const char* name : { "ro.hardware.vulkan", "ro.hardware.egl" })
+            if (Property(name).find("adreno") != std::string::npos) return true;
+        const std::string maker = Property("ro.soc.manufacturer");
+        return maker == "QTI" || maker.find("Qualcomm") != std::string::npos;
+    }
+
+    // Turnip is Mesa's driver for Adreno and drives nothing else. Chosen on
+    // a Mali, a PowerVR or an Xclipse -- a settings backup restored on another
+    // phone, a zip imported out of curiosity -- it would at best load and find
+    // no device, after libadrenotools had patched the linker for it.
+    bool TurnipWithoutAdreno(const std::string& library)
+    {
+        std::string lower = library;
+        for (char& c : lower) c = char(std::tolower(static_cast<unsigned char>(c)));
+        const bool turnip = lower.find("freedreno") != std::string::npos ||
+                            lower.find("turnip") != std::string::npos;
+        return turnip && !AdrenoHardware();
+    }
 }
 
 void android::driver::Select(const char* directory, const char* libraryName)
@@ -232,7 +267,14 @@ void* android::driver::Open(std::string& error)
     const Paths& paths = GetPaths();
     std::string how;
 
-    if (!g_directory.empty() && !g_libraryName.empty())
+    const bool refused = !g_directory.empty() && TurnipWithoutAdreno(g_libraryName);
+    if (refused)
+        LOGW("driver: %s is Turnip, Mesa's driver for Adreno, and this chip is not one"
+             " (ro.hardware.vulkan %s, ro.soc.manufacturer %s): the system's Vulkan is used",
+             g_libraryName.c_str(), Property("ro.hardware.vulkan").c_str(),
+             Property("ro.soc.manufacturer").c_str());
+
+    if (!refused && !g_directory.empty() && !g_libraryName.empty())
     {
         // An imported driver on this hardware is Turnip, however it is loaded.
         KeepTurnipOffUbwcOnAdreno6();
@@ -335,6 +377,7 @@ void* android::driver::Open(std::string& error)
         if (g_getInstanceProcAddr)
         {
             g_description = std::string("the system's ") + name;
+            if (refused) g_description += " (the imported Turnip is for Adreno chips and was not loaded)";
             LOGI("driver: %s", g_description.c_str());
             return g_getInstanceProcAddr;
         }
