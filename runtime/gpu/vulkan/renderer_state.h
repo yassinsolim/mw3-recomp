@@ -109,6 +109,19 @@ namespace vk::renderer::detail
         auto operator<=>(const PipelineKey&) const = default;
     };
 
+    // A rendering instance's beginning, as the recorder makes it: the two
+    // attachments' views, the area, and where there is no dynamic rendering
+    // the render pass and framebuffer. Kept by value, so the instance can be
+    // begun again after a segment boundary closed it (ResumeRendering).
+    struct PassBegin
+    {
+        VkImageView colour = VK_NULL_HANDLE, depth = VK_NULL_HANDLE;
+        VkExtent2D area{};
+        VkRenderPass legacyPass = VK_NULL_HANDLE;
+        VkFramebuffer legacyFramebuffer = VK_NULL_HANDLE;
+        void operator()(VkCommandBuffer command) const;
+    };
+
     struct Target
     {
         VkImage image = VK_NULL_HANDLE;
@@ -309,6 +322,15 @@ namespace vk::renderer::detail
         uint32_t segment = 0;          // the current one's index into its slot's buffers
         bool segmentDraws = false;     // a draw has been recorded into it
         uint64_t segments = 0, completions = 0;
+        // A segment boundary whose settling is left to the segment's end
+        // (CloseSegment): the decision the recorder waits for there, null
+        // when none is pending; the buffer the segment's draws go into if it
+        // is a split; how many of the slot's decisions the frame has used,
+        // and how many boundaries were settled as joins.
+        std::atomic<uint32_t>* gate = nullptr;
+        VkCommandBuffer gateNext = VK_NULL_HANDLE;
+        uint32_t gatesUsed = 0;
+        uint64_t segmentsJoined = 0;
         // Separate from the frame's, for work that cannot go inside one: the first
         // transition of a render target out of UNDEFINED, and the dumps.
         VkCommandPool setupCommands = VK_NULL_HANDLE;
@@ -500,6 +522,11 @@ namespace vk::renderer::detail
         // The rendering instance open in the command buffer, by its two
         // attachments; null when none is.
         VkImageView currentColour = VK_NULL_HANDLE, currentDepth = VK_NULL_HANDLE;
+        // How that instance was begun, and that the recorder may have closed
+        // it at a segment boundary since (CloseSegment): the next draw into
+        // it asks for it again (ResumeRendering).
+        PassBegin pass;
+        bool passUnsure = false;
         // The open pass's size and sample count. Values, not the target: a
         // target that grows is replaced, and a pointer to it would dangle.
         uint32_t currentWidth = 0, currentHeight = 0, currentSamples = 1;
@@ -780,6 +807,9 @@ namespace vk::renderer::detail
     // if it is another), with the barriers a render pass's dependencies were.
     void BeginRendering(const Target& colour, const Target& depth, uint32_t width,
                         uint32_t height);
+    // After a segment boundary left to the recorder: opens the instance the
+    // consumer has open again, if the boundary closed it.
+    void ResumeRendering();
     // What a copy out of a target reads, in TRANSFER_SRC; a multisampled
     // target is resolved into its single-sampled twin first. Outside any pass.
     VkImage BeginReadingColour(Target& target, VkOffset2D at, uint32_t width, uint32_t height);
@@ -812,6 +842,14 @@ namespace vk::renderer::detail
     void BeginSegmentBuffer();
     void CloseSegment();
     bool Submit(bool wait = false);
+    // Whether the recorder has a rendering instance open in its command
+    // buffer. The recorder's alone (the consumer's when it records its own
+    // commands): a segment boundary settled as a split closes the instance
+    // there, and the consumer learns of it only afterwards (CloseSegment).
+    bool& RecorderInPass();
+    // Before the consumer waits for the recorder: a boundary still unsettled
+    // is settled as a split, which the recorder is waiting to hear.
+    void ReleaseGate();
     // The last submission the GPU has finished, as of the last time it was
     // asked (NoteCompleted, at the start of every submission's recording).
     uint64_t CompletedSerial();

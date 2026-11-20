@@ -577,6 +577,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
                  depthTarget->depthClearedIn == g.frames ? "this frame" : "not this frame");
         BeginRendering(*colourTarget, *depthTarget, passWidth, passHeight);
     }
+    else if (g.passUnsure) ResumeRendering();
 
     if (Timing())
         g.setupNanoseconds += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
