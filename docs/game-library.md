@@ -1,17 +1,20 @@
-# The game code as a package of its own (Android, Modern Warfare 3)
+# The game code as a package of its own (Android)
 
 The Android app is published; the game is not. The recompiled code is made
 from the disc's executables and belongs to whoever owns the disc, so it can be
 in no release. Until this split the app's libraries held both, and the app
-could only ever be built by each player. Now there are two packages:
+could only ever be built by each player. Now there are two packages, for each
+game:
 
 | package | what is in it | who builds it |
 |---|---|---|
-| `com.mw3.recomp` | the app and the runtime: `libmw3.so`, `libmw3mp.so`, with none of the game's code | the release workflow ([android-releases.md](android-releases.md)); it updates itself |
-| `com.mw3.recomp.game` | the recompiled code: `libmw3game.so`, `libmw3mpgame.so`; no code of its own, no screen, no permissions | `setup\setup.ps1`, from the player's disc, signed with their PC's debug key |
+| `com.mw3.recomp`, `com.mw2.recomp` | the app and the runtime: `libmw3.so`, `libmw3mp.so` (`libmw2.so`, `libmw2mp.so`), with none of the game's code | the release workflow ([android-releases.md](android-releases.md)); it updates itself |
+| `com.mw3.recomp.game`, `com.mw2.recomp.game` | the recompiled code: `libmw3game.so`, `libmw3mpgame.so` (`libmw2game.so`, `libmw2mpgame.so`); no code of its own, no screen, no permissions | `setup\setup.ps1` (`-Game mw2`), from the player's disc, signed with their PC's debug key |
 
-Modern Warfare 2's apps, the multiplayer test copy (`-Instance`) and the
-desktop game are still one library or executable each (`MW2_SPLIT=OFF`).
+Modern Warfare 2's apps of one title each (the `campaign` and `multiplayer`
+flavours, which is how its title update 6 is built), the multiplayer test
+copy (`-Instance`) and the desktop game are still one library or executable
+each (`MW2_SPLIT=OFF`).
 
 ## How the two halves find each other
 
@@ -56,10 +59,11 @@ tables, the code's extent, the register context, the system calls imported
 and `runtime/mmio_hook.h`. The runtime compares the game library's
 (`mw2_game_abi`) with its own before using anything else of it, and refuses
 one that differs, naming the first line that does. The app then tells the
-player to run `setup\setup.cmd -GameOnly`. A library that asks for a symbol
-the runtime has not got fails in `dlopen` and is reported the same way.
+player to run `setup\setup.cmd -GameOnly` (`-Game mw2 -GameOnly`). A library
+that asks for a symbol the runtime has not got fails in `dlopen` and is
+reported the same way.
 
-The app's side is built without the disc, from what `config/abi/<title>/`
+The app's side is built without the disc, from what `config/abi/<library>/`
 records of the recompiled tree: `ppc_config.h` (four numbers), the names of
 the system calls, and the SHA-256 of the jump tables. After changing the
 recompiler, its patch or a title's configuration, recompile and record it:
@@ -72,14 +76,15 @@ a tree whose note is not what the checkout recompiles with.
 
 ## Limits
 
-- The published app runs the USA/Europe disc build
+- The published Modern Warfare 3 app runs the USA/Europe disc build
   (`MW3_XEX_SHA256` in the release workflow); the other packaging
-  `tools/check_mw3_xex.py` accepts needs an app built with `-Dev`.
+  `tools/check_mw3_xex.py` accepts needs an app built with `-Dev`. Modern
+  Warfare 2 has the one disc build (1.0.557).
 - The game package is trusted by its name: any package called
-  `com.mw3.recomp.game` whose library states the right build is loaded. It is
-  installed by the player, like the app.
+  `com.mw3.recomp.game` (`com.mw2.recomp.game`) whose library states the
+  right build is loaded. It is installed by the player, like the app.
 - An update that changes the statement stops the game until the game code is
   rebuilt on a PC. The app says so when the game is started, not before the
   update is installed; releases publish the statement
-  (`mw3-recomp-<tag>-game-abi.txt`) and setup warns when what it built
-  differs.
+  (`mw3-recomp-<tag>-game-abi.txt`, `mw2-recomp-<tag>-game-abi.txt`) and setup
+  warns when what it built differs.

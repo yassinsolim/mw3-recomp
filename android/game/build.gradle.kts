@@ -2,9 +2,10 @@ plugins {
     id("com.android.application")
 }
 
-// The recompiled code's package (docs/game-library.md): libmw3game.so and
-// libmw3mpgame.so, made from the player's own disc by setup/setup.ps1, as an
-// app with no code, no screen and no permissions. Its only use is that
+// The recompiled code's package (docs/game-library.md): the campaign's library
+// and the multiplayer's (libmw3game.so and libmw3mpgame.so, or libmw2game.so
+// and libmw2mpgame.so), made from the player's own disc by setup/setup.ps1,
+// as an app with no code, no screen and no permissions. Its only use is that
 // Android unpacks the two libraries where the game's app may load them from
 // (GameLibrary.kt). It contains the game's code and is never published: it
 // is built and installed on the player's own devices, signed with their own
@@ -12,23 +13,28 @@ plugins {
 //
 //   -PgameLibraries=<folder>  where the libraries are, under arm64-v8a/ as
 //                             jniLibs folders are; setup/setup.ps1 gives it
-//   -Pmw3Suffix=.dev          as android/app/build.gradle.kts: the package a
+//   -Pgame=mw2                Modern Warfare 2's package (com.mw2.recomp.game);
+//                             Modern Warfare 3's without it
+//   -PappSuffix=.dev          as android/app/build.gradle.kts: the package a
 //                             development build of the app looks for
 val gameLibraries = (findProperty("gameLibraries") as String?)?.let { file(it) }
-val mw3Suffix = (findProperty("mw3Suffix") as String?).orEmpty()
+val game = (findProperty("game") as String?) ?: "mw3"
+if (game != "mw3" && game != "mw2") throw GradleException("-Pgame must be mw3 or mw2, not '$game'")
+val appSuffix = (findProperty("appSuffix") as String?).orEmpty()
 
 android {
     namespace = "com.mw3.recomp.game"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mw3.recomp$mw3Suffix.game"
+        applicationId = "com.$game.recomp$appSuffix.game"
         minSdk = 26
         targetSdk = 35
         // Always the same: every build of it replaces the one installed, and
         // what it holds is told by the libraries themselves (mw2_game_abi).
         versionCode = 1
         versionName = "built from your disc"
+        manifestPlaceholders["gameName"] = if (game == "mw2") "Modern Warfare 2" else "Modern Warfare 3"
         ndk { abiFilters += "arm64-v8a" }
     }
 
@@ -53,7 +59,7 @@ tasks.configureEach {
             val found = gameLibraries?.let { File(it, "arm64-v8a").listFiles { f -> f.name.endsWith("game.so") } }.orEmpty()
             if (found.isEmpty()) {
                 throw GradleException(
-                    "No game libraries: give -PgameLibraries=<folder holding arm64-v8a/libmw3game.so>. " +
+                    "No game libraries: give -PgameLibraries=<folder holding arm64-v8a/lib${game}game.so>. " +
                         "setup/setup.ps1 builds them from your disc and runs this for you."
                 )
             }

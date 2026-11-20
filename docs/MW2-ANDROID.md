@@ -1,31 +1,52 @@
 # Modern Warfare 2 on Android
 
-This repository grew out of the Modern Warfare 2 port and still builds it: the
-campaign (with Special Ops) and the multiplayer, as two apps
-(`cod.modern.warfare2.sp`, `cod.modern.warfare2.mp`), from the disc's own
-executables (version 1.0.557, "tu0"). They share the runtime with Modern
-Warfare 3, and so every renderer fix made for it since.
+This repository grew out of the Modern Warfare 2 port and still builds it, the
+way it builds Modern Warfare 3: one app with the campaign, Special Ops and the
+multiplayer (`com.mw2.recomp`), published without the game's code and updating
+itself, and the recompiled code as a package of its own
+(`com.mw2.recomp.game`) that each player builds from their disc
+([game-library.md](game-library.md), [android-releases.md](android-releases.md)).
+The game is the disc's own version (1.0.557, "tu0"). It shares the runtime
+with Modern Warfare 3, and so every renderer fix made for it since. The public
+repository for it is `yassinsolim/mw2-recomp`
+([README-MW2.md](../README-MW2.md) is its front page).
 
 ## Status
 
-Tested on an AYN Thor (Snapdragon 8 Gen 2, Adreno 740, Android 13) with the
-bundled Turnip driver (Mesa 27.0.0, v27.0.0-R2), touch controls, 60 FPS cap,
-no multisampling, 1280x720 (the app's defaults). Frame rates are the log's own
-(`MW2_REPORT=1`), over a recorded flight or walk (`tools/routes/`).
+Measured on two handhelds with the bundled Turnip driver (Mesa 27.0.0,
+v27.0.0-R2), touch controls, no multisampling, 1280x720, the app's defaults.
+Frame rates are the log's own (`MW2_REPORT=1`): over a recorded flight
+(`tools/routes/`) for the first two levels, a recorded walk for Terminal, and
+the first minute of play for the rest, which includes the level's first
+pipelines being compiled.
 
-| | result |
-|---|---|
-| Build (XenonRecomp, Gradle, Windows) | both apps build; 113 and 117 recompiled files, 100 and 121 jump tables, no recompiler errors |
-| Install from the disc image in the app | works (6.7 GB, both apps) |
-| Campaign, S.S.D.D. | 59.9 frames a second; 91% of frames within 17.5 ms |
-| Campaign, Team Player | 56.6 frames a second (48.6 on the first visit, while its pipelines compile) |
-| Campaign, Cliffhanger, Takedown, Of Their Own Accord, The Only Easy Day | load and draw correctly at their starts, about 60 |
-| Multiplayer, System Link match on Terminal | 59.5 frames a second |
-| Multiplayer, System Link match on Rust | 59.9 frames a second |
-| Graphics | no vertex explosions, black world, missing walls or wrong textures found on Turnip in any of the above |
+| | AYN Thor (Snapdragon 8 Gen 2, Adreno 740), cap 60 | Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650), cap 30, no sun shadows |
+|---|---|---|
+| Game files installed from the disc image in the app | works | works |
+| Campaign, S.S.D.D. | 60.0 | 29.5 |
+| Campaign, Team Player | 56.6 to 58.4 (51.6 on the first visit) | 30.0 (28.5 on the first visit) |
+| Campaign, Cliffhanger (start) | 59.0 | 20.5 |
+| Campaign, No Russian (start) | 58.7 | 29.7 |
+| Campaign, Takedown (start) | 56.9 | 28.0 |
+| Campaign, Of Their Own Accord (start) | 57.8 | 29.1 |
+| Campaign, The Only Easy Day... Was Yesterday (start) | 54.7 | 28.2 |
+| Multiplayer, Terminal | 59.9 (53.2 on the first visit) | 30.0 (27.0 on the first visit) |
+| Multiplayer, Rust | 59.4 | 29.6 |
+| System Link game hosted from the menus (Rust, Terminal) | plays | not run |
+| The game's menu from one title to the other | campaign to multiplayer: restarts into it | multiplayer to campaign: restarts into it |
+| Special Ops, The Pit, started from the menus | not run | plays, at the cap |
+| Graphics | no see-through walls, garbage surfaces or vertex explosions in any of the above | the same |
 
-Not tested: split screen, two devices in one match, title update 6 (needs the
-update's package), Special Ops, other phones.
+On the Flip 2 the frame rate is the cap's on average, but about a fifth of the
+frames come a display blank late (17 to 23% took 34 to 50 ms), and
+Cliffhanger's opening on the ice wall runs at 20. An Adreno 6xx starts at 30
+frames a second without the sun's shadows, as it does in Modern Warfare 3
+([android.md](android.md#adreno-6xx-snapdragon-865-class)): with the cap at 60
+S.S.D.D. ran at 31 with the shadows and 43 without, neither of them evenly.
+
+Not tested: split screen, two devices in one match (the two handhelds here
+were on different networks, and the Flip 2's did not reach the relay), title
+update 6, phones without an Adreno.
 
 ## What the old port's graphics problems were
 
@@ -43,10 +64,12 @@ Thor's (Qualcomm's, 2023) the same build shows them:
   60. On Qualcomm's driver the runtime also decodes block-compressed textures
   in software, since sampling them in hardware flickers black there.
 
-So the MW2 apps now carry the Turnip driver Modern Warfare 3's app carries and
-use it by default on a Qualcomm phone (`DriverStore.installBundledDefault`;
+So the app carries the Turnip driver Modern Warfare 3's app carries and uses
+it by default on a Qualcomm phone (`DriverStore.installBundledDefault`;
 GRAPHICS DRIVER in the launcher still chooses the phone's own or an imported
-one). Nothing in the shared renderer had to change for MW2.
+one). On an Adreno 6xx Turnip is started without image compression, which
+resets the device there. Nothing else in the shared renderer had to change
+for Modern Warfare 2.
 
 ## Building (Windows)
 
@@ -56,25 +79,43 @@ does it all, as it does for Modern Warfare 3 ([README](../README.md)): it
 reads `default.xex` and `default_mp.xex` out of the image into `mw2\tu0\`,
 checks their SHA-256 against the one disc the port supports, recompiles them
 into `ppc_tu0\` and `ppc_mp_tu0\` (`config/MW2.tu0.toml`,
-`config/MW2MP.tu0.toml`) and builds `out\mw2-sp-debug.apk` and
-`out\mw2-mp-debug.apk` (`assembleCampaignTu0Debug`,
-`assembleMultiplayerTu0Debug`). `-Title sp` or `-Title mp` builds one app.
-On Linux, `VERSION=tu0 RECOMPILE_ONLY=1 ./build.sh` for each `TITLE`, then
-Gradle ([building.md](building.md), [android.md](android.md)).
+`config/MW2MP.tu0.toml`), builds the game code (`libmw2game.so`,
+`libmw2mpgame.so`) into `out\mw2-game.apk`, and downloads the published app
+from `yassinsolim/mw2-recomp`. When there is no release to download it builds
+the app here instead (`out\mw2-debug.apk`) and says so: that one is signed
+with the PC's own key and does not update itself. `-GameOnly` builds the game
+code alone, `-Dev` the app as well, `-Suffix .dev` puts both beside the
+published ones. On a phone that still has the two apps of old
+(`cod.modern.warfare2.sp`, `.mp`), setup copies their saves into the app.
 
-Title update 6 (the `tu6` flavours) needs the update's package and was not
-built here.
+On Linux, `VERSION=tu0 RECOMPILE_ONLY=1 ./build.sh` for each `TITLE`, then
+CMake with `-DMW2_SPLIT=game` and Gradle (`:game:assembleDebug -Pgame=mw2`,
+`:app:assembleMw2Tu0Debug`; [building.md](building.md), [android.md](android.md)).
+
+### Title update 6, and an app for each title
+
+The game as title update 6 makes it is not in the one app: its executables
+are made on the device from the disc's and the update's package, and nothing
+here records what a library of theirs would have to be built against. It
+builds as it always did, an app for each title with the recompiled code
+inside (`MW2_SPLIT=OFF`): the `campaign` and `multiplayer` flavours
+(`assembleCampaignTu6Release`, `assembleMultiplayerTu6Release`;
+`cod.modern.warfare2.sp.tu6`, `.mp.tu6`), and for the disc's version
+`assembleCampaignTu0Debug` and `assembleMultiplayerTu0Debug`. Title update 6
+needs the update's package and was not built here.
 
 ## Installing and playing
 
-Install the APKs, copy the disc image to the phone's `Download` folder, open
-an app and choose INSTALL & PLAY; each app keeps its own copy of the game
-files. With both installed, each launcher offers to start the other.
+Copy the disc image to the phone's `Download` folder (`setup -PushIso` does),
+open the app and choose INSTALL & PLAY: the one copy of the game files serves
+the campaign, Special Ops and the multiplayer. The launcher starts either,
+and the game's own menu entries between the two restart the run with the
+other.
 
 A debug build reads more switches from
-`/sdcard/Android/data/<package>/files/options.txt`, one `MW2_NAME=value` a
-line ([switches.md](switches.md)): `MW2_REPORT=1` ends the log with the frame
-rate, and `MW2_CONSOLE`, `MW2_FLY_PATH` and `MW2_WALK_PATH` play a level
+`/sdcard/Android/data/com.mw2.recomp/files/options.txt`, one `MW2_NAME=value`
+a line ([switches.md](switches.md)): `MW2_REPORT=1` ends the log with the
+frame rate, and `MW2_CONSOLE`, `MW2_FLY_PATH` and `MW2_WALK_PATH` play a level
 without hands, which is how the numbers above were taken.
 
 ## Known issues
@@ -83,9 +124,14 @@ without hands, which is how the numbers above were taken.
   without the bundled Turnip): the missing surfaces and lower frame rate
   described above. SETTINGS can compile every shader before play instead.
 - The first visit to a level on Turnip still compiles its pipelines: a few
-  surfaces can be missing or black for a moment (seen once, over the tents of
-  S.S.D.D.), and the frame rate dips (Team Player, 48.6 instead of 56.6).
-- The Thor's HUD read 80 to 88 °C for the processor in these runs, each of
+  surfaces can be missing or black for a moment, the frame rate dips (the
+  first-visit numbers above) and a frame can take seconds while a level
+  starts.
+- A Snapdragon 865 holds 30 frames a second, not 60, and unevenly (above).
+- The Team Player flight leaves the level's playable space near its end, and
+  the sky and the sun's light are gone for a few seconds there on the Thor;
+  the frames before and after are whole.
+- The Thor's HUD read 70 to 80 °C for the processor in these runs, each of
   two minutes or less; longer play was not measured.
 - A scripted pad (`MW2_INPUT_SCRIPT`) does not reach the first controller on
   Android, where the touch overlay answers for it; the autopilot does.

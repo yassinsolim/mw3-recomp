@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
 Builds Modern Warfare 3 for Android (APK) and/or Windows from your own disc image;
-with -Game mw2, Modern Warfare 2's two Android apps from that game's disc image.
+with -Game mw2, Modern Warfare 2 for Android from that game's disc image.
 
 .DESCRIPTION
 One command for a Windows PC: setup\setup.cmd (or this script). It
@@ -13,7 +13,8 @@ One command for a Windows PC: setup\setup.cmd (or this script). It
   2. asks for your disc image (.iso) and reads the two executables out of it
      (the image is only ever opened for reading);
   3. checks each executable's SHA-256 against the disc builds this port
-     supports (tools/check_mw3_xex.py) and refuses any other;
+     supports (tools/check_mw3_xex.py; Modern Warfare 2's one disc) and
+     refuses any other;
   4. recompiles them to C++ (XenonRecomp) and builds the game code for
      Android (a package of its own, with no screen: the campaign's, Special
      Ops' and the multiplayer's) and, if asked, the Windows game;
@@ -21,16 +22,16 @@ One command for a Windows PC: setup\setup.cmd (or this script). It
      asked. The app is the published one, downloaded from the project's
      releases: it contains none of the game, finds the game code you built
      beside it, and updates itself from then on (docs/game-library.md).
-Everything it makes is in the git-ignored out\, mw3\, ppc_mw3*\ and
+Everything it makes is in the git-ignored out\, mw3\ (mw2\), ppc_*\ and
 XenonRecomp\ folders: it contains code made from your copy of the game and is
 for your own devices only. Never upload or share it.
 Re-runnable: finished steps are skipped. A first run takes one to several
 hours and about 40 GB of disk (60 GB with the Windows game).
 
 .PARAMETER Game
-mw3 (default) or mw2. Modern Warfare 2 is built for Android only, as two apps
-(campaign, multiplayer) from the disc's own executables (no title update);
-docs/MW2-ANDROID.md.
+mw3 (default) or mw2. Modern Warfare 2 is built for Android only, as Modern
+Warfare 3 is: the game code from the disc's own executables (no title
+update), and the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
 .PARAMETER Iso
 The disc image. Asked for when not given.
 .PARAMETER Title
@@ -51,13 +52,13 @@ Recompile even when a recompiled tree is already there.
 A tree made with an older recompiler or configuration than this checkout's is
 recompiled without being asked.
 .PARAMETER GameOnly
-Modern Warfare 3 on Android: build and install the game code only, and leave
-the app as it is. What the app asks for when an update of it needs the game
-code built again; run it after `git pull`.
+On Android: build and install the game code only, and leave the app as it
+is. What the app asks for when an update of it needs the game code built
+again; run it after `git pull`.
 .PARAMETER Dev
-Modern Warfare 3 on Android: build the app here instead of downloading the
-published one. It is signed with this PC's debug key, so it does not update
-from the published app; -Suffix puts it beside that one.
+On Android: build the app here instead of downloading the published one. It
+is signed with this PC's debug key, so it does not update from the published
+app; -Suffix puts it beside that one.
 .PARAMETER Suffix
 With -Dev or -GameOnly: a suffix for the app's package name and the game
 code's (.dev gives com.mw3.recomp.dev and com.mw3.recomp.dev.game), so a
@@ -82,6 +83,8 @@ setup\setup.cmd -Iso "D:\Games\MW3.iso" -Build both -Install
 setup\setup.cmd -Check
 .EXAMPLE
 setup\setup.cmd -GameOnly
+.EXAMPLE
+setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Install
 #>
 [CmdletBinding()]
 param(
@@ -134,7 +137,7 @@ $Pins = @{
                    Url = 'https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/PortableGit-2.56.1-64-bit.7z.exe' }
 }
 $XenonCommit  = 'ddd128bcca99fe8bfbb99bea583c972351fa6ace'   # as build.sh and tools/recomp_mw3.sh
-$ReleaseRepo  = 'yassinsolim/mw3-recomp'   # where the Android app is published (android/app/build.gradle.kts, UPDATE_REPO)
+$ReleaseRepo  = "yassinsolim/$Game-recomp"   # where the Android app is published (android/app/build.gradle.kts, UPDATE_REPO)
 $AdrenoRemote = 'https://github.com/bylaws/libadrenotools.git'
 $TurnipUrl    = 'https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip'
 $TurnipSha    = '8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781'   # THIRD_PARTY.md
@@ -163,19 +166,19 @@ $AnalyseExe = Join-Path $Xenon 'build\XenonAnalyse\XenonAnalyse.exe'
 $Mw2 = $Game -eq 'mw2'
 $GameName = if ($Mw2) { 'Modern Warfare 2' } else { 'Modern Warfare 3' }
 $Disc = "$Game/tu0"
+# Name is what the build calls the title (MW2_TITLE), Lib its library's name
+# (CMakeLists.txt, MW2_LIBRARY_NAME).
 $Titles = if ($Mw2) { @{
-    sp = @{ Name = 'sp'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_tu0'; Toml = 'MW2.tu0.toml'
+    sp = @{ Name = 'sp'; Lib = 'mw2'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_tu0'; Toml = 'MW2.tu0.toml'
             Tables = 'mw2_switch_tables.tu0.toml'; Files = 113; Jump = 100
-            Sha = '990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff'
-            Task = 'assembleCampaignTu0Debug'; Variant = 'campaignTu0'; Apk = 'mw2-sp-debug.apk'; Package = 'cod.modern.warfare2.sp' }
-    mp = @{ Name = 'mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mp_tu0'; Toml = 'MW2MP.tu0.toml'
+            Sha = '990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff' }
+    mp = @{ Name = 'mp'; Lib = 'mw2mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mp_tu0'; Toml = 'MW2MP.tu0.toml'
             Tables = 'mw2mp_switch_tables.tu0.toml'; Files = 117; Jump = 121
-            Sha = 'aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde'
-            Task = 'assembleMultiplayerTu0Debug'; Variant = 'multiplayerTu0'; Apk = 'mw2-mp-debug.apk'; Package = 'cod.modern.warfare2.mp' }
+            Sha = 'aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde' }
 } } else { @{
-    sp = @{ Name = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
+    sp = @{ Name = 'mw3'; Lib = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
             Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
-    mp = @{ Name = 'mw3mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mw3_mp'; Toml = 'MW3MP.toml'
+    mp = @{ Name = 'mw3mp'; Lib = 'mw3mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mw3_mp'; Toml = 'MW3MP.toml'
             Tables = 'mw3mp_switch_tables.toml'; Files = 153; Jump = 156 }
 } }
 
@@ -245,12 +248,11 @@ function RecompiledWith($t) {
 }
 
 # Whether a recompiled tree is there and was made with what this checkout
-# recompiles with. Modern Warfare 3 only: its game code is checked against
-# the app's (docs/game-library.md), and Modern Warfare 2's trees carry no note.
+# recompiles with: the game code is checked against the app's
+# (docs/game-library.md).
 function Test-Tree($t) {
     $tree = Join-Path $Repo $t.Ppc
     if (-not (Test-Path (Join-Path $tree 'ppc_func_mapping.cpp'))) { return $false }
-    if ($Mw2) { return $true }
     $note = Join-Path $tree 'recompiled_with.txt'
     (Test-Path $note) -and ([IO.File]::ReadAllText($note).Replace("`r", '') -eq (RecompiledWith $t))
 }
@@ -517,11 +519,12 @@ if ($memGb -lt 16) { Warn "$memGb GB of memory: the recompiled code is large, an
 
 # ---- 1. what to build --------------------------------------------------------
 if ($Mw2) {
-    # Two apps, one a title; the Windows game of Modern Warfare 2 is build.sh's (docs/building.md).
-    if ($Build -and $Build -ne 'android') { throw '-Game mw2 builds the Android apps only (-Build android).' }
+    # The Windows game of Modern Warfare 2 is build.sh's (docs/building.md).
+    if ($Build -and $Build -ne 'android') { throw '-Game mw2 builds for Android only (-Build android).' }
     if ($Instance -gt 1) { throw '-Instance is for Modern Warfare 3.' }
+    if ($Title -and $Title -ne 'both') { throw '-Title chooses Windows executables; Modern Warfare 2''s Android app always holds both.' }
     $Build = 'android'
-    if (-not $Title) { $Title = Choose 'Which app: both, sp (campaign and Special Ops) or mp (multiplayer)?' @('both', 'sp', 'mp') 'both' }
+    $Title = 'both'
 }
 if (-not $Title) { $Title = Choose 'Which part of the game for Windows: both, sp (campaign and Special Ops) or mp (multiplayer)? The Android app always holds both.' @('both', 'sp', 'mp') 'both' }
 if (-not $Build) { $Build = Choose 'Build for android, pc (Windows) or both?' @('android', 'pc', 'both') 'android' }
@@ -529,21 +532,19 @@ if ($Instance -gt 1 -and $Title -ne 'mp') { throw '-Instance is for -Title mp' }
 $ForAndroid = $Build -in 'android', 'both'
 $ForPc = $Build -in 'pc', 'both'
 $TestCopy = $Instance -gt 1
-# Modern Warfare 3's Android app is published without the game's code, which
-# is built here into a package of its own (docs/game-library.md). The
-# multiplayer test copy and Modern Warfare 2's apps are each one build, code
-# and all.
-$Split = $ForAndroid -and -not $Mw2 -and -not $TestCopy
-if (($GameOnly -or $Dev -or $Suffix) -and -not $Split) { throw '-GameOnly, -Dev and -Suffix are for Modern Warfare 3''s Android app.' }
+# The Android app is published without the game's code, which is built here
+# into a package of its own (docs/game-library.md). The multiplayer test copy
+# is one build, code and all.
+$Split = $ForAndroid -and -not $TestCopy
+if (($GameOnly -or $Dev -or $Suffix) -and -not $Split) { throw '-GameOnly, -Dev and -Suffix are for the Android app.' }
 if ($GameOnly -and $Dev) { throw '-GameOnly leaves the app alone; -Dev builds it. Choose one.' }
 if ($Suffix -and -not ($GameOnly -or $Dev)) { throw '-Suffix goes with -Dev or -GameOnly: the published app has the one name.' }
-$AppPackage = "com.mw3.recomp$Suffix"
-# The Windows game is an executable for each title asked for. Modern Warfare
-# 3's Android app carries both, so it needs both recompiled whatever -Title
-# says; the multiplayer test copy (-Instance) needs only its own, and so does
-# each of Modern Warfare 2's apps.
+$AppPackage = "com.$Game.recomp$Suffix"
+# The Windows game is an executable for each title asked for. The Android app
+# carries both, so it needs both recompiled whatever -Title says; the
+# multiplayer test copy (-Instance) needs only its own.
 $PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
-$Keys = if ($ForAndroid -and -not $TestCopy -and -not $Mw2) { @('sp', 'mp') } else { $PcKeys }
+$Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
 
 $needIso = ($ForPc -and -not (Test-Path (Join-Path $Out 'pc\game\default.xex'))) -or
            @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
@@ -637,8 +638,8 @@ foreach ($key in @($Keys)) {
     }
 }
 $PcKeys = @($PcKeys | Where-Object { $_ -in $Keys })
-if ($ForAndroid -and -not $TestCopy -and -not $Mw2 -and $Keys.Count -lt 2) {
-    throw 'The Android app holds the campaign and the multiplayer, and needs both executables to be disc builds this port supports (tools/check_mw3_xex.py lists them).'
+if ($ForAndroid -and -not $TestCopy -and $Keys.Count -lt 2) {
+    throw 'The Android app holds the campaign and the multiplayer, and needs both executables to be disc builds this port supports.'
 }
 
 # ---- 4. recompile ------------------------------------------------------------
@@ -738,7 +739,7 @@ foreach ($key in @($Keys)) {
         Exec $Python @('tools/genshared.py') -Cwd $Repo -Log "$($t.Name)_genshared.log" -Quiet
         # What the tree was made with, for the next run to know whether it
         # still is what this checkout recompiles to (Test-Tree).
-        if (-not $Mw2) { [IO.File]::WriteAllText((Join-Path $ppcDir 'recompiled_with.txt'), (RecompiledWith $t)) }
+        [IO.File]::WriteAllText((Join-Path $ppcDir 'recompiled_with.txt'), (RecompiledWith $t))
     }
     # Every run: the runtime implements more imports as it is updated (git
     # pull), and a stub left for one it now has would clash with it at the link.
@@ -755,10 +756,11 @@ if ($ForAndroid) {
     # A modest daemon: most of the memory goes to the compilers it starts.
     $gradleArgs = @('--no-daemon', '-Dorg.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8')
     if ($TestCopy) { $gradleArgs += "-PmpInstance=$Instance" }
-    if ($Suffix) { $gradleArgs += "-Pmw3Suffix=$Suffix" }
+    if ($Suffix) { $gradleArgs += "-PappSuffix=$Suffix" }
     $fwd = { param($p) $p -replace '\\', '/' }
-    # Whether the app is built here: always, but for Modern Warfare 3's,
-    # which is the published one unless -Dev asks, or none has been published.
+    # Whether the app is built here: always, but for the app with the whole
+    # game, which is the published one unless -Dev asks, or none has been
+    # published.
     $BuildApp = -not $Split -or $Dev
 
     if ($Split) {
@@ -771,20 +773,22 @@ if ($ForAndroid) {
         $built = @()
         foreach ($key in @($Keys)) {
             $t = $Titles[$key]
-            $buildDir = Join-Path $Out "build-game-$($t.Name)"
-            Step "build the game code: $($t.Label) (log: out\logs\game_$($t.Name).log)"
-            Exec $ndkCMake @('-S', $Repo, '-B', $buildDir, '-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$(& $fwd $ndkNinja)",
-                             "-DCMAKE_TOOLCHAIN_FILE=$(& $fwd (Join-Path $Sdk 'ndk\28.2.13676358\build\cmake\android.toolchain.cmake'))",
-                             '-DANDROID_ABI=arm64-v8a', '-DANDROID_PLATFORM=android-26', '-DANDROID_STL=c++_static',
-                             '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-O3', "-DMW2_TITLE=$($t.Name)",
-                             '-DMW3_RECOMP_ONLY=ON', '-DMW3_LINK_PROBE=ON', '-DMW2_SPLIT=game', '-DMW2_LTO=OFF') -Log "game_$($t.Name)_configure.log" -Quiet
-            Exec $ndkCMake @('--build', $buildDir, '--target', 'ppc_recomp') -Log "game_$($t.Name).log" -Quiet
-            Copy-Item (Join-Path $buildDir "lib$($t.Name)game.so") $libraries -Force
+            $buildDir = Join-Path $Out "build-game-$($t.Lib)"
+            Step "build the game code: $($t.Label) (log: out\logs\game_$($t.Lib).log)"
+            # Modern Warfare 3's titles configure only with these two.
+            $titleArgs = if ($Mw2) { @() } else { @('-DMW3_RECOMP_ONLY=ON', '-DMW3_LINK_PROBE=ON') }
+            Exec $ndkCMake (@('-S', $Repo, '-B', $buildDir, '-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$(& $fwd $ndkNinja)",
+                              "-DCMAKE_TOOLCHAIN_FILE=$(& $fwd (Join-Path $Sdk 'ndk\28.2.13676358\build\cmake\android.toolchain.cmake'))",
+                              '-DANDROID_ABI=arm64-v8a', '-DANDROID_PLATFORM=android-26', '-DANDROID_STL=c++_static',
+                              '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-O3', "-DMW2_TITLE=$($t.Name)",
+                              '-DMW2_SPLIT=game', '-DMW2_LTO=OFF') + $titleArgs) -Log "game_$($t.Lib)_configure.log" -Quiet
+            Exec $ndkCMake @('--build', $buildDir, '--target', 'ppc_recomp') -Log "game_$($t.Lib).log" -Quiet
+            Copy-Item (Join-Path $buildDir "lib$($t.Lib)game.so") $libraries -Force
             $built += [IO.File]::ReadAllText((Join-Path $buildDir 'game_abi.txt')).Trim()
         }
         Step 'package the game code (gradle :game:assembleDebug)'
-        Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + "-PgameLibraries=$(Split-Path -Parent $libraries)" + ':game:assembleDebug') -Cwd (Join-Path $Repo 'android') -Log 'gradle_game.log' -Quiet
-        $apk = Join-Path $Out "mw3-game$Suffix.apk"
+        Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + "-Pgame=$Game" + "-PgameLibraries=$(Split-Path -Parent $libraries)" + ':game:assembleDebug') -Cwd (Join-Path $Repo 'android') -Log 'gradle_game.log' -Quiet
+        $apk = Join-Path $Out "$Game-game$Suffix.apk"
         Copy-Item (Join-Path $Repo 'android\game\build\outputs\apk\debug\game-debug.apk') $apk -Force
         $Apks += @{ Apk = $apk; Package = "$AppPackage.game"; Data = $false }
         Note ("{0} ({1:N1} MB; built against {2})" -f $apk, ((Get-Item $apk).Length / 1MB), ($built -join ', '))
@@ -794,7 +798,7 @@ if ($ForAndroid) {
             Step "the published app (github.com/$ReleaseRepo, latest release)"
             $release = $null
             try { $release = (Exec 'curl.exe' @('-fsSL', '--retry', '3', "https://api.github.com/repos/$ReleaseRepo/releases/latest")) -join "`n" | ConvertFrom-Json } catch { }
-            $asset = if ($release) { @($release.assets | Where-Object { $_.name -like 'mw3-recomp-*.apk' })[0] }
+            $asset = if ($release) { @($release.assets | Where-Object { $_.name -like "$Game-recomp-*.apk" })[0] }
             if ($asset) {
                 $apk = Join-Path $Out $asset.name
                 if (-not ((Test-Path $apk) -and (Get-Item $apk).Length -eq $asset.size)) {
@@ -806,11 +810,11 @@ if ($ForAndroid) {
                 # What that app was built against, published beside it: a
                 # game library built from another state of this folder is
                 # one the app will refuse, and better said here than there.
-                $abi = @($release.assets | Where-Object { $_.name -like 'mw3-recomp-*-game-abi.txt' })[0]
+                $abi = @($release.assets | Where-Object { $_.name -like "$Game-recomp-*-game-abi.txt" })[0]
                 if ($abi) {
                     $wanted = @((Exec 'curl.exe' @('-fsSL', '--retry', '3', $abi.browser_download_url)) | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
                     if (@($built | Where-Object { $_ -notin $wanted }).Count) {
-                        Warn "the game code just built is not what the published app $($release.tag_name) was built for (this folder is newer or older than that release). The app will say so and not start the game. Either wait for the next release, or build the game code of that one: git checkout $($release.tag_name), then setup\setup.cmd -GameOnly."
+                        Warn "the game code just built is not what the published app $($release.tag_name) was built for (this folder is newer or older than that release). The app will say so and not start the game. Either wait for the next release, or build the game code of that one: git checkout $($release.tag_name), then setup\setup.cmd$(if ($Mw2) { ' -Game mw2' }) -GameOnly."
                     }
                 }
             } else {
@@ -846,16 +850,15 @@ if ($ForAndroid) {
                 Remove-Item -Force -ErrorAction SilentlyContinue $turnip, "$turnip.part"
             }
         }
-        # The multiplayer app carries its camouflage packs as assets and copies
-        # them into the game folder when it starts (CamoPacks.kt).
+        # Modern Warfare 3's app carries the multiplayer's camouflage packs as
+        # assets and copies them into the game folder when it starts (CamoPacks.kt).
         if (-not $Mw2 -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $Repo 'android\app\src\mw3\assets\camos') }
-        # Modern Warfare 3 is one app with both titles: the campaign's build makes
-        # the multiplayer's library as well (cmake/android.cmake, MW3_BOTH_TITLES).
-        # Modern Warfare 2 is an app for each title.
-        $apps = if ($Mw2) {
-            @($Keys | ForEach-Object { $t = $Titles[$_]; @{ Label = "$($t.Label) app"; Task = $t.Task; Variant = $t.Variant; Apk = $t.Apk; Package = $t.Package } })
-        } elseif ($TestCopy) {
+        # One app with both titles: the campaign's build makes the
+        # multiplayer's library as well (cmake/android.cmake, MW2_BOTH_TITLES).
+        $apps = if ($TestCopy) {
             @(@{ Label = "multiplayer test copy $Instance"; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Apk = "mw3mp$Instance-debug.apk"; Package = "com.mw3.recomp.mp$Instance" })
+        } elseif ($Mw2) {
+            @(@{ Label = 'app, without the game code'; Task = 'assembleMw2Tu0Debug'; Variant = 'mw2Tu0'; Apk = "mw2$Suffix-debug.apk"; Package = $AppPackage })
         } else {
             @(@{ Label = 'app, without the game code'; Task = 'assembleMw3Tu0Debug'; Variant = 'mw3Tu0'; Apk = "mw3$Suffix-debug.apk"; Package = $AppPackage })
         }
@@ -931,7 +934,7 @@ if ($ForAndroid -and $Apks.Count) {
             # are not in the published app, which carries the project's own
             # alone: they go into the game folder, where the app leaves a
             # pack it did not put there as it is (CamoPacks.kt).
-            if ($Split -and -not $GameOnly -and -not $BuildApp) {
+            if ($Split -and -not $Mw2 -and -not $GameOnly -and -not $BuildApp) {
                 $packs = Join-Path $Out 'camos'
                 Install-CamoPacks $packs
                 $gameFolder = "/sdcard/Android/data/$AppPackage/files/game"
@@ -942,21 +945,31 @@ if ($ForAndroid -and $Apks.Count) {
                     } else { Note 'the game files are not installed on the phone yet: run setup again afterwards for the camouflage packs of other authors.' }
                 } catch { Warn "could not copy the camouflage packs: $($_.Exception.Message)" }
             }
-            # The multiplayer used to be an app of its own (com.mw3.recomp.mp).
-            # Its profile and rank are that app's saves folder, which the app's
-            # multiplayer keeps as mp\saves; an app cannot read another's
-            # folder on a current Android, adb can. Never over saves already
-            # there, and the old app and its files are left as they are.
+            # Each title used to be an app of its own (Modern Warfare 3's
+            # multiplayer; Modern Warfare 2's campaign and multiplayer). Its
+            # profile, saves and rank are that app's saves folder, which the
+            # app keeps as saves for the campaign and mp\saves for the
+            # multiplayer (Title.home); an app cannot read another's folder on
+            # a current Android, adb can. Never over saves already there, and
+            # the old app and its files are left as they are.
             if ($Split -and -not $Suffix) {
-                $oldSaves = '/sdcard/Android/data/com.mw3.recomp.mp/files/saves'
-                $home3 = '/sdcard/Android/data/com.mw3.recomp/files/mp'
-                try {
-                    $moved = Exec $Adb @('-s', $serial, 'shell', "if [ -d $oldSaves ] && [ ! -e $home3/saves ]; then mkdir -p $home3 && cp -r $oldSaves $home3/saves && echo copied; fi")
-                    if ("$moved" -match 'copied') { Note 'the old multiplayer app''s profile and rank were copied into the app.' }
-                    if ("$(Exec $Adb @('-s', $serial, 'shell', 'pm', 'list', 'packages', 'com.mw3.recomp.mp'))" -match 'com\.mw3\.recomp\.mp\s*$') {
-                        Note 'the old multiplayer app (CoD: MW3 Multiplayer) is no longer needed: uninstalling it on the phone frees its copy of the game files.'
-                    }
-                } catch { Warn "could not look for the old multiplayer app's saves: $($_.Exception.Message)" }
+                $files = "/sdcard/Android/data/$AppPackage/files"
+                $oldApps = if ($Mw2) {
+                    @(@{ Package = 'cod.modern.warfare2.sp'; Home = $files; Label = 'campaign' },
+                      @{ Package = 'cod.modern.warfare2.mp'; Home = "$files/mp"; Label = 'multiplayer' })
+                } else {
+                    @(@{ Package = 'com.mw3.recomp.mp'; Home = "$files/mp"; Label = 'multiplayer' })
+                }
+                foreach ($old in $oldApps) {
+                    $oldSaves = "/sdcard/Android/data/$($old.Package)/files/saves"
+                    try {
+                        $moved = Exec $Adb @('-s', $serial, 'shell', "if [ -d $oldSaves ] && [ ! -e $($old.Home)/saves ]; then mkdir -p $($old.Home) && cp -r $oldSaves $($old.Home)/saves && echo copied; fi")
+                        if ("$moved" -match 'copied') { Note "the old $($old.Label) app's saves were copied into the app." }
+                        if ("$(Exec $Adb @('-s', $serial, 'shell', 'pm', 'list', 'packages', $old.Package))" -match "$([regex]::Escape($old.Package))(\s|$)") {
+                            Note "the old $($old.Label) app ($($old.Package)) is no longer needed: uninstalling it on the phone frees its copy of the game files."
+                        }
+                    } catch { Warn "could not look for the old $($old.Label) app's saves: $($_.Exception.Message)" }
+                }
             }
         }
         if ($Iso -and ($PushIso -or (Ask 'Copy the disc image to the phone''s Download folder for the app''s installer (7-8 GB, several minutes)?' $false))) {
@@ -973,4 +986,4 @@ if ($ForPc) {
     Note "Windows game: $(Join-Path $Out 'pc') (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
-else { Note 'On the phone: open the app, "Install the game files", choose the disc image. See README.md.' }
+else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } else { 'README.md' })." }

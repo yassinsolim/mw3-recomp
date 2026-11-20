@@ -1,11 +1,11 @@
-# The recompiled code's library, lib<title>game.so (MW2_SPLIT=game,
+# The recompiled code's library, lib<library>game.so (MW2_SPLIT=game,
 # docs/game-library.md): ppc_recomp as a shared library, with the statement
 # of what it was built against (cmake/game_abi.cmake) and nothing of the
 # runtime. setup/setup.ps1 builds it from the player's own disc and packages
 # it as an app with no code of its own (android/game), which the game's app
 # loads it from.
 
-set_target_properties(ppc_recomp PROPERTIES OUTPUT_NAME "${MW2_TITLE}game")
+set_target_properties(ppc_recomp PROPERTIES OUTPUT_NAME "${MW2_LIBRARY_NAME}game")
 
 # As the app's library is linked (cmake/android.cmake): 16 KB pages, frame
 # pointers for the crash report's backtrace, a build id.

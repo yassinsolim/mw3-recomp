@@ -103,38 +103,41 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # ---- both of the disc's executables in one app ------------------------------
-# Modern Warfare 3's campaign and multiplayer are two executables, recompiled
-# into two trees, and one app carries both as two libraries; the run's process
-# loads the one the player chose (android/app, Title.kt). The Gradle plugin
-# drives one CMake build per variant, and nearly everything in this project is
-# decided by MW2_TITLE, so the campaign's build makes the multiplayer's library
-# by configuring this same project a second time, with the same toolchain,
-# rather than by teaching every target above to exist twice. The shared
-# runtime is compiled once for each: its code names the title's functions
-# (runtime/title.h), so the two are not the same objects.
-option(MW3_BOTH_TITLES "Android: the app carries the campaign and the multiplayer" OFF)
-if(MW3_BOTH_TITLES)
-    if(NOT MW2_IS_MW3)
-        message(FATAL_ERROR "MW3_BOTH_TITLES requires -DMW2_TITLE=mw3")
-    endif()
+# A game's campaign and multiplayer are two executables, recompiled into two
+# trees, and one app carries both as two libraries (MW2_BOTH_TITLES); the
+# run's process loads the one the player chose (android/app, Title.kt). The
+# Gradle plugin drives one CMake build per variant, and nearly everything in
+# this project is decided by MW2_TITLE, so the campaign's build makes the
+# multiplayer's library by configuring this same project a second time, with
+# the same toolchain, rather than by teaching every target above to exist
+# twice. The shared runtime is compiled once for each: its code names the
+# title's functions (runtime/title.h), so the two are not the same objects.
+if(MW2_BOTH_TITLES)
     # The installer copies and checks both executables, and the title's own
     # way from one to the other restarts the run (runtime/install/install.cpp).
-    target_compile_definitions(mw2 PRIVATE MW3_BOTH_TITLES=1)
+    target_compile_definitions(mw2 PRIVATE MW2_BOTH_TITLES=1)
 endif()
-if(MW3_BOTH_TITLES AND MW2_TITLE STREQUAL "mw3")
+if(MW2_BOTH_TITLES AND (MW2_TITLE STREQUAL "mw3" OR MW2_TITLE STREQUAL "sp"))
     include(ExternalProject)
+    if(MW2_IS_MW3)
+        set(multiplayer_title "mw3mp")
+        set(multiplayer_library "mw3mp")
+    else()
+        set(multiplayer_title "mp")
+        set(multiplayer_library "mw2mp")
+    endif()
     # Where the finished library goes. The Gradle plugin packages only the
     # libraries that are targets of the build it started, which this one is
     # not, so the app's build names a folder it packages from besides
     # (android/app/build.gradle.kts, jniLibs).
-    set(MW3_MP_LIBRARY_DIRECTORY "${CMAKE_BINARY_DIR}" CACHE PATH "Where libmw3mp.so is put for the app to package")
-    file(TO_CMAKE_PATH "${MW3_MP_LIBRARY_DIRECTORY}" mw3_library_directory)
+    set(MW2_MP_LIBRARY_DIRECTORY "${CMAKE_BINARY_DIR}" CACHE PATH "Where the multiplayer's library is put for the app to package")
+    file(TO_CMAKE_PATH "${MW2_MP_LIBRARY_DIRECTORY}" multiplayer_directory)
     # $CACHE{...}: what the app's build asked for (-O3). The plain variables
     # already carry the NDK toolchain's own flags, which the second configure
     # adds again for itself.
-    ExternalProject_Add(mw3mp_library
+    ExternalProject_Add(multiplayer_library
         SOURCE_DIR "${CMAKE_SOURCE_DIR}"
-        BINARY_DIR "${CMAKE_BINARY_DIR}/mw3mp"
+        BINARY_DIR "${CMAKE_BINARY_DIR}/${multiplayer_library}"
         CMAKE_ARGS
             "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
             "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
@@ -147,8 +150,9 @@ if(MW3_BOTH_TITLES AND MW2_TITLE STREQUAL "mw3")
             "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
             "-DANDROID_NDK=${ANDROID_NDK}"
             "-DANDROID_STL=${ANDROID_STL}"
-            -DMW2_TITLE=mw3mp
-            -DMW3_BOTH_TITLES=ON
+            "-DMW2_TITLE=${multiplayer_title}"
+            "-DMW2_VERSION=${MW2_VERSION}"
+            -DMW2_BOTH_TITLES=ON
             "-DMW2_SPLIT=${MW2_SPLIT}"
             "-DMW3_RECOMP_ONLY=${MW3_RECOMP_ONLY}"
             "-DMW3_LINK_PROBE=${MW3_LINK_PROBE}"
@@ -158,19 +162,21 @@ if(MW3_BOTH_TITLES AND MW2_TITLE STREQUAL "mw3")
             "-DMW2_RELEASE_TAG=${MW2_RELEASE_TAG}"
             "-DMW3_XEX_SHA256_SP=${MW3_XEX_SHA256_SP}"
             "-DMW3_XEX_SHA256_MP=${MW3_XEX_SHA256_MP}"
+            "-DMW2_XEX_SHA256_SP=${MW2_XEX_SHA256_SP}"
+            "-DMW2_XEX_SHA256_MP=${MW2_XEX_SHA256_MP}"
         BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target mw2
         # Every build asks it: only its own ninja knows whether a source changed.
         BUILD_ALWAYS ON
         USES_TERMINAL_BUILD ON
         # Only this library: the build above made the driver's hook libraries
         # a second time, and the app has this build's own.
-        INSTALL_COMMAND "${CMAKE_COMMAND}" -E make_directory "${mw3_library_directory}"
+        INSTALL_COMMAND "${CMAKE_COMMAND}" -E make_directory "${multiplayer_directory}"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            <BINARY_DIR>/libmw3mp.so "${mw3_library_directory}/libmw3mp.so")
+            <BINARY_DIR>/lib${multiplayer_library}.so "${multiplayer_directory}/lib${multiplayer_library}.so")
     # One tree at a time: each is a hundred and fifty translation units of a
     # gigabyte or more of compiler apiece, and two ninjas at once ask for
     # twice the machine. A target the app's build asks for by name (mw2) has
     # to depend on it, or it would not be built at all.
-    add_dependencies(ppc_recomp mw3mp_library)
-    add_dependencies(mw2 mw3mp_library)
+    add_dependencies(ppc_recomp multiplayer_library)
+    add_dependencies(mw2 multiplayer_library)
 endif()

@@ -5,6 +5,30 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Modern Warfare 2 on Android: one app that updates itself**
+  ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):
+  the campaign, Special Ops and the multiplayer are one app (`com.mw2.recomp`,
+  the `mw2` flavour; `libmw2.so`, `libmw2mp.so`) built without the game's
+  code, as Modern Warfare 3's is, and published from `yassinsolim/mw2-recomp`
+  (`.github/workflows/android-release-mw2.yml`); the recompiled code is the
+  package `com.mw2.recomp.game`, which `setup\setup.cmd -Game mw2` builds from
+  the disc. The game's menu entries between the campaign and the multiplayer
+  restart the run with the other library, and one copy of the game files
+  serves both. Setup installs the published app, or builds it when there is
+  no release yet, and copies the saves of the two apps of old. Title update 6
+  still builds as an app for each title (the `campaign` and `multiplayer`
+  flavours). `-DMW3_BOTH_TITLES` is now `-DMW2_BOTH_TITLES`, and
+  `-Pmw3Suffix` `-PappSuffix`.
+
+### Changed
+- **Adreno 6xx: Modern Warfare 2 starts at 30 frames a second without the
+  sun's shadows too**, as Modern Warfare 3 does (`Prefs.fpsLimit`,
+  `MW2_SHADOWS`): on a Retroid Pocket Flip 2, S.S.D.D. ran at 31 frames a
+  second with the cap at 60 and at 43 without the shadows, unevenly either
+  way, and holds 30 with both
+  ([docs/android.md](docs/android.md#adreno-6xx-snapdragon-865-class)).
+
+### Added
 - **MW3 on Android: an app that updates itself** ([docs/game-library.md](docs/game-library.md),
   [docs/android-releases.md](docs/android-releases.md)): the app is built
   without the game's code and published from the public repository's

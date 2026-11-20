@@ -24,25 +24,32 @@
 if(NOT ANDROID)
     message(FATAL_ERROR "MW2_SPLIT is for the Android app; the desktop game is one executable")
 endif()
-if(NOT MW2_IS_MW3)
-    message(FATAL_ERROR "MW2_SPLIT requires -DMW2_TITLE=mw3 or mw3mp: Modern Warfare 2's apps are one library each")
+if(NOT MW2_IS_MW3 AND NOT MW2_VERSION STREQUAL "tu0")
+    message(FATAL_ERROR "MW2_SPLIT is for Modern Warfare 2's disc version (tu0): title update 6 is built as one library (docs/MW2-ANDROID.md)")
 endif()
 if(NOT MW2_SPLIT MATCHES "^(runtime|game)$")
     message(FATAL_ERROR "MW2_SPLIT must be OFF, runtime or game, not '${MW2_SPLIT}'")
 endif()
 
-if(MW2_TITLE STREQUAL "mw3mp")
-    set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW3MP.toml")
-    set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw3mp_switch_tables.toml")
-else()
-    set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW3.toml")
-    set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw3_switch_tables.toml")
-endif()
-# What a build without the disc knows of the title's recompiled tree: the
+# The title's recompiler configuration and jump tables, and what a build
+# without the disc knows of its recompiled tree (config/abi/<library>/): the
 # three facts of it the runtime is compiled against, recorded from a tree by
 # -DMW2_ABI_RECORD=ON below. Numbers and the names of system calls; none of
 # the game's code.
-set(abi_recorded "${CMAKE_SOURCE_DIR}/config/abi/${MW2_TITLE}")
+if(MW2_TITLE STREQUAL "mw3mp")
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW3MP.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw3mp_switch_tables.toml")
+elseif(MW2_TITLE STREQUAL "mw3")
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW3.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw3_switch_tables.toml")
+elseif(MW2_TITLE STREQUAL "mp")
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW2MP.tu0.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw2mp_switch_tables.tu0.toml")
+else()
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW2.tu0.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw2_switch_tables.tu0.toml")
+endif()
+set(abi_recorded "${CMAKE_SOURCE_DIR}/config/abi/${MW2_LIBRARY_NAME}")
 # The recompiler writes its context header into the tree behind these lines.
 set(abi_context_prefix "#pragma once\n#include \"ppc_config.h\"\n\n")
 
@@ -131,7 +138,7 @@ string(SHA256 abi_imports_hash "${abi_imports}")
 # One line for each thing, so a mismatch can say which of them differs.
 set(MW2_GAME_ABI "")
 string(APPEND MW2_GAME_ABI
-    "title ${MW2_TITLE}\n"
+    "title ${MW2_LIBRARY_NAME}\n"
     "${abi_recompiled}"
     "jump-tables ${abi_switch}\n"
     "code-extent ${abi_extent_hash}\n"
@@ -140,7 +147,7 @@ string(APPEND MW2_GAME_ABI
     "memory-hook ${abi_mmio}\n")
 string(SHA256 abi_short "${MW2_GAME_ABI}")
 string(SUBSTRING "${abi_short}" 0 12 abi_short)
-message(STATUS "Game library: ${MW2_SPLIT} of ${MW2_TITLE}, built against ${abi_short}")
+message(STATUS "Game library: ${MW2_SPLIT} of ${MW2_LIBRARY_NAME}, built against ${abi_short}")
 
 function(mw2_write_if_different path text)
     if(EXISTS "${path}")
@@ -155,7 +162,7 @@ endfunction()
 # What this build is, in a line: for setup to say, and for a release to
 # publish beside the app so that setup can tell a game library built from
 # another state of the repository before it is on the phone.
-mw2_write_if_different("${CMAKE_BINARY_DIR}/game_abi.txt" "${MW2_TITLE} ${abi_short}\n")
+mw2_write_if_different("${CMAKE_BINARY_DIR}/game_abi.txt" "${MW2_LIBRARY_NAME} ${abi_short}\n")
 
 if(MW2_SPLIT STREQUAL "game")
     # The statement, as a symbol the runtime reads before it uses anything else

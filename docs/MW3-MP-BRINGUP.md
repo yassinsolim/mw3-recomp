@@ -199,7 +199,7 @@ Which service:
 ### One app, two libraries
 
 The Android app (flavour `mw3`, `com.mw3.recomp`) carries both titles. Its
-native build is the campaign's, configured with `-DMW3_BOTH_TITLES=ON`, which
+native build is the campaign's, configured with `-DMW2_BOTH_TITLES=ON`, which
 configures this same CMake project a second time for `mw3mp`
 (`cmake/android.cmake`) and leaves `libmw3mp.so` where Gradle packages it
 beside `libmw3.so`. Both libraries export the same JNI names, so a process
@@ -218,7 +218,7 @@ the one chosen (`Title.kt`, `NativeBridge.load`).
   `GameActivity` again, which loads the other library and hands the launch
   data over as `MW2_LAUNCH_DATA`.
 - One game folder: the installer copies and checks both executables
-  (`MW3_BOTH_TITLES` in `runtime/install/install.cpp`).
+  (`MW2_BOTH_TITLES` in `runtime/install/install.cpp`).
 - Saves: the campaign's stay in `files/saves`; the multiplayer's are in
   `files/mp/saves` (`Title.home`), which is what the multiplayer app of old
   kept in its own `files/saves`. `setup\setup.ps1` copies that folder across
