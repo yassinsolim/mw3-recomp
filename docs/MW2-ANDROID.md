@@ -37,12 +37,17 @@ pipelines being compiled.
 | Special Ops, The Pit, started from the menus | not run | plays, at the cap |
 | Graphics | no see-through walls, garbage surfaces or vertex explosions in any of the above | the same |
 
-On the Flip 2 the frame rate is the cap's on average, but about a fifth of the
-frames come a display blank late (17 to 23% took 34 to 50 ms), and
-Cliffhanger's opening on the ice wall runs at 20. An Adreno 6xx starts at 30
-frames a second without the sun's shadows, as it does in Modern Warfare 3
-([android.md](android.md#adreno-6xx-snapdragon-865-class)): with the cap at 60
-S.S.D.D. ran at 31 with the shadows and 43 without, neither of them evenly.
+The Flip 2's column is the earlier build's, with the cap at 30: about a fifth
+of its frames came a display blank late (17 to 23% took 34 to 50 ms), and
+Cliffhanger's opening on the ice wall ran at 20. An Adreno 6xx now starts
+Modern Warfare 2 with the cap at 60, without the sun's shadows and with an
+832x480 scene under the 1280x720 frame
+([android.md](android.md#adreno-6xx-snapdragon-865-class)). With those
+defaults the Flip 2 ran S.S.D.D.'s flight for five minutes at 58.1 frames a
+second (70% of the frames on time, 99.9% within two blanks), Team Player's
+at 48.9 (42%), Terminal's walk for five minutes at 59.7 (95%) and Rust for
+three at 59.2 (95%); before, with the cap at 60, S.S.D.D. ran at 43. The
+levels after the first two were not measured again.
 
 Not tested: split screen, two devices in one match (the two handhelds here
 were on different networks, and the Flip 2's did not reach the relay), title
@@ -127,14 +132,22 @@ without hands, which is how the numbers above were taken.
   surfaces can be missing or black for a moment, the frame rate dips (the
   first-visit numbers above) and a frame can take seconds while a level
   starts.
-- A Snapdragon 865 holds 30 frames a second, not 60, and unevenly (above).
-- The Team Player flight leaves the level's playable space near its end, and
-  the sky and the sun's light are gone for a few seconds there on the Thor;
-  the frames before and after are whole.
+- A Snapdragon 865 does not hold 60 everywhere: where a level has the most
+  to draw it waits for the GPU's vertex work, S.S.D.D.'s opening at 50 to 55
+  frames a second and the first half of Team Player's flight at 35 to 44,
+  and the sun's shadows are off there (above).
+- The Flip 2's earlier Team Player numbers were taken with part of the
+  level undrawn: a frame's vertex copies did not fit its share of the arena,
+  and the sky and the far buildings went missing. It is drawn whole now
+  ([rendering.md](rendering.md#vertex-data-kept-without-the-shadow)). The sky
+  that was gone near the flight's end on the Thor, put down then to the
+  flight leaving the level, looks like the same thing; it was not looked at
+  again on the Thor here.
 - The Thor's HUD read 70 to 80 °C for the processor in these runs, each of
   two minutes or less; longer play was not measured.
 - A scripted pad (`MW2_INPUT_SCRIPT`) does not reach the first controller on
   Android, where the touch overlay answers for it; the autopilot does.
-- The disc version's campaign has no `MW2_RENDER` sizes and none of the co-op
-  network hardening the update's block of `runtime/title.h` has: their
-  addresses were never derived for the disc.
+- The disc version has none of the co-op network hardening the update's
+  block of `runtime/title.h` has: its addresses were never derived for the
+  disc. `MW2_RENDER` was tried on the disc's campaign at 960x600 and not in
+  its multiplayer, which takes `MW2_SCENE` through the same hook.

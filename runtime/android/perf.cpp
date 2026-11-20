@@ -236,8 +236,9 @@ void android::perf::ApplyMemoryDefaults()
     setenv("MW2_TEXTURE_BUDGET_MB", text, 0);
 
     // The upload arena is committed up front, so it is 512 MB of resident
-    // memory on a device that does not have it to spare.
-    const uint32_t arenaMB = totalMB >= 8000 ? 384u : totalMB >= 6000 ? 256u : 192u;
+    // memory on a device that does not have it to spare. A phone sold as
+    // 8 GB counts 7.4 to 7.7 of them.
+    const uint32_t arenaMB = totalMB >= 7000 ? 384u : totalMB >= 6000 ? 256u : 192u;
     std::snprintf(text, sizeof text, "%u", arenaMB);
     setenv("MW2_ARENA_MB", text, 0);
 

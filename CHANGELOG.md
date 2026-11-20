@@ -33,12 +33,34 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `-Pmw3Suffix` `-PappSuffix`.
 
 ### Changed
-- **Adreno 6xx: Modern Warfare 2 starts at 30 frames a second without the
-  sun's shadows too**, as Modern Warfare 3 does (`Prefs.fpsLimit`,
-  `MW2_SHADOWS`): on a Retroid Pocket Flip 2, S.S.D.D. ran at 31 frames a
-  second with the cap at 60 and at 43 without the shadows, unevenly either
-  way, and holds 30 with both
-  ([docs/android.md](docs/android.md#adreno-6xx-snapdragon-865-class)).
+- **Adreno 6xx: Modern Warfare 2 starts at 60 frames a second**, without the
+  sun's shadows and with an 832x480 scene under the 1280x720 frame
+  (`Prefs.fpsLimit`, `MW2_SHADOWS`, `MW2_SCENE`). On a Retroid Pocket Flip 2
+  S.S.D.D. ran at 43 frames a second with the cap at 60; it runs at 58 over
+  five minutes, Terminal and Rust at 59, three frames in four and nine in ten
+  on time ([docs/android.md](docs/android.md#adreno-6xx-snapdragon-865-class)).
+  Modern Warfare 3 still starts at 30 there.
+- **A pixel shader's float constants are a uniform block on a device without
+  subgroup ballot in the fragment stage** (`shader::PixelConstants`,
+  `bindings::kPixelConstants`, [docs/shaders.md](docs/shaders.md#the-module-interface)):
+  there every pixel fetched each constant it read from the arena, some forty
+  fetches a pixel, a quarter of the GPU's frame on an Adreno 650 (21.2 ms to
+  15.4 on S.S.D.D.). Set 2 is bound again at a draw whose pixel constants
+  differ from the last's, which ends the run of draws before it: one join in
+  thirty. `MW2_PIXEL_UNIFORMS=0|1` says otherwise on any device.
+- **A frame slot keeps the vertex data it copies where there is no shadow of
+  guest memory** (Turnip: `renderer_arena.cpp`, `gpu::watch::TrackSteady`,
+  [docs/rendering.md](docs/rendering.md#vertex-data-kept-without-the-shadow)):
+  every draw copied its vertex windows there, half of the ring consumer's
+  time on a Snapdragon 865, and Team Player's did not fit a slot's share of
+  the arena, so its sky and far buildings were not drawn. `MW2_KEEP_VERTICES=0`
+  copies as before. A phone of 7 GB and more has the 384 MB arena.
+- **The driver's pipeline cache is written to its file when it has grown**,
+  not after every five pipelines the warm-up found in it (`SaveCache`).
+- **`MW2_SCENE=<w>x<h>`** (`runtime/render_size.cpp`): the 3D scene the title
+  draws before it copies it into its frame, by itself, the frame and with it
+  the HUD and the menus staying as they are. `MW2_RENDER` and it now reach
+  the disc version of Modern Warfare 2 as well (`runtime/title.h`).
 
 ### Added
 - **MW3 on Android: an app that updates itself** ([docs/game-library.md](docs/game-library.md),

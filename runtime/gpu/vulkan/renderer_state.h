@@ -310,6 +310,20 @@ namespace vk::renderer::detail
             // recorder gets there the fence has not been handed to the queue,
             // and still says what it said about the one before.
             uint64_t queuedAt = 0;
+            // Vertex data kept in this slot's share from one of its frames
+            // to the next, where there is no shadow of guest memory
+            // (renderer_arena.cpp, KeptWindow): ranges of guest physical
+            // memory by where they start, each with where it ends, where
+            // its copy is -- or that it was met once and is not copied yet
+            // -- the watch's stamp for its pages, and the last frame to
+            // draw from it or meet it. The copies are handed out from the
+            // share's end downwards, `keptBytes` of it, the frame's own
+            // from its start up. Full: emptied when the slot next begins a
+            // frame.
+            struct Kept { uint32_t end, at; uint64_t stamp, frame; };
+            std::map<uint32_t, Kept> kept;
+            uint32_t keptBytes = 0;
+            bool keptFull = false;
         };
         Slot slots[kFrameSlots];
         uint32_t slot = kFrameSlots - 1;   // BeginFrame moves on before it records
@@ -588,6 +602,10 @@ namespace vk::renderer::detail
         uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0, pipelinesOverdue = 0;
         uint64_t arenaOverflows = 0;
         uint64_t arenaWritten[kArenaKinds]{}, arenaReused[kArenaKinds]{};
+        // The most of a share its kept vertex data took, and how often a
+        // slot let all of it go (Slot::kept).
+        uint32_t keptPeak = 0;
+        uint64_t keptEmptied = 0;
         uint32_t arenaPeak = 0;
         uint64_t vertsTraced = 0, vertsMatched = 0;
         uint64_t passFrames = 0;
@@ -871,6 +889,9 @@ namespace vk::renderer::detail
     // Offsets are relative to the current slot's share: they are what the
     // shaders index set 2 with. ArenaAt is where the CPU writes one.
     uint32_t Allocate(uint32_t bytes, ArenaKind kind);
+    // The slot beginning a frame: its kept vertex windows are let go when
+    // they had filled their part of the share (renderer_arena.cpp).
+    void BeginKeptVertices();
     inline uint8_t* ArenaAt(uint32_t at) { return g.arenaMapped + g.arenaBase + at; }
     // On the recorder: makes the draws DrawOp held back (vk::record::Joining).
     void MakeGatheredDraws();

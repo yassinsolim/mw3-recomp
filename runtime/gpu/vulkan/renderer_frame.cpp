@@ -172,6 +172,7 @@ namespace vk::renderer::detail
         BeginSegmentBuffer();
         PassTimesBegin(g.slot);
         g.arenaUsed = 0;
+        BeginKeptVertices();
         g.indexStream = g.tableStream = {};
         g.drawTableOpen = false;
         g.pixelWindow.valid = false;

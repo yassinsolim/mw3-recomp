@@ -139,7 +139,7 @@ arena held, which nothing reads.
 |---|---|
 | 0 | nothing |
 | 1 | every texture and sampler, bound once per command buffer |
-| 2 | the arena as dwords and as vec4, bound once per command buffer |
+| 2 | the arena as dwords and as vec4, bound once per command buffer; where a pixel shader's float constants are a uniform block ([shaders.md](shaders.md#the-module-interface)), bound again at a draw whose pixel constants are others than the last's |
 
 A draw's record says where each of its five constant blocks is in the arena
 ([shaders.md](shaders.md#the-module-interface)). Consecutive draws whose
@@ -204,6 +204,45 @@ The texture cache uses the same watch. `MW2_NO_SHADOW=1` turns the shadow off,
 and it is read by every build rather than only a diagnostics one, because it is
 512 MB of resident memory before the first frame is drawn: the Android runtime
 sets it on a phone of six gigabytes or less ([android.md](android.md)).
+
+### Vertex data kept without the shadow
+
+The shadow needs arena and shadow within what one storage buffer descriptor
+reaches. Turnip reaches 128 MB, so on an Adreno under it there is none, and
+every draw copied its vertex windows: 12 to 31 MB a frame of Modern Warfare 2,
+half of the ring consumer's time on a Snapdragon 865, and in Team Player more
+than a slot's 85 MB share held, so its far buildings and its sky went undrawn
+(`draws skipped: frame arena full`, five million of them in one flight).
+
+There a frame slot keeps what it copies (`KeptWindow`, `renderer_arena.cpp`),
+at the end of its share, the frame's own allocations coming up from the
+start:
+
+- **By range, in 64 KB chunks.** The window is rounded out to whole chunks
+  and the range kept by where it starts, so the windows of other draws into
+  the same buffer fall inside it. Kept window by window, Team Player's filled
+  the share every few frames.
+- **For as long as the watch says the window's pages are unwritten**
+  (`gpu::watch::TrackSteady`, `Unwritten`). `TrackSteady` is `Track` with the
+  shadow's pacing: pages the title keeps writing are not watched again for
+  2^strikes frames, and a window in them is copied by its draw as before.
+- **At the second frame the slot meets the range unwritten.** The title's
+  dynamic geometry goes round a ring, each stretch drawn once and written
+  over a lap later; kept at first sight it took a megabyte of the share a
+  frame.
+- **Copied again in place when it was written**, a soldier's skinned
+  vertices for one, unless a draw of the same frame has named the copy: the
+  slot's earlier frames are done before it begins another.
+- **Let go together** when the copies reach two thirds of the share (the
+  frame's own keeps a third, 24 MB at least) or a frame's own allocation
+  finds no room: the slot starts its next frame with none.
+
+Each of the three slots has its own, so a range is copied three times in all.
+On the Flip 2 the vertex data copied a frame went from 31 MB to 4 in Team
+Player (33 MB a frame drawn from kept copies), the ring consumer from 76% of
+its core to 46%, and nothing overflows. `MW2_KEEP_VERTICES=0` copies every
+window. The arena is 384 MB on a phone of 7 GB and more, a share of 128 MB
+where the reach is that.
 
 ## Resolves
 
@@ -372,6 +411,16 @@ The title's own count of samples stays 2, the console's: `MW2_MSAA` and
 `MW2_NO_MSAA` act on the surfaces the title multisamples, and a title drawing
 at 1x would leave them none.
 
+**The scene by itself.** `MW2_SCENE=<w>x<h>` gives the title a smaller scene
+under the frame it has: 512x300 up to the one that goes with the frame, a
+whole number of 16 pixels wide and 2 tall. The title stretches the scene over
+the frame as it does the console's 1024x600 over 1280x720, working the
+scene's pixel aspect out of the two sizes itself, so the scene's shape is
+free; the HUD and the menus are drawn into the frame and keep its size. It is
+the cheaper picture for a GPU that the scene's pixels hold back: Modern
+Warfare 2 on an Adreno 6xx under Android starts with 832x480
+([android.md](android.md#adreno-6xx-snapdragon-865-class)).
+
 **Pictures made for 16:9.** A cinematic is letterboxed by the title itself:
 `R_DrawCinematicLetterboxed` draws the 16:9 video whole, as wide as the frame,
 between black bars. A 2D picture over the whole frame (a loading screen, a
@@ -480,7 +529,9 @@ same table, and that draw was a list of whole primitives (a strip or a fan
 would run on into the next draw's vertices). The recorder joins it if the run
 is still open. A run ends at a draw that changes any state, and at any other
 call: the recorder runs `MakeGatheredDraws` before every call not queued as
-`Joining`. `MW2_NO_MERGE=1` makes every draw a hardware draw of its own.
+`Joining`. `MW2_NO_MERGE=1` makes every draw a hardware draw of its own: on
+the Adreno 650, S.S.D.D.'s 2,900 draws a frame are about 210 hardware draws,
+and each on its own took the frame from 24.7 ms to 35.2.
 
 A segment of the frame -- the draws between two points where the command
 processor reports work done -- has its texture uploads ahead of its draws,

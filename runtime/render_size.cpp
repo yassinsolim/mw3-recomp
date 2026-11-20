@@ -13,6 +13,10 @@
 // pixels, and the scene's pixel aspect from it. A cinematic is letterboxed by
 // the title itself, whole between black bars.
 //
+// MW2_SCENE=<w>x<h> is the scene by itself, under whichever frame: the title
+// stretches it over the frame as it does the console's, and works its pixel
+// aspect out of the two sizes on its own.
+//
 // A 2D picture made for the console's 16:9 screen and drawn over the whole
 // frame -- a loading screen, a menu's background, a full-screen overlay --
 // covers the frame instead of stretching to it: it is as large as the frame
@@ -38,6 +42,9 @@
 #include "env.h"
 #include "log.h"
 
+#ifdef MW2_ANDROID
+#include "android/android.h"
+#endif
 #include <cctype>
 #include <cstring>
 #include <mutex>
@@ -223,6 +230,18 @@ render::Size render::SceneAsked()
         const Size frame = Frame();
         const Size own = Scene(frame);
         const char* asked = env::Text("MW2_SCENE");
+#if defined(MW2_ANDROID) && defined(T_R_VideoSizes) && !defined(MW3_TITLE)
+        // An Adreno 650 draws Modern Warfare 2's console scene at 49 to 55
+        // frames a second and this one at 54 to 59 (docs/android.md): the
+        // scene's pixels are what is left to give once the sun's shadows are
+        // off. MW2_SCENE=1024x600 keeps the console's.
+        if (!asked && frame == kConsoleFrame && android::perf::Adreno6xx())
+        {
+            LOGI("render: an Adreno 6xx draws a %ux%u scene under the %ux%u frame; MW2_SCENE=%ux%u keeps the console's",
+                 kAdreno6Scene.width, kAdreno6Scene.height, frame.width, frame.height, own.width, own.height);
+            return kAdreno6Scene;
+        }
+#endif
         if (!asked) return own;
 #ifndef T_R_VideoSizes
         LOGW("render: the " MW2_TITLE_NAME " cannot be given another scene than the console's; "

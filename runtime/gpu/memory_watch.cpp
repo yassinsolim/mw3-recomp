@@ -320,6 +320,15 @@ uint64_t gpu::watch::Track(uint32_t physical, uint32_t bytes, uint64_t (*complet
     return g_stamp;
 }
 
+uint64_t gpu::watch::TrackSteady(uint32_t physical, uint32_t bytes, uint64_t (*completed)(), uint64_t frame)
+{
+    uint32_t first, last;
+    if (!Pages(physical, bytes, first, last) || !Ready(first, last, completed, frame, true))
+        return 0;
+    g_tracked++;
+    return g_stamp;
+}
+
 bool gpu::watch::Unwritten(uint32_t physical, uint32_t bytes, uint64_t since)
 {
     uint32_t first, last;

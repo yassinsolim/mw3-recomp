@@ -84,10 +84,10 @@ namespace
     // MW2_SHADOWS=0: the sun casts no shadows (the title's sm_enable); 1
     // leaves them on. The shadow maps are a fifth of the GPU's frame in a
     // Modern Warfare 3 Survival level on an Adreno 650 -- 38 ms a frame with
-    // them, 31 without -- and more of it in Modern Warfare 2's S.S.D.D., 31
-    // frames a second with them and 43 without: the difference between
-    // holding 30 frames a second there and not, so unset is off on that
-    // class of chip and on everywhere else. Said once the title presents,
+    // them, 31 without -- and 6 ms of Modern Warfare 2's S.S.D.D., 45 frames
+    // a second with them and 58 without (docs/android.md): the difference
+    // between holding the cap that class of chip starts at and not, so unset
+    // is off there and on everywhere else. Said once the title presents,
     // when its console takes commands.
     void Shadows()
     {
@@ -101,7 +101,7 @@ namespace
 #endif
         console::RunNow("sm_enable 0");
         LOGI("shadows: the sun casts none (sm_enable 0): %s", asked ? "MW2_SHADOWS=0" :
-             "an Adreno 6xx holds 30 frames a second without them; MW2_SHADOWS=1 keeps them");
+             "an Adreno 6xx holds its frame rate without them; MW2_SHADOWS=1 keeps them");
     }
 }
 
