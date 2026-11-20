@@ -678,7 +678,8 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
                 if (at + stride * 4 > g.arenaBytes) break;
                 // Hex as well as float: several of a vertex's dwords are packed
                 // attributes, which read as floats are nonsense. The copy holds
-                // the guest's big-endian bytes.
+                // the guest's big-endian bytes, or the host's where the
+                // renderer exchanges them (shader::VertexOrder).
                 const uint32_t* u = reinterpret_cast<const uint32_t*>(ArenaAt(at));
                 char line[512];
                 int n = std::snprintf(line, sizeof line, "verts:     v%-3u", v);
@@ -687,7 +688,8 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
                 n += std::snprintf(line + n, sizeof line - n, "  |");
                 for (uint32_t w = 0; w < stride && w < 4; w++)
                     n += std::snprintf(line + n, sizeof line - n, " %11.4f",
-                                       std::bit_cast<float>(__builtin_bswap32(u[w])));
+                                       std::bit_cast<float>(vk::pipeline::HostOrderVertices()
+                                                                ? u[w] : __builtin_bswap32(u[w])));
                 LOGK("%s", line);
             }
         }

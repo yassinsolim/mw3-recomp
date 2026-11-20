@@ -94,12 +94,22 @@ namespace shader
     // 650 the fetches were a quarter of the frame's GPU time.
     enum class PixelConstants { Arena, Uniform };
 
+    // The byte order of the vertex data a vertex shader loads from the
+    // arena. Guest: as the console has it, and the shader exchanges the
+    // bytes of each dword as its fetch constant's endianness says, ten
+    // operations a dword -- what a shadow of guest memory needs, which holds
+    // the guest's bytes. Host: the renderer exchanged them as it copied the
+    // data, once a copy instead of once a vertex, and the shader loads the
+    // dword as it lies.
+    enum class VertexOrder { Guest, Host };
+
     // `words` is the program in host byte order, `count` its length in dwords.
     // `scaled`: the render targets may be larger than the title's, and the
     // shader reads the record's bindings::kRecordScaled.
     Translation Translate(Type type, const uint32_t* words, size_t count, bool scaled = false,
                           PixelRecord record = PixelRecord::Subgroup,
-                          PixelConstants constants = PixelConstants::Arena);
+                          PixelConstants constants = PixelConstants::Arena,
+                          VertexOrder order = VertexOrder::Guest);
 
     std::string Describe(const Translation& result);
 }

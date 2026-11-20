@@ -179,7 +179,8 @@ the table, becomes the draw's lowest vertex.
   clipped to the declared size) is copied. Its address in the uploaded fetch
   constant is rewritten to point at the copy. A copy is shared only within
   **one draw**, because the title rewrites dynamic geometry in place during a
-  frame.
+  frame. Without the shadow of guest memory the copy is made in host byte
+  order ([below](#vertex-data-in-host-byte-order)).
 - **Indices** are byte-swapped from big-endian for every draw, never cached,
   and scanned for their range, ignoring the restart value.
 
@@ -243,6 +244,63 @@ Player (33 MB a frame drawn from kept copies), the ring consumer from 76% of
 its core to 46%, and nothing overflows. `MW2_KEEP_VERTICES=0` copies every
 window. The arena is 384 MB on a phone of 7 GB and more, a share of 128 MB
 where the reach is that.
+
+### Vertex data in host byte order
+
+The console stores a dword of vertex data one of four ways, which the fetch
+constant names: as it is, 8-in-16, 8-in-32 or 16-in-32. A vertex shader made
+the exchange itself, ten operations for each of the ten or so dwords a vertex
+loads, every time the vertex was shaded. Without the shadow every dword a
+vertex shader loads is one the renderer copied, so the copy makes the
+exchange instead (`CopyVertices`, `renderer_arena.cpp`): one of four loops
+over the window, once a copy, and a kept window is drawn from for many
+frames. The shaders are built to load the dword as it lies
+(`shader::VertexOrder::Host`), and the renderer's copy of the fetch constant
+carries no endianness.
+
+The shader skips its exchange exactly when the copy made it:
+
+- **One answer for both.** `vk::pipeline::HostOrderVertices` is what the
+  translator is built with and what the copies ask. The renderer says
+  whether it has a shadow each time it makes its arena, before any shader
+  is built. With the shadow, vertex data is read where the guest's bytes
+  lie, so there the shaders exchange as before and the copies are plain.
+- **Whatever the format.** The shader's exchange was of the whole dword it
+  loaded, before any format was decoded, and a fetch address is whole
+  dwords from a buffer that starts on one. So the same exchange at the copy
+  gives every format the dword it had, and a buffer two fetches read as
+  different formats is still one copy.
+- **A copy belongs to one endianness.** Two fetch constants of a draw that
+  name one buffer with different endianness get a copy each. A kept range
+  records the endianness it was exchanged for, and a draw whose constant
+  names another copies its own window: a 64 KB chunk holds the buffers of
+  many draws. In Team Player the kept copies serve as much as before (54 MB
+  a frame drawn from them, 9 MB copied, either way).
+- **Rectangle lists** have their fourth corners worked out from the guest's
+  bytes, and the finished vertices are exchanged as they go into the arena.
+
+On the AYN Thor (Adreno 740, 120 Hz, two runs each way): the opening of
+S.S.D.D. went from 103.3 to 105.9 frames a second and 9.2 to 9.0 ms of GPU
+a frame; Team Player's heaviest views from 11.5 to 11.0 ms for the scene,
+74.5 to 76.5 frames a second over the run; Modern Warfare 3's Survival from
+87.3 to 91.7. The flight over S.S.D.D. and Rust are near the display's rate
+either way (113 and 118; their scenes 4.15 to 3.96 and 3.79 to 3.64 ms). On
+the Retroid Pocket Flip 2 (Adreno 650) the experiment build measured no
+change. Five fixed views of S.S.D.D. differ by 0.06 to 1.4 of 255 a pixel
+between the two, and by 0.03 to 1.8 between two runs of one; a sixth, of
+soldiers moving, by 5.1, and by 2.2 to 6.1. `MW2_HOST_ORDER=0` keeps the
+exchange in the shaders.
+
+Vertex attributes were tried with it and are not in the tree (branch
+`vertex-input`): a vertex shader's first stream bound as a vertex buffer
+and fetched by the fixed-function stage. A run of merged draws then needs
+its vertices in one buffer, so draws whose vertices lay under another
+draw's record were copied again (40 MB a frame in Team Player against 9),
+and the runs were shorter. On the Thor the opening of S.S.D.D. fell from
+103.6 to 82.3 frames a second and Team Player's views from 74 to 49, with
+no less GPU time (9.2 to 9.6 ms); for world shaders only, 103.8 and 62. On
+the Flip 2 the scene went from 16.5 to 17.3 ms, and to 18 to 19 for world
+shaders only.
 
 ## Resolves
 

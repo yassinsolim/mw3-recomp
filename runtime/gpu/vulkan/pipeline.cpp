@@ -30,6 +30,8 @@ bool     vk::pipeline::LegacyMode() { return false; }
 bool     vk::pipeline::TextureCompressionBC() { return false; }
 bool     vk::pipeline::SubgroupPixelRecords() { return false; }
 bool     vk::pipeline::UniformPixelConstants() { return false; }
+bool     vk::pipeline::HostOrderVertices() { return false; }
+void     vk::pipeline::ArenaHasShadow(bool) {}
 bool     vk::pipeline::MirrorClampToEdge() { return false; }
 void     vk::pipeline::NoteFallback(const char*) {}
 void     vk::pipeline::LogDeviceSummary() {}
@@ -127,6 +129,7 @@ namespace
         bool textureCompressionBC = false;
         bool subgroupPixelRecords = false;
         bool uniformPixelConstants = false;
+        bool arenaShadow = false;
         // VK_KHR_sampler_mirror_clamp_to_edge is enabled: without it a sampler
         // may not be made with that address mode.
         bool mirrorClamp = false;
@@ -1594,6 +1597,12 @@ bool     vk::pipeline::LegacyMode() { return g.legacyMode; }
 bool     vk::pipeline::TextureCompressionBC() { return g.textureCompressionBC; }
 bool     vk::pipeline::SubgroupPixelRecords() { return g.subgroupPixelRecords; }
 bool     vk::pipeline::UniformPixelConstants() { return g.uniformPixelConstants; }
+bool     vk::pipeline::HostOrderVertices()
+{
+    static const bool refused = env::Text("MW2_HOST_ORDER") && !env::Flag("MW2_HOST_ORDER");
+    return !refused && !g.arenaShadow;
+}
+void     vk::pipeline::ArenaHasShadow(bool has) { g.arenaShadow = has; }
 bool     vk::pipeline::MirrorClampToEdge() { return g.mirrorClamp; }
 void     vk::pipeline::NoteFallback(const char* what)
 {
