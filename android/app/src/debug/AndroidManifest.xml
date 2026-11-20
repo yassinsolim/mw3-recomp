@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A debug build may be pointed at a list of releases served from the
+         PC beside it (MW2_UPDATE_API, docs/android-releases.md), which is
+         plain HTTP. A release build talks to GitHub only, over HTTPS. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

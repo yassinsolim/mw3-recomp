@@ -64,6 +64,13 @@ object NativeBridge {
     /** One of the runtime's MW2_* switches (docs/switches.md). */
     external fun nativeSetOption(key: String, value: String)
 
+    /**
+     * Loads the recompiled game code from the library at [path], in a build
+     * that is published without it (GameLibrary.kt). "" when it is ready, or
+     * what is wrong with it. Before nativeStart.
+     */
+    external fun nativeLoadGame(path: String): String
+
     /** [homeDir] is where the run keeps saves/ (Title.home). */
     external fun nativeStart(gameDir: String, homeDir: String): Boolean
     external fun nativeRequestStop()

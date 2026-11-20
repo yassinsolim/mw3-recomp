@@ -109,12 +109,9 @@ class MainActivity : AppCompatActivity() {
         }
         // TU6 apps offer the TU0 archives instead (PC launcher parity).
         if (isTu6()) tu6Button.text = getString(R.string.entry_tu0)
-        // MW3 has one game version and no published builds: neither entry
-        // has anything to point at.
-        if (Title.isMw3) {
-            tu6Button.visibility = android.view.View.GONE
-            updatesButton.visibility = android.view.View.GONE
-        }
+        // MW3 has one game version: no other to point at.
+        if (Title.isMw3) tu6Button.visibility = android.view.View.GONE
+        if (BuildConfig.UPDATE_REPO.isEmpty()) updatesButton.visibility = android.view.View.GONE
 
         directLaunchSwitch.isChecked = prefs.autoLaunch
         directLaunchSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -224,10 +221,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
         Trail.clear(this)
+        // Exported: the broadcast comes from the system's download provider,
+        // which is another app, and a receiver that is not exported never
+        // hears it (the update then sat downloaded and uninstalled). What it
+        // acts on is only this activity's own download, by its id.
         ContextCompat.registerReceiver(
             this, downloadDone,
             android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
+            ContextCompat.RECEIVER_EXPORTED,
         )
         // What the multiplayer kept when it was an app of its own, where the
         // system lets this app read it. Off the main thread: it is files.
@@ -293,8 +294,15 @@ class MainActivity : AppCompatActivity() {
             installButton.visibility = if (missing.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
             installButton.text = getString(R.string.install_game)
             directLaunchSwitch.visibility = android.view.View.VISIBLE
+            // The app is published without the game's code: the files alone
+            // do not make it ready (GameLibrary.kt).
+            val gameCode = GameLibrary.installed(this)
+            if (!gameCode) {
+                play.isEnabled = false
+                status.text = getString(R.string.game_code_missing)
+            }
 
-            if (prefs.autoLaunch && !hasAutoLaunched) {
+            if (gameCode && prefs.autoLaunch && !hasAutoLaunched) {
                 hasAutoLaunched = true
                 // The title played last, while its files are still there.
                 val last = RunRequest.read(this).title
@@ -576,7 +584,10 @@ class MainActivity : AppCompatActivity() {
         thread(name = "update-check", isDaemon = true) {
             var offered = false
             try {
-                val connection = (URL("https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=10")
+                val list = BuildConfig.UPDATE_API.ifEmpty {
+                    "https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=10"
+                }
+                val connection = (URL(list)
                     .openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15000
                     readTimeout = 15000
@@ -584,7 +595,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (connection.responseCode == 200) {
                     val releases = JSONArray(connection.inputStream.bufferedReader().readText())
-                    val wantTitle = if (isMp()) "multiplayer" else "campaign"
+                    val wantTitle = if (Title.isMw3) "mw3" else if (isMp()) "multiplayer" else "campaign"
                     val wantTu = if (isTu6()) "tu6" else "tu0"
                     for (i in 0 until releases.length()) {
                         val release = releases.getJSONObject(i)
@@ -595,8 +606,11 @@ class MainActivity : AppCompatActivity() {
                         }
                         if (!matches) continue
                         val tag = release.optString("tag_name")
+                        // What Android will compare: the number the release's
+                        // notes give, or the one its tag stands for.
                         val code = Regex("APK versionCode:\\s*(\\d+)")
-                            .find(release.optString("body"))?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                            .find(release.optString("body"))?.groupValues?.get(1)?.toIntOrNull()
+                            ?: versionCodeOfTag(tag)
                         val installed = packageManager.getPackageInfo(packageName, 0).let {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode.toInt()
                             else it.versionCode
@@ -686,10 +700,13 @@ class MainActivity : AppCompatActivity() {
         try {
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val request = DownloadManager.Request(Uri.parse(apkUrl))
-                .setTitle("MW2 update")
+                .setTitle(getString(R.string.app_name))
                 .setDescription("Downloading APK")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "mw2-update.apk")
+                .setDestinationInExternalPublicDir(
+                    Environment.DIRECTORY_DOWNLOADS,
+                    if (Title.isMw3) "mw3-update.apk" else "mw2-update.apk",
+                )
                 .setAllowedOverMetered(true)
             pendingInstallId = manager.enqueue(request)
             Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_SHORT).show()
@@ -701,7 +718,7 @@ class MainActivity : AppCompatActivity() {
     private fun installDownloadedApk(id: Long) {
         try {
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            val uri = manager.getUriForDownloadedFile(id) ?: return
+            val uri = manager.getUriForDownloadedFile(id) ?: throw java.io.IOException("the download failed")
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -710,9 +727,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Throwable) {
             AlertDialog.Builder(this)
                 .setMessage(R.string.update_failed)
-                .setPositiveButton(R.string.open_page) { _, _ ->
-                    openPage("https://github.com/flavinxs0/mw2-android/releases")
-                }
+                .setPositiveButton(R.string.open_page) { _, _ -> openReleasesPage() }
                 .setNegativeButton(R.string.cancel, null)
                 .show()
         }
@@ -786,4 +801,14 @@ fun File.readTextTail(bytes: Int): String = try {
     }
 } catch (_: Throwable) {
     ""
+}
+
+/**
+ * The versionCode a release tag stands for: v1.2.3 is 10203, as the release
+ * workflow builds it (.github/workflows/android-release.yml). 0 for a tag
+ * that is not a version.
+ */
+fun versionCodeOfTag(tag: String): Int {
+    val parts = Regex("^v?(\\d+)\\.(\\d+)\\.(\\d+)").find(tag)?.groupValues ?: return 0
+    return parts[1].toInt() * 10000 + parts[2].toInt() * 100 + parts[3].toInt()
 }

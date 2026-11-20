@@ -11,8 +11,22 @@ if(NOT CMAKE_ANDROID_ARCH_ABI STREQUAL "arm64-v8a")
         " 32-bit offset from one base pointer (runtime/guest_memory.cpp).")
 endif()
 
-# crash.cpp finds this library's own code in /proc/self/maps by its file name.
-target_compile_definitions(mw2 PRIVATE MW2_ANDROID=1 MW2_LIBRARY_FILE="lib${MW2_OUTPUT_NAME}.so")
+# crash.cpp finds this library's own code in /proc/self/maps by its file name:
+# lib<title>.so, or with the recompiled code in a library of its own
+# (MW2_SPLIT) both that and lib<title>game.so, by what their names share.
+if(MW2_SPLIT STREQUAL "runtime")
+    target_compile_definitions(mw2 PRIVATE MW2_ANDROID=1 MW2_LIBRARY_FILE="lib${MW2_OUTPUT_NAME}")
+    # runtime/title.h reaches the title's functions through the game library,
+    # and runtime/android/game_library.cpp loads it.
+    target_compile_definitions(mw2 PRIVATE MW2_SPLIT_GAME=1)
+    # The global group: what the dynamic linker searches before a library's
+    # own symbols, for every library loaded after this one. It is how the game
+    # library's calls reach the runtime's hooks instead of the functions they
+    # replace (cmake/game_library.cmake).
+    target_link_options(mw2 PRIVATE -Wl,-z,global)
+else()
+    target_compile_definitions(mw2 PRIVATE MW2_ANDROID=1 MW2_LIBRARY_FILE="lib${MW2_OUTPUT_NAME}.so")
+endif()
 
 # 16 KB pages. Android 15 devices ship with them, and a library linked for 4 KB
 # will not load at all there. Nothing in the runtime assumes a page size --
@@ -75,7 +89,9 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     # No frame pointer on the guest's own functions would make a crash report
     # useless, and the unwinder is what every backtrace here goes through.
-    target_compile_options(ppc_recomp PRIVATE -fno-omit-frame-pointer)
+    if(NOT MW2_SPLIT STREQUAL "runtime")
+        target_compile_options(ppc_recomp PRIVATE -fno-omit-frame-pointer)
+    endif()
     target_compile_options(mw2 PRIVATE -fno-omit-frame-pointer)
 endif()
 
@@ -133,6 +149,7 @@ if(MW3_BOTH_TITLES AND MW2_TITLE STREQUAL "mw3")
             "-DANDROID_STL=${ANDROID_STL}"
             -DMW2_TITLE=mw3mp
             -DMW3_BOTH_TITLES=ON
+            "-DMW2_SPLIT=${MW2_SPLIT}"
             "-DMW3_RECOMP_ONLY=${MW3_RECOMP_ONLY}"
             "-DMW3_LINK_PROBE=${MW3_LINK_PROBE}"
             "-DMW2_DIAGNOSTICS=${MW2_DIAGNOSTICS}"

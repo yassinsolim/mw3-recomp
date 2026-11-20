@@ -1214,9 +1214,41 @@
 #define MW2_CAT(a, b) MW2_CAT_(a, b)
 #define MW2_STR_(x) #x
 #define MW2_STR(x) MW2_STR_(x)
-#define GUEST_FUNC(name) MW2_CAT(sub_, name)          // the recompiled function
-#define GUEST_ORIG(name) MW2_CAT(__imp__sub_, name)   // the original, once the function is hooked
 #define GUEST_ADDR(name) MW2_CAT(0x, name)            // its guest address
 #define GUEST_NAME(name) "sub_" MW2_STR(name)         // its name, for a log line
+#if MW2_SPLIT_GAME
+// The recompiled code is a library of its own, loaded while the process runs
+// (runtime/android/game_library.cpp), so the runtime cannot name its symbols:
+// its library has to load without them. A function is reached through the
+// function table, which holds what the symbol would have been (the hook, for
+// a hooked function); an original is a symbol of the game library, looked up
+// once when that is loaded.
+// As the recompiler's context header has it, for the files that include this
+// one without that.
+struct PPCContext;
+typedef void PPCFunc(PPCContext& __restrict ctx, unsigned char* base);
+namespace game
+{
+    // An __imp__sub_X of the game library. Each is declared where it is used
+    // and found by game::Load, which refuses a library without one of them.
+    struct Original
+    {
+        explicit Original(const char* symbol);
+        PPCFunc* function = nullptr;
+        const char* symbol;
+        Original* next;
+    };
+    PPCFunc* Function(uint32_t address);
+}
+#define GUEST_FUNC(name) (*game::Function(GUEST_ADDR(name)))
+#define GUEST_ORIG(name) (*MW2_CAT(mw2_original_, name).function)
+#define GUEST_ORIGINAL(name) static game::Original MW2_CAT(mw2_original_, name){ "__imp__sub_" MW2_STR(name) }
+#define GUEST_HOOK(name) GUEST_ORIGINAL(name); PPC_FUNC_IMPL(MW2_CAT(sub_, name))
+#else
+#define GUEST_FUNC(name) MW2_CAT(sub_, name)          // the recompiled function
+#define GUEST_ORIG(name) MW2_CAT(__imp__sub_, name)   // the original, once the function is hooked
+// Declares an original that is called without its function being hooked here.
+#define GUEST_ORIGINAL(name) PPC_FUNC_IMPL(GUEST_ORIG(name))
 // Declares the original and opens the hook's definition: GUEST_HOOK(T_x) { ... }
-#define GUEST_HOOK(name) PPC_FUNC_IMPL(GUEST_ORIG(name)); PPC_FUNC(GUEST_FUNC(name))
+#define GUEST_HOOK(name) GUEST_ORIGINAL(name); PPC_FUNC(GUEST_FUNC(name))
+#endif

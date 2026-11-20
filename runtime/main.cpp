@@ -25,6 +25,9 @@
 #include "run.h"
 #include "report.h"
 #include "settings.h"
+#if MW2_SPLIT_GAME
+#include "android/game_library.h"
+#endif
 
 #include <unistd.h>
 
@@ -137,7 +140,13 @@ namespace
     size_t BuildFunctionTable()
     {
         size_t n = 0;
-        for (const PPCFuncMapping* m = PPCFuncMappings; m->guest != 0 || m->host != nullptr; ++m)
+        // The recompiled code's own table: linked in, or the game library's.
+#if MW2_SPLIT_GAME
+        const PPCFuncMapping* mappings = game::Mappings();
+#else
+        const PPCFuncMapping* mappings = PPCFuncMappings;
+#endif
+        for (const PPCFuncMapping* m = mappings; m->guest != 0 || m->host != nullptr; ++m)
         {
             if (!m->host) continue;
             if (m->guest < PPC_CODE_BASE || m->guest >= PPC_CODE_BASE + PPC_CODE_SIZE)

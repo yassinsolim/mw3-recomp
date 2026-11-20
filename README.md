@@ -79,9 +79,18 @@ JDK, the Android SDK and NDK, LLVM, CMake, Ninja, and Python and Git if you
 have none; each pinned and checked by SHA-256), reads the executables out of
 your disc image (read-only), checks them, recompiles them and builds:
 
-- `out\mw3-debug.apk`: the Android app (`com.mw3.recomp`), one app with the
-  campaign, Special Ops and the multiplayer
+- `out\mw3-game.apk`: the game code for Android (`com.mw3.recomp.game`), made
+  from your disc: the campaign's, Special Ops' and the multiplayer's. It has
+  no screen of its own and is yours alone: never share it.
 - `out\pc\`: the Windows game, if you asked for it
+
+and downloads the Android app itself (`com.mw3.recomp`) from this project's
+[releases](https://github.com/yassinsolim/mw3-recomp/releases). The app
+contains none of the game; it finds the game code you built beside it, and
+**updates itself** from then on: it looks for a newer release when it starts
+(and from **Check for updates**), shows what changed, and installs it over
+itself. Your game files, saves and game code stay as they are
+([docs/game-library.md](docs/game-library.md)).
 
 The one thing it cannot fetch by itself is Microsoft's C++ Build Tools, which
 the recompiler is built with. If they are missing it offers to install them
@@ -99,19 +108,29 @@ Useful options (`setup\setup.cmd -<option>`):
 | `-Build android\|pc\|both` | what to build |
 | `-Install` | install the APK on the connected phone without asking |
 | `-PushIso` | also copy the disc image to the phone's Download folder |
-| `-Recomp` | recompile again, e.g. after updating the code |
+| `-Recomp` | recompile again (setup does so by itself when an update changed the recompiler or its configuration) |
+| `-GameOnly` | Android: build and install the game code only, and leave the app alone |
+| `-Dev` | Android: build the app here instead of downloading the published one (`-Suffix .dev` puts it beside that one) |
 | `-Yes` | ask nothing, take the defaults |
 
-Running it again is safe: finished steps are skipped. After `git pull`, run it
-again to rebuild; add `-Recomp` if the release notes or commits mention the
-recompiler, `config/` or `patches/`.
+Running it again is safe: finished steps are skipped.
+
+**After an update of the app**, nothing is needed most of the time. Now and
+then an update changes how the game is recompiled, and the app then says that
+the game code on the phone does not match it: on the PC, `git pull`, then
+`setup\setup.cmd -GameOnly` with the phone connected. It rebuilds the game
+code (minutes, not hours) and installs it; game files and saves are kept.
 
 ## Install on Android
 
-1. **The app.** With the phone connected over USB and
+1. **The game code and the app.** With the phone connected over USB and
    [USB debugging](https://developer.android.com/studio/debug/dev-options)
-   on, setup offers to install the APK. Or copy the APK to the phone and open
-   it (allow installing from that app when Android asks).
+   on, setup offers to install both. Or copy the two APKs to the phone and
+   open each (allow installing from that app when Android asks). A phone
+   that still has an app built on a PC by an earlier setup: Android will not
+   put the published app over it (they are signed with different keys), so
+   setup offers to replace it, keeping the game files and saves; the app's
+   settings start afresh.
 2. **The game files.** Copy your `.iso` to the phone (setup can do it:
    `-PushIso`, or answer yes). Open the app, choose **Install the game files**,
    then **Browse the phone's storage** and pick the image. The app checks
@@ -188,6 +207,8 @@ desktop runs: [docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md)).
 | errors about long paths or spaces | move the folder to a short path such as `C:\mw3` |
 | `adb` says *unauthorized* | unlock the phone and accept the USB debugging prompt |
 | the app says the game files are missing | do step 2 of *Install on Android* |
+| the app says the game code is not on this device | run `setup\setup.cmd` with the phone connected: it builds and installs it |
+| the app says the game code does not match this version | on the PC: `git pull`, then `setup\setup.cmd -GameOnly` with the phone connected |
 | black screen or crashes on a non-Qualcomm phone | untested hardware; the app's **Log** screen says what happened |
 | friends do not see your game | everyone on the same relay, same version; the host must have **started** the match |
 
@@ -208,9 +229,14 @@ How the port works and how it was brought up:
 `config/MW3MP.toml`. The asset-free tests run with
 `cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON && cmake --build build-tests && ctest --test-dir build-tests`.
 
+The Android app and the game code are two packages, checked against each
+other when the game starts: [docs/game-library.md](docs/game-library.md).
+Releasing the app: [docs/android-releases.md](docs/android-releases.md).
+
 `tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
-refuses commits that carry game data. Never commit anything from `mw3/`,
-`ppc_*/`, `out/` or a build folder.
+refuses commits that carry game data, and `tools/check_runtime_apk.py`
+refuses an APK that carries recompiled code. Never commit or publish anything
+from `mw3/`, `ppc_*/`, `out/` or a build folder.
 
 ## Credits
 

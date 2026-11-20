@@ -472,6 +472,12 @@ val mode60 = modes
             applicationInfo.nativeLibraryDir,
             this,
         )
+        // After nativeInit, so that the reason a library is refused is in the
+        // run's log as well as on the screen.
+        GameLibrary.load(this, request.title)?.let {
+            fail(it)
+            return
+        }
 
         applyOptions()
         applyDriver()

@@ -231,7 +231,7 @@
 
     <!-- self-update -->
     <string name="update_title">Update available: %1$s</string>
-    <string name="update_message">This install is build %1$d, the release carries build %2$d.\n\nOpen the release page and install the APK over this one — no uninstall, no data loss.</string>
+    <string name="update_message">This install is build %1$d, the release carries build %2$d.\n\nIt installs over this one: your game files, saves and settings are kept.</string>
     <string name="update_download">Download &amp; install</string>
     <string name="update_downloading">Downloading update…</string>
     <string name="update_failed">The download failed. Open the release page instead.</string>
@@ -254,6 +254,9 @@
     <string name="error_library">The runtime library would not load:\n%1$s</string>
     <string name="error_not_installed">The game files are not installed. Install them from the launcher first.</string>
     <string name="error_start">The runtime would not start. The log has the details.</string>
+    <!-- the game's code, where the app is published without it (GameLibrary.kt) -->
+    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd with this device connected over USB.</string>
+    <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
     <string name="stats_line">%1$.0f fps   %2$d MB textures   %3$d×%4$d</string>
 
     <!-- the run's own notification, which is there so the process is not the

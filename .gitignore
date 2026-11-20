@@ -128,3 +128,6 @@ iw4L-cpp/build/
 build-iw4l*/
 *.keystore
 *.b64
+
+# ---- the game code package (android/game): built from the disc, never committed ----
+android/game/build/
