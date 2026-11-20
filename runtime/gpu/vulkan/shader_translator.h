@@ -16,6 +16,17 @@ namespace shader
 {
     enum class Type { Vertex, Pixel };
 
+    // What a program loads from the frame arena each time it runs, counted
+    // as the loads are emitted (MW2_SHADER_STATS): the draw table's entry,
+    // words of the draw's record, words of the vertex constant table, float
+    // constants, fetch constants, dwords of vertex data, and the boolean and
+    // loop constants.
+    enum Load : uint32_t
+    {
+        kLoadDrawTable, kLoadRecord, kLoadConstantTable, kLoadConstant, kLoadFetchConstant,
+        kLoadVertexData, kLoadOther, kLoadKinds
+    };
+
     struct Translation
     {
         bool ok = false;
@@ -60,6 +71,10 @@ namespace shader
         uint32_t droppedExports = 0;
         // Writes to guest memory, dropped for want of anywhere to put them.
         uint32_t droppedMemoryExports = 0;
+        // Arena loads emitted, by kind: exact for a straight-line program,
+        // which runs each once; a pixel program's constants in a uniform
+        // block are not among them.
+        uint32_t loads[kLoadKinds]{};
     };
 
     // How a pixel shader reads its draw's record, when one group of pixels

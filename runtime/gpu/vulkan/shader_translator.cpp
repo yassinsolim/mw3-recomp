@@ -104,7 +104,8 @@ namespace
         Id TempIndex(uint32_t reg, bool relative);
         Id LoadConstant(uint32_t index);
         Id LoadConstantRelative(uint32_t index, bool useA0);
-        Id VertexConstant(Id window);
+        Id VertexConstant(uint32_t window);
+        Id VertexConstantAt(Id window);
         Id PixelConstant(Id window);
         Id Swizzle(Id value, uint32_t swizzle, const Alu& op);
         Id SplatComponent(Id value, uint32_t component);
@@ -162,10 +163,15 @@ namespace
         Id m_record = 0;
         // Each word of the record the program reads, loaded once
         // (RecordWord, PlaceRecordLoads): its value, and where it is read --
-        // the block and the place in the code, in the order emitted.
-        Id m_recordWords[bindings::kRecordWords]{};
+        // the block and the place in the code, in the order emitted. After
+        // them, in the same arrays, the words of a vertex program's constant
+        // table, loaded once in the same way from where the record says the
+        // table is.
+        enum : uint32_t { kTableWord = bindings::kRecordWords,
+                          kPlacedWords = kTableWord + bindings::kConstantTableWords };
+        Id m_recordWords[kPlacedWords]{};
         struct RecordRead { uint32_t block; size_t at; };
-        std::vector<RecordRead> m_recordReads[bindings::kRecordWords];
+        std::vector<RecordRead> m_recordReads[kPlacedWords];
         // The blocks a read can be in. A straight-line program is one block
         // up to its deferred kill; one with the dispatcher has the entry
         // block, the loop header, the block that switches on the counter, a
@@ -720,7 +726,7 @@ namespace
         // So the renderer can copy the window this program reads rather than
         // all 256 of them.
         m_result.constantsRead = std::max(m_result.constantsRead, at32 + 1);
-        if (m_type == shader::Type::Vertex) return VertexConstant(m_module.ConstantU(at32));
+        if (m_type == shader::Type::Vertex) return VertexConstant(at32);
         return PixelConstant(m_module.ConstantU(at32));
     }
 
@@ -736,7 +742,7 @@ namespace
         Id wrapped = Emit(Op::UMod, m_uint,
                           { Emit(Op::Bitcast, m_uint, { at }),
                             m_module.ConstantU(kFloatConstantCount) });
-        if (m_type == shader::Type::Vertex) return VertexConstant(wrapped);
+        if (m_type == shader::Type::Vertex) return VertexConstantAt(wrapped);
         return PixelConstant(wrapped);
     }
 
@@ -808,7 +814,7 @@ namespace
         };
         struct Load { size_t at; uint32_t index; };
         std::vector<Load> loads;
-        for (uint32_t index = 0; index < bindings::kRecordWords; index++)
+        for (uint32_t index = 0; index < kPlacedWords; index++)
         {
             const std::vector<RecordRead>& reads = m_recordReads[index];
             if (reads.empty()) continue;
@@ -823,16 +829,27 @@ namespace
             // The first read is in that block, or in one it dominates.
             loads.push_back({ reads[0].block == common ? reads[0].at : end(common), index });
         }
-        // From the last place back, so the places before stay where they were.
-        std::stable_sort(loads.begin(), loads.end(), [](const Load& a, const Load& b) { return a.at > b.at; });
+        // From the last place back, so the places before stay where they
+        // were; of the loads for one place the highest word first, which
+        // leaves it last there: a word of the constant table after the
+        // record's word that says where the table is.
+        std::sort(loads.begin(), loads.end(), [](const Load& a, const Load& b) {
+            return a.at != b.at ? a.at > b.at : a.index > b.index;
+        });
         auto& code = m_module.Code();
         for (const Load& load : loads)
         {
             std::vector<uint32_t> words;
             const Id at = m_module.Allocate(), pointer = m_module.Allocate();
-            Module::Emit(words, Op::IAdd, { m_uint, at, m_record, m_module.ConstantU(load.index) });
+            const bool ofTable = load.index >= kTableWord;
+            if (ofTable)
+                Module::Emit(words, Op::IAdd, { m_uint, at, m_recordWords[bindings::kRecordOffsets + bindings::kVertexFloats],
+                                                m_module.ConstantU(load.index - kTableWord) });
+            else
+                Module::Emit(words, Op::IAdd, { m_uint, at, m_record, m_module.ConstantU(load.index) });
             Module::Emit(words, Op::AccessChain, { m_module.Pointer(StorageClass::Uniform, m_uint), pointer,
                                                    m_arena, m_module.ConstantS(0), at });
+            m_result.loads[ofTable ? shader::kLoadConstantTable : shader::kLoadRecord]++;
             Module::Emit(words, Op::Load, { m_uint, m_recordWords[load.index], pointer });
             code.insert(code.begin() + std::ptrdiff_t(load.at), words.begin(), words.end());
         }
@@ -857,18 +874,32 @@ namespace
                            { m_arenaFloats, m_module.ConstantS(0), vec4 }) });
     }
 
-    // Constant `window` (0-255) of a vertex program: the file's entry base +
-    // window, found through the table at the block it falls in.
-    Id Translator::VertexConstant(Id window)
+    // Constant `window` (0-255) of a vertex program, found through the table
+    // at the block of 16 it falls in. The table's word for the block is one
+    // load however many of the block's constants the program reads: a
+    // world shader reads twenty-two constants of three or four blocks, and
+    // with a load of the word for each, which a driver does not join, two in
+    // five of what a vertex fetched from the arena was the table.
+    Id Translator::VertexConstant(uint32_t window)
+    {
+        // Where the table is, read at this place too: its load comes before
+        // the word's (PlaceRecordLoads).
+        ConstantBlock(bindings::kVertexFloats);
+        const Id copy = RecordWord(kTableWord + window / 16);
+        m_result.loads[shader::kLoadConstant]++;
+        return ArenaFloat4(Emit(Op::IAdd, m_uint, { copy, m_module.ConstantU(window % 16) }));
+    }
+
+    // The same for an index only known when the shader runs.
+    Id Translator::VertexConstantAt(Id window)
     {
         const Id table = ConstantBlock(bindings::kVertexFloats);
-        const Id base = ArenaWord(table);
-        const Id entry = Emit(Op::IAdd, m_uint, { base, window });
-        const Id block = Emit(Op::ShiftRightLogical, m_uint, { entry, m_module.ConstantU(4) });
+        m_result.loads[shader::kLoadConstantTable]++;
+        m_result.loads[shader::kLoadConstant]++;
         const Id copy = ArenaWord(Emit(Op::IAdd, m_uint,
-                                       { table, Emit(Op::IAdd, m_uint, { m_module.ConstantU(4), block }) }));
+                                       { table, Emit(Op::ShiftRightLogical, m_uint, { window, m_module.ConstantU(4) }) }));
         return ArenaFloat4(Emit(Op::IAdd, m_uint,
-                                { copy, Emit(Op::BitwiseAnd, m_uint, { entry, m_module.ConstantU(15) }) }));
+                                { copy, Emit(Op::BitwiseAnd, m_uint, { window, m_module.ConstantU(15) }) }));
     }
 
     Id Translator::Swizzle(Id value, uint32_t swizzle, const Alu& op)
@@ -1356,6 +1387,7 @@ namespace
     Id Translator::BoolConstant(uint32_t index)
     {
         index &= 0xFF;
+        m_result.loads[shader::kLoadOther]++;
         Id word = ArenaWord(Emit(Op::IAdd, m_uint,
                                  { ConstantBlock(bindings::kBoolConstants), m_module.ConstantU(index / 32) }));
         Id shifted = Emit(Op::ShiftRightLogical, m_uint,
@@ -1368,6 +1400,7 @@ namespace
     // aL start value and the aL step.
     Id Translator::LoopConstant(Id index)
     {
+        m_result.loads[shader::kLoadOther]++;
         return ArenaWord(Emit(Op::IAdd, m_uint, { ConstantBlock(bindings::kLoopConstants), index }));
     }
 
@@ -1406,6 +1439,7 @@ namespace
     Id Translator::FetchConstantWord(uint32_t pair, uint32_t word)
     {
         m_result.fetchPairsRead[pair / 32] |= 1u << (pair % 32);
+        m_result.loads[shader::kLoadFetchConstant]++;
         return ArenaWord(Emit(Op::IAdd, m_uint,
                               { ConstantBlock(bindings::kFetchConstants), m_module.ConstantU(pair * 4 + word) }));
     }
@@ -1415,6 +1449,7 @@ namespace
     // four are computed and selected between, exactly as the hardware would.
     Id Translator::ReadGuestDword(Id addressInDwords, uint32_t index)
     {
+        m_result.loads[shader::kLoadVertexData]++;
         Id at = addressInDwords;
         if (index)
             at = Emit(Op::IAdd, m_uint, { at, m_module.ConstantU(index) });
@@ -1534,19 +1569,24 @@ namespace
             return false;
         }
         count = layout.count;
+        // Each dword once: the components of a packed format share one.
+        Id dwords[4]{};
+        auto dword = [&](uint32_t index) {
+            if (!dwords[index]) dwords[index] = ReadGuestDword(address, index);
+            return dwords[index];
+        };
 
         switch (kind)
         {
         case Kind::Float32:
             for (uint32_t i = 0; i < layout.count; i++)
-                out[i] = Emit(Op::Bitcast, m_float, { ReadGuestDword(address, layout.word[i]) });
+                out[i] = Emit(Op::Bitcast, m_float, { dword(layout.word[i]) });
             return true;
 
         case Kind::Float16:
             for (uint32_t w = 0; w * 2 < layout.count; w++)
             {
-                Id pair = Glsl450(Glsl::UnpackHalf2x16, m_module.Float2(),
-                                  { ReadGuestDword(address, w) });
+                Id pair = Glsl450(Glsl::UnpackHalf2x16, m_module.Float2(), { dword(w) });
                 for (uint32_t c = 0; c < 2 && w * 2 + c < layout.count; c++)
                     out[w * 2 + c] = Emit(Op::CompositeExtract, m_float, { pair, c });
             }
@@ -1554,8 +1594,7 @@ namespace
 
         case Kind::Packed:
             for (uint32_t i = 0; i < layout.count; i++)
-                out[i] = unpack(ReadGuestDword(address, layout.word[i]),
-                                layout.offset[i], layout.width[i]);
+                out[i] = unpack(dword(layout.word[i]), layout.offset[i], layout.width[i]);
             return true;
         }
         return true;
@@ -1596,18 +1635,17 @@ namespace
             const uint32_t constant = op.VertexFetchSlot();
             if (constant >= bindings::kFetchSlots) { Fail("vertex fetch constant", constant); return; }
 
+            // The renderer's copy of dword 0 (WriteConstants): the address of
+            // its copy of the data in dwords, and below it, where the
+            // register has a two-bit type, the endianness of dword 1 -- one
+            // load for both. Vertex data is not always stored 8-in-32: a
+            // mesh with 16-bit positions is 8-in-16, and swapping it as if
+            // it were whole dwords exchanges the halves of every pair, which
+            // stretches triangles across the level.
             Id word0 = FetchConstantWord(constant, 0);
-            // dword 0 is the address in dwords, with a two-bit type below it.
             Id base = Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(2) });
-
-            // dword 1 carries the endianness in its low two bits. Vertex data is
-            // not always stored 8-in-32: a mesh with 16-bit positions is 8-in-16,
-            // and swapping it as if it were whole dwords exchanges the halves of
-            // every pair, which stretches triangles across the level.
             Module::Emit(m_module.Code(), Op::Store,
-                         { m_lastFetchEndian,
-                           Emit(Op::BitwiseAnd, m_uint,
-                                { FetchConstantWord(constant, 1), m_module.ConstantU(3) }) });
+                         { m_lastFetchEndian, Emit(Op::BitwiseAnd, m_uint, { word0, m_module.ConstantU(3) }) });
 
             // The vertex index arrives as a float, which is how the sequencer hands
             // it over.
@@ -2260,6 +2298,7 @@ namespace
             const Id entry = Emit(Op::IAdd, m_uint,
                                   { Emit(Op::Bitcast, m_uint, { baseVertex }),
                                     Emit(Op::ShiftLeftLogical, m_uint, { slot, m_module.ConstantU(1) }) });
+            m_result.loads[shader::kLoadDrawTable] += 2;
             m_record = ArenaWord(entry);
             Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
 
@@ -2618,8 +2657,12 @@ namespace
         // transform is on, which is every draw but the EDRAM clears.
         if (m_type == shader::Type::Vertex && m_position)
         {
-            Id ndc = BuildVector(RecordFloat(bindings::kRecordNdc), RecordFloat(bindings::kRecordNdc + 1),
-                                 RecordFloat(bindings::kRecordNdc + 2), RecordFloat(bindings::kRecordNdc + 3));
+            // Its four floats are one vec4 of the arena (bindings.h).
+            static_assert(bindings::kRecordNdc % 4 == 0);
+            m_result.loads[shader::kLoadRecord]++;
+            Id ndc = ArenaFloat4(Emit(Op::ShiftRightLogical, m_uint,
+                                      { Emit(Op::IAdd, m_uint, { m_record, m_module.ConstantU(bindings::kRecordNdc) }),
+                                        m_module.ConstantU(2) }));
             Id value = Emit(Op::Load, m_float4, { m_position });
             Id w = Emit(Op::CompositeExtract, m_float, { value, 3 });
             auto term = [&](uint32_t component) {

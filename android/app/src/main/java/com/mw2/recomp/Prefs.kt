@@ -13,21 +13,24 @@ class Prefs(context: Context) {
     private val store: SharedPreferences =
         context.applicationContext.getSharedPreferences("mw2", Context.MODE_PRIVATE)
 
-    /**
-     * Modern Warfare 3 on an Adreno 6xx (the kernel's driver names the
-     * chip): the Adreno 650 of a Snapdragon 865 draws a level of it at 25 to
-     * 33 frames a second, so a cap of 60 there is a frame time that swings
-     * between two and three blanks, and 30 is one it holds. Modern Warfare 2
-     * runs at 54 to 59 there with the runtime's defaults for that chip (no
-     * sun shadows, an 832x480 scene; docs/android.md) and starts at 60.
-     */
-    private val holdsThirty: Boolean by lazy {
-        Title.isMw3 && try {
+    /** An Adreno 6xx: the kernel's driver names the chip. */
+    private val adreno6xx: Boolean by lazy {
+        try {
             java.io.File("/sys/class/kgsl/kgsl-3d0/gpu_model").readText().startsWith("Adreno6")
         } catch (_: java.io.IOException) {
             false
         }
     }
+
+    /**
+     * Modern Warfare 3 on an Adreno 6xx: the Adreno 650 of a Snapdragon 865
+     * draws a level of it at 25 to 33 frames a second, so a cap of 60 there
+     * is a frame time that swings between two and three blanks, and 30 is
+     * one it holds. Modern Warfare 2 runs at 54 to 59 there with the
+     * runtime's defaults for that chip (no sun shadows, an 832x480 scene;
+     * docs/android.md) and starts at 60.
+     */
+    private val holdsThirty: Boolean get() = Title.isMw3 && adreno6xx
 
     // ---- graphics ---------------------------------------------------------
 
@@ -55,6 +58,20 @@ class Prefs(context: Context) {
     var multisampling: Boolean
         get() = store.getBoolean(KEY_MSAA, false)
         set(value) = store.edit().putBoolean(KEY_MSAA, value).apply()
+
+    /**
+     * Modern Warfare 2, detail at distance: how many times nearer than on
+     * the console a model changes to its coarser meshes, one of
+     * DETAIL_BIASES (MW2_LOD_BIAS, runtime/model_detail.cpp). Until the
+     * player chooses it is the runtime's own choice for the chip: 2 on an
+     * Adreno 6xx, the console's 1 on any other.
+     */
+    var detailBias: Int
+        get() {
+            val saved = store.getInt(KEY_DETAIL_BIAS, 0)
+            return if (saved in DETAIL_BIASES) saved else if (adreno6xx) 2 else 1
+        }
+        set(value) = store.edit().putInt(KEY_DETAIL_BIAS, if (value in DETAIL_BIASES) value else 1).apply()
 
     /**
      * How much of the phone's memory the texture cache may hold. Zero, the
@@ -417,6 +434,9 @@ class Prefs(context: Context) {
         private const val KEY_RESOLUTION = "resolutionScale"
         private const val KEY_RENDER_SCALE = "renderScale"
         private const val KEY_MSAA = "multisampling"
+        private const val KEY_DETAIL_BIAS = "detailBias"
+        /** As on the console, reduced, low: what the slider stops at. */
+        val DETAIL_BIASES = intArrayOf(1, 2, 4)
         private const val KEY_TEXTURE_MB = "textureBudgetMB"
         private const val KEY_SHOW_STATS = "showStats"
         private const val KEY_FILL_SCREEN = "fillScreen"

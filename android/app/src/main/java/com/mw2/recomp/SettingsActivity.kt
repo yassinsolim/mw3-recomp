@@ -67,7 +67,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
         prefs = Prefs(this)
         colorValues(
-            R.id.resolution_label, R.id.render_scale_label, R.id.fps_limit_label,
+            R.id.resolution_label, R.id.render_scale_label, R.id.detail_label, R.id.fps_limit_label,
             R.id.fov_label, R.id.texture_label, R.id.look_x_label,
             R.id.look_y_label, R.id.smoothing_label, R.id.bot_count_label, R.id.bot_skill_label,
             R.id.match_gravity_label, R.id.match_speed_label, R.id.match_jump_label,
@@ -114,6 +114,22 @@ class SettingsActivity : AppCompatActivity() {
         })
 
         switch(R.id.msaa, prefs.multisampling) { prefs.multisampling = it }
+        // Detail at distance is Modern Warfare 2's, the only title with the hook.
+        if (!Title.isMw3) {
+            findViewById<android.view.View>(R.id.detail_group).visibility = android.view.View.VISIBLE
+            val details = resources.getStringArray(R.array.detail_biases)
+            val detailLabel: TextView = findViewById(R.id.detail_label)
+            val detail: SeekBar = findViewById(R.id.detail)
+            detail.max = Prefs.DETAIL_BIASES.size - 1
+            detail.progress = Prefs.DETAIL_BIASES.indexOf(prefs.detailBias).coerceAtLeast(0)
+            detailLabel.text = getString(R.string.detail, details[detail.progress])
+            detail.setOnSeekBarChangeListener(object : Simple() {
+                override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                    detailLabel.text = getString(R.string.detail, details[value])
+                    if (fromUser) prefs.detailBias = Prefs.DETAIL_BIASES[value]
+                }
+            })
+        }
         val fpsLabel: TextView = findViewById(R.id.fps_limit_label)
 val fpsSlider: SeekBar = findViewById(R.id.fps_limit)
 fpsSlider.max = Prefs.FPS_LIMITS.size - 1
