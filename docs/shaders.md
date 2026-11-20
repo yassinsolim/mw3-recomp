@@ -135,18 +135,20 @@ an index, always 32 bits: (entry << 16) + (guest index - the entry's)
 the draw's record:
   0   (5 words)  where each constant block is in the arena, in dwords:
                    0  the vertex constant table
-                   1  vertex fetch constants (96 pairs of dwords, each padded to four)
+                   1  vertex fetch constants (96 pairs of dwords, each padded to four;
+                      a vertex fetch's first dword holds its endianness below the address)
                    2  256 boolean constants, packed bits (8 dwords)
                    3  32 loop constants
                    4  pixel float constants, 256 vec4 from SQ_PS_CONST's base
-  5   (4)        vertex: float2 scale, float2 offset, window to clip space
-  9   (4)        pixel: alpha function, alpha reference, colour scale, gamma-target flag
-  13  (4)        both: a bit per texture slot bound to a resolve's copy at the frame's
+  5   (3)        unused: the next four are a vec4 of the arena
+  8   (4)        vertex: float2 scale, float2 offset, window to clip space, loaded as one vec4
+  12  (4)        pixel: alpha function, alpha reference, colour scale, gamma-target flag
+  16  (4)        both: a bit per texture slot bound to a resolve's copy at the frame's
                  scale, the same at the shadow maps' scale, and the reciprocal of each
                  scale; read only by shaders built under MW2_SCALE or MW2_SHADOW_SCALE
-  17  (1 a slot) pixel: per fetch slot up to the highest it samples, the image's
+  20  (1 a slot) pixel: per fetch slot up to the highest it samples, the image's
                  index (low 16 bits) and the sampler's (high 16)
-  49  (1 a slot) vertex: the same for its own slots, only when it samples any; a
+  52  (1 a slot) vertex: the same for its own slots, only when it samples any; a
                  stage's own because the two may declare a slot as different kinds
 ```
 
@@ -209,10 +211,13 @@ the draw's record:
   fetched every float constant it read from the arena's storage buffer, at
   the address the record gives: forty fetches a pixel in a lit surface's
   shader, and a quarter of the GPU's frame on the Adreno 650 (21.2 ms to
-  15.4 on Modern Warfare 2's S.S.D.D.). So where there is no waterfall the
-  constants are set 2's third binding instead: 256 vec4 of the arena as a
-  uniform block with a dynamic offset, which a driver gives the shader as
-  constants it need not fetch. The renderer binds set 2 again, at the draw's
+  15.4 on Modern Warfare 2's S.S.D.D.). So the constants are set 2's third
+  binding instead, on a device without the waterfall and on every Adreno,
+  with it or without (the Adreno 740 of the AYN Thor has the ballot, and the
+  same level went from 8.7 to 8.3 ms): 256 vec4 of the arena as a uniform
+  block with a dynamic offset, which a driver gives the shader as constants
+  it need not fetch. Any other device with the ballot fetches them from the
+  arena as before. The renderer binds set 2 again, at the draw's
   pixel constants, when a draw whose shader reads any is given others than
   the last (`DrawOp::kPixelConstants`); that is a state change, so the run
   of draws before it ends there
@@ -262,11 +267,33 @@ the draw's record:
   give each stage a window into it (D3D9 gives vertex the low half, pixel the
   high half).
 - A pixel program reads its window as one run of 256 vec4. A vertex program
-  reads through the constant table: a uvec4 whose x is the window's base, then
-  for each of the file's 32 blocks of 16 vec4 the vec4 index of its copy in
-  the arena. Constant `i` is `arena[table[4 + (base + i) / 16] + (base + i) % 16]`.
-  A draw changes a block or so of the ten or so a vertex program reads (its
-  world matrix), and the table lets it copy only the blocks that changed.
+  reads through the constant table: for each of its window's 16 blocks of 16
+  vec4, the vec4 index of the block's copy in the arena. Constant `i` is
+  `arena[table[i / 16] + i % 16]`, and a program loads `table[i / 16]` once
+  for each block it names a constant of, placed as a record word is
+  (`VertexConstant`, `PlaceRecordLoads`); only a constant indexed through
+  a0/aL loads its block's word where it is read. A draw changes a block or
+  so of the ten or so a vertex program reads (its world matrix), and the
+  table lets it copy only the blocks that changed. D3D9 starts a window at
+  a block of the file; one that does not is copied whole for the draw.
+- **What a vertex loads.** With a load of the table's word at every constant
+  and the window's base before it, two in five of a vertex's loads from the
+  arena were the table: over a Team Player frame 66 loads a vertex, 30 of
+  them the table, 15 the constants, 11 dwords of vertex data, 6 record
+  words, 2 fetch constants and the draw table's 2 (`MW2_SHADER_STATS`
+  counts them as the translator emits them). A driver joins equal loads but
+  not these, whose addresses it cannot tell are equal. Now a vertex of that
+  level loads 27 times, 2 of them the table: the window transform is one
+  vec4 instead of four words, a vertex fetch one dword instead of two, and a
+  packed format's components share their dword's load (the commonest world
+  shader went from 93 loads emitted to 39, the next from 38 to 19). A dword
+  of vertex data also goes through the two exchanges its endianness is made
+  of rather than all four forms. On the Adreno 740 the opening of S.S.D.D.
+  went from 10.1 to 9.1 ms of GPU a frame, 93.7 to 104.1 frames a second,
+  and Team Player's heaviest views from 12.5 to 11.5 ms for the scene, 65 to
+  71 frames a second. Fewer than half the loads for a twelfth of the time:
+  the loads are not most of what a vertex costs. The Adreno 650 has not
+  been measured with this yet.
 - The translator records the highest float constant a program reads
   (`Translation::constantsRead`) so the renderer copies only that much, unless
   the program addresses constants through a0/aL (`addressedConstants`), where
@@ -384,12 +411,14 @@ computation:
 - `r0.x` is the title's index, converted to float at entry: `gl_VertexIndex -
   gl_BaseVertex` names a draw table entry in its high sixteen bits, and its
   low sixteen are added to the guest index the entry holds.
-- A full `vfetch` reads its fetch constant from binding 1: dword 0 is the
-  buffer address in dwords with a two-bit type below it (`>> 2`), dword 1's low
-  two bits are the endianness. The address is
-  `(vf.x >> 2) + index * stride + offset`, read from the arena (set 2). The
-  renderer copies what the draw reads into the arena and rewrites the constant
-  to point at the copy ([rendering.md](rendering.md)).
+- A full `vfetch` reads its fetch constant from the arena: one dword, the
+  renderer's copy of the constant's first, with the address of the data in
+  dwords above its low two bits and, in those, the endianness the register
+  holds in its second dword (the register's own two are a type the program
+  has no use for). The address is `(vf.x >> 2) + index * stride + offset`,
+  read from the arena (set 2). The renderer copies what the draw reads into
+  the arena and points the constant at the copy
+  ([rendering.md](rendering.md)).
 - Endianness is a run-time value (none, 8-in-16, 8-in-32, 16-in-32); all four
   swaps are computed and selected between. Vertex data is not always 8-in-32:
   a mesh with 16-bit positions is 8-in-16.

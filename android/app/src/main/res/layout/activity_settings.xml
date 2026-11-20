@@ -163,6 +163,33 @@
                     android:layout_height="wrap_content"
                     android:text="@string/msaa" />
 
+                <!-- Modern Warfare 2 only (SettingsActivity shows it). -->
+                <LinearLayout
+                    android:id="@+id/detail_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/detail_label"
+                        style="@style/SettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <SeekBar
+                        android:id="@+id/detail"
+                        style="@style/SettingSeek"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/detail_hint" />
+                </LinearLayout>
+
                     <TextView
         android:id="@+id/fps_limit_label"
         style="@style/SettingLabel"

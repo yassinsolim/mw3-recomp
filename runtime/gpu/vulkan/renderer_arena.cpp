@@ -239,39 +239,54 @@ namespace vk::renderer::detail
 
     // A vertex program's constants: each block of 16 its window reaches that
     // has been written since its last copy into this slot is copied again, and
-    // the table it reads them through is written when one has moved or the
-    // window has. A draw changes a block or so -- its world matrix -- of the
-    // ten it reads, so most of the window is not copied again.
+    // the table it reads them through, a word for each block of the window,
+    // is written when a word of it has changed. A draw changes a block or so
+    // -- its world matrix -- of the ten it reads, so most of the window is
+    // not copied again.
     uint32_t WriteConstantTable(const gpu::RegisterFile& r, uint32_t needed)
     {
         static_assert(gpu::kConstantBaseAlu % (1u << gpu::kStampShift) == 0 && (1u << gpu::kStampShift) == 64,
                       "a block of 16 constants is one stamp block");
         const uint32_t base = std::min(gpu::ConstantWindow{ r[gpu::SQ_VS_CONST] }.Base(), 256u);
         State::Cached& table = g.constantTable;
-        bool moved = !table.valid || table.base != base;
-        if (needed)
-            for (uint32_t b = base / 16; b <= (base + needed - 1) / 16; b++)
+        bool moved = !table.valid;
+        for (uint32_t k = 0; k < (needed + 15) / 16; k++)
+        {
+            uint32_t at;
+            if (base % 16)
             {
+                // The window's blocks are not the file's, which the stamps
+                // and the copies kept are of: D3D9 starts a window at a
+                // block, so this is copied without looking for one kept.
+                at = CopyIntoArena(&r.values[gpu::kConstantBaseAlu + (base + k * 16) * 4], 256, kArenaConstants);
+                if (at == UINT32_MAX) return at;
+                at /= 16;
+            }
+            else
+            {
+                const uint32_t b = base / 16 + k;
                 const uint32_t first = gpu::kConstantBaseAlu + b * 64;
                 const uint64_t stamp = r.stamps[first >> gpu::kStampShift];
                 State::ConstantBlock& block = g.constantBlocks[b];
                 if (block.valid && block.stamp == stamp)
-                {
                     g.arenaReused[kArenaConstants] += 256;
-                    continue;
+                else
+                {
+                    const uint32_t copy = CopyIntoArena(&r.values[first], 256, kArenaConstants);
+                    if (copy == UINT32_MAX) return copy;
+                    block = { stamp, copy / 16, true };
                 }
-                const uint32_t at = CopyIntoArena(&r.values[first], 256, kArenaConstants);
-                if (at == UINT32_MAX) return at;
-                block = { stamp, at / 16, true };
-                g.constantTableWords[4 + b] = at / 16;
-                moved = true;
+                at = block.at;
             }
+            if (g.constantTableWords[k] == at) continue;
+            g.constantTableWords[k] = at;
+            moved = true;
+        }
         if (!moved) return table.at;
-        g.constantTableWords[0] = base;
         const uint32_t at = CopyIntoArena(g.constantTableWords, sizeof g.constantTableWords,
                                           kArenaConstants);
         if (at == UINT32_MAX) return at;
-        table = { 0, base, at, true, 0 };
+        table = { 0, 0, at, true, 0 };
         return at;
     }
 
@@ -495,8 +510,13 @@ namespace vk::renderer::detail
                 const uint32_t pair = i * 32 + bit;
                 const uint32_t* source = &r.values[gpu::kConstantBaseFetch + pair * 2];
                 uint32_t entry[4] = { source[0], source[1], 0, 0 };
-                if (((program.vertexFetchPairs[i] >> bit) & 1) && !pointAtCopy(pair, entry))
-                    return out;
+                if ((program.vertexFetchPairs[i] >> bit) & 1)
+                {
+                    if (!pointAtCopy(pair, entry)) return out;
+                    // The endianness where the type was, which a vertex
+                    // program has no use for: it loads one dword a fetch.
+                    entry[0] = (entry[0] & ~3u) | (source[1] & 3u);
+                }
                 std::memcpy(ArenaAt(out.fetch + pair * 16), entry, sizeof entry);
                 written += 16;
             }

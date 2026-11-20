@@ -752,14 +752,15 @@ namespace vk::renderer::detail
 {
     namespace
     {
-        struct VertexWeight { uint64_t draws = 0, vertices = 0; };
+        struct VertexWeight { uint64_t draws = 0, vertices = 0; uint32_t loads[shader::kLoadKinds]{}; };
         // The ring consumer's alone, so no lock.
         std::unordered_map<uint64_t, VertexWeight> g_vertexWeight;
     }
 
-    void NoteVertexWeight(uint64_t vertexHash, uint32_t vertices)
+    void NoteVertexWeight(uint64_t vertexHash, const shader::Translation& program, uint32_t vertices)
     {
         VertexWeight& weight = g_vertexWeight[vertexHash];
+        if (!weight.draws) std::copy_n(program.loads, size_t(shader::kLoadKinds), weight.loads);
         weight.draws++;
         weight.vertices += vertices;
     }
@@ -771,10 +772,34 @@ namespace vk::renderer::detail
         const size_t shown = std::min<size_t>(ranked.size(), 40);
         std::partial_sort(ranked.begin(), ranked.begin() + shown, ranked.end(),
                           [](const auto& a, const auto& b) { return a.second.vertices > b.second.vertices; });
+        // What the vertices drawn load from the arena, all programs together:
+        // which kind of load a cheaper form would save the most of.
+        uint64_t all[shader::kLoadKinds]{}, vertices = 0;
+        for (const auto& [hash, weight] : ranked)
+        {
+            vertices += weight.vertices;
+            for (uint32_t k = 0; k < shader::kLoadKinds; k++) all[k] += weight.vertices * weight.loads[k];
+        }
+        static const char* const kKinds[shader::kLoadKinds] = {
+            "draw table", "record", "constant table", "constants", "fetch constants", "vertex data", "other" };
+        char text[256];
+        const auto describe = [&](auto&& per) {
+            int n = 0;
+            for (uint32_t k = 0; k < shader::kLoadKinds; k++)
+                n += std::snprintf(text + n, sizeof text - size_t(n), "%s%.1f %s", k ? ", " : "", per(k), kKinds[k]);
+        };
+        if (vertices)
+        {
+            describe([&](uint32_t k) { return double(all[k]) / double(vertices); });
+            LOGI("shaderstats: weight of %llu vertices, arena loads each: %s", (unsigned long long)vertices, text);
+        }
         for (size_t i = 0; i < shown; ++i)
-            LOGI("shaderstats: weight vs %016llx: %llu draws, %llu vertices",
+        {
+            describe([&](uint32_t k) { return double(ranked[i].second.loads[k]); });
+            LOGI("shaderstats: weight vs %016llx: %llu draws, %llu vertices, arena loads each: %s",
                  (unsigned long long)ranked[i].first, (unsigned long long)ranked[i].second.draws,
-                 (unsigned long long)ranked[i].second.vertices);
+                 (unsigned long long)ranked[i].second.vertices, text);
+        }
     }
 }
 

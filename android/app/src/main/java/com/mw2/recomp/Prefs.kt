@@ -57,6 +57,16 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_MSAA, value).apply()
 
     /**
+     * Modern Warfare 2, detail at distance: how many times nearer than on
+     * the console a model changes to its coarser meshes, one of
+     * DETAIL_BIASES (MW2_LOD_BIAS, runtime/model_detail.cpp). The console's
+     * until the player chooses.
+     */
+    var detailBias: Int
+        get() = store.getInt(KEY_DETAIL_BIAS, 1).let { if (it in DETAIL_BIASES) it else 1 }
+        set(value) = store.edit().putInt(KEY_DETAIL_BIAS, if (value in DETAIL_BIASES) value else 1).apply()
+
+    /**
      * How much of the phone's memory the texture cache may hold. Zero, the
      * default, means "let the runtime decide from the device"
      * (runtime/android/perf.cpp): a fixed 128 MB is less than one MW3
@@ -417,6 +427,9 @@ class Prefs(context: Context) {
         private const val KEY_RESOLUTION = "resolutionScale"
         private const val KEY_RENDER_SCALE = "renderScale"
         private const val KEY_MSAA = "multisampling"
+        private const val KEY_DETAIL_BIAS = "detailBias"
+        /** As on the console, reduced, low: what the slider stops at. */
+        val DETAIL_BIASES = intArrayOf(1, 2, 4)
         private const val KEY_TEXTURE_MB = "textureBudgetMB"
         private const val KEY_SHOW_STATS = "showStats"
         private const val KEY_FILL_SCREEN = "fillScreen"

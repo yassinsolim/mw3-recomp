@@ -834,6 +834,8 @@ val mode60 = modes
         if (prefs.renderScale in 1..3) {
             NativeBridge.nativeSetOption("MW2_SCALE", prefs.renderScale.toString())
         }
+        // Modern Warfare 2 alone has the hook (runtime/model_detail.cpp).
+        if (!Title.isMw3) NativeBridge.nativeSetOption("MW2_LOD_BIAS", prefs.detailBias.toString())
         NativeBridge.nativeSetOption("MW2_FPS_LIMIT", prefs.fpsLimit.toString())
         NativeBridge.nativeSetOption("MW2_STUTTERS", "1")
         // Full synchronous precompile at boot when the player asked for it in

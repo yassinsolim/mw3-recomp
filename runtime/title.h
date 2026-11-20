@@ -1117,6 +1117,9 @@
 #define T_CG_ViewFov           8215B9D0
 #define T_CG_CullZoom          8215BC50
 #define T_Dvar_RegisterInt     8230E2F8
+// XModelGetLodForDist(model, distance for the meshes, distance for the cull)
+// -> which of the model's meshes, or -1 (model_detail.cpp)
+#define T_XModelGetLodForDist  8232D650
 // the sizes the title draws at, and the picture's shape (render_size.cpp):
 // the update's functions, instruction for instruction, 0x10E0 lower, the
 // menus' evaluator 0x900 lower
@@ -1164,6 +1167,7 @@
 #define T_CG_ViewFov           8210FCD8
 #define T_CG_CullZoom          8210FF80
 #define T_Dvar_RegisterInt     822E1618
+#define T_XModelGetLodForDist  82300B48
 // the sizes the title draws at, and the picture's shape (render_size.cpp):
 // where the update has them, but for the menus' evaluator, 8 bytes lower
 #define T_R_VideoSizes         8238E5D0

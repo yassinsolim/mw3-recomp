@@ -1083,7 +1083,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         op.table = place.table + place.slot * bindings::kTableWords;
         bound.runEnd = UINT32_MAX;
     }
-    if (vk::pipeline::ShaderStats()) NoteVertexWeight(call.vertexHash, op.count);
+    if (vk::pipeline::ShaderStats()) NoteVertexWeight(call.vertexHash, vertex->translation, op.count);
     gpu::detail::SetCurrentDrawStage("Draw_Record");
     vk::record::Joining(op);
     colourTarget->draws++;

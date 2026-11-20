@@ -768,7 +768,10 @@ if ($ForAndroid) {
         # With the NDK's own CMake and Ninja, as Gradle builds the app's.
         $ndkCMake = Join-Path $Sdk 'cmake\3.22.1\bin\cmake.exe'
         $ndkNinja = Join-Path $Sdk 'cmake\3.22.1\bin\ninja.exe'
-        $libraries = Join-Path $Out 'game-libraries\arm64-v8a'
+        # A folder for each game: the package takes every library in the
+        # folder it is given, so one shared by both games put all four in
+        # each package once both had been built here.
+        $libraries = Join-Path $Out "game-libraries\$Game\arm64-v8a"
         New-Item -ItemType Directory -Force $libraries | Out-Null
         $built = @()
         foreach ($key in @($Keys)) {

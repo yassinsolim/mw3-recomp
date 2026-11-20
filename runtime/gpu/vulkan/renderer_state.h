@@ -411,7 +411,8 @@ namespace vk::renderer::detail
         ConstantBlock constantBlocks[bindings::kConstantFileBlocks];
         Cached constantTable;
         // The table as the next copy of it would be, kept up as blocks are
-        // copied: the base, then each block's vec4 index, 0 for none yet.
+        // copied: the vec4 index of each of the window's blocks, 0 for none
+        // yet.
         uint32_t constantTableWords[bindings::kConstantTableWords]{};
         Cached fetchBlock, booleans, loops;
         uint32_t fetchSubs[3]{};          // what fetchBlock was assembled for
@@ -974,7 +975,7 @@ namespace vk::renderer::detail
     // MW2_SHADER_STATS=1: what each vertex shader was drawn for, to read beside
     // the driver's statistics for it. Noted on the ring consumer by every draw
     // that reaches the recorder; reported at the end of the run.
-    void NoteVertexWeight(uint64_t vertexHash, uint32_t vertices);
+    void NoteVertexWeight(uint64_t vertexHash, const shader::Translation& program, uint32_t vertices);
     void ReportVertexWeight();
 
     // The depth and stencil tests RB_DEPTHCONTROL asks for, as dynamic state.

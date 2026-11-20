@@ -12,7 +12,8 @@ plugins {
 // machine's debug key.
 //
 //   -PgameLibraries=<folder>  where the libraries are, under arm64-v8a/ as
-//                             jniLibs folders are; setup/setup.ps1 gives it
+//                             jniLibs folders are, and nothing else: all of
+//                             the folder is packaged; setup/setup.ps1 gives it
 //   -Pgame=mw2                Modern Warfare 2's package (com.mw2.recomp.game);
 //                             Modern Warfare 3's without it
 //   -PappSuffix=.dev          as android/app/build.gradle.kts: the package a
@@ -52,15 +53,24 @@ android {
 }
 
 // A package without the libraries would install and be of no use, and the
-// app would say only that the game code is missing.
+// app would say only that the game code is missing. One with the other game's
+// libraries beside its own would be twice the size for nothing.
 tasks.configureEach {
     if (name.startsWith("merge") && name.endsWith("JniLibFolders")) {
         doFirst {
-            val found = gameLibraries?.let { File(it, "arm64-v8a").listFiles { f -> f.name.endsWith("game.so") } }.orEmpty()
-            if (found.isEmpty()) {
+            val all = gameLibraries?.let { File(it, "arm64-v8a").listFiles() }.orEmpty()
+            val own = setOf("lib${game}game.so", "lib${game}mpgame.so")
+            if (all.none { it.name in own }) {
                 throw GradleException(
                     "No game libraries: give -PgameLibraries=<folder holding arm64-v8a/lib${game}game.so>. " +
                         "setup/setup.ps1 builds them from your disc and runs this for you."
+                )
+            }
+            val others = all.filter { it.name !in own }
+            if (others.isNotEmpty()) {
+                throw GradleException(
+                    "${others.joinToString { it.name }} in $gameLibraries/arm64-v8a would be packaged too: " +
+                        "the folder must hold only ${own.joinToString(" and ")}."
                 )
             }
         }

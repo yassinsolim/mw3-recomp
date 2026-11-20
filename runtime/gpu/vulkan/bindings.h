@@ -20,10 +20,10 @@ namespace vk::bindings
     // frame arena (set 2) and found there by the dword offset the draw's
     // record holds for it (kRecordOffsets). Set 0 has nothing in it.
     constexpr uint32_t kConstantSet = 0;
-    constexpr uint32_t kVertexFloats = 0;     // the vertex program's constant table: a uvec4
-                                              // whose x is SQ_VS_CONST's base, then for each of
-                                              // the file's 32 blocks of 16 vec4 the vec4 index
-                                              // of its copy in the arena (kArenaFloats)
+    constexpr uint32_t kVertexFloats = 0;     // the vertex program's constant table: for each
+                                              // of its window's 16 blocks of 16 vec4, the vec4
+                                              // index of the block's copy in the arena
+                                              // (kArenaFloats)
     constexpr uint32_t kFetchConstants = 1;   // 96 vertex fetch constants, two dwords
                                               // each, padded to a uvec4
     constexpr uint32_t kBoolConstants = 2;    // 256 bits as 8 dwords
@@ -32,7 +32,7 @@ namespace vk::bindings
     constexpr uint32_t kConstantBlocks = 5;
     constexpr uint32_t kFloatConstants = 256;
     constexpr uint32_t kConstantFileBlocks = 32;  // 512 vec4, 16 a block
-    constexpr uint32_t kConstantTableWords = 4 + kConstantFileBlocks;
+    constexpr uint32_t kConstantTableWords = kFloatConstants / 16;
     constexpr uint32_t kFetchSlots = 96;
 
     // Set 1: every texture the cache holds, and every sampler. One array of
@@ -110,21 +110,23 @@ namespace vk::bindings
     // { uint x5 } the dword offset of each constant block, in the order above.
     constexpr uint32_t kRecordOffsets = 0;
     // Vertex: { float2 scale, float2 offset }, window coordinates to clip space
-    // for a program drawn with the viewport transform off.
-    constexpr uint32_t kRecordNdc = 5;
+    // for a program drawn with the viewport transform off. At a multiple of
+    // four words, three unused before it: a record starts at a vec4 of the
+    // arena, and every vertex loads these as one.
+    constexpr uint32_t kRecordNdc = 8;
     // Pixel: { uint alpha function, float alpha reference, float colour scale,
     //          uint the target is the gamma form }.
-    constexpr uint32_t kRecordPixel = 9;
+    constexpr uint32_t kRecordPixel = 12;
     // Both, read only by shaders built for render targets larger than the
     // title's (MW2_SCALE, MW2_SHADOW_SCALE): { uint frame copies, uint shadow
     // copies, float frame factor, float shadow factor }. A bit per texture
     // slot bound to a resolve's copy, whose image is a whole number of times
     // the size the title gave it -- the frame's scale, or the shadow maps' --
     // and the reciprocal of each scale.
-    constexpr uint32_t kRecordScaled = 13;
+    constexpr uint32_t kRecordScaled = 16;
     // Pixel: a word per fetch slot, up to the highest the pixel shader
     // samples (kHandleImageBits).
-    constexpr uint32_t kRecordTextures = 17;
+    constexpr uint32_t kRecordTextures = 20;
     // Vertex: the same for the vertex shader's slots, present only when it
     // samples any. A stage's own, because the two may declare one slot as
     // different kinds, and an element of set 1 is read as one kind only.
