@@ -184,8 +184,11 @@ namespace
     // no fault in the kernel log, the power controller reporting a shutdown
     // the SoC asked for. Seen on the Adreno 650 (Retroid Pocket Flip 2,
     // kernel 4.19) with Mesa 25.1 and 27.0 alike, at every one of a dozen
-    // level starts, and at none with TU_DEBUG=noubwc, which costs no
-    // measurable frame time there. The driver reads TU_DEBUG once, as its
+    // level starts of Modern Warfare 3's Survival, and at none with
+    // TU_DEBUG=noubwc, which costs no measurable frame time there. Modern
+    // Warfare 2's Team Player started six times with the compression on and
+    // did not reset, and was no faster for it (by image class or whole), so
+    // it is off for both. The driver reads TU_DEBUG once, as its
     // first instance is made, so it is set here, before the driver is opened.
     // MW2_ADRENO6_UBWC=1 leaves the compression on, to study the reset.
     void KeepTurnipOffUbwcOnAdreno6()
