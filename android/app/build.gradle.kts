@@ -416,7 +416,10 @@ val bundledDriverAssets = tasks.register<Sync>("bundledDriverAssets") {
     into(mw2DriverAssets)
 }
 tasks.configureEach {
-    if (Regex("merge(Campaign|Multiplayer|Mw2)\\w+Assets").matches(name)) dependsOn(bundledDriverAssets)
+    // Every task that reads the MW2 flavours' assets: merging them, and in a
+    // release build lint's model and analysis, which read the source folders
+    // (the v0.1.0 release job of the MW2 repo failed on the undeclared one).
+    if (Regex("\\w*(Campaign|Multiplayer|Mw2)\\w*(Assets|Lint\\w*)").matches(name)) dependsOn(bundledDriverAssets)
 }
 
 dependencies {
