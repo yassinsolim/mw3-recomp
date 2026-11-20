@@ -330,6 +330,21 @@ bool gpu::watch::Unwritten(uint32_t physical, uint32_t bytes, uint64_t since)
     return true;
 }
 
+uint32_t gpu::watch::WrittenSince(uint32_t physical, uint32_t bytes, uint64_t since, uint32_t* pages,
+                                  uint32_t most)
+{
+    uint32_t first, last;
+    if (!since || !Pages(physical, bytes, first, last)) return UINT32_MAX;
+    uint32_t count = 0;
+    for (uint32_t q = first; q <= last; q++)
+        if (g_state[q].load(std::memory_order_acquire) != kWatched || g_armedAt[q] > since)
+        {
+            if (count == most) return UINT32_MAX;
+            pages[count++] = q - first;
+        }
+    return count;
+}
+
 void gpu::watch::Report()
 {
     if (!g_arms) { LOGI("gpu: the watch of guest memory was never used"); return; }

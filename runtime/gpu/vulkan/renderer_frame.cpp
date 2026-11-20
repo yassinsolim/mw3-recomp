@@ -277,8 +277,15 @@ namespace vk::renderer::detail
     // status is a system call, and the shadow wanted it for every draw that
     // touched a page the title keeps rewriting -- 7% of the consumer thread. A
     // value from a little earlier only makes the answer more cautious.
+    //
+    // Only the shadow's copies are read by the GPU, so only a page the shadow
+    // served asks (memory_watch.cpp, Ready): without a shadow -- every Turnip,
+    // whose storage buffers reach 128 MB -- nothing reads the answer, and the
+    // call is not free: Turnip builds on Mesa 26.3 (PurpleVK T30) sleep in it
+    // until the kernel's next tick, 2.9 ms a frame on the AYN Thor.
     void NoteCompleted()
     {
+        if (!g.shadowBase) return;
         uint64_t oldestRunning = UINT64_MAX;
         for (State::Slot& slot : g.slots)
             if (slot.inFlight && slot.serial < oldestRunning &&
