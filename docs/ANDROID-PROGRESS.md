@@ -301,11 +301,13 @@ opening the first 18 s of the level, which is the heaviest view found.
   GPU at 680 MHz where it is busy.
 - Rust started with `MW2_INPUT_SCRIPT=60:a,64:a` ends in the END GAME? dialog
   over the team menu; it plays without the script.
-- Modern Warfare 3, Survival on Resistance started with `devmap
-  so_survival_mp_paris` in a `.dev` build: 76-105 FPS in three runs with
-  these changes, 76 and 89 with the three switches off. Started that way the
-  picture is washed out to white, with the switches on and off alike; it was
-  not compared with a start from the menus.
+- Modern Warfare 3, Survival on Resistance in a `.dev` build, started from
+  the menus (Special Ops, Solo Play, Survival, Resistance): 78.5 FPS in play
+  with these changes, 74-81 every second, against the 72-74 of before, and
+  the picture as it was. Started with `devmap so_survival_mp_paris` instead
+  the picture is washed out to white (nine pixels in ten near white), and
+  is on the `android` branch without any of these changes as well: that is
+  the start, which skips what the menus set up, and not the renderer.
 
 ## Build (WSL2 Ubuntu 24.04)
 
