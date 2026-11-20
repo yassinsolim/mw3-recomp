@@ -88,6 +88,10 @@ namespace gpu::watch
     // frame where it has to be looked at again, for eight pages written.
     uint64_t Track(uint32_t physical, uint32_t bytes, uint64_t (*completed)(), uint64_t frame);
     bool Unwritten(uint32_t physical, uint32_t bytes, uint64_t since);
+    // Track for a reader whose copy is not worth making of pages the title
+    // keeps writing -- a draw's vertex window kept from frame to frame: paced
+    // as the shadow's copies are, and 0 while a page of the range waits.
+    uint64_t TrackSteady(uint32_t physical, uint32_t bytes, uint64_t (*completed)(), uint64_t frame);
     // Which pages of the range are not what Unwritten would pass: written
     // since that stamp, or not watched. Their places from the range's first
     // page go into `pages` and their number is returned; UINT32_MAX when

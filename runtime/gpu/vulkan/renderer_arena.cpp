@@ -16,13 +16,18 @@
 namespace vk::renderer::detail
 {
     // A draw's constants, vertex data and indices are copied here and addressed by
-    // offset, and it is reset when the frame is submitted.
+    // offset, and it is reset when the frame is submitted. The share's end
+    // belongs to the vertex windows the slot keeps (KeptWindow).
     uint32_t Allocate(uint32_t bytes, ArenaKind kind)
     {
         const uint32_t aligned = (g.arenaUsed + g.uniformAlignment - 1) & ~(g.uniformAlignment - 1);
-        if (aligned + bytes > g.arenaSlotBytes)
+        State::Slot& slot = g.slots[g.slot];
+        if (aligned + bytes > g.arenaSlotBytes - slot.keptBytes)
         {
             g.arenaOverflows++;
+            // The frame's own comes first: what the slot keeps goes at its
+            // next frame, which then has the whole share.
+            if (slot.keptBytes) slot.keptFull = true;
             return UINT32_MAX;
         }
         g.arenaUsed = aligned + bytes;
@@ -40,7 +45,8 @@ namespace vk::renderer::detail
             // A whole chunk while the share has room for one; near its end,
             // only what is asked for.
             uint32_t size = std::max(bytes, chunk);
-            if (uint64_t(g.arenaUsed) + g.uniformAlignment + size > g.arenaSlotBytes) size = bytes;
+            if (uint64_t(g.arenaUsed) + g.uniformAlignment + size > g.arenaSlotBytes - g.slots[g.slot].keptBytes)
+                size = bytes;
             const uint32_t at = Allocate(size, kind);
             if (at == UINT32_MAX) return at;
             // Counted as it is handed out below, not as it is set aside.
@@ -59,6 +65,138 @@ namespace vk::renderer::detail
         if (at == UINT32_MAX) return at;
         std::memcpy(ArenaAt(at), bytes, size);
         return at;
+    }
+
+    // Without a shadow of guest memory -- a storage buffer on Turnip reaches
+    // 128 MB, the shadow is 512 -- every draw copied its vertex windows into
+    // the arena: 12 to 31 MB a frame of Modern Warfare 2, half of the ring
+    // consumer's time on a Snapdragon 865, and in Team Player more than a
+    // slot's 85 MB share holds, so draws went undrawn. Most of it is world
+    // geometry the title never writes again. So the slot keeps what it
+    // copies, at its share's end, and its later frames draw from the copy
+    // for as long as the watch says no page of the window was written
+    // (gpu/memory_watch.h). What is copied is the window rounded out to
+    // whole chunks, so the windows of other draws into the same buffer fall
+    // inside it: kept one by one, Team Player's windows filled the share
+    // every few frames. And it is copied the second time the slot meets it
+    // unwritten, not the first: the title's dynamic geometry goes round a
+    // ring, each stretch of it drawn once and written over a lap later, and
+    // kept at first sight it took a megabyte of the share a frame. A window
+    // in pages the title keeps writing is not kept either: the watch paces
+    // those, and the draw copies as before. MW2_KEEP_VERTICES=0 copies every
+    // window.
+    constexpr uint32_t kKeptChunk = 64 * 1024;
+    constexpr uint32_t kFrameOwn = 24u << 20;   // of a share, never given to kept copies
+    constexpr uint32_t kMet = UINT32_MAX;       // Slot::Kept::at of a range met and not yet copied
+    constexpr size_t kKeptRanges = 32768;
+
+    bool KeepingVertices()
+    {
+        static const bool on = !env::Text("MW2_KEEP_VERTICES") || env::Flag("MW2_KEEP_VERTICES");
+        return on && !g.shadowBase && gpu::watch::Enabled();
+    }
+
+    // Where the slot's copy of the `bytes` at `physical` is in its share, made
+    // now if it has none that still holds what guest memory does and has met
+    // the range before; UINT32_MAX when the window is not one to keep, not
+    // yet, or there is no room.
+    uint32_t KeptWindow(uint32_t physical, uint32_t bytes)
+    {
+        State::Slot& slot = g.slots[g.slot];
+        const uint32_t end = physical + bytes;
+        // The ranges that start at or below the window, nearest first: two
+        // overlap where a window straddled the chunks of an earlier one.
+        auto range = slot.kept.upper_bound(physical);
+        for (uint32_t tries = 0; tries < 6 && range != slot.kept.begin(); tries++)
+        {
+            --range;
+            State::Slot::Kept& kept = range->second;
+            if (kept.at == kMet || kept.end < end) continue;
+            if (gpu::watch::Unwritten(physical, bytes, kept.stamp))
+            {
+                kept.frame = g.frames;
+                g.arenaReused[kArenaVertices] += bytes;
+                return kept.at + (physical - range->first);
+            }
+            // Written since: a soldier's skinned vertices, which the title
+            // makes again when he moves. The range is copied again where it
+            // is, unless a draw of this frame has named the copy -- the
+            // slot's earlier frames are done with it -- or the watch says
+            // the title is writing it too often to be worth watching.
+            if (kept.frame == g.frames) return UINT32_MAX;
+            const uint32_t length = kept.end - range->first;
+            const uint64_t stamp = gpu::watch::TrackSteady(range->first, length, CompletedSerial, g.frames);
+            if (!stamp) return UINT32_MAX;
+            std::memcpy(ArenaAt(kept.at), guest::Base() + guest::kPhysicalBase + range->first, length);
+            g.arenaWritten[kArenaVertices] += length;
+            kept.stamp = stamp;
+            kept.frame = g.frames;
+            return kept.at + (physical - range->first);
+        }
+        if (slot.keptFull) return UINT32_MAX;
+
+        // The window rounded out to whole chunks, or alone when a page
+        // beside it is one the title keeps writing.
+        uint32_t from = physical & ~(kKeptChunk - 1);
+        uint32_t to = uint32_t(std::min<uint64_t>((uint64_t(end) + kKeptChunk - 1) & ~uint64_t(kKeptChunk - 1),
+                                                  guest::kPhysicalEnd - guest::kPhysicalBase));
+        uint64_t stamp = 0;
+        for (uint32_t whole = 0; whole < 2 && !stamp; whole++)
+        {
+            if (whole) { from = physical; to = end; }
+            // Never narrower than what the map has from there: a window
+            // inside a range and one that runs past its end would take the
+            // entry from each other in turn, each copying again.
+            const auto met = slot.kept.find(from);
+            if (met != slot.kept.end()) to = std::max(to, met->second.end);
+            // Met in an earlier frame, and not written since: watched then,
+            // so the copy made now is of what the stamp stands for. Met in
+            // this one, by another pass over the same geometry: not yet.
+            if (met != slot.kept.end() && met->second.at == kMet && met->second.end == to &&
+                gpu::watch::Unwritten(from, to - from, met->second.stamp))
+            {
+                if (met->second.frame == g.frames) return UINT32_MAX;
+                stamp = met->second.stamp;
+                break;
+            }
+            // The first meeting: watched from here on, and the draw copies.
+            const uint64_t seen = gpu::watch::TrackSteady(from, to - from, CompletedSerial, g.frames);
+            if (!seen) continue;
+            // The ranges of a ring nothing draws twice would be all the map
+            // held in the end.
+            if (slot.kept.size() >= kKeptRanges) slot.keptFull = true;
+            else slot.kept[from] = { to, kMet, seen, g.frames };
+            return UINT32_MAX;
+        }
+        if (!stamp) return UINT32_MAX;
+        // A place of its own, at the share's end.
+        const uint32_t size = (to - from + g.uniformAlignment - 1) & ~(g.uniformAlignment - 1);
+        // The frame's own part of the share is a third, and never less
+        // than kFrameOwn.
+        const uint32_t own = std::max(kFrameOwn, g.arenaSlotBytes / 3);
+        if (uint64_t(slot.keptBytes) + size + own > g.arenaSlotBytes)
+        {
+            slot.keptFull = true;
+            return UINT32_MAX;
+        }
+        if (uint64_t(g.arenaUsed) + size > g.arenaSlotBytes - slot.keptBytes) return UINT32_MAX;
+        slot.keptBytes += size;
+        g.keptPeak = std::max(g.keptPeak, slot.keptBytes);
+        const uint32_t at = g.arenaSlotBytes - slot.keptBytes;
+        std::memcpy(ArenaAt(at), guest::Base() + guest::kPhysicalBase + from, to - from);
+        g.arenaWritten[kArenaVertices] += to - from;
+        slot.kept[from] = { to, at, stamp, g.frames };
+        return at + (physical - from);
+    }
+
+    void BeginKeptVertices()
+    {
+        State::Slot& slot = g.slots[g.slot];
+        if (!slot.keptFull) return;
+        if (slot.keptBytes) g.keptEmptied++;
+        slot.kept.clear();
+        slot.keptBytes = 0;
+        slot.keptFull = false;
     }
 
     // The file holds 512 vec4 and a pixel program sees 256 from wherever
@@ -297,6 +435,17 @@ namespace vk::renderer::detail
                 g.arenaReused[kArenaVertices] += words * 4;
                 entry[0] = (g.shadowBase - g.arenaBase + physical) | type;
                 return true;
+            }
+
+            // A window the slot keeps from frame to frame (KeptWindow).
+            if (KeepingVertices() && va == guest::kPhysicalBase + physical)
+            {
+                const uint32_t at = KeptWindow(physical + first * 4, words * 4);
+                if (at != UINT32_MAX)
+                {
+                    entry[0] = (at - first * 4) | type;
+                    return true;
+                }
             }
 
             // One copy serves the other fetch slots of THIS draw that name

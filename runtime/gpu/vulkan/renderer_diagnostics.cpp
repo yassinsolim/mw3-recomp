@@ -877,6 +877,10 @@ void vk::renderer::Report()
         LOGI("renderer: %llu draws ran the shader MW2_TRACE_SHADER_VERTS named,"
              " %llu of them where the dump was asked for",
              (unsigned long long)g.vertsMatched, (unsigned long long)g.vertsTraced);
+    if (g.keptPeak)
+        LOGI("renderer: vertex data kept from frame to frame took %u KB of a slot's %u KB at most; a slot let"
+             " all of it go %llu times", g.keptPeak >> 10, g.arenaSlotBytes >> 10,
+             (unsigned long long)g.keptEmptied);
     if (g.arenaOverflows)
         LOGI("renderer: the frame arena overflowed %llu times",
              (unsigned long long)g.arenaOverflows);
