@@ -42,11 +42,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   lies instead of exchanging it for every vertex. On the AYN Thor Modern
   Warfare 2's S.S.D.D. opening went from 103.3 to 105.9 frames a second,
   Team Player's heaviest views from 11.5 to 11.0 ms for the scene, and
-  Modern Warfare 3's Survival from 87.3 to 91.7 frames a second; the
-  picture is the same. `MW2_HOST_ORDER=0` is the old behaviour;
-  `translate-shader --host-order` builds that form of a shader. Vertex
-  attributes in place of arena loads were measured with it and lost on
-  both the Adreno 740 and the 650, so they are not here.
+  Modern Warfare 3's Survival from 87.3 to 91.7 frames a second; on the
+  Retroid Pocket Flip 2 Team Player's views went from 17.0 to 15.8 ms and
+  42.7 to 45.6 frames a second. The picture is the same. `MW2_HOST_ORDER=0`
+  is the old behaviour; `translate-shader --host-order` builds that form of
+  a shader. Vertex attributes in place of arena loads were measured with
+  it and lost on both the Adreno 740 and the 650, so they are not here.
 
 ### Fixed
 - **A game package holds its own game's libraries only**

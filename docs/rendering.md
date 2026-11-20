@@ -285,11 +285,13 @@ a frame; Team Player's heaviest views from 11.5 to 11.0 ms for the scene,
 74.5 to 76.5 frames a second over the run; Modern Warfare 3's Survival from
 87.3 to 91.7. The flight over S.S.D.D. and Rust are near the display's rate
 either way (113 and 118; their scenes 4.15 to 3.96 and 3.79 to 3.64 ms). On
-the Retroid Pocket Flip 2 (Adreno 650) the experiment build measured no
-change. Five fixed views of S.S.D.D. differ by 0.06 to 1.4 of 255 a pixel
-between the two, and by 0.03 to 1.8 between two runs of one; a sixth, of
-soldiers moving, by 5.1, and by 2.2 to 6.1. `MW2_HOST_ORDER=0` keeps the
-exchange in the shaders.
+the Retroid Pocket Flip 2 (Adreno 650, two runs each way, alternated) Team
+Player's heaviest views went from 17.0 to 15.8 ms for the scene and 42.7 to
+45.6 frames a second; the opening of S.S.D.D. is at its limit of 60 either
+way, its scene 10.7 ms. Five fixed views of S.S.D.D. differ by 0.06 to 1.4
+of 255 a pixel between the two, and by 0.03 to 1.8 between two runs of one;
+a sixth, of soldiers moving, by 5.1, and by 2.2 to 6.1. `MW2_HOST_ORDER=0`
+keeps the exchange in the shaders.
 
 Vertex attributes were tried with it and are not in the tree (branch
 `vertex-input`): a vertex shader's first stream bound as a vertex buffer
