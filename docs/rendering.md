@@ -139,7 +139,7 @@ arena held, which nothing reads.
 |---|---|
 | 0 | nothing |
 | 1 | every texture and sampler, bound once per command buffer |
-| 2 | the arena as dwords and as vec4, bound once per command buffer |
+| 2 | the arena as dwords and as vec4, bound once per command buffer; where a pixel shader's float constants are a uniform block ([shaders.md](shaders.md#the-module-interface)), bound again at a draw whose pixel constants are others than the last's |
 
 A draw's record says where each of its five constant blocks is in the arena
 ([shaders.md](shaders.md#the-module-interface)). Consecutive draws whose
@@ -372,6 +372,16 @@ The title's own count of samples stays 2, the console's: `MW2_MSAA` and
 `MW2_NO_MSAA` act on the surfaces the title multisamples, and a title drawing
 at 1x would leave them none.
 
+**The scene by itself.** `MW2_SCENE=<w>x<h>` gives the title a smaller scene
+under the frame it has: 512x300 up to the one that goes with the frame, a
+whole number of 16 pixels wide and 2 tall. The title stretches the scene over
+the frame as it does the console's 1024x600 over 1280x720, working the
+scene's pixel aspect out of the two sizes itself, so the scene's shape is
+free; the HUD and the menus are drawn into the frame and keep its size. It is
+the cheaper picture for a GPU that the scene's pixels hold back: Modern
+Warfare 2 on an Adreno 6xx under Android starts with 832x480
+([android.md](android.md#adreno-6xx-snapdragon-865-class)).
+
 **Pictures made for 16:9.** A cinematic is letterboxed by the title itself:
 `R_DrawCinematicLetterboxed` draws the 16:9 video whole, as wide as the frame,
 between black bars. A 2D picture over the whole frame (a loading screen, a
@@ -480,7 +490,9 @@ same table, and that draw was a list of whole primitives (a strip or a fan
 would run on into the next draw's vertices). The recorder joins it if the run
 is still open. A run ends at a draw that changes any state, and at any other
 call: the recorder runs `MakeGatheredDraws` before every call not queued as
-`Joining`. `MW2_NO_MERGE=1` makes every draw a hardware draw of its own.
+`Joining`. `MW2_NO_MERGE=1` makes every draw a hardware draw of its own: on
+the Adreno 650, S.S.D.D.'s 2,900 draws a frame are about 210 hardware draws,
+and each on its own took the frame from 24.7 ms to 35.2.
 
 Draws without indices have no indices to lay in a row. A run of them is one
 `vkCmdDrawMultiEXT`, each with its own draw table entries as its first

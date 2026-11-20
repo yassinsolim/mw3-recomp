@@ -123,6 +123,8 @@ set 1  binding 0  texture2D[65536]    every texture the cache holds, at its id +
        elements 0, 1 and 2 of the image array are 1x1 stand-ins: 2D, cube, volume
 set 2  binding 0  uint[]   the frame arena, as dwords
        binding 1  vec4[]   the same, as vec4
+       binding 2  vec4[256]  a pixel shader's float constants, a uniform block at a
+                  dynamic offset; only where they are one (below)
 no push constants
 a draw table, in the arena at the dword the hardware draw passes as its base
 vertex (vertexOffset, or firstVertex for a draw without indices), two words an
@@ -202,6 +204,25 @@ the draw's record:
   saves and draws the same picture. The renderer picks the form once, when
   the device is made (`vk::pipeline::SubgroupPixelRecords`), and says which
   in the log.
+- **A pixel shader's float constants as a uniform block**
+  (`shader::PixelConstants::Uniform`). Each pixel reading its own record
+  fetched every float constant it read from the arena's storage buffer, at
+  the address the record gives: forty fetches a pixel in a lit surface's
+  shader, and a quarter of the GPU's frame on the Adreno 650 (21.2 ms to
+  15.4 on Modern Warfare 2's S.S.D.D.). So where there is no waterfall the
+  constants are set 2's third binding instead: 256 vec4 of the arena as a
+  uniform block with a dynamic offset, which a driver gives the shader as
+  constants it need not fetch. The renderer binds set 2 again, at the draw's
+  pixel constants, when a draw whose shader reads any is given others than
+  the last (`DrawOp::kPixelConstants`); that is a state change, so the run
+  of draws before it ends there
+  ([rendering.md](rendering.md#the-recorder-thread)). The pixel constants
+  are copied whole and kept while nothing in them is written, so most draws
+  share the last one's: on S.S.D.D. one draw in thirty that joined a run
+  starts one. The record keeps where the block is; such a shader does not
+  read it. `vk::pipeline::UniformPixelConstants` picks the form with the
+  device, `MW2_PIXEL_UNIFORMS=0|1` says otherwise, and the layout has the
+  third binding only where it is used.
 - **Each record word is loaded once**, where a driver would sink the load:
   in the narrowest block that dominates every read of it, ahead of the first
   (`RecordWord`, `PlaceRecordLoads`). A straight-line program is one block,

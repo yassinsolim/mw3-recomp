@@ -72,6 +72,10 @@ namespace render
                scene.height <= most.height && scene.width % 16 == 0 && scene.height % 2 == 0;
     }
 
+    // The scene an Adreno 6xx under Android starts Modern Warfare 2 with
+    // (render_size.cpp): two thirds of the console's pixels, its shape.
+    constexpr Size kAdreno6Scene{ 832, 480 };
+
     // Whether a frame is wider than 4:3. The video mode says the TV is
     // widescreen when it is, and the title takes its 4:3 layout when not, as
     // on a console set to a 4:3 TV.
