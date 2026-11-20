@@ -205,6 +205,45 @@ and it is read by every build rather than only a diagnostics one, because it is
 512 MB of resident memory before the first frame is drawn: the Android runtime
 sets it on a phone of six gigabytes or less ([android.md](android.md)).
 
+### Vertex data kept without the shadow
+
+The shadow needs arena and shadow within what one storage buffer descriptor
+reaches. Turnip reaches 128 MB, so on an Adreno under it there is none, and
+every draw copied its vertex windows: 12 to 31 MB a frame of Modern Warfare 2,
+half of the ring consumer's time on a Snapdragon 865, and in Team Player more
+than a slot's 85 MB share held, so its far buildings and its sky went undrawn
+(`draws skipped: frame arena full`, five million of them in one flight).
+
+There a frame slot keeps what it copies (`KeptWindow`, `renderer_arena.cpp`),
+at the end of its share, the frame's own allocations coming up from the
+start:
+
+- **By range, in 64 KB chunks.** The window is rounded out to whole chunks
+  and the range kept by where it starts, so the windows of other draws into
+  the same buffer fall inside it. Kept window by window, Team Player's filled
+  the share every few frames.
+- **For as long as the watch says the window's pages are unwritten**
+  (`gpu::watch::TrackSteady`, `Unwritten`). `TrackSteady` is `Track` with the
+  shadow's pacing: pages the title keeps writing are not watched again for
+  2^strikes frames, and a window in them is copied by its draw as before.
+- **At the second frame the slot meets the range unwritten.** The title's
+  dynamic geometry goes round a ring, each stretch drawn once and written
+  over a lap later; kept at first sight it took a megabyte of the share a
+  frame.
+- **Copied again in place when it was written**, a soldier's skinned
+  vertices for one, unless a draw of the same frame has named the copy: the
+  slot's earlier frames are done before it begins another.
+- **Let go together** when the copies reach two thirds of the share (the
+  frame's own keeps a third, 24 MB at least) or a frame's own allocation
+  finds no room: the slot starts its next frame with none.
+
+Each of the three slots has its own, so a range is copied three times in all.
+On the Flip 2 the vertex data copied a frame went from 31 MB to 4 in Team
+Player (33 MB a frame drawn from kept copies), the ring consumer from 76% of
+its core to 46%, and nothing overflows. `MW2_KEEP_VERTICES=0` copies every
+window. The arena is 384 MB on a phone of 7 GB and more, a share of 128 MB
+where the reach is that.
+
 ## Resolves
 
 A draw in `Copy` mode is a resolve over the window scissor. `RB_COPY_CONTROL`

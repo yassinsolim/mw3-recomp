@@ -36,6 +36,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   15.4 on S.S.D.D.). Set 2 is bound again at a draw whose pixel constants
   differ from the last's, which ends the run of draws before it: one join in
   thirty. `MW2_PIXEL_UNIFORMS=0|1` says otherwise on any device.
+- **A frame slot keeps the vertex data it copies where there is no shadow of
+  guest memory** (Turnip: `renderer_arena.cpp`, `gpu::watch::TrackSteady`,
+  [docs/rendering.md](docs/rendering.md#vertex-data-kept-without-the-shadow)):
+  every draw copied its vertex windows there, half of the ring consumer's
+  time on a Snapdragon 865, and Team Player's did not fit a slot's share of
+  the arena, so its sky and far buildings were not drawn. `MW2_KEEP_VERTICES=0`
+  copies as before. A phone of 7 GB and more has the 384 MB arena.
+- **The driver's pipeline cache is written to its file when it has grown**,
+  not after every five pipelines the warm-up found in it (`SaveCache`).
 - **`MW2_SCENE=<w>x<h>`** (`runtime/render_size.cpp`): the 3D scene the title
   draws before it copies it into its frame, by itself, the frame and with it
   the HUD and the menus staying as they are. `MW2_RENDER` and it now reach

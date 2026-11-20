@@ -43,10 +43,10 @@ Cliffhanger's opening on the ice wall ran at 20. An Adreno 6xx now starts
 Modern Warfare 2 with the cap at 60, without the sun's shadows and with an
 832x480 scene under the 1280x720 frame
 ([android.md](android.md#adreno-6xx-snapdragon-865-class)). With those
-defaults the Flip 2 ran S.S.D.D.'s flight for five minutes at 57.7 frames a
-second (75% of the frames on time, 99.7% within two blanks), Team Player's
-at 53.9 (45%), Terminal's walk for five minutes at 59.3 (92%) and Rust for
-three at 59.3 (94%); before, with the cap at 60, S.S.D.D. ran at 43. The
+defaults the Flip 2 ran S.S.D.D.'s flight for five minutes at 58.1 frames a
+second (70% of the frames on time, 99.9% within two blanks), Team Player's
+at 48.9 (42%), Terminal's walk for five minutes at 59.7 (95%) and Rust for
+three at 59.2 (95%); before, with the cap at 60, S.S.D.D. ran at 43. The
 levels after the first two were not measured again.
 
 Not tested: split screen, two devices in one match (the two handhelds here
@@ -133,11 +133,16 @@ without hands, which is how the numbers above were taken.
   first-visit numbers above) and a frame can take seconds while a level
   starts.
 - A Snapdragon 865 does not hold 60 everywhere: where a level has the most
-  to draw (S.S.D.D.'s opening, Team Player) it runs at 50 to 55, a frame in
-  four a blank late, and the sun's shadows are off there (above).
-- The Team Player flight leaves the level's playable space near its end, and
-  the sky and the sun's light are gone for a few seconds there on the Thor;
-  the frames before and after are whole.
+  to draw it waits for the GPU's vertex work, S.S.D.D.'s opening at 50 to 55
+  frames a second and the first half of Team Player's flight at 35 to 44,
+  and the sun's shadows are off there (above).
+- The Flip 2's earlier Team Player numbers were taken with part of the
+  level undrawn: a frame's vertex copies did not fit its share of the arena,
+  and the sky and the far buildings went missing. It is drawn whole now
+  ([rendering.md](rendering.md#vertex-data-kept-without-the-shadow)). The sky
+  that was gone near the flight's end on the Thor, put down then to the
+  flight leaving the level, looks like the same thing; it was not looked at
+  again on the Thor here.
 - The Thor's HUD read 70 to 80 °C for the processor in these runs, each of
   two minutes or less; longer play was not measured.
 - A scripted pad (`MW2_INPUT_SCRIPT`) does not reach the first controller on

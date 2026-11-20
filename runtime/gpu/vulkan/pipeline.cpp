@@ -108,6 +108,9 @@ namespace
         PFN_vkGetPipelineExecutablePropertiesKHR getExecutableProperties = nullptr;
         PFN_vkGetPipelineExecutableStatisticsKHR getExecutableStatistics = nullptr;
         bool cacheLoaded = false;
+        // How large the driver's cache was when it was last written to its
+        // file (SaveCache).
+        size_t cacheSavedBytes = 0;
         bool hasDynamicRendering = false;
         bool hasExtendedDynamicState = false;
         bool legacyMode = false;
@@ -955,6 +958,11 @@ namespace
         if (!path || !g.cache) return;
         size_t size = 0;
         if (vkGetPipelineCacheData(g.device, g.cache, &size, nullptr) != VK_SUCCESS || !size) return;
+        // Nothing new since it was last written: the driver's cache only
+        // grows, and the warm-up asks after every few pipelines whether or
+        // not they were in it already -- 147 times in a hundred seconds of a
+        // level played before, 10 MB to the phone's storage each time.
+        if (size == g.cacheSavedBytes) return;
         std::vector<uint8_t> data(size);
         if (vkGetPipelineCacheData(g.device, g.cache, &size, data.data()) != VK_SUCCESS) return;
 
@@ -981,7 +989,11 @@ namespace
         }
         std::filesystem::rename(partial, path, ec);
         if (ec) LOGW("pipeline: the pipeline cache could not be put in place at %s (%s)", path, ec.message().c_str());
-        else LOGI("pipeline: wrote %zu KB of pipeline cache to %s", (size + sizeof(header)) / 1024, path);
+        else
+        {
+            g.cacheSavedBytes = size;
+            LOGI("pipeline: wrote %zu KB of pipeline cache to %s", (size + sizeof(header)) / 1024, path);
+        }
     }
 
     VkShaderModule MakeModule(const uint32_t* spirv, size_t words, VkResult& result)
