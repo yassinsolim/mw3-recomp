@@ -73,20 +73,25 @@ namespace vk::renderer::detail
 
     // Begins g.command. Sets 1 and 2 -- every texture, and the arena -- are
     // the same for every draw, so they are bound once a command buffer
-    // instead of eight million times (bindings.h).
+    // instead of eight million times (bindings.h). Where the pixel constants
+    // are a uniform block, set 2 has their place as a dynamic offset: none
+    // yet, and a draw that reads them binds the set again at its own
+    // (State::Bound::pixelConstants).
     void BeginSegmentBuffer()
     {
         const VkPipelineLayout layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
         static_assert(bindings::kArenaSet == bindings::kTextureSet + 1);
         const VkDescriptorSet sets[2] = { static_cast<VkDescriptorSet>(vk::textures::Set()),
                                           g.slots[g.slot].memorySet };
+        const uint32_t dynamicOffsets = vk::pipeline::UniformPixelConstants() ? 1 : 0;
         Record([=](VkCommandBuffer command) {
             VkCommandBufferBeginInfo begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
             begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
             if (vkBeginCommandBuffer(command, &begin) != VK_SUCCESS)
                 LOGW("renderer: a frame's command buffer would not begin");
+            const uint32_t nowhere = 0;
             vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, layout,
-                                    bindings::kTextureSet, 2, sets, 0, nullptr);
+                                    bindings::kTextureSet, 2, sets, dynamicOffsets, &nowhere);
         });
         // A fresh command buffer remembers nothing.
         g.bound = State::Bound{};
