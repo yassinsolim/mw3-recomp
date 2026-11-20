@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No code, no activity, nothing to open: the package exists so that
+         Android unpacks its libraries (extractNativeLibs) where the game's
+         app loads them from (android/app, GameLibrary.kt). -->
+    <application
+        android:label="CoD: Modern Warfare 3 game code"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:extractNativeLibs="true" />
+</manifest>

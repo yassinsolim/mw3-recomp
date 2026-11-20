@@ -24,6 +24,9 @@
 #include "../gpu/vulkan/renderer_state.h"
 #include "../console.h"
 #include "../online/service.h"
+#if MW2_SPLIT_GAME
+#include "game_library.h"
+#endif
 
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
@@ -302,6 +305,16 @@ MW2_NATIVE(jstring, nativeDriverDescription)(JNIEnv* env, jobject)
         text += " (the imported driver would not load)";
     return FromString(env, text);
 }
+
+#if MW2_SPLIT_GAME
+// The recompiled code, from the package the player built it into
+// (GameLibrary.kt). Before nativeStart, and once: "" when it is loaded, or
+// what is wrong with it.
+MW2_NATIVE(jstring, nativeLoadGame)(JNIEnv* env, jobject, jstring path)
+{
+    return FromString(env, game::Load(ToString(env, path).c_str()));
+}
+#endif
 
 MW2_NATIVE(jboolean, nativeStart)(JNIEnv* env, jobject, jstring gameDirectory, jstring homeDirectory)
 {

@@ -35,6 +35,18 @@ val mpInstance = (findProperty("mpInstance") as String?)?.toIntOrNull()?.coerceI
 // Where the mw3 flavour's native build leaves libmw3mp.so (cmake/android.cmake,
 // MW3_MP_LIBRARY_DIRECTORY), under the ABI's name as jniLibs folders are.
 val mw3mpLibraries = layout.buildDirectory.dir("mw3mp-jni").get().asFile
+// Modern Warfare 3's app is published without the recompiled code, which each
+// player builds from their own disc into a package of its own (android/game,
+// docs/game-library.md) that this app loads it from. MW2_SPLIT=OFF builds the
+// app the old way instead, with the code in its own libraries: for telling a
+// fault of the split from a fault of the game.
+val mw3Split = (setting("MW2_SPLIT") ?: "runtime") != "OFF"
+// -Pmw3Suffix=.dev: the app and its game package under other names
+// (com.mw3.recomp.dev, com.mw3.recomp.dev.game), so that a build signed with
+// this machine's debug key installs beside the published app instead of being
+// refused as an update of it. Its game folder and saves are its own.
+val mw3Suffix = (findProperty("mw3Suffix") as String?).orEmpty()
+val mw3ApplicationId = "com.mw3.recomp$mw3Suffix"
 
 // Where the MW2 flavours' copy of the bundled graphics driver is put
 // (bundledDriverAssets, at the end of this file).
@@ -83,6 +95,15 @@ android {
         buildConfigField("String", "BUILD_SHA", "\"${setting("MW2_BUILD_SHA") ?: "local"}\"")
         buildConfigField("String", "BUILD_STAMP", "\"${setting("MW2_BUILD_STAMP") ?: "unstamped"}\"")
         buildConfigField("int", "MP_INSTANCE", "1")
+        // The package the recompiled code is loaded from, for an app that is
+        // built without it (the mw3 flavour); the app asks the system where
+        // that package is, which it may only when the manifest names it.
+        buildConfigField("String", "GAME_PACKAGE", "\"\"")
+        manifestPlaceholders["gamePackage"] = "$mw3ApplicationId.game"
+        // Where the releases are listed, for a build that tests updating
+        // against a server of its own (docs/android-releases.md); empty for
+        // GitHub's list of UPDATE_REPO's.
+        buildConfigField("String", "UPDATE_API", "\"${setting("MW2_UPDATE_API") ?: ""}\"")
 
         ndk {
             // The guest's address space is 4 GiB reserved in one mapping, so
@@ -172,18 +193,22 @@ android {
         // both, the run's process loads the one chosen (Title.kt), and both
         // read the one folder of game files. -DMW3_BOTH_TITLES=ON is what
         // makes the second library (cmake/android.cmake). The disc's version
-        // only (mw3Tu0*; the tu6 variants are switched off below). No
-        // published builds, so nothing to check for updates against. The
+        // only (mw3Tu0*; the tu6 variants are switched off below). The two
+        // libraries are the runtime alone: the recompiled code is in the
+        // player's own game package (mw3Split above). The
         // multiplayer's network is what the player chooses in Settings,
         // NETWORK (GameActivity sets MW2_NETWORK): a relay, the local
         // network, or none.
         create("mw3") {
             dimension = "title"
-            applicationId = "com.mw3.recomp"
-            resValue("string", "app_name", "CoD: Modern Warfare 3")
+            applicationId = mw3ApplicationId
+            resValue("string", "app_name", "CoD: Modern Warfare 3" + if (mw3Suffix.isEmpty()) "" else " ($mw3Suffix)")
             // The launcher emblem's ring: amber for the game.
             resValue("color", "icon_accent", "#E8A33D")
-            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            // The public repository's releases carry this app, without the
+            // recompiled code (.github/workflows/android-release.yml).
+            buildConfigField("String", "UPDATE_REPO", "\"yassinsolim/mw3-recomp\"")
+            if (mw3Split) buildConfigField("String", "GAME_PACKAGE", "\"$mw3ApplicationId.game\"")
             buildConfigField("String", "LIBRARY_SP", "\"mw3\"")
             buildConfigField("String", "LIBRARY_MP", "\"mw3mp\"")
             externalNativeBuild {
@@ -195,6 +220,7 @@ android {
                     )
                     setting("MW3_XEX_SHA256")?.let { arguments += listOf("-DMW3_XEX_SHA256_SP=$it") }
                     setting("MW3_XEX_SHA256_MP")?.let { arguments += listOf("-DMW3_XEX_SHA256_MP=$it") }
+                    if (mw3Split) arguments += listOf("-DMW2_SPLIT=runtime")
                     setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
                 }
             }

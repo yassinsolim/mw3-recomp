@@ -5,6 +5,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **MW3 on Android: an app that updates itself** ([docs/game-library.md](docs/game-library.md),
+  [docs/android-releases.md](docs/android-releases.md)): the app is built
+  without the game's code and published from the public repository's
+  releases; the recompiled code is a package of its own
+  (`com.mw3.recomp.game`) that `setup\setup.cmd` builds from the disc and
+  the app loads. The two are checked against each other when the game starts,
+  and a game package built for another version is refused with what to do
+  (`setup\setup.cmd -GameOnly`). The app looks for a newer release when it
+  starts and from Check for updates, shows the notes and installs it over
+  itself (the download used to finish and never install: its broadcast was
+  not received).
 - **Modern Warfare 2 on Android, again** ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md)):
   the campaign and multiplayer apps build from the disc's executables with
   `setup\setup.cmd -Game mw2`, carry the Turnip driver Modern Warfare 3's app

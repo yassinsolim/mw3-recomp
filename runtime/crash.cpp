@@ -200,9 +200,17 @@ namespace
         {
             ucontext_t* uc = static_cast<ucontext_t*>(uctx);
             const unsigned long long pc = uc->uc_mcontext.pc;
-            // This library's executable range, so code addresses below get a
-            // mark (same /proc/self/maps walk as PrintMapping above).
-            unsigned long long libFrom = 0, libTo = 0;
+            // This library's executable ranges, so code addresses below get a
+            // mark (same /proc/self/maps walk as PrintMapping above). More
+            // than one where the recompiled code is a library of its own.
+            struct { unsigned long long from, to; } code[4] = {};
+            int codeRanges = 0;
+            const auto inCode = [&](unsigned long long address)
+            {
+                for (int i = 0; i < codeRanges; i++)
+                    if (address >= code[i].from && address < code[i].to) return true;
+                return false;
+            };
             {
                 const int fd = ::open("/proc/self/maps", O_RDONLY);
                 if (fd >= 0)
@@ -223,11 +231,12 @@ namespace
                             unsigned long long from = 0, to = 0;
                             char perms[8] = {};
                             if (std::sscanf(line.c_str(), "%llx-%llx %7s", &from, &to, perms) == 3 &&
-                                perms[0] == 'r' && perms[2] == 'x' &&
+                                perms[0] == 'r' && perms[2] == 'x' && codeRanges < 4 &&
                                 line.find(MW2_LIBRARY_FILE) != std::string::npos)
                             {
-                                libFrom = from;
-                                libTo = to;
+                                code[codeRanges].from = from;
+                                code[codeRanges].to = to;
+                                codeRanges++;
                             }
                         }
                         held.erase(0, start);
@@ -256,12 +265,12 @@ namespace
                 {
                     unsigned long long w = 0;
                     std::memcpy(&w, reinterpret_cast<const void*>(sp + (unsigned long long)i * 8), 8);
-                    const bool inLib = w >= libFrom && w < libTo;
+                    const bool inLib = inCode(w);
                     std::fprintf(stderr, "[E]   sp+%03x %016llX%s\n", i * 8, w, inLib ? " <=" : "");
                 }
                 std::fflush(stderr);
             }
-            if (pc >= libFrom && pc < libTo)
+            if (inCode(pc))
             {
                 uint32_t word = 0;
                 std::memcpy(&word, reinterpret_cast<const void*>(pc), 4);

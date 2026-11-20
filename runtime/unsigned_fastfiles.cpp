@@ -30,7 +30,7 @@
 
 #ifdef T_DB_StartStream
 
-PPC_FUNC_IMPL(GUEST_ORIG(T_DB_AuthLoadInit));
+GUEST_ORIGINAL(T_DB_AuthLoadInit);
 
 GUEST_HOOK(T_DB_StartStream)
 {

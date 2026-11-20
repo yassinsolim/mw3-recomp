@@ -43,13 +43,6 @@
 
 namespace fs = std::filesystem;
 
-PPC_FUNC_IMPL(GUEST_FUNC(T_DB_FindXAssetEntry));
-PPC_FUNC_IMPL(GUEST_FUNC(T_PMem_Alloc));
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_LoadScript));
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetFunctionHandle));
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_ExecThread));
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_FreeThread));
-
 namespace
 {
     constexpr uint32_t kRawFile = 0x24, kScriptFile = 0x25;

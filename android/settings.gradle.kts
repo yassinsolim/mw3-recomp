@@ -22,3 +22,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "MW2"
 include(":app")
+// The recompiled code's package, built on a player's PC and never published
+// (android/game/build.gradle.kts).
+include(":game")

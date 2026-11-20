@@ -76,8 +76,6 @@
 #if defined(T_UI_AddMenuList) && defined(T_UI_SetPlayerData) && defined(T_UI_ScriptMenuResponse) \
     && defined(T_UI_FindLocalVar) && defined(T_StringTable_Lookup)
 
-PPC_FUNC_IMPL(GUEST_FUNC(T_UI_FindLocalVar));
-
 namespace
 {
     namespace fs = std::filesystem;

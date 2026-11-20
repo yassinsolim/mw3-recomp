@@ -28,6 +28,25 @@ fi
 # Its own dependency: the linker shim it loads the driver through.
 git -C "${TARGET}" submodule update --init --recursive --depth 1
 
+# XenonRecomp's sources, at the commit and with the patch the recompiled code
+# is made with (build.sh, setup/setup.ps1). The app's library is compiled
+# against its register context and carries its XEX patcher, and Modern
+# Warfare 3's app is built without the recompiled code at all
+# (cmake/game_abi.cmake), so a machine with no disc -- the release workflow's
+# -- needs the checkout and none of its tools built. A checkout already there
+# is whoever's build made it, and is left alone.
+XENON="${REPOSITORY_ROOT}/XenonRecomp"
+XENON_COMMIT="$(sed -n 's/^XENON_COMMIT=//p' "${REPOSITORY_ROOT}/build.sh")"
+if [ -e "${XENON}/XenonUtils/ppc_context.h" ]; then
+    echo "XenonRecomp is already there."
+else
+    echo "Cloning XenonRecomp at ${XENON_COMMIT}"
+    git clone -c core.autocrlf=false https://github.com/hedge-dev/XenonRecomp.git "${XENON}"
+    git -C "${XENON}" checkout -q "${XENON_COMMIT}"
+    git -C "${XENON}" submodule update --init --recursive
+    git -C "${XENON}" apply "${REPOSITORY_ROOT}/patches/xenonrecomp-mw2.patch"
+fi
+
 # The Turnip (Mesa, MIT) Vulkan driver the apps unpack and use by default on
 # Qualcomm phones, where the stock driver is slow and draws corrupted textures
 # (and, in Modern Warfare 2, leaves surfaces out for minutes while it compiles

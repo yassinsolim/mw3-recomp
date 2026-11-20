@@ -187,10 +187,6 @@ GUEST_HOOK(T_UI_GetPlayerData)
     if (int32_t(PPC_LOAD_U32(result + 4)) < value) PPC_STORE_U32(result + 4, uint32_t(value));
 }
 
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetNumParam));
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetType));
-PPC_FUNC_IMPL(GUEST_FUNC(T_Scr_GetString));
-
 namespace
 {
     // The script runs on the server's thread alone.

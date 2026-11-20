@@ -36,12 +36,15 @@
 
     <!-- Modern Warfare 2's campaign and multiplayer are apps of their own, and
          each offers to start the other (MainActivity.otherApp): from Android 11
-         an app sees another only when it names it here. -->
+         an app sees another only when it names it here. The last is the
+         package Modern Warfare 3's app loads the recompiled code from
+         (GameLibrary.kt). -->
     <queries>
         <package android:name="cod.modern.warfare2.sp" />
         <package android:name="cod.modern.warfare2.mp" />
         <package android:name="cod.modern.warfare2.sp.tu6" />
         <package android:name="cod.modern.warfare2.mp.tu6" />
+        <package android:name="${gamePackage}" />
     </queries>
 
     <application
