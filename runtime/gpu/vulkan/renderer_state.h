@@ -489,6 +489,10 @@ namespace vk::renderer::detail
             // join: one without indices, or whose primitives run on into
             // the next draw's indices (a strip, a fan, a list cut short).
             uint32_t runEnd = UINT32_MAX, runTable = 0;
+            // Where the pixel constants set 2 is bound at are in the slot's
+            // share, on a device that takes them as a uniform block
+            // (bindings::kPixelConstants); UINT32_MAX before a draw has said.
+            uint32_t pixelConstants = UINT32_MAX;
         };
         Bound bound;
 

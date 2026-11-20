@@ -70,11 +70,21 @@ namespace shader
     // NonUniform, which is slower and runs on any device the renderer takes.
     enum class PixelRecord { Subgroup, Pixel };
 
+    // Where a pixel shader finds its float constants. Arena: in the frame
+    // arena, where its draw's record says, a fetch from a storage buffer for
+    // every constant a pixel reads. Uniform: in a uniform block the renderer
+    // binds at the draw's own, which a driver hands the shader as constants it
+    // need not fetch; a hardware draw is then the title's draws that share
+    // their pixel constants, not every one that changes no state. On an Adreno
+    // 650 the fetches were a quarter of the frame's GPU time.
+    enum class PixelConstants { Arena, Uniform };
+
     // `words` is the program in host byte order, `count` its length in dwords.
     // `scaled`: the render targets may be larger than the title's, and the
     // shader reads the record's bindings::kRecordScaled.
     Translation Translate(Type type, const uint32_t* words, size_t count, bool scaled = false,
-                          PixelRecord record = PixelRecord::Subgroup);
+                          PixelRecord record = PixelRecord::Subgroup,
+                          PixelConstants constants = PixelConstants::Arena);
 
     std::string Describe(const Translation& result);
 }

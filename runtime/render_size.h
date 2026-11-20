@@ -60,6 +60,18 @@ namespace render
         return kConsoleScene;
     }
 
+    // A scene asked for by itself (MW2_SCENE), under a frame that keeps its
+    // size: no larger than the one that goes with the frame, no smaller than
+    // a quarter of the console's, a whole number of 16 pixels wide and 2 tall.
+    // Its shape is free: the title stretches the scene over the frame, as it
+    // does the console's 1024x600 over 1280x720.
+    constexpr bool SceneValid(Size scene, Size frame)
+    {
+        const Size most = Scene(frame);
+        return scene.width >= 512 && scene.height >= 300 && scene.width <= most.width &&
+               scene.height <= most.height && scene.width % 16 == 0 && scene.height % 2 == 0;
+    }
+
     // Whether a frame is wider than 4:3. The video mode says the TV is
     // widescreen when it is, and the title takes its 4:3 layout when not, as
     // on a console set to a 4:3 TV.
@@ -78,4 +90,9 @@ namespace render
     // asks for none, for one FrameValid refuses, or when this build of the
     // title cannot be given one (render_size.cpp).
     Size Frame();
+
+    // The runtime's: the scene the title draws under that frame, MW2_SCENE's
+    // when it asks for one SceneValid takes, else the one that goes with the
+    // frame.
+    Size SceneAsked();
 }
