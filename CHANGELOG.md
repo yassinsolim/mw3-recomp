@@ -4,6 +4,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Changed
+- **Renderer, measured on the AYN Thor at 120 Hz with Modern Warfare 2**
+  ([docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md), 2026-11-20): a
+  segment of the frame that nothing was uploaded for goes on in the command
+  buffer and rendering instance of the one before (`MW2_JOIN_SEGMENTS=0` is
+  the old behaviour); a texture the title rewrites a few pages of is read
+  again and staged in those pages only (`MW2_TEXTURE_PARTS=0`); an Adreno has
+  a pixel shader's float constants as a uniform block (`MW2_PIXEL_UNIFORMS`);
+  no fence status is asked for without a shadow of guest memory. S.S.D.D.
+  flown for five minutes: 115.9 frames a second, 85% of them a display
+  period apart; its opening 84.7 to 93.1.
+
 ### Added
 - **Modern Warfare 2 on Android: one app that updates itself**
   ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):

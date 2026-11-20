@@ -482,6 +482,19 @@ is still open. A run ends at a draw that changes any state, and at any other
 call: the recorder runs `MakeGatheredDraws` before every call not queued as
 `Joining`. `MW2_NO_MERGE=1` makes every draw a hardware draw of its own.
 
+A segment of the frame -- the draws between two points where the command
+processor reports work done -- has its texture uploads ahead of its draws,
+so it begins a command buffer when it has any. Whether it has is known at
+its end, so the boundary is a call that waits on the recorder for the
+consumer to say: nothing uploaded, and the segment's draws go on in the same
+buffer and rendering instance; something uploaded, and the buffer ends there
+and the segment's calls, queued for it, go into the next
+(`vk::record::Redirect`; `CloseSegment` in `renderer_frame.cpp` has the
+rule). A thread about to wait for the recorder settles a pending boundary as
+a split first (`vk::record::BeforeWaiting`). `MW2_JOIN_SEGMENTS=0` splits at
+every boundary. With `MW2_TIME_PASSES` a split's uploads are counted in the
+instance they interrupt.
+
 Draws without indices have no indices to lay in a row. A run of them is one
 `vkCmdDrawMultiEXT`, each with its own draw table entries as its first
 vertex; without `VK_EXT_multi_draw` each is made on its own.

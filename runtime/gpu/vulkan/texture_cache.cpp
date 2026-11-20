@@ -1459,8 +1459,11 @@ namespace
     // for a texture to read whole.
     std::vector<gpu::TextureBox> BoxesToRead(Image& image)
     {
-        if (!g.open || !image.partsKnown || image.writtenPages.empty() || !ReadInParts(image) ||
-            gpu::replace::On())
+        // MW2_TEXTURE_PARTS=0 reads every rewritten texture whole, as before:
+        // what reading in parts saves, and a picture to compare with.
+        static const bool parts = !env::Text("MW2_TEXTURE_PARTS") || env::Flag("MW2_TEXTURE_PARTS");
+        if (!parts || !g.open || !image.partsKnown || image.writtenPages.empty() ||
+            !ReadInParts(image) || gpu::replace::On())
             return {};
         if (!image.boxesAsked)
         {

@@ -250,6 +250,63 @@ with 150 s runs, play from about 65 s.
   the lower screen plays video (30% of a core, and its layer is composed by
   the GPU), SurfaceFlinger and the composer 20% and 17%.
 
+## 2026-11-20
+
+Modern Warfare 2 at 120 FPS on the Thor (FPS limit 120, display-paced,
+Turnip R2, `.dev` packages, the launcher's performance mode with the fan on;
+the standard mode gave the same numbers: 102.1 and 102.7 against 102.0).
+S.S.D.D. is the recorded flight (`tools/routes/ssdd-flight.txt`), its
+opening the first 18 s of the level, which is the heaviest view found.
+
+| | before | after |
+|---|---|---|
+| S.S.D.D. flight (66 s), FPS | 102.0 | 108.5 |
+| S.S.D.D. opening, FPS / GPU ms a frame | 84.7 / 11.5 | 93.1 / 10.4 |
+| S.S.D.D., five minutes (flight, then its last view) | 114.9, 83.9% of frames within 1.05 periods, 7.7 ms (joins off) | 115.9, 85.0%, 7.1 ms |
+| Terminal, walked, five minutes | 107.1, 79.4% (a short run) | 115.1, 88.6% |
+| Rust, five minutes | not measured | 117.5, 92.7% |
+| Afghan, five minutes | 102.2, 62.3% (a short run) | 117.4, 92.1% |
+
+- The model lighting volume (512x256x4, tiled, 2 MB) has a few pages
+  rewritten every frame, and all of it was signed, read, swapped and staged
+  again at a segment's end of every frame: a sixth of the ring consumer. It
+  is read and staged in the boxes of the pages written (`texture_cache.cpp`,
+  `ReadInParts`; `gpu::watch::WrittenSince`; `gpu::TextureBoxesByPage`):
+  37 KB a frame in place of 2 MB, "reading textures" 20% -> 4% of the
+  consumer, the consumer 87% -> 65% of its core in the opening.
+- A segment that nothing was uploaded for is joined to the one before
+  (`renderer_frame.cpp`, `CloseSegment`): 47 rendering instances a frame
+  over the scene's targets -> 15, the opening 87.7 -> 93.1 FPS and 11.1 ->
+  10.4 ms. The picture is the same: at the flight's last view two
+  screenshots with and without differ by 0.01-0.03/255 on average, two of
+  one run by 0.05.
+- An Adreno has the pixel constants as a uniform block with the subgroup
+  ballot too (`pipeline.cpp`): the flight 8.7 -> 8.3 ms.
+- `vkGetFenceStatus` is not called without a shadow of guest memory: nothing
+  read it, and Turnip builds on Mesa 26.3 sleep in it (PurpleVK T30 62 -> 85
+  FPS).
+- What holds the opening at 93 is the GPU, 10.4 ms at 97% busy, and behind it
+  the consumer: the title's main thread waits (`sub_8238EC58`) until the
+  consumer has parsed the frame before's swap, so the consumer's 7-8 ms of
+  processor time a frame there is on the frame's path as well. A hardware
+  draw costs about 4 us of GPU (`MW2_NO_MERGE=1`: 38.8 ms a frame against
+  11.4), so nothing that ends runs of draws pays.
+- Drivers, in the opening: Turnip R2 85.1 FPS, v27.0.0-20261117 84.1, faux123
+  1.2.10 84.8, mainline v32 63.8, PurpleVK T30 85 (the last two without
+  `VK_KHR_present_wait`). PurpleVK reports 7.3 ms of GPU a frame, which its
+  timestamps under-report: at `MW2_SCALE=2` it runs 39.7 FPS, as R2 does.
+  `TU_DEBUG` sysmem, nolrz, nolrzfc, hiprio and `TU_AUTOTUNE_ALGO` profiled
+  and bandwidth change nothing; gmem 18.0 ms, prefer_gmem 15.1.
+- Heat: the hottest zone is at 92-96 C through the five-minute runs with the
+  GPU at 680 MHz where it is busy.
+- Rust started with `MW2_INPUT_SCRIPT=60:a,64:a` ends in the END GAME? dialog
+  over the team menu; it plays without the script.
+- Modern Warfare 3, Survival on Resistance started with `devmap
+  so_survival_mp_paris` in a `.dev` build: 76-105 FPS in three runs with
+  these changes, 76 and 89 with the three switches off. Started that way the
+  picture is washed out to white, with the switches on and off alike; it was
+  not compared with a start from the menus.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).
