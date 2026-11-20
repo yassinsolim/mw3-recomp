@@ -428,9 +428,14 @@ each way unless said. `MW2_HOST_ORDER=0` is the build before.
   them, where two runs of one differ by 0.03 to 1.78; 5.1 at the sixth,
   where soldiers move, and 2.2 to 6.1 between runs of one. Survival's
   first view: 4.9 between the two, 3.0 and 5.1 between runs of one.
-- **Retroid Pocket Flip 2** (experiment build, 60 cap): no change. Team
-  Player's views 41.4/41.2/46.4 before and 41.2/43.9/47.1 after, the scene
-  16.49 and 16.63 ms.
+- **Retroid Pocket Flip 2** (Adreno 650, Turnip R2, each way's pipelines
+  compiled beforehand, the two alternated). Team Player's heavy views:
+  42.9 and 42.5 frames a second before, 44.9 and 46.2 after; the scene's
+  pass 16.95 and 17.1 ms to 15.99 and 15.65; the GPU 22.1 and 22.2 ms to
+  21.1 and 20.8. S.S.D.D.'s opening at the limit of 60: 59.3 before and
+  59.4 after, the scene 10.70 ms both ways. The experiment build before
+  it, one run each way on a low battery, had shown none (the scene 16.49
+  and 16.63 ms).
 - **Vertex attributes lose.** A vertex shader's first stream as a vertex
   buffer, fetched by the fixed-function stage, the rest as before (branch
   `vertex-input`, not merged). Merged draws need their vertices in one
