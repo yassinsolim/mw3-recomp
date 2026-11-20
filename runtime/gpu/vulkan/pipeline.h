@@ -106,6 +106,15 @@ namespace vk::pipeline
     // set 2's third binding): by default where there are no subgroup pixel
     // records and on any Adreno or Mali, and as MW2_PIXEL_UNIFORMS says.
     bool     UniformPixelConstants();
+    // Whether vertex shaders take vertex data in host byte order, as the
+    // renderer then copies it (shader::VertexOrder::Host): everywhere but
+    // with a shadow of guest memory, which holds the guest's bytes and is
+    // read where it lies. The renderer says which it has each time it makes
+    // its arena (ArenaHasShadow), before any shader is built, so a shader
+    // and the copies it reads are always of one mind.
+    // MW2_HOST_ORDER=0 keeps the exchange in the shaders.
+    bool     HostOrderVertices();
+    void     ArenaHasShadow(bool has);
     // Whether a sampler may be made with the mirror-once address mode
     // (VK_KHR_sampler_mirror_clamp_to_edge).
     bool     MirrorClampToEdge();
