@@ -445,15 +445,20 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
 
     private fun gameBase(): java.io.File = getExternalFilesDir(null) ?: filesDir
 
-    /** Every title's caches (GameActivity.applyOptions names them). */
+    /**
+     * Every title's caches (GameActivity.applyOptions names them). The
+     * driver's pipeline cache is several files beside the one named: the
+     * ones it was closed at, and their index (pipeline.cpp).
+     */
     private fun shaderCacheFiles(): List<java.io.File> {
         val base = gameBase()
         return Title.carried.flatMap {
+            val pipeline = "pipeline${it.cacheSuffix}.cache"
             listOf(
                 java.io.File(base, "shader_cache${it.cacheSuffix}.bin"),
                 java.io.File(filesDir, "shader_cache${it.cacheSuffix}.bin"),
-                java.io.File(filesDir, "pipeline${it.cacheSuffix}.cache"),
-            )
+                java.io.File(filesDir, pipeline),
+            ) + filesDir.listFiles { file -> file.name.startsWith("$pipeline.") }.orEmpty()
         }
     }
 

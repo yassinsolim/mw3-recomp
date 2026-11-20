@@ -38,6 +38,10 @@ namespace report
     // pipeline cache the launcher compiled every shader of the game into:
     // 1 it did, 0 it compiled it, -1 it does not say. Any thread.
     void ShaderBuilt(int fromCache);
+    // A pipeline the renderer built whole, or linked again optimised, and
+    // whether it came out of the pipeline cache
+    // (vk::pipeline::CreateGraphicsPipeline), as ShaderBuilt. Any thread.
+    void PipelineBuilt(int fromCache);
     // A thread of ours, so the report can say what each one took of the
     // processor in play. Called on the thread itself (crash::RegisterThread).
     void ThreadStarted(const char* name);

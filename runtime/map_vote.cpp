@@ -365,11 +365,16 @@ namespace
             }
         }
 
-        // The game types a map of the menus' may be drawn with.
+        // The game types a map of the menus' may be drawn with. The title's
+        // list has five the disc left without a menu entry and unfinished
+        // (match_options.cpp), two of which do not start: a vote on an AYN
+        // Thor offered Bakaara as One Flag CTF. They are drawn only when
+        // MW2_MAP_VOTE_MODES names them.
+        static const std::vector<std::string> kCut = { "arena", "oneflag", "gtnw", "ctfpro", "vip" };
         std::vector<std::string> modes;
         if (settings.rotation.empty()) {
             for (const std::string& name : known)
-                if (settings.modes.empty() || Has(settings.modes, name)) modes.push_back(name);
+                if (settings.modes.empty() ? !Has(kCut, name) : Has(settings.modes, name)) modes.push_back(name);
             if (modes.empty()) modes.push_back(mode);
             const uint32_t count = std::min<uint32_t>(U32(T_DATA_UiInfo + T_UI_MAP_COUNT), 128);
             for (uint32_t i = 0; i < count; ++i) {

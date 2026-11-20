@@ -31,11 +31,9 @@ bool     vk::pipeline::TextureCompressionBC() { return false; }
 bool     vk::pipeline::SubgroupPixelRecords() { return false; }
 bool     vk::pipeline::UniformPixelConstants() { return false; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
-std::mutex& vk::pipeline::CacheMutex() { static std::mutex m; return m; }
-std::mutex& vk::pipeline::CreationMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t) { return nullptr; }
 void*    vk::pipeline::Layout() { return nullptr; }
-void*    vk::pipeline::Cache() { return nullptr; }
+int      vk::pipeline::CreateGraphicsPipeline(const void*, void*, int*) { return -1; }
 bool vk::pipeline::CreateModule(const uint32_t*, size_t, const char** error)
 {
     if (error) *error = "built without Vulkan";
@@ -59,11 +57,17 @@ bool vk::pipeline::Failed(int vkResult, const char*) { return vkResult != 0; }
 void vk::pipeline::OnDeviceLost(void (*)(const char*)) {}
 #else
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <filesystem>
+#include <map>
+#include <shared_mutex>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -102,6 +106,9 @@ namespace
         uint32_t samplers = 0;    // the most samplers the texture cache may make
         bool pipelineLibraries = false, fastLinking = false;
         bool creationFeedback = false;
+        // A creation can be asked of a cache without being compiled
+        // (pipelineCreationCacheControl): what lets the cache be several.
+        bool cacheControl = false;
         // MW2_SHADER_STATS=1 on a device that has VK_KHR_pipeline_executable_properties:
         // the driver's own statistics for every pipeline built (LogShaderStats).
         bool shaderStats = false;
@@ -360,6 +367,24 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         }
     }
 
+    // A pipeline can be asked of a cache and refused rather than compiled:
+    // the pipeline cache is several of the driver's then, and what is found
+    // in each is counted (CreateGraphicsPipeline).
+    VkPhysicalDevicePipelineCreationCacheControlFeatures cacheControl{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_CREATION_CACHE_CONTROL_FEATURES };
+    const bool cacheControlExtension =
+        DeviceHasExtension(physical, VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME);
+    if (core13 || cacheControlExtension)
+    {
+        VkPhysicalDeviceFeatures2 query{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+        query.pNext = &cacheControl;
+        vkGetPhysicalDeviceFeatures2(physical, &query);
+        cacheControl.pNext = nullptr;
+    }
+    g.cacheControl = cacheControl.pipelineCreationCacheControl;
+    if (g.cacheControl && cacheControlExtension)
+        extensions.push_back(VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME);
+
     const bool hasDynamicRendering =
         dynamicRendering.dynamicRendering && (dynamicRenderingExtension || core13);
     const bool hasDynamicState =
@@ -542,6 +567,11 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     {
         dynamicRendering.pNext = chain;
         chain = &dynamicRendering;
+    }
+    if (g.cacheControl)
+    {
+        cacheControl.pNext = chain;
+        chain = &cacheControl;
     }
     // Draws without indices in a row that change nothing between them are
     // made with one call (renderer_draw.cpp); without it each is made on its
@@ -864,140 +894,409 @@ namespace
         return !IsMali() || asked;
     }
 
+    // How much of the driver's cache is kept, MW2_PIPELINE_CACHE_MB; 0 is all
+    // of it in one file. That is the launcher's, which holds every shader of
+    // the game and is whole or of no use. A phone's holds what its player has
+    // drawn under every build of the shaders the app has had, and a pipeline
+    // an update translates differently is never asked for again: an AYN
+    // Thor's file held 5,656 pipelines in 47 MB, 1,571 of them the ones its
+    // campaign still asked for. The driver's cache has no way to let one go
+    // and nothing in it bounds the file (Mesa's vk_pipeline_cache_load reads
+    // as many objects as the blob says, each copied into memory), so it grew
+    // until this file's own limit of 64 MB refused it whole, and the next
+    // run compiled everything again.
+    //
+    // So past a budget the cache is several of the driver's. The one being
+    // added to is `<path>`; at an eighth of the budget it is closed as
+    // `<path>.<n>`, never written again, and an empty one takes its place. A
+    // creation is asked of each (CreateGraphicsPipeline) and what is found in
+    // a closed one is counted in `<path>.index`, with the session it was
+    // found in. At a start the closed ones nothing was found in for
+    // kUnusedSessions go, and past the budget the ones least was found in
+    // for their size: what they still held of use is compiled once more,
+    // into the one being added to.
+    constexpr uint32_t kCacheParts = 8;
+    constexpr uint32_t kUnusedSessions = 8;
+    uint64_t CacheBudget()
+    {
+#ifdef MW2_ANDROID
+        constexpr uint64_t kMegabytes = 64;
+#else
+        constexpr uint64_t kMegabytes = 0;
+#endif
+        static const uint64_t bytes = env::Number("MW2_PIPELINE_CACHE_MB", kMegabytes) << 20;
+        return g.cacheControl ? bytes : 0;
+    }
+
+    struct ClosedCache
+    {
+        VkPipelineCache cache = VK_NULL_HANDLE;
+        uint32_t number = 0;   // of its file, `<path>.<number>`
+        uint64_t bytes = 0;
+        // The last session a creation was found in it, and how many were
+        // then; in this one so far.
+        uint32_t lastUsed = 0;
+        uint64_t found = 0;
+        std::atomic<uint64_t> foundNow{ 0 };
+    };
+    struct Caches
+    {
+        // A creation reads the list and the cache being added to; closing
+        // that one changes both.
+        std::shared_mutex lock;
+        std::deque<ClosedCache> closed;
+        // Where the last creation was found: a level's pipelines were
+        // compiled together, so the next is likely beside it.
+        std::atomic<uint32_t> lastFound{ 0 };
+        uint32_t session = 1;
+        uint32_t lastNumber = 0;
+        std::atomic<uint64_t> found{ 0 }, foundClosed{ 0 }, compiled{ 0 };
+        // What the index and the log last said.
+        uint64_t indexed = 0, logged = 0;
+        std::chrono::steady_clock::time_point said{};
+    } c;
+
+#ifdef MW2_ANDROID
+    // The phones' drivers are given one creation at a time, and the cache to
+    // itself: Turnip faulted in its compiler with two under way, and Mali's
+    // cache deadlocked.
+    using CreationLock = std::unique_lock<std::shared_mutex>;
+#else
+    // Elsewhere the fast link at a draw must not wait behind the optimised
+    // link in the background.
+    using CreationLock = std::shared_lock<std::shared_mutex>;
+#endif
+
+    std::string ClosedPath(const char* path, uint32_t number) { return std::string(path) + "." + std::to_string(number); }
+
+    // A cache file's payload, if it was written by this driver for this device.
+    std::vector<uint8_t> ReadCacheFile(const std::string& path)
+    {
+        std::vector<uint8_t> data;
+        std::FILE* f = std::fopen(path.c_str(), "rb");
+        if (!f) return data;
+        std::error_code ec;
+        const uint64_t fileSize = std::filesystem::file_size(path, ec);
+        PipelineCacheHeader header{};
+        if (ec || fileSize <= sizeof header || std::fread(&header, sizeof header, 1, f) != 1)
+        {
+            if (fileSize) LOGW("pipeline: cache file %s size invalid (%llu bytes), ignoring", path.c_str(),
+                               (unsigned long long)fileSize);
+        }
+        else if (header.magic != PipelineCacheHeader{}.magic || header.version != 1 ||
+                 header.vendorID != g.deviceProperties.vendorID || header.deviceID != g.deviceProperties.deviceID ||
+                 header.driverVersion != g.deviceProperties.driverVersion ||
+                 std::memcmp(header.pipelineCacheUUID, g.deviceProperties.pipelineCacheUUID, VK_UUID_SIZE) != 0 ||
+                 header.dataSize != fileSize - sizeof header)
+        {
+            LOGW("pipeline: cache header in %s invalidated (driver/device update or UUID mismatch), starting fresh",
+                 path.c_str());
+        }
+        else
+        {
+            data.resize(header.dataSize);
+            if (std::fread(data.data(), 1, data.size(), f) != data.size())
+            {
+                data.clear();
+                LOGW("pipeline: truncated cache payload in %s, starting empty", path.c_str());
+            }
+        }
+        std::fclose(f);
+        return data;
+    }
+
+    // `taken`: the driver made it from `initial`. One it refuses comes back
+    // empty.
+    VkPipelineCache MakeCache(const std::vector<uint8_t>& initial, bool& taken)
+    {
+        VkPipelineCacheCreateInfo info{ VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
+        info.initialDataSize = initial.size();
+        info.pInitialData = initial.empty() ? nullptr : initial.data();
+        VkPipelineCache cache = VK_NULL_HANDLE;
+        taken = false;
+        if (vkCreatePipelineCache(g.device, &info, nullptr, &cache) == VK_SUCCESS)
+        {
+            taken = !initial.empty();
+            return cache;
+        }
+        if (initial.empty()) return VK_NULL_HANDLE;
+        LOGW("pipeline: driver rejected pipeline cache data, falling back to empty cache");
+        info.initialDataSize = 0;
+        info.pInitialData = nullptr;
+        return vkCreatePipelineCache(g.device, &info, nullptr, &cache) == VK_SUCCESS ? cache : VK_NULL_HANDLE;
+    }
+
+    size_t CacheBytes(VkPipelineCache cache)
+    {
+        size_t size = 0;
+        return vkGetPipelineCacheData(g.device, cache, &size, nullptr) == VK_SUCCESS ? size : 0;
+    }
+
+    // Beside it first, then in its place: a run that ends halfway through
+    // the write leaves the file it had, not a broken one.
+    bool ReplaceFile(const std::string& path, const void* first, size_t firstBytes, const void* rest,
+                     size_t restBytes)
+    {
+        const std::string partial = path + ".partial";
+        std::FILE* f = std::fopen(partial.c_str(), "wb");
+        if (!f) return false;
+        const bool written = std::fwrite(first, 1, firstBytes, f) == firstBytes &&
+                             (!restBytes || std::fwrite(rest, 1, restBytes, f) == restBytes);
+        std::error_code ec;
+        if (std::fclose(f) != 0 || !written)
+        {
+            std::filesystem::remove(partial, ec);
+            LOGW("pipeline: failed to write %s", path.c_str());
+            return false;
+        }
+        std::filesystem::rename(partial, path, ec);
+        if (ec) LOGW("pipeline: %s could not be put in place (%s)", path.c_str(), ec.message().c_str());
+        return !ec;
+    }
+
+    struct Used
+    {
+        uint32_t lastUsed = 0;
+        uint64_t found = 0;
+    };
+
+    // The session the index was last written in, and what was found in each
+    // closed cache up to then.
+    uint32_t ReadIndex(const char* path, std::map<uint32_t, Used>& used)
+    {
+        std::FILE* f = std::fopen((std::string(path) + ".index").c_str(), "r");
+        if (!f) return 0;
+        unsigned session = 0, number = 0, lastUsed = 0;
+        unsigned long long found = 0;
+        if (std::fscanf(f, "session %u", &session) == 1)
+            while (std::fscanf(f, " closed %u %u %llu", &number, &lastUsed, &found) == 3)
+                used[number] = { lastUsed, found };
+        std::fclose(f);
+        return session;
+    }
+
+    void WriteIndex(const char* path)
+    {
+        std::string text = "session " + std::to_string(c.session) + "\n";
+        for (ClosedCache& closed : c.closed)
+        {
+            if (const uint64_t now = closed.foundNow.load(std::memory_order_relaxed))
+            {
+                closed.lastUsed = c.session;
+                closed.found = now;
+            }
+            text += "closed " + std::to_string(closed.number) + " " + std::to_string(closed.lastUsed) + " " +
+                    std::to_string(closed.found) + "\n";
+        }
+        if (ReplaceFile(std::string(path) + ".index", text.data(), text.size(), nullptr, 0))
+            c.indexed = c.foundClosed.load(std::memory_order_relaxed);
+    }
+
+    // The closed caches beside `path`, less the ones that go; `openBytes` is
+    // what the one being added to holds.
+    void OpenClosedCaches(const char* path, uint64_t openBytes)
+    {
+        namespace fs = std::filesystem;
+        std::map<uint32_t, Used> used;
+        c.session = ReadIndex(path, used) + 1;
+
+        struct File
+        {
+            uint32_t number;
+            uint64_t bytes;
+            Used used;
+        };
+        std::vector<File> files;
+        uint64_t total = openBytes;
+        const fs::path whole(path);
+        const std::string prefix = whole.filename().string() + ".";
+        std::error_code ec;
+        for (const fs::directory_entry& entry :
+             fs::directory_iterator(whole.has_parent_path() ? whole.parent_path() : fs::path("."), ec))
+        {
+            const std::string name = entry.path().filename().string();
+            if (name.size() <= prefix.size() || name.size() > prefix.size() + 9 ||
+                name.compare(0, prefix.size(), prefix) != 0 ||
+                !std::all_of(name.begin() + prefix.size(), name.end(), [](unsigned char ch) { return std::isdigit(ch); }))
+                continue;
+            const uint32_t number = uint32_t(std::strtoul(name.c_str() + prefix.size(), nullptr, 10));
+            const auto known = used.find(number);
+            files.push_back({ number, uint64_t(entry.file_size(ec)), known != used.end() ? known->second : Used{} });
+            c.lastNumber = std::max(c.lastNumber, number);
+            total += files.back().bytes;
+        }
+
+        // The first to go first: the longest unused, then the one least was
+        // found in for its size.
+        std::sort(files.begin(), files.end(), [](const File& a, const File& b) {
+            if (a.used.lastUsed != b.used.lastUsed) return a.used.lastUsed < b.used.lastUsed;
+            return a.used.found * b.bytes < b.used.found * a.bytes;
+        });
+        const uint64_t budget = CacheBudget();
+        size_t gone = 0;
+        for (; gone < files.size(); gone++)
+        {
+            const File& file = files[gone];
+            const bool unused = file.used.lastUsed + kUnusedSessions < c.session;
+            if (!unused && (!budget || total <= budget)) break;
+            LOGI("pipeline: %s.%u goes (%llu KB, %llu pipelines found in it in session %u of %u): %s", path,
+                 file.number, (unsigned long long)(file.bytes / 1024), (unsigned long long)file.used.found,
+                 file.used.lastUsed, c.session, unused ? "unused for too long" : "the cache is over its budget");
+            fs::remove(ClosedPath(path, file.number), ec);
+            total -= file.bytes;
+        }
+        // Asked in this order: the ones most was found in first.
+        for (size_t i = files.size(); i-- > gone;)
+        {
+            const File& file = files[i];
+            const std::string name = ClosedPath(path, file.number);
+            const std::vector<uint8_t> data = ReadCacheFile(name);
+            bool taken = false;
+            const VkPipelineCache cache = data.empty() ? VK_NULL_HANDLE : MakeCache(data, taken);
+            if (!taken)
+            {
+                // Another driver's, or another device's: nothing will be
+                // found in it again.
+                if (cache) vkDestroyPipelineCache(g.device, cache, nullptr);
+                fs::remove(name, ec);
+                continue;
+            }
+            ClosedCache& closed = c.closed.emplace_back();
+            closed.cache = cache;
+            closed.number = file.number;
+            closed.bytes = file.bytes;
+            closed.lastUsed = file.used.lastUsed;
+            closed.found = file.used.found;
+        }
+    }
+
     void CreateCache()
     {
-        std::lock_guard lock(vk::pipeline::CacheMutex());
+        std::unique_lock lock(c.lock);
         if (env::Flag("MW2_NO_PIPELINE_CACHE"))
         {
             LOGI("pipeline: VkPipelineCache bypassed (MW2_NO_PIPELINE_CACHE)");
             return;
         }
 
-        std::vector<uint8_t> initial;
         // Mali: skip disk-load by default to avoid cross-session driver
         // instability, but still create an in-session cache for ISA reuse.
         // MW2_PERSIST_PIPELINE_CACHE=1 asks for the disk blob back (see
         // PersistCache above).
-        if (PersistCache())
+        std::vector<uint8_t> initial;
+        const bool persist = PersistCache();
+        const char* path = persist ? CachePath() : nullptr;
+        if (path)
         {
-            if (const char* path = CachePath())
-            {
-                LOGI("pipeline: checking persistent pipeline cache at: %s", path);
-                if (std::FILE* f = std::fopen(path, "rb"))
-                {
-                    std::fseek(f, 0, SEEK_END);
-                    const long fileSize = std::ftell(f);
-                    std::fseek(f, 0, SEEK_SET);
-
-                    if (fileSize > (long)sizeof(PipelineCacheHeader) && fileSize <= 64 * 1024 * 1024)
-                    {
-                        PipelineCacheHeader header{};
-                        if (std::fread(&header, sizeof(header), 1, f) == 1)
-                        {
-                            const bool valid = (header.magic == 0x32435056 &&
-                                                header.version == 1 &&
-                                                header.vendorID == g.deviceProperties.vendorID &&
-                                                header.deviceID == g.deviceProperties.deviceID &&
-                                                header.driverVersion == g.deviceProperties.driverVersion &&
-                                                std::memcmp(header.pipelineCacheUUID, g.deviceProperties.pipelineCacheUUID, VK_UUID_SIZE) == 0 &&
-                                                header.dataSize == (uint64_t)(fileSize - sizeof(PipelineCacheHeader)));
-
-                            if (valid)
-                            {
-                                initial.resize(header.dataSize);
-                                if (std::fread(initial.data(), 1, header.dataSize, f) == header.dataSize)
-                                {
-                                    LOGI("pipeline: verified valid cache header for GPU %04X:%04X driver %08X (%zu KB payload)",
-                                         header.vendorID, header.deviceID, header.driverVersion, initial.size() / 1024);
-                                }
-                                else
-                                {
-                                    initial.clear();
-                                    LOGW("pipeline: truncated cache payload in %s, starting empty", path);
-                                }
-                            }
-                            else
-                            {
-                                LOGW("pipeline: cache header in %s invalidated (driver/device update or UUID mismatch), starting fresh", path);
-                            }
-                        }
-                    }
-                    else if (fileSize > 0)
-                    {
-                        LOGW("pipeline: cache file %s size invalid (%ld bytes), ignoring", path, fileSize);
-                    }
-                    std::fclose(f);
-                }
-            }
+            LOGI("pipeline: checking persistent pipeline cache at: %s", path);
+            initial = ReadCacheFile(path);
+            if (g.cacheControl) OpenClosedCaches(path, initial.size());
         }
-        else
+        else if (!persist)
         {
             LOGI("pipeline: Mali GPU detected -- using in-session VkPipelineCache only;"
                  " set MW2_PERSIST_PIPELINE_CACHE=1 to keep the disk blob across runs");
         }
 
-        VkPipelineCacheCreateInfo info{ VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
-        info.initialDataSize = initial.size();
-        info.pInitialData = initial.empty() ? nullptr : initial.data();
-        if (vkCreatePipelineCache(g.device, &info, nullptr, &g.cache) != VK_SUCCESS)
+        bool taken = false;
+        g.cache = MakeCache(initial, taken);
+        // What it holds is what its file holds: nothing to write until it grows.
+        if (taken) g.cacheSavedBytes = CacheBytes(g.cache);
+        g.cacheLoaded = taken || !c.closed.empty();
+        if (g.cacheLoaded)
         {
-            LOGW("pipeline: driver rejected pipeline cache data, falling back to empty cache");
-            info.initialDataSize = 0;
-            info.pInitialData = nullptr;
-            vkCreatePipelineCache(g.device, &info, nullptr, &g.cache);
-        }
-        else if (!initial.empty())
-        {
-            g.cacheLoaded = true;
-            LOGI("pipeline: successfully loaded and verified %zu KB of persistent pipeline cache", initial.size() / 1024);
+            uint64_t closedBytes = 0;
+            for (const ClosedCache& closed : c.closed) closedBytes += closed.bytes;
+            LOGI("pipeline: loaded %zu KB of pipeline cache for GPU %04X:%04X driver %08X, and %zu closed files of"
+                 " %llu KB (session %u, budget %llu MB)",
+                 taken ? initial.size() / 1024 : size_t(0), g.deviceProperties.vendorID, g.deviceProperties.deviceID,
+                 g.deviceProperties.driverVersion, c.closed.size(), (unsigned long long)(closedBytes / 1024),
+                 c.session, (unsigned long long)(CacheBudget() >> 20));
         }
     }
 
-    void SaveCache()
+    // The cache being added to has reached its share of the budget: its file
+    // becomes a closed one's and an empty cache takes its place.
+    void CloseCache(const char* path, size_t size)
     {
-        std::lock_guard lock(vk::pipeline::CacheMutex());
+        bool taken = false;
+        const VkPipelineCache empty = MakeCache({}, taken);
+        if (!empty) return;
+        const uint32_t number = c.lastNumber + 1;
+        std::error_code ec;
+        std::filesystem::rename(path, ClosedPath(path, number), ec);
+        if (ec)
+        {
+            LOGW("pipeline: %s could not be closed as its file %u (%s)", path, number, ec.message().c_str());
+            vkDestroyPipelineCache(g.device, empty, nullptr);
+            return;
+        }
+        c.lastNumber = number;
+        ClosedCache& closed = c.closed.emplace_back();
+        closed.cache = g.cache;
+        closed.number = number;
+        closed.bytes = size + sizeof(PipelineCacheHeader);
+        closed.lastUsed = c.session;
+        g.cache = empty;
+        g.cacheSavedBytes = CacheBytes(empty);
+        LOGI("pipeline: closed %zu KB of pipeline cache as %s.%u; %zu closed files now", size / 1024, path, number,
+             c.closed.size());
+        WriteIndex(path);
+    }
+
+    // `last`: the run is ending. The index and the log's line otherwise wait
+    // for kSayEvery, since the warm-up saves after every few pipelines.
+    constexpr auto kSayEvery = std::chrono::seconds(10);
+    void SaveCache(bool last = false)
+    {
+        std::unique_lock lock(c.lock);
         // Do not persist cache blobs to disk on Mali by default --
         // in-session use only. MW2_PERSIST_PIPELINE_CACHE=1 keeps saving.
         if (!PersistCache()) return;
         const char* path = CachePath();
         if (!path || !g.cache) return;
-        size_t size = 0;
-        if (vkGetPipelineCacheData(g.device, g.cache, &size, nullptr) != VK_SUCCESS || !size) return;
+        const size_t size = CacheBytes(g.cache);
+        if (!size) return;
         // Nothing new since it was last written: the driver's cache only
         // grows, and the warm-up asks after every few pipelines whether or
         // not they were in it already -- 147 times in a hundred seconds of a
         // level played before, 10 MB to the phone's storage each time.
-        if (size == g.cacheSavedBytes) return;
-        std::vector<uint8_t> data(size);
-        if (vkGetPipelineCacheData(g.device, g.cache, &size, data.data()) != VK_SUCCESS) return;
-
-        PipelineCacheHeader header{};
-        header.vendorID = g.deviceProperties.vendorID;
-        header.deviceID = g.deviceProperties.deviceID;
-        header.driverVersion = g.deviceProperties.driverVersion;
-        std::memcpy(header.pipelineCacheUUID, g.deviceProperties.pipelineCacheUUID, VK_UUID_SIZE);
-        header.dataSize = size;
-
-        // Beside it first, then in its place: a run that ends halfway through
-        // the write leaves the cache it had, not a broken one.
-        const std::string partial = std::string(path) + ".partial";
-        std::FILE* f = std::fopen(partial.c_str(), "wb");
-        if (!f) return;
-        const bool written = std::fwrite(&header, sizeof(header), 1, f) == 1 &&
-                             std::fwrite(data.data(), 1, size, f) == size;
-        std::error_code ec;
-        if (std::fclose(f) != 0 || !written)
+        if (size != g.cacheSavedBytes)
         {
-            std::filesystem::remove(partial, ec);
-            LOGW("pipeline: failed to write pipeline cache to %s", path);
-            return;
-        }
-        std::filesystem::rename(partial, path, ec);
-        if (ec) LOGW("pipeline: the pipeline cache could not be put in place at %s (%s)", path, ec.message().c_str());
-        else
-        {
+            size_t got = size;
+            std::vector<uint8_t> data(size);
+            if (vkGetPipelineCacheData(g.device, g.cache, &got, data.data()) != VK_SUCCESS) return;
+
+            PipelineCacheHeader header{};
+            header.vendorID = g.deviceProperties.vendorID;
+            header.deviceID = g.deviceProperties.deviceID;
+            header.driverVersion = g.deviceProperties.driverVersion;
+            std::memcpy(header.pipelineCacheUUID, g.deviceProperties.pipelineCacheUUID, VK_UUID_SIZE);
+            header.dataSize = got;
+            if (!ReplaceFile(path, &header, sizeof header, data.data(), got)) return;
             g.cacheSavedBytes = size;
-            LOGI("pipeline: wrote %zu KB of pipeline cache to %s", (size + sizeof(header)) / 1024, path);
+            LOGI("pipeline: wrote %zu KB of pipeline cache to %s", (got + sizeof header) / 1024, path);
+        }
+
+        const uint64_t budget = CacheBudget();
+        const auto now = std::chrono::steady_clock::now();
+        const bool closes = budget && size >= budget / kCacheParts;
+        if (closes) CloseCache(path, size);
+        else if (!last && now - c.said < kSayEvery) return;
+        else if (!c.closed.empty() && c.indexed != c.foundClosed.load(std::memory_order_relaxed)) WriteIndex(path);
+        c.said = now;
+
+        const uint64_t found = c.found.load(std::memory_order_relaxed);
+        const uint64_t compiled = c.compiled.load(std::memory_order_relaxed);
+        if (found + compiled != c.logged)
+        {
+            c.logged = found + compiled;
+            uint64_t bytes = g.cacheSavedBytes;
+            for (const ClosedCache& closed : c.closed) bytes += closed.bytes;
+            LOGI("pipeline: the cache is %llu KB in %zu files; %llu pipelines found in it so far (%llu in the closed"
+                 " files), %llu compiled by the driver",
+                 (unsigned long long)(bytes / 1024), c.closed.size() + 1, (unsigned long long)found,
+                 (unsigned long long)c.foundClosed.load(std::memory_order_relaxed), (unsigned long long)compiled);
         }
     }
 
@@ -1165,12 +1464,18 @@ bool vk::pipeline::Initialise(void* device, void* physical, void* queue, uint32_
 void vk::pipeline::Shutdown()
 {
     if (!g.device) return;
-    SaveCache();
-    if (g.cache) vkDestroyPipelineCache(g.device, g.cache, nullptr);
+    ::SaveCache(true);
+    {
+        std::unique_lock lock(c.lock);
+        if (g.cache) vkDestroyPipelineCache(g.device, g.cache, nullptr);
+        for (ClosedCache& closed : c.closed) vkDestroyPipelineCache(g.device, closed.cache, nullptr);
+        c.closed.clear();
+        g.cache = VK_NULL_HANDLE;
+        g.cacheSavedBytes = 0;
+    }
     if (g.layout) vkDestroyPipelineLayout(g.device, g.layout, nullptr);
     for (VkDescriptorSetLayout& set : g.sets)
         if (set) { vkDestroyDescriptorSetLayout(g.device, set, nullptr); set = VK_NULL_HANDLE; }
-    g.cache = VK_NULL_HANDLE;
     g.layout = VK_NULL_HANDLE;
     if (g.ownsDevice)
     {
@@ -1212,19 +1517,50 @@ bool     vk::pipeline::TextureCompressionBC() { return g.textureCompressionBC; }
 bool     vk::pipeline::SubgroupPixelRecords() { return g.subgroupPixelRecords; }
 bool     vk::pipeline::UniformPixelConstants() { return g.uniformPixelConstants; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
-std::mutex& vk::pipeline::CacheMutex() { static std::mutex m; return m; }
-std::mutex& vk::pipeline::CreationMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t set) { return set < 3 ? g.sets[set] : nullptr; }
 void*    vk::pipeline::Layout() { return g.layout; }
-void*    vk::pipeline::Cache()
-{
-    // Mali: return the handle for in-session ISA reuse.
-    // (Not persisted to disk -- see SaveCache above.)
-    static const bool noCache = env::Flag("MW2_NO_PIPELINE_CACHE");
-    if (noCache) return nullptr;
-    return g.cache;
-}
 void     vk::pipeline::SaveCache() { ::SaveCache(); }
+
+int vk::pipeline::CreateGraphicsPipeline(const void* createInfo, void* pipeline, int* fromCache)
+{
+    VkGraphicsPipelineCreateInfo info = *static_cast<const VkGraphicsPipelineCreateInfo*>(createInfo);
+    VkPipeline* made = static_cast<VkPipeline*>(pipeline);
+    if (fromCache) *fromCache = -1;
+    CreationLock lock(c.lock);
+    // A library of state alone and a fast link compile nothing: every cache
+    // would answer them, and none would have been of use.
+    const bool compiles = info.stageCount || (info.flags & VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT);
+    if (g.cache && g.cacheControl && compiles)
+    {
+        const VkPipelineCreateFlags flags = info.flags;
+        info.flags |= VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT;
+        VkResult result = vkCreateGraphicsPipelines(g.device, g.cache, 1, &info, nullptr, made);
+        const uint32_t count = uint32_t(c.closed.size());
+        const uint32_t first = c.lastFound.load(std::memory_order_relaxed);
+        for (uint32_t i = 0; result == VK_PIPELINE_COMPILE_REQUIRED && i < count; i++)
+        {
+            const uint32_t at = (first + i) % count;
+            result = vkCreateGraphicsPipelines(g.device, c.closed[at].cache, 1, &info, nullptr, made);
+            if (result != VK_SUCCESS) continue;
+            c.closed[at].foundNow.fetch_add(1, std::memory_order_relaxed);
+            c.foundClosed.fetch_add(1, std::memory_order_relaxed);
+            c.lastFound.store(at, std::memory_order_relaxed);
+        }
+        if (result != VK_PIPELINE_COMPILE_REQUIRED)
+        {
+            if (result == VK_SUCCESS)
+            {
+                c.found.fetch_add(1, std::memory_order_relaxed);
+                if (fromCache) *fromCache = 1;
+            }
+            return result;
+        }
+        c.compiled.fetch_add(1, std::memory_order_relaxed);
+        if (fromCache) *fromCache = 0;
+        info.flags = flags;
+    }
+    return vkCreateGraphicsPipelines(g.device, g.cache, 1, &info, nullptr, made);
+}
 
 bool vk::pipeline::CreateModule(const uint32_t* spirv, size_t words, const char** error)
 {

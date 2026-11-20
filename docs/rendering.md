@@ -841,6 +841,44 @@ only in a previous run. The file is written back as a union, so it never
 shrinks. `MW2_PIPELINE_CACHE=<file>` persists the driver's `VkPipelineCache`
 in place of `shaders/pipelines.bin`.
 
+### The driver's cache in several files
+
+A driver's pipeline cache only grows. It keeps a pipeline for every form a
+shader ever had, so each update that changes the translator leaves the last
+one's pipelines in it, never asked for again: an AYN Thor's file held 5,656
+pipelines in 47 MB (8.7 KB each) when its campaign's recorded pipelines
+numbered 1,571. Nothing in the driver bounds it: Mesa reads as many objects
+as the blob says and copies each into memory (`vk_pipeline_cache_load`), and
+Turnip on Android has no cache of its own on disk. The bound was this
+runtime's, which did not load a file over 64 MB, so a cache that grew past
+that was begun again and a run compiled everything it drew.
+
+With a budget (`MW2_PIPELINE_CACHE_MB`; 64 on Android, none elsewhere, where
+the launcher's cache holds every shader of the game and is whole or of no
+use) the cache is several of the driver's (`pipeline.cpp`):
+
+- **The one being added to** is `<file>`. When it reaches an eighth of the
+  budget it is closed as `<file>.<n>`, which is never written again, and an
+  empty one takes its place. A save writes only the one being added to.
+- **A creation is asked of each** without compiling
+  (`VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT`), starting
+  where the last was found, and compiled into the one being added to only
+  when none holds it (`vk::pipeline::CreateGraphicsPipeline`). So what is
+  found and what is compiled are counted, on any driver with
+  `pipelineCreationCacheControl`; without it the cache stays one file.
+- **`<file>.index`** keeps, for each closed file, the last session something
+  was found in it and how many pipelines were.
+- **At a start** the closed files nothing was found in for eight sessions
+  go, and while the whole is over the budget the one least was found in for
+  its size. What that one still held of use is compiled once more, into the
+  one being added to. The recorded pipelines are rebuilt at every start, so
+  a file is found in for as long as anything recorded is in it.
+
+The log says what was loaded, each file closed or dropped, and after a save
+"the cache is N KB in M files; F pipelines found in it so far, C compiled
+by the driver". A report ends with the pipelines built and how many of them
+the driver compiled, which in a second run of the same level is none.
+
 ## Not implemented
 
 - Resolve write-back: the CPU cannot read resolved pixels from guest memory.

@@ -48,7 +48,6 @@ namespace
 {
     using namespace vk::renderer::detail;
 
-    VkPipelineCache Cache() { return static_cast<VkPipelineCache>(vk::pipeline::Cache()); }
     VkPipelineLayout Layout() { return static_cast<VkPipelineLayout>(vk::pipeline::Layout()); }
 
     VkPipeline InputLibrary(uint32_t topology)
@@ -95,16 +94,9 @@ namespace
         if (vk::pipeline::ShaderStats()) info.flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
         info.layout = Layout();
         VkPipeline made = VK_NULL_HANDLE;
-#ifdef MW2_ANDROID
-        // The phones' drivers are given one creation at a time, and the cache
-        // to itself. Elsewhere the fast link at a draw must not wait behind
-        // the optimised link in the background.
-        std::lock_guard createLock(vk::pipeline::CreationMutex());
-        std::unique_lock cacheLock(vk::pipeline::CacheMutex(), std::defer_lock);
-        if (Cache()) cacheLock.lock();
-#endif
-        if (vkCreateGraphicsPipelines(g.device, Cache(), 1, &info, nullptr, &made) != VK_SUCCESS)
-            return VK_NULL_HANDLE;
+        int fromCache = -1;
+        if (vk::pipeline::CreateGraphicsPipeline(&info, &made, &fromCache) != VK_SUCCESS) return VK_NULL_HANDLE;
+        if (optimise) report::PipelineBuilt(fromCache);
         vk::pipeline::LogShaderStats((void*)made, key.vertexShader, key.pixelShader);
         return made;
     }
