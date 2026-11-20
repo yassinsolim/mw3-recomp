@@ -84,16 +84,17 @@ namespace
     // MW2_SHADOWS=0: the sun casts no shadows (the title's sm_enable); 1
     // leaves them on. The shadow maps are a fifth of the GPU's frame in a
     // Modern Warfare 3 Survival level on an Adreno 650 -- 38 ms a frame with
-    // them, 31 without -- which is the difference between holding 30 frames
-    // a second there and not, so unset is off for that title on that class
-    // of chip and on everywhere else. Said once the title presents, when its
-    // console takes commands.
+    // them, 31 without -- and more of it in Modern Warfare 2's S.S.D.D., 31
+    // frames a second with them and 43 without: the difference between
+    // holding 30 frames a second there and not, so unset is off on that
+    // class of chip and on everywhere else. Said once the title presents,
+    // when its console takes commands.
     void Shadows()
     {
         static std::atomic<bool> told{ false };
         if (told.exchange(true, std::memory_order_relaxed)) return;
         const char* asked = env::Text("MW2_SHADOWS");
-#if defined(MW2_ANDROID) && defined(MW3_TITLE)
+#if defined(MW2_ANDROID)
         if (asked ? env::Flag("MW2_SHADOWS") : !android::perf::Adreno6xx()) return;
 #else
         if (!asked || env::Flag("MW2_SHADOWS")) return;

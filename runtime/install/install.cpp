@@ -163,10 +163,10 @@ namespace
 #ifdef MW3_TITLE
     constexpr uint32_t kTitleId = 0x415608CB;
     constexpr const char* kTitleName = "Modern Warfare 3";
-#ifdef MW3_BOTH_TITLES
-    // MW3, the app that carries both titles: one install puts both of the
-    // disc's executables in the one game folder, each checked, so the folder
-    // either runs the campaign and the multiplayer or is not installed.
+#ifdef MW2_BOTH_TITLES
+    // The app that carries both titles: one install puts both of the disc's
+    // executables in the one game folder, each checked, so the folder either
+    // runs the campaign and the multiplayer or is not installed.
     constexpr bool kEveryTitleNeeded = true;
     constexpr Title kTitles[] = {
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
@@ -188,7 +188,14 @@ namespace
 #else
     constexpr uint32_t kTitleId = 0x41560817;
     constexpr const char* kTitleName = "Modern Warfare 2";
+    // The app that carries both titles needs both, as Modern Warfare 3's
+    // does; an app of one title takes the other's executable when the disc
+    // has it and does without when not.
+#ifdef MW2_BOTH_TITLES
+    constexpr bool kEveryTitleNeeded = true;
+#else
     constexpr bool kEveryTitleNeeded = false;
+#endif
     constexpr Title kTitles[] = {
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },

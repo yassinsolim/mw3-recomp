@@ -172,12 +172,26 @@ if(MW2_IS_MW3 AND NOT MW2_VERSION STREQUAL "tu6")
 endif()
 
 # ---- the recompiled code as a library of its own ----------------------------
-# Android, Modern Warfare 3: the app's library without the recompiled code
-# (runtime), which can be published and updated, and the recompiled code's
-# (game), which each player builds from their own disc. OFF is one library or
-# executable with both, as everywhere else. cmake/game_abi.cmake says what the
-# two halves agree on, and for the runtime stands in for the recompiled tree.
+# Android: the app's library without the recompiled code (runtime), which can
+# be published and updated, and the recompiled code's (game), which each
+# player builds from their own disc. OFF is one library or executable with
+# both, as everywhere else. cmake/game_abi.cmake says what the two halves
+# agree on, and for the runtime stands in for the recompiled tree.
 set(MW2_SPLIT "OFF" CACHE STRING "Android: OFF, runtime or game (docs/game-library.md)")
+# One app with the campaign's library and the multiplayer's (cmake/android.cmake).
+option(MW2_BOTH_TITLES "Android: the app carries the campaign and the multiplayer" OFF)
+# What the title's library, or executable, is called. Modern Warfare 3's is
+# named for its title (mw3, mw3mp). Modern Warfare 2's is mw2 whatever the
+# title, as its two apps of one title each always had it, except where both
+# titles' libraries meet in one app or one game package: there the
+# multiplayer's is mw2mp.
+if(MW2_IS_MW3)
+    set(MW2_LIBRARY_NAME "${MW2_TITLE}")
+elseif(MW2_TITLE STREQUAL "mp" AND (MW2_BOTH_TITLES OR NOT MW2_SPLIT STREQUAL "OFF"))
+    set(MW2_LIBRARY_NAME "mw2mp")
+else()
+    set(MW2_LIBRARY_NAME "mw2")
+endif()
 if(NOT MW2_SPLIT STREQUAL "OFF")
     include(cmake/game_abi.cmake)
 endif()
@@ -240,7 +254,9 @@ endif()
 # Guard: a TU6 tree's entry point differs from the disc's (SP 0x82370940 vs
 # 0x82370938, MP 0x823A90C8 vs 0x823A7FE0), and the mapping names it. A build
 # whose tree is the other version's fails here instead of miscompiling it.
-if((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "sp") OR
+# The app's library alone (MW2_SPLIT=runtime) has no tree to mistake.
+if(MW2_SPLIT STREQUAL "runtime")
+elseif((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "sp") OR
    (MW2_VERSION STREQUAL "tu0" AND MW2_TITLE STREQUAL "sp" AND ANDROID))
     file(READ "${MW2_PPC_DIR}/ppc_func_mapping.cpp" _mw2_mapping)
     string(TOLOWER "${_mw2_mapping}" _mw2_mapping)
@@ -250,7 +266,8 @@ if((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "sp") OR
         message(FATAL_ERROR "${MW2_PPC_DIR} is not a TU0 campaign tree")
     endif()
 endif()
-if((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "mp") OR
+if(MW2_SPLIT STREQUAL "runtime")
+elseif((MW2_VERSION STREQUAL "tu6" AND MW2_TITLE STREQUAL "mp") OR
    (MW2_VERSION STREQUAL "tu0" AND MW2_TITLE STREQUAL "mp" AND ANDROID))
     file(READ "${MW2_PPC_DIR}/ppc_func_mapping.cpp" _mw2_mapping)
     string(TOLOWER "${_mw2_mapping}" _mw2_mapping)
@@ -484,10 +501,8 @@ set(MW2_ONLINE_SOURCES
 
 # On Android there is no process of ours to be the executable: the app's
 # activity is the process, and this is what it loads (System.loadLibrary,
-# runtime/android/jni.cpp). Everywhere else it is the program itself. MW2's
-# is libmw2.so whatever the title; MW3's is named for its title (libmw3.so,
-# libmw3mp.so), as the desktop executable is, because one app carries both
-# (cmake/android.cmake, MW3_BOTH_TITLES).
+# runtime/android/jni.cpp). Everywhere else it is the program itself. Its
+# name is MW2_LIBRARY_NAME above.
 if(ANDROID)
     add_library(mw2 SHARED ${RUNTIME_SOURCES}
         ${MW2_ONLINE_SOURCES}
@@ -497,11 +512,8 @@ else()
         ${MW2_ONLINE_SOURCES}
         "${MW2_PPC_DIR}/stubs_generated.cpp")
 endif()
-set(MW2_OUTPUT_NAME "mw2")
-if(MW2_IS_MW3)
-    set(MW2_OUTPUT_NAME "${MW2_TITLE}")
-    set_target_properties(mw2 PROPERTIES OUTPUT_NAME "${MW2_OUTPUT_NAME}")
-endif()
+set(MW2_OUTPUT_NAME "${MW2_LIBRARY_NAME}")
+set_target_properties(mw2 PROPERTIES OUTPUT_NAME "${MW2_OUTPUT_NAME}")
 target_link_libraries(mw2 PRIVATE ppc_recomp)
 target_compile_options(mw2 PRIVATE ${MW2_ARCH_OPTIONS})
 if(MW2_X86_LEVEL STREQUAL "x86-64")

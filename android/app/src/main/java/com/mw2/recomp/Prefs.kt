@@ -14,13 +14,14 @@ class Prefs(context: Context) {
         context.applicationContext.getSharedPreferences("mw2", Context.MODE_PRIVATE)
 
     /**
-     * Modern Warfare 3 on an Adreno 6xx (the kernel's driver names the chip):
-     * the Adreno 650 of a Snapdragon 865 draws a level at 25 to 33 frames a
-     * second, so a cap of 60 there is a frame time that swings between two
-     * and three blanks, and 30 is one it holds.
+     * An Adreno 6xx (the kernel's driver names the chip): the Adreno 650 of
+     * a Snapdragon 865 draws a level of Modern Warfare 3 at 25 to 33 frames
+     * a second and Modern Warfare 2's S.S.D.D. at 43, so a cap of 60 there
+     * is a frame time that swings between two and three blanks, and 30 is
+     * one it holds.
      */
     private val holdsThirty: Boolean by lazy {
-        context.packageName.startsWith("com.mw3.") && try {
+        try {
             java.io.File("/sys/class/kgsl/kgsl-3d0/gpu_model").readText().startsWith("Adreno6")
         } catch (_: java.io.IOException) {
             false

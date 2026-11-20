@@ -4,7 +4,7 @@
          Android unpacks its libraries (extractNativeLibs) where the game's
          app loads them from (android/app, GameLibrary.kt). -->
     <application
-        android:label="CoD: Modern Warfare 3 game code"
+        android:label="CoD: ${gameName} game code"
         android:hasCode="false"
         android:allowBackup="false"
         android:extractNativeLibs="true" />

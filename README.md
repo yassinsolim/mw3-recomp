@@ -38,15 +38,19 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 
 The detailed log is [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md).
 
-*Modern Warfare 2*, which this port grew from, still builds from its own disc
-(`setup\setup.cmd -Game mw2`, Android only, two apps) and shares every
-renderer fix made since ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md)):
+*Modern Warfare 2*, which this port grew from, builds from its own disc the
+same way (`setup\setup.cmd -Game mw2`, Android only): one app with the
+campaign, Special Ops and the multiplayer that updates itself from
+[mw2-recomp](https://github.com/yassinsolim/mw2-recomp)'s releases, and the
+game code as your own package. It shares every renderer fix made since
+([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):
 
-| Modern Warfare 2 (disc version) | Android |
-|---|---|
-| Campaign | plays (S.S.D.D. at 60 FPS, Team Player at about 57) |
-| Multiplayer, System Link | plays (Terminal and Rust at 60 FPS) |
-| Split screen, two devices in a match, title update 6 | not tested |
+| Modern Warfare 2 (disc version) | AYN Thor | Retroid Pocket Flip 2 (Snapdragon 865) |
+|---|---|---|
+| Campaign | plays (S.S.D.D. at 60 FPS, Team Player at about 57) | plays at 30 FPS |
+| Multiplayer, System Link | plays (Terminal and Rust at 60 FPS) | plays at 30 FPS |
+| Special Ops | not tested | The Pit plays |
+| Split screen, two devices in a match, title update 6 | not tested | not tested |
 
 ## What you need
 

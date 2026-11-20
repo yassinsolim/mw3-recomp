@@ -109,8 +109,9 @@ class MainActivity : AppCompatActivity() {
         }
         // TU6 apps offer the TU0 archives instead (PC launcher parity).
         if (isTu6()) tu6Button.text = getString(R.string.entry_tu0)
-        // MW3 has one game version: no other to point at.
-        if (Title.isMw3) tu6Button.visibility = android.view.View.GONE
+        // MW3 has one game version, and Modern Warfare 2's one app is the
+        // disc's version alone: no other to point at.
+        if (Title.isMw3 || Title.both) tu6Button.visibility = android.view.View.GONE
         if (BuildConfig.UPDATE_REPO.isEmpty()) updatesButton.visibility = android.view.View.GONE
 
         directLaunchSwitch.isChecked = prefs.autoLaunch
@@ -337,9 +338,10 @@ class MainActivity : AppCompatActivity() {
     private fun findDisc(): File? {
         // MW2's multiplayer needs the FULL disc: mw2_campaign_lean.iso pruned
         // the multiplayer fastfiles to save 2.7 GB, so it can never satisfy
-        // a multiplayer install. SP accepts either, preferring lean.
+        // a multiplayer install, nor the app that carries both titles. SP
+        // accepts either, preferring lean.
         // (TU6 installs from the same disc; the update applies after.)
-        val isMp = isMp()
+        val isMp = Title.MULTIPLAYER.carried
         val candidateIsos = if (Title.isMw3) {
             listOf(
                 File("/sdcard/Download/mw3.iso"),
@@ -595,7 +597,14 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (connection.responseCode == 200) {
                     val releases = JSONArray(connection.inputStream.bufferedReader().readText())
-                    val wantTitle = if (Title.isMw3) "mw3" else if (isMp()) "multiplayer" else "campaign"
+                    // The asset's name says which app it is: the one app of
+                    // each game is <game>-recomp-<tag>.apk.
+                    val wantTitle = when {
+                        Title.isMw3 -> "mw3"
+                        Title.both -> "mw2-recomp"
+                        isMp() -> "multiplayer"
+                        else -> "campaign"
+                    }
                     val wantTu = if (isTu6()) "tu6" else "tu0"
                     for (i in 0 until releases.length()) {
                         val release = releases.getJSONObject(i)

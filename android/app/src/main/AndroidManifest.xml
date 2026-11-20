@@ -34,10 +34,10 @@
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
-    <!-- Modern Warfare 2's campaign and multiplayer are apps of their own, and
-         each offers to start the other (MainActivity.otherApp): from Android 11
-         an app sees another only when it names it here. The last is the
-         package Modern Warfare 3's app loads the recompiled code from
+    <!-- Modern Warfare 2's campaign and multiplayer as apps of their own each
+         offer to start the other (MainActivity.otherApp): from Android 11 an
+         app sees another only when it names it here. The last is the package
+         the app with the whole game loads the recompiled code from
          (GameLibrary.kt). -->
     <queries>
         <package android:name="cod.modern.warfare2.sp" />
