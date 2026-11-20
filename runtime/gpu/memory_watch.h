@@ -88,6 +88,14 @@ namespace gpu::watch
     // frame where it has to be looked at again, for eight pages written.
     uint64_t Track(uint32_t physical, uint32_t bytes, uint64_t (*completed)(), uint64_t frame);
     bool Unwritten(uint32_t physical, uint32_t bytes, uint64_t since);
+    // Which pages of the range are not what Unwritten would pass: written
+    // since that stamp, or not watched. Their places from the range's first
+    // page go into `pages` and their number is returned; UINT32_MAX when
+    // there are more than `most` or the range cannot be answered for. Asked
+    // after the Track that watches the range again, so a page written while
+    // it is asked is either listed now or shows against the new stamp.
+    uint32_t WrittenSince(uint32_t physical, uint32_t bytes, uint64_t since, uint32_t* pages,
+                          uint32_t most);
 
     void Report();
 }

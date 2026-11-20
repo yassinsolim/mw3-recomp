@@ -465,11 +465,13 @@ bool vk::renderer::Initialise()
         LOGI("renderer: running in legacy mode without dynamic rendering / dynamic state commands");
     }
 
-    VkDescriptorPoolSize size{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFrameSlots };
+    const bool uniformConstants = vk::pipeline::UniformPixelConstants();
+    const VkDescriptorPoolSize sizes[2] = { { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFrameSlots },
+                                            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFrameSlots } };
     VkDescriptorPoolCreateInfo descriptors{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
     descriptors.maxSets = kFrameSlots;
-    descriptors.poolSizeCount = 1;
-    descriptors.pPoolSizes = &size;
+    descriptors.poolSizeCount = uniformConstants ? 2 : 1;
+    descriptors.pPoolSizes = sizes;
     if (vkCreateDescriptorPool(g.device, &descriptors, nullptr, &g.descriptors) != VK_SUCCESS)
     {
         RollbackInitialise();
@@ -497,17 +499,28 @@ bool vk::renderer::Initialise()
         VkDescriptorBufferInfo buffer{ g.arena, slot.arenaBase,
                                        g.shadowBase ? bufferSize - slot.arenaBase
                                                     : VkDeviceSize(g.arenaSlotBytes) };
-        VkWriteDescriptorSet writes[2]{};
-        for (uint32_t i = 0; i < 2; i++)
+        // A pixel shader's 256 float constants, where the draw's are: the
+        // offset is given when the set is bound (bindings::kPixelConstants).
+        // A slot's share ends 4 KB short of its memory, so the range is in
+        // bounds wherever the constants are.
+        VkDescriptorBufferInfo pixelConstants{ g.arena, slot.arenaBase, bindings::kFloatConstants * 16 };
+        VkWriteDescriptorSet writes[3]{};
+        for (uint32_t i = 0; i < 3; i++)
         {
             writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             writes[i].dstSet = slot.memorySet;
-            writes[i].dstBinding = i ? bindings::kArenaFloats : bindings::kArenaBinding;
             writes[i].descriptorCount = 1;
+        }
+        for (uint32_t i = 0; i < 2; i++)
+        {
+            writes[i].dstBinding = i ? bindings::kArenaFloats : bindings::kArenaBinding;
             writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             writes[i].pBufferInfo = &buffer;
         }
-        vkUpdateDescriptorSets(g.device, 2, writes, 0, nullptr);
+        writes[2].dstBinding = bindings::kPixelConstants;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        writes[2].pBufferInfo = &pixelConstants;
+        vkUpdateDescriptorSets(g.device, uniformConstants ? 3 : 2, writes, 0, nullptr);
     }
 
     for (uint32_t i = 0; i < kPresentImages; i++)

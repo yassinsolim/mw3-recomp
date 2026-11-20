@@ -29,6 +29,7 @@ bool     vk::pipeline::HasExtendedDynamicState() { return false; }
 bool     vk::pipeline::LegacyMode() { return false; }
 bool     vk::pipeline::TextureCompressionBC() { return false; }
 bool     vk::pipeline::SubgroupPixelRecords() { return false; }
+bool     vk::pipeline::UniformPixelConstants() { return false; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CacheMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CreationMutex() { static std::mutex m; return m; }
@@ -112,6 +113,7 @@ namespace
         bool legacyMode = false;
         bool textureCompressionBC = false;
         bool subgroupPixelRecords = false;
+        bool uniformPixelConstants = false;
         std::string name = "none";
 
         VkDescriptorSetLayout sets[3]{};
@@ -465,6 +467,19 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
                  ? "runs once for each draw record its subgroup holds"
                  : "reads its own draw record and indexes textures non-uniformly (no subgroup ballot"
                    " in the fragment stage)");
+        // Without the ballot every pixel fetches each float constant it reads
+        // from the arena, where its own record says: there the constants are a
+        // uniform block instead (shader::PixelConstants). An Adreno is given
+        // them with the ballot too, measured: on the AYN Thor (Adreno 740,
+        // Turnip) MW2's S.S.D.D. went from 8.7 to 8.3 ms of GPU a frame
+        // and its opening from 11.3 to 11.0. MW2_PIXEL_UNIFORMS says
+        // otherwise, either way.
+        constexpr uint32_t kQualcomm = 0x5143;
+        g.uniformPixelConstants = env::Text("MW2_PIXEL_UNIFORMS")
+            ? env::Flag("MW2_PIXEL_UNIFORMS")
+            : !g.subgroupPixelRecords || properties.vendorID == kQualcomm;
+        if (g.uniformPixelConstants)
+            LOGI("vulkan: a pixel shader's float constants are a uniform block, bound when a draw's differ");
         enabled.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
         indexing = VkPhysicalDeviceDescriptorIndexingFeatures{
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
@@ -741,7 +756,7 @@ namespace
         textureBindingFlags.bindingCount = 2;
         textureBindingFlags.pBindingFlags = textureFlags;
 
-        VkDescriptorSetLayoutBinding memory[2]{};
+        VkDescriptorSetLayoutBinding memory[3]{};
         for (uint32_t i = 0; i < 2; i++)
         {
             memory[i].binding = i ? bindings::kArenaFloats : bindings::kArenaBinding;
@@ -749,12 +764,16 @@ namespace
             memory[i].descriptorCount = 1;
             memory[i].stageFlags = both;
         }
+        memory[2].binding = bindings::kPixelConstants;
+        memory[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        memory[2].descriptorCount = 1;
+        memory[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
         struct Set { const VkDescriptorSetLayoutBinding* bindings; uint32_t count; };
         Set sets[3];
         sets[bindings::kConstantSet] = { nullptr, 0 };    // the constants are in the arena
         sets[bindings::kTextureSet] = { textures, 2 };
-        sets[bindings::kArenaSet] = { memory, 2 };
+        sets[bindings::kArenaSet] = { memory, g.uniformPixelConstants ? 3u : 2u };
         for (uint32_t i = 0; i < 3; i++)
         {
             VkDescriptorSetLayoutCreateInfo info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
@@ -1179,6 +1198,7 @@ bool     vk::pipeline::HasExtendedDynamicState() { return g.hasExtendedDynamicSt
 bool     vk::pipeline::LegacyMode() { return g.legacyMode; }
 bool     vk::pipeline::TextureCompressionBC() { return g.textureCompressionBC; }
 bool     vk::pipeline::SubgroupPixelRecords() { return g.subgroupPixelRecords; }
+bool     vk::pipeline::UniformPixelConstants() { return g.uniformPixelConstants; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CacheMutex() { static std::mutex m; return m; }
 std::mutex& vk::pipeline::CreationMutex() { static std::mutex m; return m; }

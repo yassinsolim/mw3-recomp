@@ -714,57 +714,74 @@ namespace vk::renderer::detail
                 return;
             }
         }
-        Record([=](VkCommandBuffer command) {
-            // What a render pass's dependency in from the outside was: a frame
-            // is many passes over the same attachments, with copies and clears
-            // between them, and this one waits for their writes.
-            VkMemoryBarrier before{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
-            before.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                                   VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-                                   VK_ACCESS_TRANSFER_WRITE_BIT;
-            before.dstAccessMask = kColourAccess | kDepthAccess;
-            vkCmdPipelineBarrier(command,
-                                 kColourStages | kDepthStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 kColourStages | kDepthStages, 0, 1, &before, 0, nullptr, 0,
-                                 nullptr);
-            if (legacy)
-            {
-                VkRenderPassBeginInfo beginInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
-                beginInfo.renderPass = legacyPass;
-                beginInfo.framebuffer = legacyFb;
-                beginInfo.renderArea.extent = area;
-                vkCmdBeginRenderPass(command, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-            }
-            else
-            {
-                // LOAD, not CLEAR: a frame is many rendering instances -- one per
-                // change of target -- and only the title's own draws clear anything.
-                VkRenderingAttachmentInfoKHR colourAttachment{
-                    VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR };
-                colourAttachment.imageView = colourView;
-                colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-                colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-                VkRenderingAttachmentInfoKHR depthAttachment = colourAttachment;
-                depthAttachment.imageView = depthView;
-                depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-                VkRenderingInfoKHR info{ VK_STRUCTURE_TYPE_RENDERING_INFO_KHR };
-                info.renderArea.extent = area;
-                info.layerCount = 1;
-                info.colorAttachmentCount = 1;
-                info.pColorAttachments = &colourAttachment;
-                info.pDepthAttachment = &depthAttachment;
-                info.pStencilAttachment = &depthAttachment;
-                dispatch.beginRendering(command, &info);
-            }
-        });
+        g.pass = PassBegin{ colourView, depthView, area, legacyPass, legacyFb };
+        Record([begin = g.pass](VkCommandBuffer command) { begin(command); });
+        g.passUnsure = false;
         g.currentScale = colour.scale;
+        // A query has to end in the instance it began in, and a boundary
+        // still unsettled could close this one under it: it is settled now.
+        if (g.guestCounting) ReleaseGate();
         OpenGuestQuery();
         g.currentColour = colour.view;
         g.currentDepth = depth.view;
         g.currentSamples = uint32_t(colour.samples);
         g.currentWidth = width;
         g.currentHeight = height;
+    }
+
+    void PassBegin::operator()(VkCommandBuffer command) const
+    {
+        // What a render pass's dependency in from the outside was: a frame
+        // is many passes over the same attachments, with copies and clears
+        // between them, and this one waits for their writes.
+        VkMemoryBarrier before{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        before.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                               VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                               VK_ACCESS_TRANSFER_WRITE_BIT;
+        before.dstAccessMask = kColourAccess | kDepthAccess;
+        vkCmdPipelineBarrier(command,
+                             kColourStages | kDepthStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             kColourStages | kDepthStages, 0, 1, &before, 0, nullptr, 0,
+                             nullptr);
+        if (legacyPass)
+        {
+            VkRenderPassBeginInfo beginInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+            beginInfo.renderPass = legacyPass;
+            beginInfo.framebuffer = legacyFramebuffer;
+            beginInfo.renderArea.extent = area;
+            vkCmdBeginRenderPass(command, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        }
+        else
+        {
+            // LOAD, not CLEAR: a frame is many rendering instances -- one per
+            // change of target -- and only the title's own draws clear anything.
+            VkRenderingAttachmentInfoKHR colourAttachment{
+                VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR };
+            colourAttachment.imageView = colour;
+            colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            VkRenderingAttachmentInfoKHR depthAttachment = colourAttachment;
+            depthAttachment.imageView = depth;
+            depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            VkRenderingInfoKHR info{ VK_STRUCTURE_TYPE_RENDERING_INFO_KHR };
+            info.renderArea.extent = area;
+            info.layerCount = 1;
+            info.colorAttachmentCount = 1;
+            info.pColorAttachments = &colourAttachment;
+            info.pDepthAttachment = &depthAttachment;
+            info.pStencilAttachment = &depthAttachment;
+            dispatch.beginRendering(command, &info);
+        }
+        RecorderInPass() = true;
+    }
+
+    void ResumeRendering()
+    {
+        g.passUnsure = false;
+        Record([begin = g.pass](VkCommandBuffer command) {
+            if (!RecorderInPass()) begin(command);
+        });
     }
 
     // The Xenos clears the EDRAM surface as part of the resolve that reads it

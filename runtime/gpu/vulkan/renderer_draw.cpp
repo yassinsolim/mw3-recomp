@@ -256,7 +256,7 @@ namespace vk::renderer::detail
         enum : uint32_t
         {
             kPipeline = 1, kViewport = 2, kScissor = 4, kDepthBias = 8, kStencil = 16,
-            kIndexBuffer = 32, kIndexed = 64, kFaces = 128, kDepthTests = 256,
+            kIndexBuffer = 32, kIndexed = 64, kFaces = 128, kDepthTests = 256, kPixelConstants = 512,
         };
         uint32_t set = 0;
         VkPipeline pipeline = VK_NULL_HANDLE;
@@ -271,6 +271,10 @@ namespace vk::renderer::detail
         // The draw table: its start for a draw with indices, the draw's own
         // first entry for one without.
         uint32_t count = 0, firstIndex = 0, table = 0;
+        // Set 2 and where in the slot's share the pixel constants are
+        // (bindings::kPixelConstants).
+        VkDescriptorSet memorySet = VK_NULL_HANDLE;
+        uint32_t pixelConstants = 0;
         bool joins = false;
 
         void operator()(VkCommandBuffer command) const
@@ -328,6 +332,10 @@ namespace vk::renderer::detail
             }
             // The whole arena, as 32-bit indices (EncodeIndices16).
             if (set & kIndexBuffer) vkCmdBindIndexBuffer(command, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            if (set & kPixelConstants)
+                vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        static_cast<VkPipelineLayout>(vk::pipeline::Layout()),
+                                        bindings::kArenaSet, 1, &memorySet, 1, &pixelConstants);
             run.command = command;
             run.indexed = indexed;
             Join(run);
@@ -569,6 +577,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
                  depthTarget->depthClearedIn == g.frames ? "this frame" : "not this frame");
         BeginRendering(*colourTarget, *depthTarget, passWidth, passHeight);
     }
+    else if (g.passUnsure) ResumeRendering();
 
     if (Timing())
         g.setupNanoseconds += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1020,6 +1029,19 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
             std::memcpy(bound.stencil, stencil, sizeof stencil);
             bound.stencilValid = true;
         }
+    }
+
+    // A pixel shader's float constants, where they are a uniform block: set 2
+    // again, at this draw's, when a shader that reads any is given others
+    // than the last. That ends the run of draws before it; on S.S.D.D. one
+    // draw in thirty that would have joined does not.
+    if (vk::pipeline::UniformPixelConstants() && bound.pixelConstants != constants.pixelFloats &&
+        (pixel->translation.constantsRead || pixel->translation.addressedConstants))
+    {
+        op.set |= DrawOp::kPixelConstants;
+        op.memorySet = g.slots[g.slot].memorySet;
+        op.pixelConstants = constants.pixelFloats;
+        bound.pixelConstants = constants.pixelFloats;
     }
 
     if (call.indexed || rectangles)

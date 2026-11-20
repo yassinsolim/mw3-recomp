@@ -52,6 +52,18 @@ namespace vk::record
     void WaitFor(uint64_t position);
     void Drain();
 
+    // Inside a queued call, on the recorder: the calls queued for `from` go
+    // into `to` from here on. For a call that ends a command buffer when the
+    // thread that queues did not know it would (the renderer's segment
+    // boundaries): the calls queued behind it all name the buffer ended.
+    // Null for both ends it.
+    void Redirect(VkCommandBuffer from, VkCommandBuffer to);
+    // `release` is run by a thread about to wait for the recorder -- for a
+    // position, the drain, room in the queue -- before it waits: a queued
+    // call that itself waits to be told something by the queuing thread is
+    // told then, or the two would wait for each other.
+    void BeforeWaiting(void (*release)());
+
     void Report();
 
     namespace detail
@@ -67,6 +79,7 @@ namespace vk::record
         extern bool threaded;
         extern VkCommandBuffer into;
         extern void (*settle)();
+        extern void (*release)();
         // Room for `bytes` at the end of the queue, and making it visible,
         // which is left until enough has gathered unless `now`: that wakes
         // the recorder for it whatever else is queued.

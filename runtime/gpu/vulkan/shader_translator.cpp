@@ -46,9 +46,10 @@ namespace
     {
     public:
         Translator(shader::Type type, const uint32_t* words, size_t count, bool scaled,
-                   shader::PixelRecord record)
+                   shader::PixelRecord record, shader::PixelConstants constants)
             : m_type(type), m_words(words), m_count(count), m_scaled(scaled),
-              m_waterfall(type == shader::Type::Pixel && record == shader::PixelRecord::Subgroup) {}
+              m_waterfall(type == shader::Type::Pixel && record == shader::PixelRecord::Subgroup),
+              m_uniformConstants(type == shader::Type::Pixel && constants == shader::PixelConstants::Uniform) {}
 
         shader::Translation Run();
 
@@ -104,6 +105,7 @@ namespace
         Id LoadConstant(uint32_t index);
         Id LoadConstantRelative(uint32_t index, bool useA0);
         Id VertexConstant(Id window);
+        Id PixelConstant(Id window);
         Id Swizzle(Id value, uint32_t swizzle, const Alu& op);
         Id SplatComponent(Id value, uint32_t component);
         void StoreMasked(Id pointer, Id value, uint32_t mask);
@@ -131,6 +133,10 @@ namespace
         // A pixel program run once for each record its subgroup holds
         // (EmitBody), rather than each pixel reading its own.
         bool m_waterfall;
+        // A pixel program's float constants are a uniform block, bound at the
+        // draw's own (shader::PixelConstants), rather than read from the arena
+        // where the record says.
+        bool m_uniformConstants;
 
         Module m_module;
         shader::Translation m_result;
@@ -188,6 +194,7 @@ namespace
         FetchDimension m_textureDimensions[32]{};
         Id m_arena = 0;               // the frame arena, as dwords
         Id m_arenaFloats = 0;         // and as vec4
+        Id m_pixelConstants = 0;      // a pixel program's 256 float constants as a uniform block
         bool m_linear = false;        // true if control flow has no loops, jumps or calls
         bool m_forwardJumpsOnly = false; // true if control flow has only forward jumps (acyclic, no loops)
         // The blocks the forward jumps open when they are lowered to
@@ -494,6 +501,9 @@ namespace
                                     "arena");
         m_arenaFloats = DeclareArrayBlock(m_float4, 0, 16, bindings::kArenaSet,
                                           bindings::kArenaFloats, "arena_floats");
+        if (m_uniformConstants)
+            m_pixelConstants = DeclareArrayBlock(m_float4, bindings::kFloatConstants, 16, bindings::kArenaSet,
+                                                 bindings::kPixelConstants, "pixel_constants");
 
         // Xenos can be told to skip the viewport transform, and then a vertex
         // program emits window coordinates itself -- D3D9's XYZRHW, a
@@ -711,10 +721,7 @@ namespace
         // all 256 of them.
         m_result.constantsRead = std::max(m_result.constantsRead, at32 + 1);
         if (m_type == shader::Type::Vertex) return VertexConstant(m_module.ConstantU(at32));
-        return ArenaFloat4(Emit(Op::IAdd, m_uint,
-                                { Emit(Op::ShiftRightLogical, m_uint,
-                                       { ConstantBlock(bindings::kPixelFloats), m_module.ConstantU(2) }),
-                                  m_module.ConstantU(at32) }));
+        return PixelConstant(m_module.ConstantU(at32));
     }
 
     // The index is computed at run time, so it is wrapped into range rather
@@ -730,10 +737,21 @@ namespace
                           { Emit(Op::Bitcast, m_uint, { at }),
                             m_module.ConstantU(kFloatConstantCount) });
         if (m_type == shader::Type::Vertex) return VertexConstant(wrapped);
+        return PixelConstant(wrapped);
+    }
+
+    // Constant `window` (0-255) of a pixel program: in its uniform block, or
+    // in the arena where the draw's record says the block is.
+    Id Translator::PixelConstant(Id window)
+    {
+        if (m_uniformConstants)
+            return Emit(Op::Load, m_float4,
+                        { Emit(Op::AccessChain, m_module.Pointer(StorageClass::Uniform, m_float4),
+                               { m_pixelConstants, m_module.ConstantS(0), window }) });
         return ArenaFloat4(Emit(Op::IAdd, m_uint,
                                 { Emit(Op::ShiftRightLogical, m_uint,
                                        { ConstantBlock(bindings::kPixelFloats), m_module.ConstantU(2) }),
-                                  wrapped }));
+                                  window }));
     }
 
     // Where constant block `block` (bindings.h) is in the arena, in dwords, as
@@ -2667,9 +2685,9 @@ namespace
 }
 
 shader::Translation shader::Translate(Type type, const uint32_t* words, size_t count,
-                                      bool scaled, PixelRecord record)
+                                      bool scaled, PixelRecord record, PixelConstants constants)
 {
-    Translator translator(type, words, count, scaled, record);
+    Translator translator(type, words, count, scaled, record, constants);
     return translator.Run();
 }
 

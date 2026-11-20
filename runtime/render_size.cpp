@@ -217,6 +217,35 @@ render::Size render::Frame()
     return frame;
 }
 
+render::Size render::SceneAsked()
+{
+    static const Size scene = [] {
+        const Size frame = Frame();
+        const Size own = Scene(frame);
+        const char* asked = env::Text("MW2_SCENE");
+        if (!asked) return own;
+#ifndef T_R_VideoSizes
+        LOGW("render: the " MW2_TITLE_NAME " cannot be given another scene than the console's; "
+             "MW2_SCENE=%s is left out", asked);
+        return own;
+#else
+        const std::optional<Size> size = Parse(asked);
+        if (!size || !SceneValid(*size, frame))
+        {
+            LOGW("render: MW2_SCENE=%s is not a scene the title can draw under a %ux%u frame (512x300 to "
+                 "%ux%u, a whole number of 16 pixels wide and 2 tall); it draws %ux%u",
+                 asked, frame.width, frame.height, own.width, own.height, own.width, own.height);
+            return own;
+        }
+        if (*size != own)
+            LOGI("render: the title draws a %ux%u scene under its %ux%u frame (MW2_SCENE)",
+                 size->width, size->height, frame.width, frame.height);
+        return *size;
+#endif
+    }();
+    return scene;
+}
+
 #ifdef T_R_VideoSizes
 
 GUEST_HOOK(T_R_VideoSizes)
@@ -224,8 +253,8 @@ GUEST_HOOK(T_R_VideoSizes)
     const uint32_t config = ctx.r3.u32;
     GUEST_ORIG(T_R_VideoSizes)(ctx, base);
     const render::Size frame = render::Frame();
-    if (frame == render::kConsoleFrame || !PPC_LOAD_U8(config + kHiDef)) return;
-    const render::Size scene = render::Scene(frame);
+    const render::Size scene = render::SceneAsked();
+    if ((frame == render::kConsoleFrame && scene == render::kConsoleScene) || !PPC_LOAD_U8(config + kHiDef)) return;
     PPC_STORE_U32(config + kScene, scene.width);
     PPC_STORE_U32(config + kScene + 4, scene.height);
     PPC_STORE_U32(config + kFrame, frame.width);

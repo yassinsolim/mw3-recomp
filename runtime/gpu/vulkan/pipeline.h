@@ -100,6 +100,11 @@ namespace vk::pipeline
     // (subgroup ballot in the fragment stage); without it each pixel reads its
     // own (shader::PixelRecord).
     bool     SubgroupPixelRecords();
+    // Whether pixel shaders take their float constants as a uniform block the
+    // renderer binds at each draw's own (shader::PixelConstants::Uniform, and
+    // set 2's third binding): by default where there are no subgroup pixel
+    // records, and as MW2_PIXEL_UNIFORMS says.
+    bool     UniformPixelConstants();
 
     // The device has one queue, and the window thread and the GPU thread both
     // submit to it; Vulkan requires a queue to be externally synchronised.

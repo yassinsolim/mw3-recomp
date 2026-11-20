@@ -195,6 +195,14 @@ namespace
         // under: while no page of it has been written since, it is unchanged
         // for certain and nothing need be signed. Zero when it is not watched.
         uint64_t watchStamp = 0;
+        // For a texture read in parts (ReadInParts): the boxes of blocks each
+        // page of its memory holds, made the first time they are wanted, and
+        // the pages written since the image was last staged -- or, with
+        // `partsKnown` false, that those are not known and it is read whole.
+        std::vector<gpu::TextureBox> pageBoxes;
+        bool boxesAsked = false;
+        std::vector<uint32_t> writtenPages;
+        bool partsKnown = false;
         uint32_t staged = 0;   // times staged; the draw list's version of it
         uint64_t boundSegment = ~0ull;   // the last segment a draw of which bound it
         bool rewritten = false;
@@ -303,6 +311,9 @@ namespace
         uint64_t segmentsEnded = 0, segmentsWithUploads = 0;
         bool endingSubmission = false;   // inside EndSubmission
         uint64_t rereadRewritten = 0, changedAfterFirstBind = 0;
+        // Re-reads that took the written pages' boxes (BoxesToRead): how
+        // many, the bytes they staged and the bytes of the whole textures.
+        uint64_t stagedInParts = 0, partBytes = 0, wholeBytes = 0;
         // A texture re-read at a segment's end because its memory changed
         // after its draws were parsed, and then never bound again: the title
         // freed it and put something else there. Read before the command
@@ -638,8 +649,12 @@ namespace
                           VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, kShaders);
     }
 
-    bool RecordUpload(UploadSlot& slot, Image& image, const uint8_t* bytes, size_t size,
-                      const char** error)
+    // Room for `size` bytes in the slot's staging, in the command buffer of
+    // its open segment, which is begun if it has not been: where to write
+    // them, and the buffer and offset a copy command names. Null when there
+    // is none to be had.
+    uint8_t* StagingFor(UploadSlot& slot, size_t size, VkBuffer& buffer, VkDeviceSize& offset,
+                        const char** error)
     {
         if (!slot.recording)
         {
@@ -653,20 +668,26 @@ namespace
                 allocate.commandBufferCount = 1;
                 VkCommandBuffer made = VK_NULL_HANDLE;
                 if (vkAllocateCommandBuffers(g.device, &allocate, &made) != VK_SUCCESS)
-                    return Fail("no upload command buffer", error);
+                {
+                    Fail("no upload command buffer", error);
+                    return nullptr;
+                }
                 slot.commands.push_back(made);
             }
             VkCommandBufferBeginInfo begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
             begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
             if (vkBeginCommandBuffer(slot.commands[slot.segment], &begin) != VK_SUCCESS)
-                return Fail("no upload command buffer", error);
+            {
+                Fail("no upload command buffer", error);
+                return nullptr;
+            }
             slot.recording = true;
         }
         // Offsets a multiple of sixteen suit every block size uploaded.
         const VkDeviceSize at = (slot.used + 15) & ~VkDeviceSize(15);
         slot.wanted = ((slot.wanted + 15) & ~VkDeviceSize(15)) + size;
         StagingBuffer* into = &slot.staging;
-        VkDeviceSize offset = at;
+        offset = at;
         if (!slot.staging.buffer || at + size > slot.staging.size)
         {
             g.stagingOverflows++;
@@ -674,21 +695,74 @@ namespace
             if (!MakeStaging(slot.overflow.back(), size))
             {
                 slot.overflow.pop_back();
-                return Fail("no staging buffer", error);
+                Fail("no staging buffer", error);
+                return nullptr;
             }
             into = &slot.overflow.back();
             offset = 0;
         }
         else slot.used = at + size;
-        std::memcpy(into->mapped + offset, bytes, size);
-        RecordCopy(slot.commands[slot.segment], image, into->buffer, offset);
+        buffer = into->buffer;
+        return into->mapped + offset;
+    }
+
+    bool RecordUpload(UploadSlot& slot, Image& image, const uint8_t* bytes, size_t size,
+                      const char** error)
+    {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceSize offset = 0;
+        uint8_t* staged = StagingFor(slot, size, buffer, offset, error);
+        if (!staged) return false;
+        std::memcpy(staged, bytes, size);
+        RecordCopy(slot.commands[slot.segment], image, buffer, offset);
         g.uploadsBatched++;
         return true;
+    }
+
+    // The boxes of a texture read in parts, over what the image holds: its
+    // other texels stay, so the layout it is read in is the one it comes from.
+    void RecordBoxCopies(VkCommandBuffer cmd, Image& image, VkBuffer source, VkDeviceSize offset,
+                         const std::vector<gpu::TextureBox>& boxes,
+                         const std::vector<size_t>& offsets)
+    {
+        constexpr VkPipelineStageFlags kShaders =
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        vk::util::Barrier(cmd, image.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, kShaders, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        std::vector<VkBufferImageCopy> regions(boxes.size());
+        for (size_t i = 0; i < boxes.size(); i++)
+        {
+            const gpu::TextureBox& box = boxes[i];
+            VkBufferImageCopy& region = regions[i];
+            region.bufferOffset = offset + offsets[i];
+            region.bufferRowLength = box.w;
+            region.bufferImageHeight = box.h;
+            region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+            region.imageOffset = { int32_t(box.x), int32_t(box.y), int32_t(box.z) };
+            region.imageExtent = { box.w, box.h, box.d };
+        }
+        vkCmdCopyBufferToImage(cmd, source, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               uint32_t(regions.size()), regions.data());
+        vk::util::Barrier(cmd, image.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
+                          VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, kShaders);
+    }
+
+    // The image shows its memory as it was read under the watch it has now:
+    // nothing of it is behind (TrackImage).
+    void NoteStaged(Image& image)
+    {
+        image.partsKnown = true;
+        image.writtenPages.clear();
     }
 
     bool StageInto(Image& image, const uint8_t* bytes, size_t size, const char** error)
     {
         image.staged++;
+        NoteStaged(image);
         if (g.open) return RecordUpload(*g.open, image, bytes, size, error);
 
         StagingBuffer staging;
@@ -1338,9 +1412,82 @@ namespace
         return stamp;
     }
 
-    uint64_t TrackImage(const Image& image)
+    // A texture the title rewrites a little of at a time is read again in
+    // parts: the title's own bytes in one level of one-texel blocks, large
+    // enough for a part to be much less than the whole. MW2's model lighting
+    // volume is the one that matters: 2 MB, a few of its pages written every
+    // frame, and reading, swapping and staging all of it at the end of a
+    // segment of every frame was a sixth of the ring consumer's time on the
+    // AYN Thor and half a millisecond of the GPU's.
+    constexpr size_t kPartsLeast = 16 * gpu::watch::kPageBytes;
+    constexpr uint32_t kMostWrittenPages = 64;
+    bool ReadInParts(const Image& image)
     {
-        return TrackSource(image.address, image.sourceBytes, image.mipAddress, image.mipBytes);
+        return image.sourceBytes >= kPartsLeast && !image.mipBytes && image.levels.size() == 1 &&
+               !image.skin && image.blockWidth == 1 && image.blockHeight == 1 &&
+               !DecodeInSoftware(image.xenosFormat);
+    }
+
+    // Watched again, as TrackSource; and for a texture read in parts, the
+    // pages written under the stamp this one replaces are added to those the
+    // image is behind on. Every watch of an image's memory after its first
+    // read comes through here, so the list is whole from one staging to the
+    // next, or `partsKnown` says it is not.
+    uint64_t TrackImage(Image& image)
+    {
+        const uint64_t since = image.watchStamp;
+        const uint64_t stamp =
+            TrackSource(image.address, image.sourceBytes, image.mipAddress, image.mipBytes);
+        if (!image.partsKnown || !ReadInParts(image)) return stamp;
+        uint32_t pages[kMostWrittenPages];
+        const uint32_t count = since && stamp
+            ? gpu::watch::WrittenSince(image.address, uint32_t(image.sourceBytes), since, pages,
+                                       kMostWrittenPages)
+            : UINT32_MAX;
+        if (count == UINT32_MAX) { image.partsKnown = false; return stamp; }
+        for (uint32_t i = 0; i < count; i++)
+            if (std::find(image.writtenPages.begin(), image.writtenPages.end(), pages[i]) ==
+                image.writtenPages.end())
+                image.writtenPages.push_back(pages[i]);
+        if (image.writtenPages.size() > kMostWrittenPages) image.partsKnown = false;
+        return stamp;
+    }
+
+    // What to read of a rewritten texture in place of all of it: the boxes of
+    // the pages written since it was staged, when they are known, uploads are
+    // open to stage them into and they come to under a quarter of it. Empty
+    // for a texture to read whole.
+    std::vector<gpu::TextureBox> BoxesToRead(Image& image)
+    {
+        // MW2_TEXTURE_PARTS=0 reads every rewritten texture whole, as before:
+        // what reading in parts saves, and a picture to compare with.
+        static const bool parts = !env::Text("MW2_TEXTURE_PARTS") || env::Flag("MW2_TEXTURE_PARTS");
+        if (!parts || !g.open || !image.partsKnown || image.writtenPages.empty() ||
+            !ReadInParts(image) || gpu::replace::On())
+            return {};
+        if (!image.boxesAsked)
+        {
+            image.boxesAsked = true;
+            gpu::TextureFetch fetch;
+            std::memcpy(fetch.d, image.fetchWords, sizeof fetch.d);
+            image.pageBoxes = gpu::TextureBoxesByPage(fetch, gpu::watch::kPageBytes);
+        }
+        std::vector<gpu::TextureBox> boxes;
+        size_t blocks = 0;
+        const uint32_t slices = image.volume ? image.layers : 1;
+        for (const uint32_t page : image.writtenPages)
+        {
+            if (page >= image.pageBoxes.size()) return {};
+            const gpu::TextureBox& box = image.pageBoxes[page];
+            // A page of the texture's memory that holds none of its blocks.
+            if (box.Empty()) continue;
+            if (box.x + box.w > image.width || box.y + box.h > image.height || box.z + box.d > slices)
+                return {};
+            boxes.push_back(box);
+            blocks += box.Blocks();
+        }
+        if (blocks * 4 > size_t(image.width) * image.height * slices) return {};
+        return boxes;
     }
 
     bool Unchanged(const Image& image)
@@ -1433,6 +1580,7 @@ namespace
             xenosFormat = from.xenosFormat;
             format = from.format;
             bytes = from.bytes;
+            bytesPerBlock = from.bytesPerBlock;
             decode = DecodeInSoftware(from.xenosFormat);
             skin = wanted = from.skin;
         }
@@ -1446,6 +1594,7 @@ namespace
         uint32_t xenosFormat = 0;
         VkFormat format = VK_FORMAT_UNDEFINED;
         VkDeviceSize bytes = 0;
+        uint32_t bytesPerBlock = 0;
         bool decode = false;                   // through the software decoder
         gpu::TextureData* scratch = nullptr;   // where that decodes to (PrepareAll)
         // Signed first, and read only if that is not `held`, the signature of
@@ -1468,6 +1617,12 @@ namespace
         const gpu::TextureData* payload = nullptr;
         uint8_t empty = 0;                             // EmptyPercent of `data`
         uint64_t signature = 0, signNanos = 0;
+        // Read in parts (BoxesToRead): the boxes, and their blocks one box
+        // after another in `boxBytes`, each from a multiple of sixteen bytes.
+        // Nothing else is read then: no `data`, no payload, no measure.
+        std::vector<gpu::TextureBox> boxes;
+        std::vector<size_t> boxOffsets;
+        std::vector<uint8_t> boxBytes;
     };
 
     // What the image is staged from: the texture as read, or its software
@@ -1511,6 +1666,23 @@ namespace
         return pData;
     }
 
+    // The half of Prepare for a job read in parts: each box as the whole
+    // read would have left it.
+    void ReadBoxes(Reread& job)
+    {
+        size_t bytes = 0;
+        for (const gpu::TextureBox& box : job.boxes)
+        {
+            bytes = (bytes + 15) & ~size_t(15);
+            job.boxOffsets.push_back(bytes);
+            bytes += box.Blocks() * job.bytesPerBlock;
+        }
+        job.boxBytes.resize(bytes);
+        for (size_t i = 0; i < job.boxes.size(); i++)
+            gpu::ReadTextureBox(job.fetch, job.base, job.boxes[i],
+                                job.boxBytes.data() + job.boxOffsets[i]);
+    }
+
     // On any thread: nothing here reads or writes what another job, the cache
     // or Vulkan holds. The replacements are behind a lock of their own
     // (gpu/texture_replace.h).
@@ -1528,6 +1700,7 @@ namespace
             else job.signature = SignRanges(job.base, job.baseBytes, job.mips, job.mipBytes);
             if (job.signature == job.held) return;
         }
+        if (!job.boxes.empty()) { ReadBoxes(job); return; }
         job.data = gpu::ReadTexture(job.fetch, job.base, job.mips);
         if (!job.data.ok) return;
         if (job.measure || job.refill)
@@ -1558,6 +1731,28 @@ namespace
                                         job.payload->bytes.size(), nullptr);
     }
 
+    // The boxes of a job read in parts, staged over the image's texels there.
+    // Asked for only with uploads open (BoxesToRead).
+    bool StageBoxes(const Reread& job)
+    {
+        Image& image = *job.image;
+        if (!g.open || job.boxBytes.empty()) return false;
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceSize offset = 0;
+        uint8_t* staged = StagingFor(*g.open, job.boxBytes.size(), buffer, offset, nullptr);
+        if (!staged) return false;
+        std::memcpy(staged, job.boxBytes.data(), job.boxBytes.size());
+        RecordBoxCopies(g.open->commands[g.open->segment], image, buffer, offset, job.boxes,
+                        job.boxOffsets);
+        image.staged++;
+        NoteStaged(image);
+        g.uploadsBatched++;
+        g.stagedInParts++;
+        g.partBytes += job.boxBytes.size();
+        g.wholeBytes += image.bytes;
+        return true;
+    }
+
     // A re-read staged where the image can take it, and the image left
     // showing what the read asks for, or let go so that the next bind makes
     // one that does. An image is made either as the title's texture or as a
@@ -1570,6 +1765,7 @@ namespace
     // the image shows nothing new.
     bool Restage(const Reread& job)
     {
+        if (!job.boxes.empty()) return StageBoxes(job);
         // Still the replacement it holds: nothing of what was read is shown.
         if (job.skin && job.wanted == job.skin) return job.data.ok;
         const bool staged = !job.skin && Stage(job);
@@ -2269,6 +2465,7 @@ namespace
                     image.watchStamp = TrackImage(image);
                 }
                 Reread& job = batch.emplace_back(id, image);
+                job.boxes = BoxesToRead(image);
                 // The bind's own read, made late, is looked over as it would
                 // have been there.
                 job.measure = due;
@@ -2538,6 +2735,11 @@ void vk::textures::Report()
     LOGI("textures: of those, %llu bound again the frame after, %llu on their last use (the"
          " title had freed them: a frame drawn with whatever replaced them)",
          (unsigned long long)g.lateReadsBoundAgain, (unsigned long long)g.lateReadsOnLastUse);
+    if (g.stagedInParts)
+        LOGI("textures: %llu re-reads took only the pages written, %llu KB of them in place of"
+             " %llu KB",
+             (unsigned long long)g.stagedInParts, (unsigned long long)(g.partBytes >> 10),
+             (unsigned long long)(g.wholeBytes >> 10));
     LOGI("textures: %llu segments ended, %llu of them with uploads of their own",
          (unsigned long long)g.segmentsEnded, (unsigned long long)g.segmentsWithUploads);
     if (g.emptyDrawnInWorld || g.refilledBeforeSubmit || g.stillEmptyAtSubmit)

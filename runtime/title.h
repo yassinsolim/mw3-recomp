@@ -1117,6 +1117,14 @@
 #define T_CG_ViewFov           8215B9D0
 #define T_CG_CullZoom          8215BC50
 #define T_Dvar_RegisterInt     8230E2F8
+// the sizes the title draws at, and the picture's shape (render_size.cpp):
+// the update's functions, instruction for instruction, 0x10E0 lower, the
+// menus' evaluator 0x900 lower
+#define T_R_VideoSizes         823C2CF0
+#define T_R_SetVidConfig       823C24E8
+#define T_R_DrawStretchPic     823C5CD0
+#define T_UI_EvaluateStatement 822D69F0
+#define T_DATA_VidConfig          0x83AE0C28u
 #define T_DATA_RenderTargets      0x83D33D80u
 #define T_PartyHost_HandleJoinPartyRequest 821A65C0
 #define T_ProtocolVersion      823098A0
@@ -1156,6 +1164,13 @@
 #define T_CG_ViewFov           8210FCD8
 #define T_CG_CullZoom          8210FF80
 #define T_Dvar_RegisterInt     822E1618
+// the sizes the title draws at, and the picture's shape (render_size.cpp):
+// where the update has them, but for the menus' evaluator, 8 bytes lower
+#define T_R_VideoSizes         8238E5D0
+#define T_R_SetVidConfig       8238DDC8
+#define T_R_DrawStretchPic     823915B0
+#define T_UI_EvaluateStatement 822BF4B0
+#define T_DATA_VidConfig          0x83C911A8u
 #define T_DATA_RenderTargets      0x83E49800u
 #define T_DATA_TimeStampBundlePtr 0x82000780u
 #define T_DATA_DebugMonitorPtr    0x820007F8u

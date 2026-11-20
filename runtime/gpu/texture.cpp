@@ -559,6 +559,117 @@ gpu::TextureData gpu::ReadTexture(const TextureFetch& fetch, const uint8_t* base
     return out;
 }
 
+namespace
+{
+    // The base level of a texture read in boxes: where a block is from the
+    // base address, as ReadTexture finds it.
+    struct BoxedBase
+    {
+        bool ok = false;
+        bool tiled = false, volume = false;
+        uint32_t bytesPerBlock = 0, bytesPerBlockLog2 = 0;
+        uint32_t blocksWide = 0, blocksHigh = 0, slices = 1;
+        // Aligned runs of this many blocks lie side by side in memory in both
+        // tilings (ReadTexture).
+        uint32_t run = 1;
+        Stored stored;
+
+        explicit BoxedBase(const gpu::TextureFetch& fetch)
+        {
+            const gpu::TextureFormatInfo info = gpu::TextureFormatOf(fetch.Format());
+            if (!info.known || info.bitsPerBlock % 8 || info.blockWidth != 1 || info.blockHeight != 1)
+                return;
+            bytesPerBlock = info.bitsPerBlock / 8;
+            if (bytesPerBlock & (bytesPerBlock - 1)) return;
+            const gpu::TextureExtents extents = gpu::ExtentsOf(fetch);
+            // One level, at the base address and not inside a packed tail.
+            if (!extents.baseBytes || extents.mipBytes || PackedLevelOf(fetch) == 0) return;
+            volume = fetch.Dimension() == gpu::TextureDimension::D3;
+            if (!volume && (fetch.Dimension() != gpu::TextureDimension::D2OrStacked || fetch.Depth() != 1))
+                return;
+            tiled = fetch.Tiled();
+            bytesPerBlockLog2 = Log2Ceil(bytesPerBlock);
+            blocksWide = fetch.Width();
+            blocksHigh = fetch.Height();
+            slices = volume ? fetch.Depth() : 1;
+            run = bytesPerBlock == 1 ? 8 : std::max(1u, std::min(8u, 16u / bytesPerBlock));
+            stored = StoredLevel(fetch, info, true, 0);
+            ok = blocksWide && blocksHigh && slices;
+        }
+
+        size_t At(uint32_t x, uint32_t y, uint32_t z) const
+        {
+            if (!tiled)
+                return size_t(z) * stored.rowBytes * stored.sliceRows + size_t(y) * stored.rowBytes +
+                       size_t(x) * bytesPerBlock;
+            return volume ? size_t(gpu::TiledOffset3D(int32_t(x), int32_t(y), int32_t(z),
+                                                      stored.pitchBlocks, stored.sliceRows,
+                                                      bytesPerBlockLog2))
+                          : size_t(gpu::TiledOffset2D(int32_t(x), int32_t(y), stored.pitchBlocks,
+                                                      bytesPerBlockLog2));
+        }
+    };
+}
+
+std::vector<gpu::TextureBox> gpu::TextureBoxesByPage(const TextureFetch& fetch, uint32_t pageBytes)
+{
+    const BoxedBase base(fetch);
+    if (!base.ok || !pageBytes) return {};
+    const TextureExtents extents = ExtentsOf(fetch);
+    const size_t first = extents.baseAddress % pageBytes;
+    std::vector<TextureBox> boxes((first + extents.baseBytes + pageBytes - 1) / pageBytes);
+    // Grown to hold blocks x to x + count of row y, slice z.
+    const auto hold = [&](size_t page, uint32_t x, uint32_t count, uint32_t y, uint32_t z) {
+        if (page >= boxes.size()) return false;
+        TextureBox& box = boxes[page];
+        if (box.Empty()) { box = { x, y, z, count, 1, 1 }; return true; }
+        const uint32_t x1 = std::max(box.x + box.w, x + count), y1 = std::max(box.y + box.h, y + 1),
+                       z1 = std::max(box.z + box.d, z + 1);
+        box.x = std::min(box.x, x); box.y = std::min(box.y, y); box.z = std::min(box.z, z);
+        box.w = x1 - box.x; box.h = y1 - box.y; box.d = z1 - box.z;
+        return true;
+    };
+    // A linear row is one stretch of memory; a tiled one is its aligned runs.
+    const uint32_t step = base.tiled ? base.run : base.blocksWide;
+    for (uint32_t z = 0; z < base.slices; z++)
+        for (uint32_t y = 0; y < base.blocksHigh; y++)
+            for (uint32_t x = 0; x < base.blocksWide; x += step)
+            {
+                const uint32_t count = std::min(step, base.blocksWide - x);
+                const size_t from = first + base.At(x, y, z);
+                const size_t to = from + size_t(count) * base.bytesPerBlock - 1;
+                // Stored outside what the fetch constant spans: not a texture
+                // to read in parts.
+                for (size_t page = from / pageBytes; page <= to / pageBytes; page++)
+                    if (!hold(page, x, count, y, z)) return {};
+            }
+    return boxes;
+}
+
+void gpu::ReadTextureBox(const TextureFetch& fetch, const uint8_t* source, const TextureBox& box,
+                         uint8_t* out)
+{
+    const BoxedBase base(fetch);
+    if (!base.ok) return;
+    const size_t rowBytes = size_t(box.w) * base.bytesPerBlock;
+    uint8_t* row = out;
+    for (uint32_t z = box.z; z < box.z + box.d; z++)
+        for (uint32_t y = box.y; y < box.y + box.h; y++, row += rowBytes)
+        {
+            if (!base.tiled) { std::memcpy(row, source + base.At(box.x, y, z), rowBytes); continue; }
+            for (uint32_t x = box.x; x < box.x + box.w;)
+            {
+                const uint32_t count = x % base.run == 0 && x + base.run <= box.x + box.w ? base.run : 1;
+                std::memcpy(row + size_t(x - box.x) * base.bytesPerBlock, source + base.At(x, y, z),
+                            size_t(count) * base.bytesPerBlock);
+                x += count;
+            }
+        }
+    const TextureEndian endian = fetch.Endian();
+    const uint32_t unit = endian == TextureEndian::None ? 1 : endian == TextureEndian::k8in16 ? 2 : 4;
+    if (base.bytesPerBlock >= unit) SwapEndian(out, box.Blocks() * base.bytesPerBlock, endian);
+}
+
 
 namespace
 {

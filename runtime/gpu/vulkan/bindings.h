@@ -67,6 +67,11 @@ namespace vk::bindings
     constexpr uint32_t kArenaBinding = 0;
     // The same buffer as vec4, for the float constants.
     constexpr uint32_t kArenaFloats = 1;
+    // On a device whose pixel shaders take their float constants as a uniform
+    // block (shader::PixelConstants::Uniform): 256 vec4 of the same buffer, at
+    // the dynamic offset of the draw's pixel constants. The one thing bound
+    // again within a command buffer, when a draw's differ from the last's.
+    constexpr uint32_t kPixelConstants = 2;
 
     // A draw table: what a hardware draw names as its base vertex
     // (vertexOffset, or firstVertex for a draw without indices), as a dword

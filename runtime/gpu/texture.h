@@ -212,6 +212,26 @@ namespace gpu
     TextureData ReadTexture(const TextureFetch& fetch, const uint8_t* base,
                             const uint8_t* mips = nullptr);
 
+    // Part of a texture, for one the title rewrites a little of every frame
+    // (MW2's model lighting volume: 2 MB, a few pages a frame): a box of the
+    // base level in blocks, `z` and `d` a volume's slices.
+    struct TextureBox
+    {
+        uint32_t x = 0, y = 0, z = 0, w = 0, h = 0, d = 0;
+        bool Empty() const { return !w; }
+        size_t Blocks() const { return size_t(w) * h * d; }
+    };
+    // For each `pageBytes` of memory the base level is stored in, counted
+    // from the page its address is in, the smallest box holding every block
+    // with a byte there. Empty when the texture is not one this serves: a
+    // single level of one-texel blocks, 2D or a volume.
+    std::vector<TextureBox> TextureBoxesByPage(const TextureFetch& fetch, uint32_t pageBytes);
+    // The box as ReadTexture would have read it, rows of `box.w` blocks,
+    // slice after slice, into `out` (box.Blocks() blocks). Only for a texture
+    // TextureBoxesByPage answers for.
+    void ReadTextureBox(const TextureFetch& fetch, const uint8_t* base, const TextureBox& box,
+                        uint8_t* out);
+
     // Not the upload path -- a driver takes the block formats directly -- but the
     // only way to confirm by eye that untiling, endianness and addressing are all
     // right at once, and the picture a replacement is edited from: what this
