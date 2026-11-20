@@ -109,8 +109,6 @@ namespace vk::pipeline
     // The device has one queue, and the window thread and the GPU thread both
     // submit to it; Vulkan requires a queue to be externally synchronised.
     std::mutex& QueueMutex();
-    std::mutex& CacheMutex();
-    std::mutex& CreationMutex();
 
     // A VkResult that is not VK_SUCCESS. VK_ERROR_DEVICE_LOST also ends the run,
     // once, saying so: after the driver resets the GPU nothing submitted again
@@ -122,11 +120,23 @@ namespace vk::pipeline
     // reported.
     void OnDeviceLost(void (*handler)(const char* why));
 
-    // Opaque: VkDescriptorSetLayout, VkPipelineLayout, VkPipelineCache.
+    // Opaque: VkDescriptorSetLayout, VkPipelineLayout.
     void* SetLayout(uint32_t set);
     void* Layout();
-    void* Cache();
-    void  SaveCache();
+
+    // Creates one graphics pipeline through the pipeline cache: `createInfo`
+    // is a VkGraphicsPipelineCreateInfo, `pipeline` a VkPipeline to fill, and
+    // the answer a VkResult. The cache is several of the driver's, one still
+    // added to and the ones closed before it (pipeline.cpp), so a creation is
+    // first asked of each without compiling
+    // (VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT) and compiled
+    // only when none holds it. `fromCache`: 1 one of them held it, 0 the
+    // driver compiled it, -1 not asked -- the device cannot be, there is no
+    // cache, or the creation compiles nothing (a library of state alone, a
+    // fast link). Any thread; on the phones one creation at a time, with the
+    // cache to itself.
+    int CreateGraphicsPipeline(const void* createInfo, void* pipeline, int* fromCache = nullptr);
+    void SaveCache();
 
     // Creates and destroys a shader module: a stronger check than spirv-val,
     // because it is the compiler that will actually run the shader.

@@ -83,18 +83,7 @@ VkPipeline vk::shaders::MakeLibrary(VkGraphicsPipelineLibraryFlagsEXT part, cons
     info.pStages = stage;
     info.layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
     VkPipeline made = VK_NULL_HANDLE;
-#ifdef MW2_ANDROID
-    // As every other pipeline creation on the phones (renderer_libraries.cpp
-    // Link, renderer_pipelines.cpp): one at a time, with the cache to itself.
-    // The shader workers make these concurrently with the draw's own, and
-    // Turnip faulted in its compiler on a worker thread doing so.
-    std::lock_guard createLock(vk::pipeline::CreationMutex());
-    std::unique_lock cacheLock(vk::pipeline::CacheMutex(), std::defer_lock);
-    if (vk::pipeline::Cache()) cacheLock.lock();
-#endif
-    if (vkCreateGraphicsPipelines(Device(), static_cast<VkPipelineCache>(vk::pipeline::Cache()), 1, &info, nullptr,
-                                  &made) != VK_SUCCESS)
-        return VK_NULL_HANDLE;
+    if (vk::pipeline::CreateGraphicsPipeline(&info, &made) != VK_SUCCESS) return VK_NULL_HANDLE;
     return made;
 }
 

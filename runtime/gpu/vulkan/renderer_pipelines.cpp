@@ -360,25 +360,15 @@ namespace vk::renderer::detail
 
         gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline_vkCreateGraphicsPipelines");
         const auto compileStart = std::chrono::steady_clock::now();
-        LOGI("renderer: building pipeline %016llX/%016llX (c=%d, d=%d, topo=%u, s=%u, blend=%08X, mask=%X, depth=%08X, mode=%08X, pass=%p, cache=%p)...",
+        LOGI("renderer: building pipeline %016llX/%016llX (c=%d, d=%d, topo=%u, s=%u, blend=%08X, mask=%X, depth=%08X, mode=%08X, pass=%p)...",
              (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
              key.colourFormat, key.depthFormat, key.topology, key.samples,
              key.blendControl, key.colourMask, key.depthControl, key.modeCntl,
-             (void*)renderPass, vk::pipeline::Cache());
+             (void*)renderPass);
 
         VkPipeline built = VK_NULL_HANDLE;
-        VkResult res = VK_SUCCESS;
-        {
-#ifdef MW2_ANDROID
-            // The phones' drivers are given one creation at a time, and the
-            // cache to itself.
-            std::lock_guard createLock(vk::pipeline::CreationMutex());
-            std::unique_lock cacheLock(vk::pipeline::CacheMutex(), std::defer_lock);
-            if (vk::pipeline::Cache()) cacheLock.lock();
-#endif
-            res = vkCreateGraphicsPipelines(g.device, static_cast<VkPipelineCache>(vk::pipeline::Cache()),
-                                            1, &info, nullptr, &built);
-        }
+        int fromCache = -1;
+        const VkResult res = VkResult(vk::pipeline::CreateGraphicsPipeline(&info, &built, &fromCache));
         const uint64_t tookMs = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - compileStart).count());
         gpu::detail::SetCurrentDrawStage("idle");
@@ -389,9 +379,11 @@ namespace vk::renderer::detail
             return VK_NULL_HANDLE;
         }
         vk::pipeline::LogShaderStats((void*)built, key.vertexShader, key.pixelShader);
-        LOGI("renderer: built pipeline %016llX/%016llX in %llu ms (handle=%p)",
+        report::PipelineBuilt(fromCache);
+        LOGI("renderer: built pipeline %016llX/%016llX in %llu ms%s (handle=%p)",
              (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
-             (unsigned long long)tookMs, (void*)built);
+             (unsigned long long)tookMs, fromCache == 1 ? ", out of the pipeline cache" : fromCache == 0 ? ", compiled" : "",
+             (void*)built);
         return built;
     }
 

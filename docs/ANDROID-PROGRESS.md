@@ -26,7 +26,7 @@ Status words: **verified** (observed on the device or by a run), **built**
 | MW3 multiplayer on the Thor | **booting and playable locally**: `iw5mp_ship.exe` recompiled (app `com.mw3.recomp.mp`); Split Screen Team Deathmatch on Seatown at 60 FPS. 15 of MW2's 18 network fixes located and wired, 3 absent in IW5, 2 IW5-only bugs fixed (commit 5a308a8); a local match plays through them unchanged. **Everything unlocked** (MW2_UNLOCK_ALL, default on): Create a Class at rank 1, every weapon at level 41, all attachments and proficiencies, all camos up to Gold; the save is not written. Networking still off (loopback only) until LAN play is built and tested. No bots on the 360 build |
 | Skins | texture replacement by content key (`replace/<key>.png`, dumps named by key), verified on the multiplayer menu art; **animated** replacements (`<key>.N.png` + fps) verified cycling at 6 fps. Tools: `camo_gen.py` (original procedural camos), `iwi_match.py` (a player's own PC .iwi mods mapped onto this port's keys). No third-party art bundled |
 | Online (MW3 multiplayer) | verified 2026-11-18: **System Link over the public relay** `mw3.yassin.app` between the Thor and the PC build (PC listed, joined and loaded the Thor's Seatown match); **XBOX LIVE menu** on the Thor through the in-runtime DemonWare stand-in: signs in, FIND MATCH lists TDM/FFA/Domination/Kill Confirmed, a TDM search opens a public lobby ("Waiting for 1 more player"); two PC copies matched each other through Find Game (runs by agent LiveImpl). Not yet: a full Live match end to end, idle lobby beyond 2 min, leaderboards |
-| Bots | verified on the Thor: `MW2_BOTS=4` (app setting "Bots in my matches") joined, spawned and scored in a System Link match at 60 FPS. A bot dropped with "Server command overflow" after ~40 s; fixed (reliable commands acknowledged), 180 s PC run with 6 bots had no drop; not yet re-run on the Thor. Navigation is local only |
+| Bots | verified on the Thor: `MW2_BOTS=4` (app setting "Bots in my matches") joined, spawned and scored in a System Link match at 60 FPS. A bot dropped with "Server command overflow" after ~40 s; fixed (reliable commands acknowledged), 180 s PC run with 6 bots had no drop. Re-run on the Thor 2026-11-20: six bots through a ten-minute Seatown match, the vote and three and a half minutes of Lockdown, none dropped. Navigation is local only |
 | Camos in a match | verified on the Thor: Gold chosen in Create a Class now spawns gold (the spawn check's weaponRank read was not covered before); Gold replaced by an original animated camo on the weapon in a match (keys in docs/textures.md) |
 | Voice chat | implemented (XamVoice*, PC SDL capture + T push-to-talk, Android AAudio + Talk button, off by default); compiled only, not run |
 | PC build | mouse captured in the window (F2 frees it), keyboard works in menus; mouse capture not yet tried by hand |
@@ -348,12 +348,11 @@ nothing below is measured on the Adreno 650 except where said.
   116.9 FPS; its flight at 2: 115.8 (79.5%). On the Flip, before it ran
   flat, 8 gave Team Player's heaviest views 0 to 3 FPS. The default is the
   console's on every device until S.S.D.D. is measured on the Flip.
-- **The driver's pipeline cache file** is not loaded above 64 MB
+- **The driver's pipeline cache file** was not loaded above 64 MB
   (`pipeline.cpp`), and it keeps every form of a shader it ever compiled: a
   cache of 60 MB went past that with these shaders' new forms, was refused
   at the next start and begun again, after which each run compiled what it
-  reached (36 s of compiling in a 75 s run). A first session after this
-  update is slow in that way on a device whose file was near the limit.
+  reached (36 s of compiling in a 75 s run). Bounded since, below.
 - Turnip aborts when a pipeline is built to capture its internal
   representations on Android (`fputc` of a null `FILE*`), so the driver's
   own listing of a shader is not to be had there; only its statistics.
@@ -361,6 +360,47 @@ nothing below is measured on the Adreno 650 except where said.
   the picture as before by eye, 85.9 FPS in play.
 - Not measured: the Flip 2 after these changes (S.S.D.D. five minutes, Team
   Player's flight, Terminal).
+
+### The pipeline cache in several files, and a multiplayer play-through
+
+AYN Thor, Turnip v27.0.0-R2, `.dev` builds.
+
+- **The limit was this runtime's.** Mesa's `vk_pipeline_cache_load` reads
+  as many objects as a blob says; `pipeline.cpp` refused a file over 64 MB.
+  The Thor's file was 47.2 MB: 5,656 objects of 8.7 KB for 1,571 recorded
+  pipelines. Made 70 MB with copies of its own objects under other keys,
+  the build before logs "size invalid (73431085 bytes), ignoring" and
+  S.S.D.D. flown for 100 s compiles 633 pipelines in 53.8 s, the longest
+  frame 2,862 ms.
+- **Several files under a budget**
+  ([rendering.md](rendering.md#the-drivers-cache-in-several-files),
+  `MW2_PIPELINE_CACHE_MB`, 64 on Android). The same 70 MB file is loaded
+  and closed whole: 1,571 of 1,572 pipelines found, 294 ms, the longest
+  frame 56 ms. Being over the budget it goes at the next start, and its
+  pipelines are compiled once more into files of 8 MB.
+- **The Thor's own 47 MB file**, two runs of S.S.D.D.: 1 of 1,572 compiled
+  (349 ms, longest frame 59 ms), then 2 of 1,574 (298 ms, 46 ms).
+- **With a budget of 32 MB** the 47 MB file goes at the start. Runs of
+  100 s then compile 531, 306, 263, 256 and 162 pipelines, the warm-up
+  working through the recorded ones behind play (longest frame 3,017 ms in
+  the first, 52 to 59 ms after), and the next compiles none: 1,574 found
+  in 266 ms, in six files of 25.2 MB.
+- **Modern Warfare 3, Survival on Resistance from the menus**, 210 s: with
+  no cache 473 of 796 compiled in 23.5 s (longest frame 8,262 ms); the
+  second run 3 of 512 (170 ms, 143 ms), the third 1 of 513 (109 ms,
+  137 ms). The file is 7.4 MB.
+- **Modern Warfare 3's multiplayer played through**: System Link, Seatown,
+  Team Deathmatch, six bots ("Bots in my matches"), the vote on. Nebula of
+  the camouflage pack chosen in Create a Class is on the MSR in the match.
+  The match ran its ten minutes (`scr_war_timelimit` set from
+  `MW2_CONSOLE` in the menus did not hold once Game Setup started the match:
+  the clock began at ten); "Vote for the next map" came up under the result with three
+  choices, LB took Lockdown, and it loaded with all seven clients and was
+  played for three and a half minutes. No "Server command overflow" in
+  the log.
+- **Fixed on the way**: that vote offered Bakaara as One Flag CTF, one of
+  the game types the disc left unfinished; they are no longer drawn
+  (compiled, not run again).
 
 ## Build (WSL2 Ubuntu 24.04)
 

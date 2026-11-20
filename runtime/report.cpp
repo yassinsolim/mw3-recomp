@@ -53,6 +53,7 @@ namespace
     bool g_executing = false;
 
     std::atomic<uint64_t> g_shaders[3]{};   // by ShaderBuilt's fromCache, plus one
+    std::atomic<uint64_t> g_pipelines[3]{}; // by PipelineBuilt's, likewise
     std::string g_compiled = "not used: a development run";
 
     // The machine's load in play, read once a second: whether the processor
@@ -160,6 +161,11 @@ void report::ThreadEnded()
 void report::ShaderBuilt(int fromCache)
 {
     g_shaders[std::clamp(fromCache, -1, 1) + 1].fetch_add(1, std::memory_order_relaxed);
+}
+
+void report::PipelineBuilt(int fromCache)
+{
+    g_pipelines[std::clamp(fromCache, -1, 1) + 1].fetch_add(1, std::memory_order_relaxed);
 }
 
 void report::ShadersCompiled(std::string state)
@@ -360,4 +366,15 @@ void report::Write()
     else
         LOGI("report: %llu shaders built in this run, %llu of them not in the launcher's",
              (unsigned long long)(compiled + cached), (unsigned long long)compiled);
+    // A pipeline compiled is the hitch a second run of the same level should
+    // not have: its count, not the count built, is what a warm cache brings
+    // to nothing.
+    const uint64_t pipelines = g_pipelines[0] + g_pipelines[1] + g_pipelines[2];
+    if (g_pipelines[0])
+        LOGI("report: %llu pipelines built in this run; the driver does not say which it compiled",
+             (unsigned long long)pipelines);
+    else
+        LOGI("report: %llu pipelines built in this run, %llu of them compiled by the driver and %llu out of the"
+             " pipeline cache", (unsigned long long)pipelines, (unsigned long long)g_pipelines[1].load(),
+             (unsigned long long)g_pipelines[2].load());
 }

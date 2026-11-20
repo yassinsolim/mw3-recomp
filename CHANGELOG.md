@@ -29,6 +29,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   ([docs/game-library.md](docs/game-library.md)): setup kept both games'
   libraries in one folder and packaged the folder, so a PC that had built
   both made a 98 MB Modern Warfare 2 package of what is 40 MB.
+- **The driver's pipeline cache is bounded and no longer begun again**
+  ([docs/rendering.md](docs/rendering.md#the-drivers-cache-in-several-files),
+  `MW2_PIPELINE_CACHE_MB`): a cache file over 64 MB was not loaded, by this
+  runtime's own limit and not the driver's, and every pipeline was compiled
+  again (633 of them in 54 s of a 100 s run on an AYN Thor, one frame of
+  2.9 s). On Android the cache is now several files under a budget of
+  64 MB; the ones nothing is found in go, and the log and a report count
+  the pipelines found and compiled. A second run of Modern Warfare 2's
+  S.S.D.D. compiles 0 to 2 of 1,574, Modern Warfare 3's Survival 1 to 3 of
+  513.
+- **MW3 multiplayer: a vote does not offer the game modes the disc left
+  unfinished** (`runtime/map_vote.cpp`): One Flag CTF, Arena, Global
+  Thermonuclear War and the two that do not start were drawn with the
+  others unless `MW2_MAP_VOTE_MODES` said which.
 
 ### Added
 - **Detail at distance** (Modern Warfare 2; Settings, Graphics;
