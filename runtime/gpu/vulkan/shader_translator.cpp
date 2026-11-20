@@ -1445,8 +1445,11 @@ namespace
     }
 
     // The console stores everything big-endian, and the fetch constant says how:
-    // none, 8-in-16, 8-in-32 or 16-in-32. Which one is a run-time value, so all
-    // four are computed and selected between, exactly as the hardware would.
+    // none, 8-in-16, 8-in-32 or 16-in-32. Which one is a run-time value, so the
+    // dword goes through both exchanges the four are made of, each taken or
+    // not: the bytes within each half for 8-in-16 and 8-in-32, then the halves
+    // for 8-in-32 and 16-in-32. Ten operations a dword where computing all
+    // four and choosing was fourteen, of some ten dwords a vertex.
     Id Translator::ReadGuestDword(Id addressInDwords, uint32_t index)
     {
         m_result.loads[shader::kLoadVertexData]++;
@@ -1459,7 +1462,8 @@ namespace
         Id chain = Emit(Op::AccessChain, pointer, { m_arena, zero, at });
         Id raw = Emit(Op::Load, m_uint, { chain });
 
-        // Bytes exchanged within each half.
+        Id endian = Emit(Op::Load, m_uint, { m_lastFetchEndian });
+        // Bytes exchanged within each half: 1 and 2.
         Id in16 = Emit(Op::BitwiseOr, m_uint,
             { Emit(Op::ShiftLeftLogical, m_uint,
                    { Emit(Op::BitwiseAnd, m_uint, { raw, m_module.ConstantU(0x00FF00FFu) }),
@@ -1467,22 +1471,15 @@ namespace
               Emit(Op::BitwiseAnd, m_uint,
                    { Emit(Op::ShiftRightLogical, m_uint, { raw, m_module.ConstantU(8) }),
                      m_module.ConstantU(0x00FF00FFu) }) });
-        auto halves = [&](Id v) {
-            return Emit(Op::BitwiseOr, m_uint,
-                { Emit(Op::ShiftRightLogical, m_uint, { v, m_module.ConstantU(16) }),
-                  Emit(Op::ShiftLeftLogical, m_uint, { v, m_module.ConstantU(16) }) });
-        };
-        Id in32 = halves(in16);        // 8-in-16 then halves swapped is a full reversal
-        Id half32 = halves(raw);
-
-        Id endian = Emit(Op::Load, m_uint, { m_lastFetchEndian });
-        auto is = [&](uint32_t value) {
-            return Emit(Op::IEqual, m_module.Bool(), { endian, m_module.ConstantU(value) });
-        };
-        Id result = Emit(Op::Select, m_uint, { is(3), half32, raw });
-        result = Emit(Op::Select, m_uint, { is(2), in32, result });
-        result = Emit(Op::Select, m_uint, { is(1), in16, result });
-        return result;
+        Id bytes = Emit(Op::ULessThan, m_module.Bool(),
+                        { Emit(Op::ISub, m_uint, { endian, m_module.ConstantU(1) }), m_module.ConstantU(2) });
+        Id value = Emit(Op::Select, m_uint, { bytes, in16, raw });
+        // The halves exchanged: 2, which with the bytes is a full reversal, and 3.
+        Id halves = Emit(Op::BitwiseOr, m_uint,
+            { Emit(Op::ShiftRightLogical, m_uint, { value, m_module.ConstantU(16) }),
+              Emit(Op::ShiftLeftLogical, m_uint, { value, m_module.ConstantU(16) }) });
+        Id whole = Emit(Op::ULessThan, m_module.Bool(), { endian, m_module.ConstantU(2) });
+        return Emit(Op::Select, m_uint, { whole, value, halves });
     }
 
     // Component 0 sits in the least significant bits of a packed word.

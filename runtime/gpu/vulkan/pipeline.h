@@ -103,7 +103,7 @@ namespace vk::pipeline
     // Whether pixel shaders take their float constants as a uniform block the
     // renderer binds at each draw's own (shader::PixelConstants::Uniform, and
     // set 2's third binding): by default where there are no subgroup pixel
-    // records, and as MW2_PIXEL_UNIFORMS says.
+    // records and on any Adreno, and as MW2_PIXEL_UNIFORMS says.
     bool     UniformPixelConstants();
 
     // The device has one queue, and the window thread and the GPU thread both
