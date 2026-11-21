@@ -225,6 +225,13 @@ write faults once, which marks the page and makes it writable again.
 - The host kernel must never write into guest memory, because a system call
   fails with `EFAULT` on a read-only page. File reads and network packets go
   through a runtime buffer. Bulk runtime writes call `gpu::watch::WillWrite`.
+- A page marked written is writable, always: the handler answers a fault on
+  one without another look, so a page left marked and read-only is a write
+  that faults for ever. Copying a page and marking it written are two steps
+  each (the protection and the mark). `WillWrite` and the copy exclude each
+  other with a lock; the handler takes none, so a page it marked while the
+  copy was being made is made writable again by the copy when it finds the
+  mark.
 
 The texture cache uses the same watch. `MW2_NO_SHADOW=1` turns the shadow off,
 and it is read by every build rather than only a diagnostics one, because it is

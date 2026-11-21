@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <mutex>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -28,6 +29,10 @@ namespace
     // Watched; anyone who writes moves Arming or Watched to Loose, and makes
     // the page writable *before* doing so -- so a page is never writable while
     // it reads Watched for longer than it takes the writer's handler to finish.
+    // The other half is as binding: a page that reads Loose is writable. A
+    // fault on one is answered as handled without another look, so a page
+    // left Loose and read-only is a write that faults for ever (the AYN Thor's
+    // render backend, a Find Game match of Modern Warfare 2 at its first frame).
     enum State : uint8_t
     {
         kNever = 0,     // never copied; writable; a fault here is not ours
@@ -55,6 +60,13 @@ namespace
     uint64_t g_arms = 0, g_pagesArmed = 0, g_armedWrittenDuring = 0, g_armFailures = 0;
     uint64_t g_served = 0, g_servedBytes = 0, g_tracked = 0;
     uint64_t g_refusedInFlight = 0, g_refusedBackingOff = 0, g_refusedOutside = 0;
+
+    // The consumer arming pages and the runtime making a range writable
+    // (WillWrite) each take two steps, the protection and the state, and
+    // neither may fall between the other's two: a range made writable, armed
+    // again and only then marked Loose is Loose and read-only. Not for the
+    // fault handler, which a lock is no place for and which Arm answers itself.
+    std::mutex g_arming;
 
     // Both windows onto the physical bank: a write through either lands on the
     // page, so both have to be read-only for a write to be seen.
@@ -112,6 +124,7 @@ namespace
     // one came out Watched: a write during the copy leaves its page Loose.
     bool Arm(uint32_t first, uint32_t count, uint64_t frame)
     {
+        std::lock_guard held(g_arming);
         for (uint32_t p = first; p < first + count; p++)
         {
             const uint8_t was = g_state[p].load(std::memory_order_relaxed);
@@ -149,6 +162,11 @@ namespace
             uint8_t arming = kArming;
             if (!g_state[p].compare_exchange_strong(arming, kWatched, std::memory_order_acq_rel))
             {
+                // A writer's handler took the page while it was being armed.
+                // It made the page writable before marking it, but that may
+                // have been before the protection above landed, on either
+                // window: writable again, which is what Loose promises.
+                Protect(p, 1, true);
                 g_armedWrittenDuring++;
                 all = false;
             }
@@ -287,7 +305,9 @@ void gpu::watch::WillWrite(uint32_t guestAddress, uint32_t bytes)
         any = g_state[p].load(std::memory_order_acquire) >= kArming;
     if (!any) return;
     // Writable first, then marked: the same order a fault takes, so a page is
-    // never Loose while still read-only. One re-armed in between faults as usual.
+    // never Loose while still read-only. One re-armed afterwards faults as
+    // usual; none is armed in between, which the lock is for.
+    std::lock_guard held(g_arming);
     Protect(first, last - first + 1, true);
     for (uint32_t p = first; p <= last; p++)
     {

@@ -5,6 +5,27 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Fixed
+- **A match no longer freezes on a write the runtime answers for ever**
+  (`runtime/gpu/memory_watch.cpp`, [docs/rendering.md](docs/rendering.md#the-shadow-of-guest-memory)).
+  A page of guest memory could be left marked as written while still
+  read-only, when it was copied again between the two steps of making a range
+  writable for the image pool's moves, or between the two steps of a write
+  fault's answer. The next write to it faulted, was answered as handled, and
+  faulted again: the title's render backend spun there and the picture
+  stopped. Seen on the AYN Thor hosting a Find Game match of Modern Warfare 2
+  with the Retroid Pocket Flip 2, at the match's first frame; the other
+  player was dropped with "Server connection timed out".
+- **Modern Warfare 2's Find Game has its playlists on a relay that has none
+  for it** (`runtime/online/server.cpp`, [docs/relay.md](docs/relay.md)): the
+  project's relay is started without a playlists file, and FIND MATCH listed
+  nothing ("Maximum party size of 0"). A relay that says it has none now
+  leaves each copy the list its release was built with, as Modern Warfare 3
+  and Steam already had.
+- **Install & Play starts the game on a slower phone**
+  (`Prefs.gameDirectory`): the installer started the game before the game
+  folder's setting was on disk, and the game's process, which reads the file,
+  said "The game files are not installed" (Retroid Pocket Flip 2, first
+  install).
 - **Windows, the mouse**: `Alt+Tab` no longer opens the scoreboard (its Tab
   was taken as the pad's Back before the window lost the keyboard), and
   with the scoreboard up the mouse still turns the view and fires, the

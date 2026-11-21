@@ -207,10 +207,18 @@ class Prefs(context: Context) {
 
     // ---- where the game lives ------------------------------------------------
 
-    /** Set once the files are in place; empty means "not installed yet". */
+    /**
+     * Set once the files are in place; empty means "not installed yet".
+     * Written before the setter returns: the installer starts the game right
+     * after, in a process of its own that reads the file, and one written
+     * later was read without the folder ("The game files are not installed",
+     * seen on the Retroid Pocket Flip 2 after Install & Play).
+     */
     var gameDirectory: String
         get() = store.getString(KEY_GAME_DIR, "") ?: ""
-        set(value) = store.edit().putString(KEY_GAME_DIR, value).apply()
+        set(value) {
+            store.edit().putString(KEY_GAME_DIR, value).commit()
+        }
 
     /** The folder the file browser last showed, so it opens where it left off. */
     var lastBrowsed: String

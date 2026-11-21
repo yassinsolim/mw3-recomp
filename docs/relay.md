@@ -102,7 +102,8 @@ from the router to the container; the players' SERVER is the router's public
 name and that port.
 
 `--playlists` is the file Find Game offers (below); the image starts with
-Modern Warfare 2's, and a title without one has nothing for Find Game to offer.
+Modern Warfare 2's. A title the relay has no file for is offered the playlists
+each copy was built with, the same in every copy of a release.
 `<title>=` before the file, the title's id in hexadecimal, makes it that
 title's alone, and the option can be given once for each: `--playlists
 41560817=mw2.info --playlists 415608cb=mw3.info`. `--log-file` also writes

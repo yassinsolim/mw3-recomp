@@ -413,7 +413,10 @@ title reuses the block.
 
 The title update's playlists are named `playlists.patch2`, the disc's
 `playlists.info`; both come from the relay ([relay.md](relay.md#playlists)), or
-on Steam from the game (below). The
+on Steam from the game (below). A relay that has none for the title leaves
+each copy the list its release was built with (`relay/playlists.info`,
+`relay/playlists_mw3.info`), as on Steam: the relay lets only copies of one
+release meet, so they have the same bytes. The
 table's walk stops at the first playlist with no entries, so numbering starts at 0.
 
 `XUserReadStats` returns nothing, so the title balances no teams by skill.

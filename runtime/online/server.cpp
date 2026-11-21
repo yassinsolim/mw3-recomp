@@ -27,6 +27,7 @@
 #include "../env.h"
 #include "../log.h"
 #include "../../relay/protocol.h"
+#include "playlists_data.h"   // generated: the playlists this release was built with
 
 #include <algorithm>
 #include <array>
@@ -390,9 +391,12 @@ namespace
         }
 
         // Every copy on a relay must have the same playlists: the title
-        // compares their version when it joins a party. A relay without any,
-        // or one that stops answering, leaves the title with an empty file, and
-        // Find Game with nothing to offer.
+        // compares their version when it joins a party. A relay that says it
+        // has none for the title leaves each copy the list its release was
+        // built with: the copies it lets meet are of one release (the Hello's
+        // protocol number), so those are the same bytes too. One that stops
+        // answering leaves the title with an empty file, and Find Game with
+        // nothing to offer, since what the others were given is not known.
         void FetchPlaylists()
         {
             const auto deadline = Clock::now() + kAnswerWithin;
@@ -415,7 +419,12 @@ namespace
                 if (header.kind != relay::Kind_FileChunk || size_t(got) < sizeof chunk) continue;
                 std::memcpy(&chunk, packet.data(), sizeof chunk);
                 total = relay::Big32(chunk.total);
-                if (!total) { LOGW("online: server %s has no playlists", where_.c_str()); return; }
+                if (!total)
+                {
+                    LOGI("online: server %s has no playlists; Find Game offers this release's own", where_.c_str());
+                    playlists_.assign(kPlaylists, kPlaylists + kPlaylistsSize);
+                    return;
+                }
                 if (total > relay::LARGEST_FILE || relay::Big32(chunk.offset) != file.size()) continue;
                 file.insert(file.end(), packet.begin() + sizeof chunk, packet.begin() + got);
                 if (file.size() > total) break;
