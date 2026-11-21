@@ -292,8 +292,10 @@ into a page the GPU watch has made read-only fails instead of faulting (see
 ## Input
 
 `input.cpp` answers `XamInputGetState` from SDL3 gamepads, one per user index.
-With the window open, the keyboard also drives the pad: Return is Start, Escape
-Back, arrows the d-pad, Z/X/C/V are A/B/X/Y, Q/E the bumpers. On Windows the
+With the window open, the keyboard also drives the pad: Return is Start, Tab
+and Backspace Back, arrows the d-pad, Z/X/C/V are A/B/X/Y, Q/E the bumpers.
+Escape is the PC's key: Start in the world, which opens the pause menu, and B
+with a menu up, which leaves it. On Windows the
 keyboard and mouse are user 0's controller whenever the window exists, pad or
 no pad, since the title only listens to a controller that
 `XamInputGetCapabilities` says is connected. The packet number
@@ -301,21 +303,62 @@ changes only when the state does, since the title reads a new packet as
 "something changed". Diagnostic builds add scripted presses and the headless
 walker ([switches.md](switches.md)).
 
-On Windows the mouse is the right stick, its left and right buttons the triggers and its
-middle one the right stick's click. While the window has the keyboard it holds
+### The mouse
+
+Windows only. What the mouse is depends on whether the title has a menu up,
+which the first local client's key catchers say (`T_DATA_KeyCatchers` in
+`title.h`, bit 0x10; found in the disc's four executables, and "never" in the
+update's, where the mouse is always the world's).
+
+**In the world** the mouse turns the view, its left button is the right
+trigger, its right button the left one (the sights), its middle one the right
+stick's click and a notch of the wheel a tap of Y, the console's one weapon
+switch whichever way it turns. While the window has the keyboard it holds
 the mouse in SDL's relative mode (`presenter.cpp`): the cursor is hidden and
 cannot leave, and the counts are the mouse's own, taken as SDL queues them
 from the thread it reads the device on, so neither the screen's edge nor the
 desktop's acceleration is in them. Losing the keyboard (`Alt+Tab`) ends
-relative mode, which is SDL's rule; `F2` ends it in place and starts it again,
-as a click in the window does. A stick is a rate and a mouse a distance, so
-`input.cpp` spreads the counts over the time since the last read: the stick is
-what turns that many degrees (0.022 a count times `MW2_MOUSE_SENSITIVITY`) in
-that time at the title's turn rates, placed beyond its dead zone, and what a
-full stick cannot turn in one frame is carried into the next few. The title's
-own stick handling still applies after that -- its response curve, the
-acceleration of a turn, the slowing near a target -- so this is a stick driven
-well, not the PC game's mouse.
+relative mode, which is SDL's rule, and coming back starts it again with the
+counts of the time away dropped; `F2` ends it in place and starts it again,
+as a click in the window does.
+
+The counts are an angle, as on a PC (`mouse_look.cpp`): 0.022 degrees each
+times `MW2_MOUSE_SENSITIVITY`, added to the view's yaw and pitch where the
+title works them out -- `AimAssist_UpdateGamePadInput`'s output, which
+`CL_GamepadMove` stores as the view's angles -- times the zoom factor the
+title keeps for its stick (1 from the hip, less down a sight) and its own
+Sensitivity option. Measured in Modern Warfare 3's multiplayer with a
+scripted mouse (`turn` in `MW2_INPUT_SCRIPT`, the facing from
+`MW2_TRACE_MATCH`): a thousand counts turn 110.0 degrees at the default 5 and
+55.0 at 2.5, there and back to the same facing; two hundred counts over two
+seconds turn 22.0; three hundred downwards 33.0; a thousand down an ACR's red
+dot 40.3 for the hip's 55; and the view stops at 70 up and down, where the
+title holds it. The update's executables, where those functions have not
+been found, take the mouse as a stick instead: `input.cpp` spreads the counts
+over the time since the last read and sets the stick to what turns that far
+at the title's turn rates. That is not a mouse -- the same thousand counts
+turned 28 degrees, the two hundred 0.3 -- since the title's response curve
+and its acceleration of a turn still apply.
+
+**With a menu up** the left button is A, the right one B and the wheel the
+d-pad's up and down. In Modern Warfare 3 the mouse also points
+(`menu_pointer.cpp`): the window lets it go, the desktop's cursor is shown,
+and what is under it has the focus. The menus are the console's and have no
+pointer -- the executable keeps a cursor in its menu context that nothing
+reads -- so the runtime does what the PC game's `Menu_HandleMouseMove` did
+with the pieces that are there: the focused menu's items, each rectangle
+through the title's own `ScrPlace_ApplyRect` into the frame's pixels, the
+test the d-pad makes of whether an item can be reached, and `Item_SetFocus`
+on the first that holds the pointer. That happens when the pointer moves, so
+the keys still walk a menu the pointer rests on, and again as the left button
+goes down; a click beside every item does nothing, and on a screen with
+nothing to choose it is A. A list one item draws (the lobby's players) has no
+rows to point at; the wheel goes through it. Modern Warfare 2's menus are not
+pointed in: the window keeps the mouse and the buttons and wheel choose.
+
+A button belongs to the world or to the menu by where it went down, and is
+let go when that changes under it: the click on Resume is not a shot, the
+Escape that opened the pause menu not the B that closes it.
 
 ## Networking
 

@@ -23,7 +23,7 @@ void     vk::ShowImage(void*, uint32_t, uint32_t, uint64_t) {}
 void     vk::WaitUntilTaken(uint64_t) {}
 void     vk::WaitForDisplay(uint64_t) {}
 uint64_t vk::GuestBlankPeriod() { return 0; }
-bool     vk::TakeMouseMotion(float&, float&) { return false; }
+void     vk::TakeMouse(bool, Mouse& out) { out = {}; }
 bool     vk::Running()         { return false; }
 uint64_t vk::PresentedFrames() { return 0; }
 #else
@@ -205,13 +205,18 @@ namespace
 #ifdef _WIN32
     // The mouse (presenter.h). Windows only, as reading it is, and a Windows
     // window is SDL's.
-    struct Mouse
+    struct WindowMouse
     {
         bool used = false;      // not under MW2_MOUSE=0
         std::mutex lock;
         bool focused = false;   // the window has the keyboard
         bool freed = false;     // F2: the player has the cursor back
-        float dx = 0, dy = 0;   // counts since TakeMouseMotion
+        bool pointing = false;  // a menu is up and the cursor is its pointer (TakeMouse)
+        bool held = false;      // relative mode is on: the window's thread sets it
+        float dx = 0, dy = 0;   // counts since TakeMouse
+        float wheel = 0;        // notches since TakeMouse, away from the hand positive
+        float x = 0, y = 0;     // the pointer, in the window's pixels
+        int32_t picture[4]{};   // the frame's left, top, right and bottom in them
     } g_mouse;
 
     // SDL calls this as an event is queued, on the thread that queued it. In
@@ -230,25 +235,56 @@ namespace
         {
             std::lock_guard lock(g_mouse.lock);
             g_mouse.focused = event->type == SDL_EVENT_WINDOW_FOCUS_GAINED;
-            g_mouse.dx = g_mouse.dy = 0;
+            g_mouse.dx = g_mouse.dy = g_mouse.wheel = 0;
             break;
         }
         case SDL_EVENT_MOUSE_MOTION:
         {
             // A finger or a pen moving the cursor is not the mouse.
             if (event->motion.which == SDL_TOUCH_MOUSEID || event->motion.which == SDL_PEN_MOUSEID) break;
+            // An event's place is in the window's own units, the frame's in pixels.
+            const float density = g.window ? SDL_GetWindowPixelDensity(g.window) : 1.0f;
             std::lock_guard lock(g_mouse.lock);
-            if (g_mouse.focused && !g_mouse.freed)
+            if (g_mouse.focused && g_mouse.held)
             {
                 g_mouse.dx += event->motion.xrel;
                 g_mouse.dy += event->motion.yrel;
             }
+            else
+            {
+                g_mouse.x = event->motion.x * density;
+                g_mouse.y = event->motion.y * density;
+            }
+            break;
+        }
+        case SDL_EVENT_MOUSE_WHEEL:
+        {
+            std::lock_guard lock(g_mouse.lock);
+            if (g_mouse.focused && !g_mouse.freed)
+                g_mouse.wheel += event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event->wheel.y : event->wheel.y;
             break;
         }
         default:
             break;
         }
         return true;
+    }
+
+    // Takes the mouse or lets it go, as F2 and the title's menus have it: held
+    // unless the player has the cursor back or a menu is using it to point
+    // with. On the window's thread, every time round its loop.
+    void HoldMouse()
+    {
+        bool hold;
+        {
+            std::lock_guard lock(g_mouse.lock);
+            hold = !g_mouse.freed && !g_mouse.pointing;
+            if (hold == g_mouse.held) return;
+            g_mouse.held = hold;
+            g_mouse.dx = g_mouse.dy = 0;
+        }
+        if (!SDL_SetWindowRelativeMouseMode(g.window, hold))
+            LOGW("vulkan: the mouse would not be %s (%s)", hold ? "held" : "let go", SDL_GetError());
     }
 
     // The cursor given back to the player, or taken again. On the window's
@@ -258,10 +294,8 @@ namespace
         {
             std::lock_guard lock(g_mouse.lock);
             g_mouse.freed = freed;
-            g_mouse.dx = g_mouse.dy = 0;
         }
-        if (!SDL_SetWindowRelativeMouseMode(g.window, !freed))
-            LOGW("vulkan: the mouse would not be %s (%s)", freed ? "let go" : "held", SDL_GetError());
+        HoldMouse();
     }
 #endif
 
@@ -1111,6 +1145,16 @@ namespace
             Letterbox(shown.width, shown.height, blit.dstOffsets[0], blit.dstOffsets[1]);
             frameFrom = blit.dstOffsets[0];
             frameTo = blit.dstOffsets[1];
+#ifdef _WIN32
+            {
+                // Where a menu's pointer is on the frame (TakeMouse).
+                std::lock_guard lock(g_mouse.lock);
+                g_mouse.picture[0] = frameFrom.x;
+                g_mouse.picture[1] = frameFrom.y;
+                g_mouse.picture[2] = frameTo.x;
+                g_mouse.picture[3] = frameTo.y;
+            }
+#endif
             const bool bars = blit.dstOffsets[0].x || blit.dstOffsets[0].y;
             if (bars)
             {
@@ -1411,7 +1455,7 @@ namespace
         if (g_mouse.used)
         {
             SDL_AddEventWatch(WatchMouse, nullptr);
-            FreeMouse(false);
+            HoldMouse();
         }
 #endif
         if (!CreateInstance()) return false;
@@ -1475,6 +1519,10 @@ namespace
                 g.shown = true;
             }
             SDL_Event event;
+#ifdef _WIN32
+            // A menu came up or went away since the last time round.
+            if (g_mouse.used) HoldMouse();
+#endif
             while (SDL_PollEvent(&event))
                 // Not `g.running = false`: that stops the pump, and with nothing
                 // pumping, the window stops repainting and SDL stops seeing the
@@ -1726,17 +1774,34 @@ void vk::Stop()
 bool vk::Running() { return g.running.load(); }
 uint64_t vk::PresentedFrames() { return g.presented.load(); }
 
-bool vk::TakeMouseMotion(float& dx, float& dy)
+void vk::TakeMouse(bool menu, Mouse& out)
 {
+    out = {};
 #ifdef _WIN32
     std::lock_guard lock(g_mouse.lock);
-    dx = g_mouse.dx;
-    dy = g_mouse.dy;
-    g_mouse.dx = g_mouse.dy = 0;
-    return g_mouse.focused && !g_mouse.freed;
+    g_mouse.pointing = menu;
+    const float dx = std::exchange(g_mouse.dx, 0.0f), dy = std::exchange(g_mouse.dy, 0.0f);
+    if (!g_mouse.used || !g_mouse.focused || g_mouse.freed)
+    {
+        g_mouse.wheel = 0;
+        return;
+    }
+    out.wheel = int(g_mouse.wheel);
+    g_mouse.wheel -= float(out.wheel);
+    if (g_mouse.held)
+    {
+        out.held = true;
+        out.dx = dx;
+        out.dy = dy;
+    }
+    else if (menu && g_mouse.picture[2] > g_mouse.picture[0] && g_mouse.picture[3] > g_mouse.picture[1])
+    {
+        out.pointing = true;
+        out.x = (g_mouse.x - float(g_mouse.picture[0])) / float(g_mouse.picture[2] - g_mouse.picture[0]);
+        out.y = (g_mouse.y - float(g_mouse.picture[1])) / float(g_mouse.picture[3] - g_mouse.picture[1]);
+    }
 #else
-    dx = dy = 0;
-    return false;
+    (void)menu;
 #endif
 }
 
