@@ -10,23 +10,25 @@ import android.content.SharedPreferences
  */
 class Prefs(context: Context) {
 
+    private val app: Context = context.applicationContext
+
     private val store: SharedPreferences =
-        context.applicationContext.getSharedPreferences("mw2", Context.MODE_PRIVATE)
+        app.getSharedPreferences("mw2", Context.MODE_PRIVATE)
 
     /**
-     * Modern Warfare 3 on an Adreno 6xx (the kernel's driver names the
-     * chip): the Adreno 650 of a Snapdragon 865 draws a level of it at 25 to
-     * 33 frames a second, so a cap of 60 there is a frame time that swings
-     * between two and three blanks, and 30 is one it holds. Modern Warfare 2
-     * runs at 54 to 59 there with the runtime's defaults for that chip (no
-     * sun shadows, an 832x480 scene; docs/android.md) and starts at 60.
+     * The fastest cap this screen can show: the highest of FPS_LIMITS at or
+     * under the display's fastest mode, so a 120 Hz panel (AYN Thor) starts
+     * at 120 and a 60 Hz one (Retroid Pocket Flip 2) at 60. Both games hold
+     * near those since the texel forms (docs/ANDROID-PROGRESS.md), so the
+     * old 30 for Modern Warfare 3 on an Adreno 6xx is gone: a fresh install
+     * there was left at half the rate it can now draw.
      */
-    private val holdsThirty: Boolean by lazy {
-        Title.isMw3 && try {
-            java.io.File("/sys/class/kgsl/kgsl-3d0/gpu_model").readText().startsWith("Adreno6")
-        } catch (_: java.io.IOException) {
-            false
-        }
+    private val displayLimit: Int by lazy {
+        val display = app.getSystemService(android.hardware.display.DisplayManager::class.java)
+            ?.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+        val fastest = display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 60f
+        // 3% under, as the runtime's pacing matches a mode: 118.4 Hz is 120.
+        FPS_LIMITS.filter { it <= fastest * 1.03f }.maxOrNull() ?: 60
     }
 
     // ---- graphics ---------------------------------------------------------
@@ -89,23 +91,21 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_FILL_SCREEN, value).apply()
 
     /**
-     * Lock the display and presentation pipeline to 60 FPS.
-     * The console's frame is a 60 Hz frame; locking to 60 avoids erratic
-     * frame pacing, thermal throttling, and excessive battery drain.
+     * The old 60 FPS lock, kept only so a player who set it before the cap
+     * existed keeps 60: fpsLimit reads it when no cap has been saved.
      */
-    var prefer60Hz: Boolean
-        get() = store.getBoolean(KEY_60HZ, true)
-        set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()
-      
+    private val lockedTo60: Boolean
+        get() = store.contains(KEY_60HZ) && store.getBoolean(KEY_60HZ, false)
+
     /**
-     * Frame-rate cap, one of FPS_LIMITS (MW2_FPS_LIMIT). Replaces the old
-     * 60 FPS lock: a phone that had the lock on starts at 60, off at 120,
-     * and one that cannot reach 60 in a level (holdsThirty) at 30.
+     * Frame-rate cap, one of FPS_LIMITS (MW2_FPS_LIMIT). Until the player
+     * chooses, the old lock's 60 if it was on, otherwise the screen's own
+     * fastest rate (displayLimit).
      */
     var fpsLimit: Int
         get() {
             val saved = store.getInt(KEY_FPS_LIMIT, 0)
-            return if (saved in FPS_LIMITS) saved else if (holdsThirty) 30 else if (prefer60Hz) 60 else 120
+            return if (saved in FPS_LIMITS) saved else if (lockedTo60) 60 else displayLimit
         }
         set(value) {
             val v = if (value in FPS_LIMITS) value else 60

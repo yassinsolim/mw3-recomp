@@ -4,6 +4,9 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Changed
+- **The FPS cap starts at the screen's own rate**: 120 on a 120 Hz panel (AYN Thor), 60 on a 60 Hz one. Modern Warfare 3 on an Adreno 6xx no longer starts at 30, since it now draws 56 to 58 under a cap of 60 there. A cap the player has chosen is kept.
+
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
