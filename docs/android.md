@@ -254,6 +254,26 @@ Modern Warfare 2 is lighter, and on this class it starts with the cap at 60 (`Pr
   | S.S.D.D., four fixed views (cap 60): GPU ms a frame | 12.3, 12.5 | 11.0, 11.0 |
 
   With it, S.S.D.D. flown for five minutes is 59.9 frames a second with 93.7% of the frames on time (59.8 and 92.0% the day before), Terminal 59.8 and 96.0% (59.5 and 94.8%), Rust 59.5 and 95.8% (59.4 and 95.6%). The picture is the same: at four fixed views of S.S.D.D. 64.3 to 99.7% of the pixels are identical to the bit with and without, 65.3 to 99.7% between two runs without, and what differs is what moves. Team Player is still not a locked 60: its first half is 50, and what is left of its scene is some 3 ms of vertex shading, 3.5 of primitives and 6 of pixels.
+
+  Modern Warfare 3 with and without, in the same build with the cache warm for each (`.dev`, levels started from the menus, Mission Select opened with `mis_cheat 1`). At its limit of 30 the limit is what shows; with the limit at 60 the chip is:
+
+  | | without | with |
+  |---|---|---|
+  | Survival on Resistance, limit 30: frames a second | 30.0 | 30.0 |
+  | frames within two display periods | 90.9% | 89.9% |
+  | GPU ms a frame | 25.3 | 23.8 |
+  | the same at its first spawn, limit 60: frames a second | 42.3 | 46.4 |
+  | GPU ms a frame (the scene) | 23.5 (16.6) | 21.6 (15.3) |
+  | Black Tuesday's opening, limit 30: frames a second | 29.6 | 29.8 |
+  | frames within two display periods | 89.8% | 91.1% |
+  | GPU ms a frame | 25.1 | 23.1 |
+  | the same, limit 60: frames a second | 42.1 | 45.3 |
+  | GPU ms a frame (the scene) | 22.4 (17.7) | 20.7 (16.1) |
+  | Seatown with six bots, limit 30: frames a second | 30.0 | 30.0 |
+  | frames within two display periods | 89.5% | 88.3% |
+  | GPU ms a frame, from the same spawn | 20.0 | 18.3 |
+
+  No run logged a renderer error, and the draws skipped are of the same kinds either way. The picture is the same: in the menus 53 to 100% of the pixels are identical to the bit with and without (99 to 100% in the campaign's at 30), 56 to 86% between two runs of one way, whose background drifts; at the first spawn of each level the mean difference of a pixel's channels is 1.2 to 5.1 of 255 with and without at 30, and 3.3 or more between two runs of one way: fire, smoke, the weapon's sway and the bots.
 - **Threads.** On the 865 the ring consumer has the prime core (cpu 7) to itself, and the title's threads, the recorder, the workers and the audio the three other Cortex-A77 (4 to 6). The one thread on the Cortex-A55 was the warm-up worker, at 44% of one: it wrote the driver's whole pipeline cache, 10 MB and more, to its file after every five pipelines it found there already, 147 times in a hundred seconds. It is written now when it has grown.
 - **Joined segments** (`MW2_JOIN_SEGMENTS`, from the Thor's work) measure the same here, 13.8 against 13.6 ms: Turnip draws these passes in system memory, where a pass boundary costs little.
 - **The sun's shadows** are 6 ms a frame after all of the above (21.5 ms with them at the console's scene, 15.3 without): 1.7 ms drawing the two cascades' 790 draws, 2.7 ms clearing and copying the 1024x2048 map between its passes, the rest resolves and the scene's own sampling. They stay off at 60; `MW2_SHADOWS=1` with the cap at 30 holds 30.
