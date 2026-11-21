@@ -944,7 +944,8 @@ if ($ForAndroid -and $Apks.Count) {
                 Install-CamoPacks $packs
                 $gameFolder = "/sdcard/Android/data/$AppPackage/files/game"
                 try {
-                    if ("$(Exec $Adb @('-s', $serial, 'shell', "[ -d $gameFolder ] && echo there"))" -match 'there') {
+                    # An if, not `[ -d ] &&`: a folder that is not there must not be a failed command.
+                    if ("$(Exec $Adb @('-s', $serial, 'shell', "if [ -d $gameFolder ]; then echo there; fi"))" -match 'there') {
                         Exec $Adb @('-s', $serial, 'push', $packs, "$gameFolder/") | Out-Null
                         Note 'camouflage packs copied into the game folder.'
                     } else { Note 'the game files are not installed on the phone yet: run setup again afterwards for the camouflage packs of other authors.' }

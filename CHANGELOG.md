@@ -13,6 +13,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   APK, never in the repository. Without the game files the launcher keeps
   its haze, and the home-screen icon stays the project's emblem.
 
+### Fixed
+- **Setup on a phone without the game files yet** (`setup/setup.ps1`) says
+  so about the camouflage packs of other authors, as it meant to. It said
+  "could not copy the camouflage packs: adb.exe failed with exit code 1":
+  the test for the game folder was a failed command when the folder was
+  not there, which is every first install.
+
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
