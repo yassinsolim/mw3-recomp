@@ -7,32 +7,33 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
-The game package built for v0.1.0 goes on working: nothing to build
-again.
+The game package built for v0.1.0 still fits: nothing to build again.
 
 - **Faster on every Adreno.** AYN Thor at 120 Hz: Modern Warfare 3's
   Survival 87 to 108 frames a second, Modern Warfare 2's S.S.D.D. opening
   100 to 106. Retroid Pocket Flip 2: Team Player's flight 53 to 59.5, and
   Survival 46 to 58 with the limit set to 60.
 - **Modern Warfare 2 starts at 60 on an Adreno 6xx**, not 30, with an
-  832x480 scene, and holds it on S.S.D.D., Terminal and Rust.
+  832x480 scene.
 - **Online**: the host of a match no longer freezes at its first frame,
   and Modern Warfare 2's Find Match has its playlists, not "Maximum party
   size of 0".
 - **Install & Play** starts the game; a slower phone said "The game files
   are not installed".
+- **A clear message when the game code is missing**, and much better crash
+  logs to share.
 - **No missing scenery**: Team Player lost its sky and far buildings in
   some frames.
 - **Compiled shaders are kept and used again**, not dropped whole past
-  64 MB and compiled again.
+  64 MB.
 - **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
   models sooner, for more frames a second. The console's by default.
 - **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
   unfinished are not offered.
 - **A smaller game package**: Modern Warfare 2's is 40 MB, not 98, when
   next built.
-- **Mali**: a G57 or newer meets every requirement on paper; none has run
-  them yet. A G52, G72 or G76 is refused.
+- **Mali**: a G57 or newer meets every requirement on paper; a G52, G72 or
+  G76 is refused.
 - **Windows build**: the mouse aims as a mouse does and works the menus.
 
 ### Changed
