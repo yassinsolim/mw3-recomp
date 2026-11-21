@@ -4,6 +4,34 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-11-21
+
+### Highlights
+The game package built for v0.1.0 goes on working: only the app is updated,
+and there is nothing to build again.
+
+- **Modern Warfare 2 is faster.** An AYN Thor at 120 Hz flies S.S.D.D. at
+  116 frames a second. An Adreno 6xx (Retroid Pocket Flip 2) starts at 60
+  instead of 30, with an 832x480 scene, and holds 59 on S.S.D.D., Terminal
+  and Rust; Team Player is at 53.
+- **Vertex data in host byte order**: its bytes are exchanged once as they
+  are copied, not for every vertex. A few frames a second more in both
+  games on Turnip, and the same picture.
+- **Compiled shaders are kept and used again.** The driver's cache was
+  dropped whole past 64 MB and every pipeline compiled again, with the
+  stutter of it. It is now several files under that budget, written as it
+  grows; a second run compiles next to nothing.
+- **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
+  models sooner, for more frames a second. The console's by default.
+- **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
+  unfinished are not offered.
+- **A smaller game package**: setup packaged both games' libraries on a PC
+  that had built both. Modern Warfare 2's is 40 MB, not 98, when next built.
+- **Retroid Pocket Flip 2**: Team Player's sky and far buildings are drawn.
+- **Mali**: a Mali-G57 or newer meets every requirement, by its device
+  report and Arm's offline compiler; none has run the games yet. A G52, G72
+  or G76 is refused.
+
 ### Changed
 - **The Retroid Pocket Flip 2 at 60, measured again**
   ([docs/android.md](docs/android.md#modern-warfare-2-there-60-frames-a-second)):
@@ -57,50 +85,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   is the old behaviour; `translate-shader --host-order` builds that form of
   a shader. Vertex attributes in place of arena loads were measured with
   it and lost on both the Adreno 740 and the 650, so they are not here.
-
-### Fixed
-- **A game package holds its own game's libraries only**
-  ([docs/game-library.md](docs/game-library.md)): setup kept both games'
-  libraries in one folder and packaged the folder, so a PC that had built
-  both made a 98 MB Modern Warfare 2 package of what is 40 MB.
-- **The driver's pipeline cache is bounded and no longer begun again**
-  ([docs/rendering.md](docs/rendering.md#the-drivers-cache-in-several-files),
-  `MW2_PIPELINE_CACHE_MB`): a cache file over 64 MB was not loaded, by this
-  runtime's own limit and not the driver's, and every pipeline was compiled
-  again (633 of them in 54 s of a 100 s run on an AYN Thor, one frame of
-  2.9 s). On Android the cache is now several files under a budget of
-  64 MB; the ones nothing is found in go, and the log and a report count
-  the pipelines found and compiled. A second run of Modern Warfare 2's
-  S.S.D.D. compiles 0 to 2 of 1,574, Modern Warfare 3's Survival 1 to 3 of
-  513.
-- **MW3 multiplayer: a vote does not offer the game modes the disc left
-  unfinished** (`runtime/map_vote.cpp`): One Flag CTF, Arena, Global
-  Thermonuclear War and the two that do not start were drawn with the
-  others unless `MW2_MAP_VOTE_MODES` said which.
-
-### Added
-- **Detail at distance** (Modern Warfare 2; Settings, Graphics;
-  `MW2_LOD_BIAS`, [docs/rendering.md](docs/rendering.md#detail-at-distance)):
-  models change to their coarser meshes at half or a quarter of the
-  console's distances, and nothing disappears sooner. The console's by
-  default. On the AYN Thor the opening of S.S.D.D. runs at 111 frames a
-  second at half against 102.
-- **Modern Warfare 2 on Android: one app that updates itself**
-  ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):
-  the campaign, Special Ops and the multiplayer are one app (`com.mw2.recomp`,
-  the `mw2` flavour; `libmw2.so`, `libmw2mp.so`) built without the game's
-  code, as Modern Warfare 3's is, and published from `yassinsolim/mw2-recomp`
-  (`.github/workflows/android-release-mw2.yml`); the recompiled code is the
-  package `com.mw2.recomp.game`, which `setup\setup.cmd -Game mw2` builds from
-  the disc. The game's menu entries between the campaign and the multiplayer
-  restart the run with the other library, and one copy of the game files
-  serves both. Setup installs the published app, or builds it when there is
-  no release yet, and copies the saves of the two apps of old. Title update 6
-  still builds as an app for each title (the `campaign` and `multiplayer`
-  flavours). `-DMW3_BOTH_TITLES` is now `-DMW2_BOTH_TITLES`, and
-  `-Pmw3Suffix` `-PappSuffix`.
-
-### Changed
 - **Adreno 6xx: Modern Warfare 2 starts at 60 frames a second**, without the
   sun's shadows and with an 832x480 scene under the 1280x720 frame
   (`Prefs.fpsLimit`, `MW2_SHADOWS`, `MW2_SCENE`). On a Retroid Pocket Flip 2
@@ -130,7 +114,51 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   the HUD and the menus staying as they are. `MW2_RENDER` and it now reach
   the disc version of Modern Warfare 2 as well (`runtime/title.h`).
 
+### Fixed
+- **A game package holds its own game's libraries only**
+  ([docs/game-library.md](docs/game-library.md)): setup kept both games'
+  libraries in one folder and packaged the folder, so a PC that had built
+  both made a 98 MB Modern Warfare 2 package of what is 40 MB.
+- **The driver's pipeline cache is bounded and no longer begun again**
+  ([docs/rendering.md](docs/rendering.md#the-drivers-cache-in-several-files),
+  `MW2_PIPELINE_CACHE_MB`): a cache file over 64 MB was not loaded, by this
+  runtime's own limit and not the driver's, and every pipeline was compiled
+  again (633 of them in 54 s of a 100 s run on an AYN Thor, one frame of
+  2.9 s). On Android the cache is now several files under a budget of
+  64 MB; the ones nothing is found in go, and the log and a report count
+  the pipelines found and compiled. A second run of Modern Warfare 2's
+  S.S.D.D. compiles 0 to 2 of 1,574, Modern Warfare 3's Survival 1 to 3 of
+  513.
+- **MW3 multiplayer: a vote does not offer the game modes the disc left
+  unfinished** (`runtime/map_vote.cpp`): One Flag CTF, Arena, Global
+  Thermonuclear War and the two that do not start were drawn with the
+  others unless `MW2_MAP_VOTE_MODES` said which.
+
 ### Added
+- **Detail at distance** (Modern Warfare 2; Settings, Graphics;
+  `MW2_LOD_BIAS`, [docs/rendering.md](docs/rendering.md#detail-at-distance)):
+  models change to their coarser meshes at half or a quarter of the
+  console's distances, and nothing disappears sooner. The console's by
+  default. On the AYN Thor the opening of S.S.D.D. runs at 111 frames a
+  second at half against 102.
+
+## [v0.1.0] - 2026-11-20
+
+### Added
+- **Modern Warfare 2 on Android: one app that updates itself**
+  ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):
+  the campaign, Special Ops and the multiplayer are one app (`com.mw2.recomp`,
+  the `mw2` flavour; `libmw2.so`, `libmw2mp.so`) built without the game's
+  code, as Modern Warfare 3's is, and published from `yassinsolim/mw2-recomp`
+  (`.github/workflows/android-release-mw2.yml`); the recompiled code is the
+  package `com.mw2.recomp.game`, which `setup\setup.cmd -Game mw2` builds from
+  the disc. The game's menu entries between the campaign and the multiplayer
+  restart the run with the other library, and one copy of the game files
+  serves both. Setup installs the published app, or builds it when there is
+  no release yet, and copies the saves of the two apps of old. Title update 6
+  still builds as an app for each title (the `campaign` and `multiplayer`
+  flavours). `-DMW3_BOTH_TITLES` is now `-DMW2_BOTH_TITLES`, and
+  `-Pmw3Suffix` `-PappSuffix`.
 - **MW3 on Android: an app that updates itself** ([docs/game-library.md](docs/game-library.md),
   [docs/android-releases.md](docs/android-releases.md)): the app is built
   without the game's code and published from the public repository's
