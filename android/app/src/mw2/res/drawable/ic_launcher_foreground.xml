@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modern Warfare 2's emblem: the project's reticle ring and ticks around two
+     stencil bars (the "2"), so it never reads as the MW3 app's three-bar
+     emblem on the same home screen. Same geometry rules as the main one:
+     everything sits inside the adaptive icon's 66 dp safe circle. The ring
+     and ticks take icon_accent (blue for this title, build.gradle.kts). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- the ring -->
+    <path
+        android:pathData="M54,27a27,27 0,1 1,0 54a27,27 0,1 1,0 -54z"
+        android:strokeColor="@color/icon_accent"
+        android:strokeWidth="3.2"
+        android:fillColor="#00000000" />
+    <!-- the ticks: north, south, west, east, each crossing the ring -->
+    <path
+        android:fillColor="@color/icon_accent"
+        android:pathData="M52.4,22h3.2v9h-3.2z M52.4,77h3.2v9h-3.2z M22,52.4h9v3.2h-9z M77,52.4h9v3.2h-9z" />
+    <!-- two bars, centred, each cut on a slant at the top like a stencil -->
+    <path
+        android:fillColor="#ECEFF2"
+        android:pathData="M46.8,44.5l5,-2.5v22.5h-5z M56.2,44.5l5,-2.5v22.5h-5z" />
+</vector>

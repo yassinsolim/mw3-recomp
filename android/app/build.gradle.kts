@@ -241,6 +241,9 @@ android {
             dimension = "title"
             applicationId = mw2ApplicationId
             resValue("string", "app_name", "CoD: Modern Warfare 2" + if (appSuffix.isEmpty()) "" else " ($appSuffix)")
+            // Blue, and two bars instead of three (src/mw2/res/drawable), so
+            // it and Modern Warfare 3 tell apart on one home screen.
+            resValue("color", "icon_accent", "#4FA3E0")
             // The public repository's releases carry this app, without the
             // recompiled code (.github/workflows/android-release-mw2.yml).
             buildConfigField("String", "UPDATE_REPO", "\"yassinsolim/mw2-recomp\"")
