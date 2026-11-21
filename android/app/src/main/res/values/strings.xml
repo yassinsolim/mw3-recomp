@@ -4,7 +4,8 @@
     <string name="subtitle">A recompilation, running natively</string>
     <string name="wordmark">MODERN WARFARE 2</string>
     <string name="wordmark_recompiled">MW2 RECOMPILED</string>
-    <string name="credit_line">By: flavinxs0</string>
+    <!-- The same for both games: what the port stands on. Who wrote each is in the README's credits. -->
+    <string name="credit_line">Built on mw2-recompiled · mw2-android · XenonRecomp</string>
     <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, INFINITY WARD OR MICROSOFT.</string>
     <string name="hint_choose">TAP TO CHOOSE</string>
     <string name="network_settings">NETWORK</string>
@@ -40,6 +41,7 @@
 
     <!-- launcher -->
     <string name="play">Play</string>
+    <string name="play_installed">Game installed: %1$s.\n%2$s</string>
     <string name="install_game">Install the game files</string>
     <string name="graphics_driver">Graphics driver</string>
     <string name="settings">Settings</string>

@@ -13,12 +13,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   APK, never in the repository. Without the game files the launcher keeps
   its haze, and the home-screen icon stays the project's emblem.
 
+### Changed
+- **The launcher's corner credit is the same in both apps**: "Built on
+  mw2-recompiled · mw2-android · XenonRecomp". Modern Warfare 3's named the
+  runtime and Modern Warfare 2's one author; who wrote each is in the
+  README's credits.
+
 ### Fixed
 - **Setup on a phone without the game files yet** (`setup/setup.ps1`) says
   so about the camouflage packs of other authors, as it meant to. It said
   "could not copy the camouflage packs: adb.exe failed with exit code 1":
   the test for the game folder was a failed command when the folder was
   not there, which is every first install.
+- **The Play card after Install & Play** says the game is installed and
+  which version, not "Game Disc Detected ... Ready for one-click setup",
+  which it kept from before the install.
 
 ## [v0.1.1] - 2026-11-21
 

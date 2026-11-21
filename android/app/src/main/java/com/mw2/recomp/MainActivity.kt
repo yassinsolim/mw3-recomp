@@ -55,6 +55,12 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var artShown = 0L
 
+    /** The game version this app plays, as the version line names it. */
+    private var discVersion = ""
+
+    /** Whether the detail card is the Play entry's, which changes when an install finishes. */
+    private var detailIsPlay = false
+
     /** What the large button starts: the campaign, where the app carries it. */
     private val firstTitle = Title.carried.first()
 
@@ -103,12 +109,12 @@ class MainActivity : AppCompatActivity() {
             val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode.toInt()
             else info.versionCode
             val tu = BuildConfig.MW2_TU.uppercase()
-            val build = when {
+            discVersion = when {
                 Title.isMw3 -> "DISC VERSION"
                 isTu6() -> "TITLE UPDATE 6"
                 else -> "DISC VERSION 1.0.557"
             }
-            versionTag.text = "$name · vcode $code · $tu · $build"
+            versionTag.text = "$name · vcode $code · $tu · $discVersion"
         } catch (_: Throwable) {
         }
         // TU6 apps offer the TU0 archives instead (PC launcher parity).
@@ -125,7 +131,8 @@ class MainActivity : AppCompatActivity() {
 
         play.setOnClickListener {
             select(play)
-            showDetail(getString(R.string.play), status.text.toString())
+            showDetail(getString(R.string.play), playDetail())
+            detailIsPlay = true
             launch(firstTitle)
         }
         // The app with the whole game: its multiplayer. An app of one title:
@@ -259,6 +266,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         showArt()
         refresh()
+        // Back from an install the Play card started: it said a disc was
+        // found, and the game is there now.
+        if (detailIsPlay) detailText.text = playDetail()
         // Back from the install-permission screen with a download waiting.
         pendingUpdateUrl?.let { url ->
             pendingUpdateUrl = null
@@ -495,6 +505,17 @@ class MainActivity : AppCompatActivity() {
     private fun showDetail(title: String, text: String) {
         detailTitle.text = title
         detailText.text = text
+        detailIsPlay = false
+    }
+
+    /** What the Play card says: the game that is installed, or what the status says is in the way. */
+    private fun playDetail(): String {
+        val gameDirectory = prefs.gameDirectory
+        return if (firstTitle.installed(gameDirectory)) {
+            getString(R.string.play_installed, discVersion.lowercase(), gameDirectory)
+        } else {
+            status.text.toString()
+        }
     }
 
     /** An app of the multiplayer alone (cod.modern.warfare2.mp, .mp.tu6, com.mw3.recomp.mp). */
