@@ -428,20 +428,28 @@ class InstallActivity : AppCompatActivity() {
         progressText.text = getString(R.string.install_done)
         // The imported copy has done its job and is the size of a disc.
         File(getExternalFilesDir(null) ?: filesDir, "import").deleteRecursively()
-        if (intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
+        // The game's files are one half; an app published without the game's
+        // code needs that too (GameLibrary.kt), and a run started without it
+        // only ends in "The game could not start". Said here instead.
+        val playable = GameLibrary.ready(this, titleToStart())
+        if (playable && intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
             GameActivity.start(this, titleToStart())
             finish()
-        } else {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.install_game)
-                .setMessage(R.string.install_done)
+            return
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.install_game)
+            .setNegativeButton(R.string.close) { _, _ -> finish() }
+        if (playable) {
+            dialog.setMessage(R.string.install_done)
                 .setPositiveButton(R.string.play) { _, _ ->
                     GameActivity.start(this, titleToStart())
                     finish()
                 }
-                .setNegativeButton(R.string.close) { _, _ -> finish() }
-                .show()
+        } else {
+            dialog.setMessage(getString(R.string.install_done) + "\n\n" + getString(R.string.game_code_missing))
         }
+        dialog.show()
     }
 
     /** The title the launcher was asked for, or the app's first. */

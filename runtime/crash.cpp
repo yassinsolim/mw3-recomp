@@ -19,6 +19,37 @@
 #include <cstring>
 #include <thread>
 #include <chrono>
+#include <atomic>
+
+// Where start-up has got to (crash::Step): a process that is killed, or dies
+// inside a driver, leaves this as the last line of its log, and a fault's
+// report quotes it.
+namespace
+{
+    std::atomic<const char*> g_step{ nullptr };
+}
+
+void crash::Step(const char* name, const char* what)
+{
+    g_step.store(name, std::memory_order_relaxed);
+    LOGI("step: %s (%s)", name, what);
+    // MW2_DEBUG_CRASH_AT=<step>: a fault here, on purpose, to see that a
+    // crash this early is reported whole (docs/switches.md). Read from the
+    // environment as it is now: the first steps come before the switches
+    // are loaded.
+    if (const char* at = std::getenv("MW2_DEBUG_CRASH_AT"); at && !std::strcmp(at, name))
+    {
+        LOGW("step: MW2_DEBUG_CRASH_AT=%s: writing through a null pointer here, on purpose", name);
+        int* volatile nothing = nullptr;
+        *nothing = 1;
+    }
+}
+
+const char* crash::LastStep()
+{
+    const char* step = g_step.load(std::memory_order_relaxed);
+    return step ? step : "none";
+}
 
 #ifndef _WIN32
 #if !defined(__ANDROID__)
@@ -34,6 +65,7 @@
 #define MW2_LIBRARY_FILE "libmw2.so"
 #endif
 #include <fcntl.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <deque>
@@ -41,6 +73,9 @@
 #include <vector>
 #include <string>
 #include <atomic>
+#ifdef MW2_ANDROID
+#include "android/android.h"
+#endif
 
 namespace
 {
@@ -123,6 +158,52 @@ namespace
         PrintMapping(addr);
     }
 
+    // How a fault's report ends. On Android the process then dies of the
+    // signal itself, through the handlers that were there before this one
+    // (the system's, which write a tombstone): the system then records a
+    // native crash with its own backtrace, which the app's log share reads
+    // back (LogSummary.kt), where _exit recorded "exited by itself" and
+    // nothing else. A fault repeats when its instruction runs again; a
+    // signal that was sent (abort, a refused system call) is sent again.
+    // The first thread here ends the process; another waits for that.
+#ifdef MW2_ANDROID
+    constexpr int kFatal[] = { SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP, SIGABRT, SIGSYS };
+    struct sigaction g_before[std::size(kFatal)];
+#endif
+
+    void EndOfFault(int sig, bool sent)
+    {
+        crash::OnFault();
+#ifdef MW2_ANDROID
+        static std::atomic<bool> ending{ false };
+        if (ending.exchange(true)) for (;;) pause();
+        // The report went through a pipe another thread reads into the log.
+        android::SettleStandardStreams();
+        for (size_t i = 0; i < std::size(kFatal); i++) sigaction(kFatal[i], &g_before[i], nullptr);
+        if (sent) syscall(SYS_tgkill, getpid(), syscall(SYS_gettid), sig);
+#else
+        (void)sig; (void)sent;
+        _exit(3);
+#endif
+    }
+
+#ifdef MW2_ANDROID
+    // abort() and a system call the device's policy refuses: a driver that
+    // gives up, an uncaught C++ exception, a fortified libc call. Neither is
+    // a fault at an address, so the report is the thread's stack.
+    void SentSignalHandler(int sig, siginfo_t*, void*)
+    {
+        std::fprintf(stderr, "\n[E] ---- the process is ending on %s ----\n",
+                     sig == SIGABRT ? "SIGABRT: abort() was called (a failed assertion, an uncaught"
+                                      " exception, or a driver giving up)"
+                                    : "SIGSYS: a system call this device's policy refuses");
+        std::fprintf(stderr, "[E] last step: %s, on thread %s\n", crash::LastStep(), t_name ? t_name : "?");
+        std::fflush(stderr);
+        DumpBacktrace("backtrace");
+        EndOfFault(sig, true);
+    }
+#endif
+
     void FaultHandler(int sig, siginfo_t* info, void* uctx)
     {
         // A write watchpoint takes the page's faults and steps over them; it is not
@@ -150,6 +231,7 @@ namespace
                          : (sig == SIGTRAP) ? "SIGTRAP" : "SIGILL";
 
         std::fprintf(stderr, "\n[E] ---- guest fault: %s at host %p ----\n", name, addr);
+        std::fprintf(stderr, "[E] last step: %s\n", crash::LastStep());
         // Which kind, in the kernel's own words. This is the difference
         // between "nothing is mapped there" and "it is mapped and you may
         // not write to it", and those have entirely different causes -- one
@@ -279,8 +361,7 @@ namespace
             }
         }
 #endif
-        crash::OnFault();
-        _exit(3);
+        EndOfFault(sig, false);
     }
 
     // MW2_DUMP=<hexaddr>[:words][,...] prints blocks of guest memory when the
@@ -508,11 +589,18 @@ void crash::Install()
     sa.sa_sigaction = FaultHandler;
     sa.sa_flags = SA_SIGINFO;
     sigemptyset(&sa.sa_mask);
+#ifdef MW2_ANDROID
+    struct sigaction sent = sa;
+    sent.sa_sigaction = SentSignalHandler;
+    for (size_t i = 0; i < std::size(kFatal); i++)
+        sigaction(kFatal[i], kFatal[i] == SIGABRT || kFatal[i] == SIGSYS ? &sent : &sa, &g_before[i]);
+#else
     sigaction(SIGSEGV, &sa, nullptr);
     sigaction(SIGBUS,  &sa, nullptr);
     sigaction(SIGILL,  &sa, nullptr);
     sigaction(SIGFPE,  &sa, nullptr);
     sigaction(SIGTRAP, &sa, nullptr);
+#endif
 
     struct sigaction dump{};
     dump.sa_handler = ThreadDumpHandler;
@@ -593,6 +681,7 @@ namespace
         if (!name) return EXCEPTION_CONTINUE_SEARCH;
 
         std::fprintf(stderr, "\n[E] ---- guest fault: %s at %p ----\n", name, record->ExceptionAddress);
+        std::fprintf(stderr, "[E] last step: %s\n", crash::LastStep());
         if (code == EXCEPTION_BREAKPOINT)
             std::fprintf(stderr, "[E] -> a guest trap instruction: an assert inside the title fired\n");
         if (code == EXCEPTION_ACCESS_VIOLATION && record->NumberParameters >= 2)

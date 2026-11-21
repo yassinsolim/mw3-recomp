@@ -298,6 +298,16 @@ MW2_NATIVE(void, nativeSelectDriver)(JNIEnv* env, jobject, jstring directory, js
                             name.empty() ? nullptr : name.c_str());
 }
 
+// A line of the app's own in this process's log: what it knows that the
+// runtime does not (the device, the game package), and why a run was not
+// started, which used to be on the screen alone.
+MW2_NATIVE(void, nativeLog)(JNIEnv* env, jobject, jboolean failure, jstring text)
+{
+    const std::string line = ToString(env, text);
+    if (failure == JNI_TRUE) LOGE("app: %s", line.c_str());
+    else LOGI("app: %s", line.c_str());
+}
+
 MW2_NATIVE(jstring, nativeDriverDescription)(JNIEnv* env, jobject)
 {
     std::string text = android::driver::Description();
@@ -335,6 +345,7 @@ MW2_NATIVE(jboolean, nativeStart)(JNIEnv* env, jobject, jstring gameDirectory, j
         LOGW("android: could not change directory to %s", home.c_str());
     install::SetGameFolder(g_gameFolder);
 
+    crash::Step("start", "memory defaults and the game thread");
     android::perf::ApplyMemoryDefaults();
     android::detail::SetRunning(true);
 

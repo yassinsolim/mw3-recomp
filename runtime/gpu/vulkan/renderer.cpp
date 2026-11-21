@@ -170,6 +170,7 @@ bool vk::renderer::Initialise()
     g.physical = static_cast<VkPhysicalDevice>(vk::pipeline::PhysicalDevice());
     g.queue = static_cast<VkQueue>(vk::pipeline::Queue());
     if (!g.device || !g.queue) { RollbackInitialise(); return false; }
+    crash::Step("textures", "the texture cache's staging memory");
     if (!vk::textures::Initialise()) { RollbackInitialise(); return false; }
 
     vkGetPhysicalDeviceMemoryProperties(g.physical, &g.memory);
@@ -403,10 +404,15 @@ bool vk::renderer::Initialise()
         wanted = uint32_t((reach * kFrameSlots) & ~uint64_t(0xFFFFF));
         vk::pipeline::NoteFallback("the frame arena is held to three storage buffers' reach");
     }
+    crash::Step("arena", "allocating the frame arena, with the shadow of guest memory where it fits");
     for (; wanted >= kArenaLeast; withShadow ? (void)(withShadow = false) : (void)(wanted /= 2))
     {
         VkBufferCreateInfo buffer{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         buffer.size = VkDeviceSize(wanted) + (withShadow ? shadowBytes : 0);
+        // Said before it is asked for: a phone short of memory may end the
+        // process here rather than refuse.
+        LOGI("renderer: asking the driver for %llu MB in one buffer (%u MB of arena%s)",
+             (unsigned long long)(buffer.size >> 20), wanted >> 20, withShadow ? ", 512 MB of shadow" : "");
         buffer.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
         if (vk::pipeline::VertexTexels() || vk::pipeline::PixelTexels())

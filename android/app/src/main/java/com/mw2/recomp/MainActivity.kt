@@ -216,6 +216,9 @@ class MainActivity : AppCompatActivity() {
                     applicationInfo.nativeLibraryDir,
                     null,
                 )
+                // Here too, where the phone's GPU is asked its name: a run
+                // that dies before it has a device finds it written down.
+                DeviceInfo.log(this)
             } catch (error: Throwable) {
                 nativeReady = false
                 NativeBridge.noteInitFailure(error.message ?: error.toString())
@@ -795,7 +798,9 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(Intent.ACTION_SEND)
         intent.type = "text/plain"
         intent.putExtra(Intent.EXTRA_SUBJECT, "MW2 log")
-        intent.putExtra(Intent.EXTRA_TEXT, text.takeLast(200_000))
+        // The head of it names the app and the device, so it is the end that
+        // goes when a text is too long for the share.
+        intent.putExtra(Intent.EXTRA_TEXT, text.take(200_000))
         startActivity(Intent.createChooser(intent, getString(R.string.share)))
     }
 }
