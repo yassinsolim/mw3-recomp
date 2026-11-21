@@ -32,23 +32,30 @@ object DeviceInfo {
     /** A tombstone carries memory dumps and logs; the backtrace is at its front. */
     private const val kTombstoneBytes = 8 shl 20
 
+    /** One fact a line. Never throws: a fact that cannot be read says so. */
     fun lines(context: Context): List<String> = listOf(
         "build: ${context.getString(R.string.app_name)} ${BuildConfig.VERSION_NAME}" +
             " (code ${BuildConfig.VERSION_CODE}, ${context.packageName}, built ${BuildConfig.BUILD_STAMP})",
         "phone: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE}), Android ${Build.VERSION.RELEASE}" +
             " (API ${Build.VERSION.SDK_INT})",
         "chip: ${chip()}",
-        "memory: ${memory(context)}",
-        "gpu: ${gpu(context)}",
-        "game code: ${GameLibrary.describe(context)}",
+        "memory: " + said { memory(context) },
+        "gpu: " + said { gpu(context) },
+        "game code: " + said { GameLibrary.describe(context) },
     )
+
+    private fun said(fact: () -> String): String = try {
+        fact()
+    } catch (error: Throwable) {
+        "could not be read ($error)"
+    }
 
     /** The same lines into this process's log; never the reason a start fails. */
     fun log(context: Context) {
         try {
             lines(context).forEach { NativeBridge.nativeLog(false, it) }
         } catch (_: Throwable) {
-            // A report is not worth a start.
+            // A library without the call: the share still has the lines.
         }
     }
 
@@ -156,16 +163,15 @@ object DeviceInfo {
      */
     fun exits(context: Context): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return ""
-        val records = try {
-            context.getSystemService(ActivityManager::class.java)
+        // Whole, or what there was before something failed: a report that
+        // cannot be made must not take the Log screen with it.
+        val text = StringBuilder()
+        try {
+            val records = context.getSystemService(ActivityManager::class.java)
                 .getHistoricalProcessExitReasons(context.packageName, 0, kExits)
-        } catch (_: Throwable) {
-            return ""
-        }
-        var tombstones = 0
-        return buildString {
+            var tombstones = 0
             for (record in records) {
-                append(describe(record)).append('\n')
+                text.append(describe(record)).append('\n')
                 if (record.reason != ApplicationExitInfo.REASON_CRASH_NATIVE) continue
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || tombstones >= kTombstones) continue
                 tombstones++
@@ -176,9 +182,14 @@ object DeviceInfo {
                 }
                 // Some systems write no tombstone an app may read (the Retroid
                 // Pocket Flip 2's Android 13 is one).
-                append(trace ?: "    (this system kept no tombstone to read; the fault's report in game.log has the backtrace)\n")
+                text.append(
+                    trace ?: "    (this system kept no tombstone to read; the fault's report in game.log has the backtrace)\n",
+                )
             }
+        } catch (error: Throwable) {
+            text.append("(the record could not be read: ").append(error).append(")\n")
         }
+        return text.toString()
     }
 
     /** The newest record of the run's process, in one line, or "". */
