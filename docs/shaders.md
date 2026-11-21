@@ -125,12 +125,19 @@ set 2  binding 0  uint[]   the frame arena, as dwords
        binding 1  vec4[]   the same, as vec4
        binding 2  vec4[256]  a pixel shader's float constants, a uniform block at a
                   dynamic offset; only where they are one (below)
+       binding 3  samplerBuffer   the slot's share of the arena as texels of four
+       binding 4  usamplerBuffer  floats and of four dwords, for a vertex shader;
+                  only where it reads the arena so (below)
 no push constants
 a draw table, in the arena at the dword the hardware draw passes as its base
 vertex (vertexOffset, or firstVertex for a draw without indices), two words an
 entry:
   0              where the draw's record is in the arena, in dwords
   1              the guest index the entry's 65,536 indices count from
+or eight, at a multiple of four, where a vertex shader reads it as two texels:
+  2   (6 words)  what the draw's vertex program reads first, as it lists them:
+                 the first dword of a vertex fetch constant, the place of a
+                 block of its float constants
 an index, always 32 bits: (entry << 16) + (guest index - the entry's)
 the draw's record:
   0   (5 words)  where each constant block is in the arena, in dwords:
@@ -299,6 +306,54 @@ the draw's record:
   vertex data in host byte order the exchanges are not in the shader at all
   ([rendering.md](rendering.md#vertex-data-in-host-byte-order)): 106 frames
   a second and 9.0 ms in that opening.
+- **The arena as texels, for a vertex shader on an Adreno 6xx**
+  (`shader::VertexArena::Texels`). What Turnip compiles a vertex shader to
+  (`MW2_SHADER_IR`) says what the loads cost there: its compiler has a load
+  of several dwords only from the Adreno 7xx on, so on a 6xx every dword of
+  the storage buffer is a fetch of its own -- an `isam` of a buffer texture,
+  with an add for its address and a move of a zero for its second
+  coordinate, three instructions -- and a vec4 is four of them. The
+  commonest vertex shader of Team Player, the depth pass's, which is nothing
+  but a position, was 207 instructions with 45 fetches in 21 registers; the
+  lit world's 348 with 61 in 32. The loads also waited on each other four
+  deep: the entry, the record, the table's word or the fetch constant, the
+  constant or the vertex. So where the device says so
+  (`vk::pipeline::VertexTexels`: an Adreno 6xx under Turnip, or
+  `MW2_VERTEX_TEXELS=0|1`)
+  set 2 has the slot's share twice more, as texel buffer views of four
+  floats and of four dwords, and a vertex shader:
+  - fetches a vec4 -- a float constant, the window transform -- as one
+    texel;
+  - reads its draw table entry as two texels, eight dwords, the last six of
+    which hold what it would have loaded through the record: the first
+    dword of each vertex fetch constant it names and the place of each
+    block of constants it reads, in the order it first asks
+    (`Translation::vertexHeader`, `HeaderWord`; the renderer fills them from
+    what it has just written for the draw, `WriteDrawTable`). A program
+    that wants more than six finds the rest through the record as before,
+    as does a constant indexed through a0/aL and a vertex shader's texture
+    fetch;
+  - fetches vertex data four dwords a texel, where the data is the
+    renderer's copy in host byte order, the program is straight-line and
+    the vertex is a whole number of texels long with nothing fetched before
+    its start (`Translation::vertexFetchTexels`). The renderer then points
+    that fetch constant at a multiple of four dwords
+    ([rendering.md](rendering.md#the-frame-arena)).
+
+  The depth pass's shader is 99 instructions with 11 fetches in 10
+  registers, the lit world's 204 with 16 in 16, and a vertex's loads are
+  two deep. What a vertex computes from what it loaded is the same
+  instructions as before, so the picture is: of four fixed views of
+  S.S.D.D., 64.3 to 99.7% of the pixels are the same to the bit with and
+  without, against 65.3 to 99.7% between two runs without (what differs is
+  what moves). On the Retroid Pocket Flip 2 the vertex shaders' share of
+  Team Player's scene is 3.5 ms, where it was 6.4 with only the vec4 as
+  texels and more with none (measured with every primitive put outside the
+  clip volume, at 587 MHz; not with none), and the scene at its
+  heavy views from 15.7 to 16.8 ms to 12.5 to 14.1
+  ([android.md](android.md#modern-warfare-2-there-60-frames-a-second)).
+  No other GPU has run this form, and without it a vertex shader's module
+  is the bytes it was before, so no device's pipeline cache is spent.
 - The translator records the highest float constant a program reads
   (`Translation::constantsRead`) so the renderer copies only that much, unless
   the program addresses constants through a0/aL (`addressedConstants`), where

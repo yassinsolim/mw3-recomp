@@ -304,6 +304,10 @@ namespace vk::renderer::detail
             // arena offsets are relative to its slot and each slot alone has to
             // be within one storage buffer's reach, not all of them together.
             VkDescriptorSet memorySet = VK_NULL_HANDLE;
+            // The slot's share as texels of four floats and of four dwords,
+            // for the vertex shaders (bindings::kArenaTexels,
+            // kArenaTexelWords); null where they read the storage buffer alone.
+            VkBufferView arenaTexels = VK_NULL_HANDLE, arenaTexelWords = VK_NULL_HANDLE;
             bool inFlight = false;
             uint64_t serial = 0;   // which submission it holds
             // The recorder's queue just past that submission: until the
@@ -418,6 +422,11 @@ namespace vk::renderer::detail
         Cached fetchBlock, booleans, loops;
         uint32_t fetchSubs[3]{};          // what fetchBlock was assembled for
         uint32_t fetchPairs[3]{};         // and which of its pairs it holds
+        uint32_t fetchTexels[3]{};        // and which of those it points at a multiple of four dwords
+        // The first dword of each fetch pair as the last block written has
+        // it, for a draw table entry to hold (bindings::kHeaderWords): the
+        // arena is not memory to read it back from.
+        uint32_t fetchFirst[bindings::kFetchSlots]{};
 
         // The title's own occlusion queries. A bracket can outlive a command
         // buffer, so its queries are reset when the title opens it.
@@ -925,8 +934,12 @@ namespace vk::renderer::detail
     // `entries` of the draw table for a draw whose index values, less `base`,
     // go up to `span`.
     DrawPlace PlaceInTable(uint32_t span, uint32_t base);
-    // The place's entries, once the draw's record is in the arena.
-    void WriteDrawTable(const DrawPlace& place, uint32_t record);
+    // The place's entries, once the draw's record is in the arena and its
+    // constants are (WriteConstants): with texel entries they hold what
+    // `program` reads from them (bindings::kHeaderWords).
+    void WriteDrawTable(const DrawPlace& place, uint32_t record, const shader::Translation& program);
+    // The dwords of a draw table entry on this device.
+    uint32_t TableWords();
     DrawPlace WriteIndices(uint32_t address, uint32_t count, bool wide,
                            uint32_t& lowest, uint32_t& highest);
     DrawPlace WriteRectangleIndices(uint32_t rectangles);

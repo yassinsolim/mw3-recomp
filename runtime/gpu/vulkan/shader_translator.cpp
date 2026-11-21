@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 
 using namespace spirv;
 using namespace xenos;
@@ -30,7 +31,9 @@ namespace
 #endif
     constexpr uint32_t kSelectionControlNone = 0;
     constexpr uint32_t kLoopStackDepth = 4;      // what the sequencer provides
+    constexpr uint32_t kCapabilitySampledBuffer = 46;
     constexpr uint32_t kCapabilityImageQuery = 50;
+    constexpr uint32_t kDimBuffer = 5;
     constexpr uint32_t kCapabilityGroupNonUniform = 61;
     constexpr uint32_t kCapabilityGroupNonUniformBallot = 64;
     constexpr uint32_t kCapabilityDrawParameters = 4427;
@@ -47,11 +50,12 @@ namespace
     public:
         Translator(shader::Type type, const uint32_t* words, size_t count, bool scaled,
                    shader::PixelRecord record, shader::PixelConstants constants,
-                   shader::VertexOrder order)
+                   shader::VertexOrder order, shader::VertexArena arena)
             : m_type(type), m_words(words), m_count(count), m_scaled(scaled),
               m_waterfall(type == shader::Type::Pixel && record == shader::PixelRecord::Subgroup),
               m_uniformConstants(type == shader::Type::Pixel && constants == shader::PixelConstants::Uniform),
-              m_exchange(order == shader::VertexOrder::Guest) {}
+              m_exchange(order == shader::VertexOrder::Guest),
+              m_texels(type == shader::Type::Vertex && arena == shader::VertexArena::Texels) {}
 
         shader::Translation Run();
 
@@ -79,6 +83,8 @@ namespace
         Id FetchConstantWord(uint32_t pair, uint32_t word);
         Id ArenaWord(Id dword);
         Id ArenaFloat4(Id vec4);
+        Id ArenaWords4(Id texel);
+        Id HeaderWord(uint8_t what);
         Id BoolConstant(uint32_t index);
         Id LoopConstant(Id index);
         Id JumpTaken(const ControlFlow& cf);
@@ -95,6 +101,7 @@ namespace
         void SetPcTo(uint32_t index) { if (m_pc) Module::Emit(m_module.Code(), Op::Store, { m_pc, m_module.ConstantU(index) }); }
         void SetPc(Id value)         { if (m_pc) Module::Emit(m_module.Code(), Op::Store, { m_pc, value }); }
         Id ReadGuestDword(Id addressInDwords, uint32_t index);
+        Id ReadTexelDword(uint32_t dword);
         bool DecodeVertexFormat(const Fetch& op, Id address, Id out[4], uint32_t& count);
         void WriteFetchResult(const Fetch& op, Id components[4], uint32_t count);
         Id VectorOperation(const Alu& op);
@@ -144,6 +151,11 @@ namespace
         // exchanges each dword it loads as the fetch constant's endianness
         // says (shader::VertexOrder); otherwise the renderer has.
         bool m_exchange;
+        // A vertex program reads the arena through texel buffer views as
+        // well as the storage buffer (shader::VertexArena): a vec4 as one
+        // texel, its draw table entry as two, and vertex data four dwords
+        // a texel.
+        bool m_texels;
 
         Module m_module;
         shader::Translation m_result;
@@ -206,6 +218,11 @@ namespace
         FetchDimension m_textureDimensions[32]{};
         Id m_arena = 0;               // the frame arena, as dwords
         Id m_arenaFloats = 0;         // and as vec4
+        Id m_arenaTexels = 0;         // or, for a vertex program's vec4, a texel buffer of them
+        Id m_arenaWords4 = 0;         // and one of four dwords a texel
+        Id m_uint4 = 0;
+        // The two texels of the vertex's draw table entry (bindings::kTableTexelWords).
+        Id m_entry[2]{};
         Id m_pixelConstants = 0;      // a pixel program's 256 float constants as a uniform block
         bool m_linear = false;        // true if control flow has no loops, jumps or calls
         bool m_forwardJumpsOnly = false; // true if control flow has only forward jumps (acyclic, no loops)
@@ -231,6 +248,12 @@ namespace
         Id m_lastFetchBase = 0;         // pointer to a Function uint
         Id m_lastFetchEndian = 0;       // the fetch constant's endianness, 2 bits
         bool m_haveFetchBase = false;   // whether any full fetch precedes
+        // With texels: whether the last full fetch's data is fetched as
+        // texels of four dwords, the texel its vertex starts at, and the
+        // texels fetched of that vertex, by how far in they are.
+        bool m_fetchTexels = false;
+        Id m_dataTexel = 0;
+        std::map<uint32_t, Id> m_dataTexels;
 
         // What the previous scalar produced, for the *_prev family. A variable,
         // not an SSA value: producer and reader can be in different blocks.
@@ -352,6 +375,7 @@ namespace
             m_forwardJumpsOnly = false;
 
         uint32_t lastSlot = bindings::kFetchSlots;
+        uint32_t offTexels[3]{};
         for (const ControlFlow& cf : m_flow)
         {
             if (!cf.IsExec()) continue;
@@ -398,6 +422,11 @@ namespace
                             uint32_t& tail = m_result.vertexFetchTail[lastSlot];
                             stride = std::max(stride, f.Stride());
                             tail = std::max(tail, uint32_t(std::max(f.Offset(), 0)) + 4);
+                            // A vertex that is not a whole number of texels
+                            // long, or a dword before its start, is not
+                            // fetched as texels.
+                            if (f.Offset() < 0 || (!f.IsMiniFetch() && f.Stride() % 4))
+                                offTexels[lastSlot / 32] |= 1u << (lastSlot % 32);
                         }
                     }
                     continue;
@@ -428,6 +457,13 @@ namespace
                 }
             }
         }
+        // The fetch constants whose data the program fetches four dwords a
+        // texel: only where the data is the renderer's copy in host byte
+        // order, which it can start at a texel, and the program is
+        // straight-line (ReadTexelDword).
+        if (m_texels && !m_exchange && m_linear)
+            for (uint32_t i = 0; i < 3; i++)
+                m_result.vertexFetchTexels[i] = m_result.vertexFetchPairs[i] & ~offTexels[i];
 
         // And a vertex shader has to write every interpolator a pixel shader might
         // read: an input with no output behind it is invalid, and the pixel side
@@ -511,8 +547,30 @@ namespace
         // record holds for its block (bindings.h).
         m_arena = DeclareArrayBlock(m_uint, 0, 4, bindings::kArenaSet, bindings::kArenaBinding,
                                     "arena");
-        m_arenaFloats = DeclareArrayBlock(m_float4, 0, 16, bindings::kArenaSet,
-                                          bindings::kArenaFloats, "arena_floats");
+        if (m_texels)
+        {
+            // The same memory as texels of a buffer view: four floats, and
+            // four dwords (bindings::kArenaTexels, kArenaTexelWords).
+            m_module.RequireCapability(kCapabilitySampledBuffer);
+            const auto view = [this](Id sampled, uint32_t binding, const char* name) {
+                const Id variable = m_module.Allocate();
+                Module::Emit(m_module.Declarations(), Op::Variable,
+                             { m_module.Pointer(StorageClass::UniformConstant, m_module.Image(sampled, kDimBuffer)),
+                               variable, uint32_t(StorageClass::UniformConstant) });
+                Module::Emit(m_module.Decorations(), Op::Decorate,
+                             { variable, uint32_t(Decoration::DescriptorSet), bindings::kArenaSet });
+                Module::Emit(m_module.Decorations(), Op::Decorate,
+                             { variable, uint32_t(Decoration::Binding), binding });
+                Module::EmitString(m_module.Debug(), Op::Name, { variable }, name);
+                return variable;
+            };
+            m_arenaTexels = view(m_float, bindings::kArenaTexels, "arena_texels");
+            m_arenaWords4 = view(m_uint, bindings::kArenaTexelWords, "arena_words4");
+            m_uint4 = m_module.Vector(m_uint, 4);
+        }
+        else
+            m_arenaFloats = DeclareArrayBlock(m_float4, 0, 16, bindings::kArenaSet,
+                                              bindings::kArenaFloats, "arena_floats");
         if (m_uniformConstants)
             m_pixelConstants = DeclareArrayBlock(m_float4, bindings::kFloatConstants, 16, bindings::kArenaSet,
                                                  bindings::kPixelConstants, "pixel_constants");
@@ -873,11 +931,45 @@ namespace
                            { m_arena, m_module.ConstantS(0), dword }) });
     }
 
+    // Vec4 `vec4` of the arena. As a texel of the texel buffer where a
+    // vertex program has one (shader::VertexArena::Texels): one fetch for
+    // the four floats, which a storage buffer's load is not on every GPU.
     Id Translator::ArenaFloat4(Id vec4)
     {
+        if (m_arenaTexels)
+            return Emit(Op::ImageFetch, m_float4,
+                        { Emit(Op::Load, m_module.Image(m_float, kDimBuffer), { m_arenaTexels }),
+                          Emit(Op::Bitcast, m_int, { vec4 }) });
         return Emit(Op::Load, m_float4,
                     { Emit(Op::AccessChain, m_module.Pointer(StorageClass::Uniform, m_float4),
                            { m_arenaFloats, m_module.ConstantS(0), vec4 }) });
+    }
+
+    // Texel `texel` of the arena as four dwords (bindings::kArenaTexelWords).
+    Id Translator::ArenaWords4(Id texel)
+    {
+        return Emit(Op::ImageFetch, m_uint4,
+                    { Emit(Op::Load, m_module.Image(m_uint, kDimBuffer), { m_arenaWords4 }),
+                      Emit(Op::Bitcast, m_int, { texel }) });
+    }
+
+    // The word of the vertex's draw table entry that holds `what` -- a
+    // fetch constant's first dword, or kHeaderBlock and a block of constants
+    // for its place (bindings::kHeaderWords) -- given the next of the
+    // entry's words the first time it is asked for; 0 once they are all
+    // taken, and the program finds it through the record as before.
+    Id Translator::HeaderWord(uint8_t what)
+    {
+        static_assert(sizeof m_result.vertexHeader == bindings::kHeaderWords);
+        uint32_t at = 0;
+        while (at < m_result.vertexHeaderWords && m_result.vertexHeader[at] != what) at++;
+        if (at == m_result.vertexHeaderWords)
+        {
+            if (at == bindings::kHeaderWords) return 0;
+            m_result.vertexHeader[m_result.vertexHeaderWords++] = what;
+        }
+        const uint32_t word = bindings::kTableTexelWords - bindings::kHeaderWords + at;
+        return Emit(Op::CompositeExtract, m_uint, { m_entry[word / 4], word % 4 });
     }
 
     // Constant `window` (0-255) of a vertex program, found through the table
@@ -888,11 +980,17 @@ namespace
     // five of what a vertex fetched from the arena was the table.
     Id Translator::VertexConstant(uint32_t window)
     {
+        const uint32_t block = window / 16;
+        m_result.loads[shader::kLoadConstant]++;
+        // The block's place from the vertex's draw table entry, where it
+        // holds it.
+        if (m_texels)
+            if (const Id copy = HeaderWord(uint8_t(bindings::kHeaderBlock | block)))
+                return ArenaFloat4(Emit(Op::IAdd, m_uint, { copy, m_module.ConstantU(window % 16) }));
         // Where the table is, read at this place too: its load comes before
         // the word's (PlaceRecordLoads).
         ConstantBlock(bindings::kVertexFloats);
-        const Id copy = RecordWord(kTableWord + window / 16);
-        m_result.loads[shader::kLoadConstant]++;
+        const Id copy = RecordWord(kTableWord + block);
         return ArenaFloat4(Emit(Op::IAdd, m_uint, { copy, m_module.ConstantU(window % 16) }));
     }
 
@@ -1492,6 +1590,22 @@ namespace
         return Emit(Op::Select, m_uint, { whole, value, halves });
     }
 
+    // Dword `dword` of the vertex the last full fetch named, from the texel
+    // of four it lies in: each texel fetched once for that fetch and its
+    // mini fetches, which only a straight-line program can promise comes
+    // first (Analyze).
+    Id Translator::ReadTexelDword(uint32_t dword)
+    {
+        Id& texel = m_dataTexels[dword / 4];
+        if (!texel)
+        {
+            m_result.loads[shader::kLoadVertexData]++;
+            texel = ArenaWords4(dword / 4 ? Emit(Op::IAdd, m_uint, { m_dataTexel, m_module.ConstantU(dword / 4) })
+                                          : m_dataTexel);
+        }
+        return Emit(Op::CompositeExtract, m_uint, { texel, dword % 4 });
+    }
+
     // Component 0 sits in the least significant bits of a packed word.
     bool Translator::DecodeVertexFormat(const Fetch& op, Id address, Id out[4], uint32_t& count)
     {
@@ -1579,7 +1693,9 @@ namespace
         // Each dword once: the components of a packed format share one.
         Id dwords[4]{};
         auto dword = [&](uint32_t index) {
-            if (!dwords[index]) dwords[index] = ReadGuestDword(address, index);
+            if (!dwords[index])
+                dwords[index] = m_fetchTexels ? ReadTexelDword(uint32_t(op.Offset()) + index)
+                                              : ReadGuestDword(address, index);
             return dwords[index];
         };
 
@@ -1650,8 +1766,20 @@ namespace
             // it were whole dwords exchanges the halves of every pair, which
             // stretches triangles across the level. Where the renderer made
             // the exchange as it copied, those two bits are zero and unread.
-            Id word0 = FetchConstantWord(constant, 0);
-            Id base = Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(2) });
+            // The entry of the vertex's draw table holds it where a vertex
+            // program reads that as texels (HeaderWord).
+            Id word0 = m_texels ? HeaderWord(uint8_t(constant)) : 0;
+            if (!word0) word0 = FetchConstantWord(constant, 0);
+            // Where the program fetches this constant's data as texels of
+            // four dwords (Translation::vertexFetchTexels) the data starts
+            // at a multiple of four and a vertex is a whole number of them
+            // long, so the vertex starts at a texel: which, for this fetch
+            // and the mini fetches after it. Otherwise the dword it starts
+            // at, each instruction where it was before there were texels: a
+            // module that differs in nothing but their order is another
+            // module to a driver's pipeline cache.
+            m_fetchTexels = (m_result.vertexFetchTexels[constant / 32] >> (constant % 32)) & 1;
+            const Id base = m_fetchTexels ? 0 : Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(2) });
             if (m_exchange)
                 Module::Emit(m_module.Code(), Op::Store,
                              { m_lastFetchEndian, Emit(Op::BitwiseAnd, m_uint, { word0, m_module.ConstantU(3) }) });
@@ -1661,17 +1789,31 @@ namespace
             Id source = LoadTemp(op.SourceRegister());
             Id indexFloat = Component(source, op.SourceComponent());
             Id index = Emit(Op::ConvertFToU, m_uint, { indexFloat });
-            Id stride = m_module.ConstantU(op.Stride());
-            Module::Emit(m_module.Code(), Op::Store,
-                         { m_lastFetchBase, Emit(Op::IAdd, m_uint,
-                             { base, Emit(Op::IMul, m_uint, { index, stride }) }) });
+            if (m_fetchTexels)
+            {
+                m_dataTexel = Emit(Op::IAdd, m_uint,
+                    { Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(4) }),
+                      Emit(Op::IMul, m_uint, { index, m_module.ConstantU(op.Stride() / 4) }) });
+                m_dataTexels.clear();
+            }
+            else
+            {
+                Id stride = m_module.ConstantU(op.Stride());
+                Module::Emit(m_module.Code(), Op::Store,
+                             { m_lastFetchBase, Emit(Op::IAdd, m_uint,
+                                 { base, Emit(Op::IMul, m_uint, { index, stride }) }) });
+            }
         }
         if (!m_haveFetchBase) { Fail("mini vertex fetch with no preceding full fetch", 0); return; }
 
-        Id address = Emit(Op::Load, m_uint, { m_lastFetchBase });
-        if (op.Offset())
-            address = Emit(Op::IAdd, m_uint,
-                           { address, m_module.ConstantU(uint32_t(op.Offset())) });
+        Id address = 0;
+        if (!m_fetchTexels)
+        {
+            address = Emit(Op::Load, m_uint, { m_lastFetchBase });
+            if (op.Offset())
+                address = Emit(Op::IAdd, m_uint,
+                               { address, m_module.ConstantU(uint32_t(op.Offset())) });
+        }
 
         // A full fetch whose destination swizzle selects nothing exists to compute the
         // address for the mini fetches after it, which carry no format -- which is why
@@ -2301,18 +2443,39 @@ namespace
             const Id encoded = Emit(Op::Bitcast, m_uint,
                                     { Emit(Op::ISub, m_int,
                                            { Emit(Op::Load, m_int, { m_vertexIndex }), baseVertex }) });
-            static_assert(bindings::kTableWords == 2, "an entry is found with a shift");
             const Id slot = Emit(Op::ShiftRightLogical, m_uint,
                                  { encoded, m_module.ConstantU(bindings::kTableIndexBits) });
-            const Id entry = Emit(Op::IAdd, m_uint,
-                                  { Emit(Op::Bitcast, m_uint, { baseVertex }),
-                                    Emit(Op::ShiftLeftLogical, m_uint, { slot, m_module.ConstantU(1) }) });
+            Id base;
             m_result.loads[shader::kLoadDrawTable] += 2;
-            m_record = ArenaWord(entry);
-            Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
+            if (m_texels)
+            {
+                // The entry is two texels of four dwords, the table at a
+                // multiple of four: both fetched here, the second for
+                // nothing where the program reads none of its words, which
+                // a driver drops.
+                static_assert(bindings::kTableTexelWords == 8, "an entry is two texels");
+                const Id texel = Emit(Op::IAdd, m_uint,
+                    { Emit(Op::ShiftRightLogical, m_uint,
+                           { Emit(Op::Bitcast, m_uint, { baseVertex }), m_module.ConstantU(2) }),
+                      Emit(Op::ShiftLeftLogical, m_uint, { slot, m_module.ConstantU(1) }) });
+                m_entry[0] = ArenaWords4(texel);
+                m_entry[1] = ArenaWords4(Emit(Op::IAdd, m_uint, { texel, m_module.ConstantU(1) }));
+                m_record = Emit(Op::CompositeExtract, m_uint, { m_entry[0], 0 });
+                Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
+                base = Emit(Op::CompositeExtract, m_uint, { m_entry[0], 1 });
+            }
+            else
+            {
+                static_assert(bindings::kTableWords == 2, "an entry is found with a shift");
+                const Id entry = Emit(Op::IAdd, m_uint,
+                                      { Emit(Op::Bitcast, m_uint, { baseVertex }),
+                                        Emit(Op::ShiftLeftLogical, m_uint, { slot, m_module.ConstantU(1) }) });
+                m_record = ArenaWord(entry);
+                Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
+                base = ArenaWord(Emit(Op::IAdd, m_uint, { entry, m_module.ConstantU(1) }));
+            }
 
             // The index the title's draw names, which the sequencer puts in r0.x.
-            const Id base = ArenaWord(Emit(Op::IAdd, m_uint, { entry, m_module.ConstantU(1) }));
             const Id index = Emit(Op::IAdd, m_uint,
                                   { base, Emit(Op::BitwiseAnd, m_uint,
                                                { encoded, m_module.ConstantU(
@@ -2738,9 +2901,9 @@ namespace
 
 shader::Translation shader::Translate(Type type, const uint32_t* words, size_t count,
                                       bool scaled, PixelRecord record, PixelConstants constants,
-                                      VertexOrder order)
+                                      VertexOrder order, VertexArena arena)
 {
-    Translator translator(type, words, count, scaled, record, constants, order);
+    Translator translator(type, words, count, scaled, record, constants, order, arena);
     return translator.Run();
 }
 

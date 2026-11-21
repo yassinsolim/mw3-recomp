@@ -356,7 +356,7 @@ namespace vk::renderer::detail
         info.pDynamicState = &state.dynamic;
         info.layout = static_cast<VkPipelineLayout>(vk::pipeline::Layout());
 
-        if (vk::pipeline::ShaderStats()) info.flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+        info.flags |= vk::pipeline::CaptureFlags();
 
         gpu::detail::SetCurrentDrawStage("Draw_EnsurePipeline_vkCreateGraphicsPipelines");
         const auto compileStart = std::chrono::steady_clock::now();

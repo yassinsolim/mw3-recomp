@@ -82,12 +82,20 @@ static void RollbackInitialise()
         g.present[i] = VK_NULL_HANDLE;
         g.presentMemory[i] = VK_NULL_HANDLE;
     }
+    for (State::Slot& slot : g.slots)
+    {
+        for (VkBufferView* view : { &slot.arenaTexels, &slot.arenaTexelWords })
+        {
+            if (*view) vkDestroyBufferView(g.device, *view, nullptr);
+            *view = VK_NULL_HANDLE;
+        }
+        slot.memorySet = VK_NULL_HANDLE;
+    }
     if (g.descriptors)
     {
         vkDestroyDescriptorPool(g.device, g.descriptors, nullptr);
         g.descriptors = VK_NULL_HANDLE;
     }
-    for (State::Slot& slot : g.slots) slot.memorySet = VK_NULL_HANDLE;
 
     gpu::watch::Stop();
     g.shadowBase = 0;
@@ -167,9 +175,12 @@ bool vk::renderer::Initialise()
     vkGetPhysicalDeviceMemoryProperties(g.physical, &g.memory);
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(g.physical, &properties);
+    // A slot's share starts at a multiple of this, so it covers what a texel
+    // buffer view's offset must be a multiple of too.
     g.uniformAlignment = uint32_t(std::max<VkDeviceSize>(
-        std::max(properties.limits.minUniformBufferOffsetAlignment,
-                 properties.limits.minStorageBufferOffsetAlignment), 256));
+        std::max({ properties.limits.minUniformBufferOffsetAlignment,
+                   properties.limits.minStorageBufferOffsetAlignment,
+                   properties.limits.minTexelBufferOffsetAlignment }), 256));
     // An index names its draw table entry above its low kTableIndexBits
     // (bindings.h), so the largest index the device takes says how many
     // entries a table may have: all of them where it is 2^32 - 1, 256 where
@@ -398,6 +409,7 @@ bool vk::renderer::Initialise()
         buffer.size = VkDeviceSize(wanted) + (withShadow ? shadowBytes : 0);
         buffer.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if (vk::pipeline::VertexTexels()) buffer.usage |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
         if (vkCreateBuffer(g.device, &buffer, nullptr, &g.arena) != VK_SUCCESS) continue;
         VkMemoryRequirements needs{};
         vkGetBufferMemoryRequirements(g.device, g.arena, &needs);
@@ -478,12 +490,18 @@ bool vk::renderer::Initialise()
         LOGI("renderer: running in legacy mode without dynamic rendering / dynamic state commands");
     }
 
+    // The pool's sizes in the order the kinds may be absent from the end:
+    // the texels are moved up where there is no uniform block.
     const bool uniformConstants = vk::pipeline::UniformPixelConstants();
-    const VkDescriptorPoolSize sizes[2] = { { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFrameSlots },
-                                            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFrameSlots } };
+    const bool vertexTexels = vk::pipeline::VertexTexels();
+    VkDescriptorPoolSize sizes[3] = { { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFrameSlots },
+                                      { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFrameSlots },
+                                      { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 2 * kFrameSlots } };
+    uint32_t kinds = uniformConstants ? 2 : 1;
+    if (vertexTexels) sizes[kinds++] = sizes[2];
     VkDescriptorPoolCreateInfo descriptors{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
     descriptors.maxSets = kFrameSlots;
-    descriptors.poolSizeCount = uniformConstants ? 2 : 1;
+    descriptors.poolSizeCount = kinds;
     descriptors.pPoolSizes = sizes;
     if (vkCreateDescriptorPool(g.device, &descriptors, nullptr, &g.descriptors) != VK_SUCCESS)
     {
@@ -517,7 +535,7 @@ bool vk::renderer::Initialise()
         // A slot's share ends 4 KB short of its memory, so the range is in
         // bounds wherever the constants are.
         VkDescriptorBufferInfo pixelConstants{ g.arena, slot.arenaBase, bindings::kFloatConstants * 16 };
-        VkWriteDescriptorSet writes[3]{};
+        VkWriteDescriptorSet writes[5]{};
         for (uint32_t i = 0; i < 3; i++)
         {
             writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -533,7 +551,32 @@ bool vk::renderer::Initialise()
         writes[2].dstBinding = bindings::kPixelConstants;
         writes[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         writes[2].pBufferInfo = &pixelConstants;
-        vkUpdateDescriptorSets(g.device, uniformConstants ? 3 : 2, writes, 0, nullptr);
+        uint32_t written = uniformConstants ? 3 : 2;
+        // The share again as texels of four floats and of four dwords; the
+        // shadow is not for a vertex shader to read that way.
+        struct { VkBufferView* view; VkFormat format; uint32_t binding; } const texels[2] = {
+            { &slot.arenaTexels, VK_FORMAT_R32G32B32A32_SFLOAT, bindings::kArenaTexels },
+            { &slot.arenaTexelWords, VK_FORMAT_R32G32B32A32_UINT, bindings::kArenaTexelWords } };
+        for (uint32_t i = 0; vertexTexels && i < 2; i++)
+        {
+            VkBufferViewCreateInfo view{ VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO };
+            view.buffer = g.arena;
+            view.format = texels[i].format;
+            view.offset = slot.arenaBase;
+            view.range = g.arenaSlotBytes;
+            if (vkCreateBufferView(g.device, &view, nullptr, texels[i].view) != VK_SUCCESS)
+            {
+                RollbackInitialise();
+                return false;
+            }
+            writes[written] = writes[0];
+            writes[written].dstBinding = texels[i].binding;
+            writes[written].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+            writes[written].pBufferInfo = nullptr;
+            writes[written].pTexelBufferView = texels[i].view;
+            written++;
+        }
+        vkUpdateDescriptorSets(g.device, written, writes, 0, nullptr);
     }
 
     for (uint32_t i = 0; i < kPresentImages; i++)
@@ -631,6 +674,9 @@ void vk::renderer::Shutdown()
     g.readBack = VK_NULL_HANDLE;
     g.readBackMemory = VK_NULL_HANDLE;
     g.readBackMapped = nullptr;
+    for (State::Slot& slot : g.slots)
+        for (VkBufferView view : { slot.arenaTexels, slot.arenaTexelWords })
+            if (view) vkDestroyBufferView(g.device, view, nullptr);
     if (g.descriptors) vkDestroyDescriptorPool(g.device, g.descriptors, nullptr);
     gpu::watch::Stop();
     g.shadowBase = 0;

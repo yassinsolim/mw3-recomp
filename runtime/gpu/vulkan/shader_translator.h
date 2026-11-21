@@ -51,6 +51,17 @@ namespace shader
         // A draw reads `index * stride + tail` dwords of what a fetch constant
         // points at, which is far less than the extent the constant declares.
         uint32_t vertexFetchStride[96]{}, vertexFetchTail[96]{};
+        // The pairs whose data the program fetches as texels of four dwords
+        // (VertexArena::Texels): the renderer points such a constant at a
+        // multiple of four dwords.
+        uint32_t vertexFetchTexels[3]{};
+        // What the program reads from its draw table entry after the record
+        // and the guest index (VertexArena::Texels, bindings::kHeaderWords),
+        // in the entry's order: a fetch pair's number for the first dword of
+        // that constant as the renderer rewrote it, or bindings::kHeaderBlock
+        // and a block of the constant window for the place of its copy.
+        uint8_t vertexHeader[6]{};
+        uint32_t vertexHeaderWords = 0;
         // Every pair of the fetch window the program reads at all, vertex or
         // texture, a bit each: a draw writes these into the arena and leaves
         // the rest of the window as it found it.
@@ -103,13 +114,30 @@ namespace shader
     // dword as it lies.
     enum class VertexOrder { Guest, Host };
 
+    // How a vertex shader reads the frame arena. Storage: all of it from the
+    // storage buffer, a load a dword, and loads that wait on loads -- the
+    // draw table's entry for the record, the record for where the constant
+    // table and the fetch constants are, those for where a block of
+    // constants and the vertex data are. Texels: through two texel buffer
+    // views of the same memory as well, four floats and four dwords a
+    // texel. A float constant is one fetch; the draw table's entry is two
+    // texels that hold what the vertex loads next (bindings::kHeaderWords);
+    // vertex data the renderer copied is fetched four dwords at a time. It
+    // is for a GPU that reads a storage buffer one dword a fetch, three
+    // instructions each (an Adreno 6xx: Turnip's ir3 has a load of several
+    // only from the 7xx on): there the commonest vertex shader of Modern
+    // Warfare 2's Team Player went from 207 instructions and 45 fetches a
+    // vertex to 99 and 11, and what the vertex computes is not touched.
+    enum class VertexArena { Storage, Texels };
+
     // `words` is the program in host byte order, `count` its length in dwords.
     // `scaled`: the render targets may be larger than the title's, and the
     // shader reads the record's bindings::kRecordScaled.
     Translation Translate(Type type, const uint32_t* words, size_t count, bool scaled = false,
                           PixelRecord record = PixelRecord::Subgroup,
                           PixelConstants constants = PixelConstants::Arena,
-                          VertexOrder order = VertexOrder::Guest);
+                          VertexOrder order = VertexOrder::Guest,
+                          VertexArena arena = VertexArena::Storage);
 
     std::string Describe(const Translation& result);
 }

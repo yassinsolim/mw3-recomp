@@ -31,6 +31,7 @@ bool     vk::pipeline::TextureCompressionBC() { return false; }
 bool     vk::pipeline::SubgroupPixelRecords() { return false; }
 bool     vk::pipeline::UniformPixelConstants() { return false; }
 bool     vk::pipeline::HostOrderVertices() { return false; }
+bool     vk::pipeline::VertexTexels() { return false; }
 void     vk::pipeline::ArenaHasShadow(bool) {}
 bool     vk::pipeline::MirrorClampToEdge() { return false; }
 void     vk::pipeline::NoteFallback(const char*) {}
@@ -53,6 +54,7 @@ std::string vk::pipeline::DeviceId(void*) { return {}; }
 void* vk::pipeline::ChooseDevice(void*, const std::string&, uint32_t*) { return nullptr; }
 bool vk::pipeline::CreationFeedback() { return false; }
 bool vk::pipeline::ShaderStats() { return false; }
+uint32_t vk::pipeline::CaptureFlags() { return 0; }
 void vk::pipeline::LogShaderStats(void*, uint64_t, uint64_t) {}
 bool vk::pipeline::CreateDevice(void*, uint32_t, const char* const*, uint32_t, void**, void**, void*)
 {
@@ -76,6 +78,7 @@ void vk::pipeline::OnDeviceLost(void (*)(const char*)) {}
 #include <string>
 #include <system_error>
 #include <vector>
+#include <unordered_set>
 #ifdef MW2_ANDROID
 #include "../../android/android.h"
 #endif
@@ -119,6 +122,10 @@ namespace
         bool shaderStats = false;
         PFN_vkGetPipelineExecutablePropertiesKHR getExecutableProperties = nullptr;
         PFN_vkGetPipelineExecutableStatisticsKHR getExecutableStatistics = nullptr;
+        // MW2_SHADER_IR=<dir>, with the statistics: the driver's internal
+        // representations of the executables, written there.
+        const char* shaderIr = nullptr;
+        PFN_vkGetPipelineExecutableInternalRepresentationsKHR getExecutableRepresentations = nullptr;
         bool cacheLoaded = false;
         // How large the driver's cache was when it was last written to its
         // file (SaveCache).
@@ -129,6 +136,7 @@ namespace
         bool textureCompressionBC = false;
         bool subgroupPixelRecords = false;
         bool uniformPixelConstants = false;
+        bool vertexTexels = false;
         bool arenaShadow = false;
         // VK_KHR_sampler_mirror_clamp_to_edge is enabled: without it a sampler
         // may not be made with that address mode.
@@ -592,6 +600,35 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
                          : records ? "a draw record a pixel (MW2_PIXEL_RECORDS)"
                                    : "a draw record a pixel (a Mali's default)");
         if (g.uniformPixelConstants) NoteFallback("pixel constants a uniform block");
+        // A vertex shader reading the arena as texels (shader::VertexArena).
+        // An Adreno 6xx under Turnip reads a storage buffer a dword a fetch
+        // -- ir3 has a load of several only from the 7xx on -- and each
+        // fetch is three instructions a vertex, so a vec4 as one texel of
+        // four floats, and a draw table entry or a vertex's data four dwords
+        // a texel, is what a vertex runs. Nothing else has been measured --
+        // not Qualcomm's own driver for the same chip -- so the rest keep
+        // the storage buffer unless MW2_VERTEX_TEXELS=1 says otherwise. A
+        // view has to reach a slot's share of the arena, which is at most
+        // 512 MB, 32 million texels, and the two count against a stage's
+        // sampled images and resources as set 1's images do.
+        {
+            constexpr uint32_t kTexelViews = 2;
+            bool can = properties.limits.maxTexelBufferElements >= (512u << 20) / 16 &&
+                       limits.maxPerStageDescriptorUpdateAfterBindSampledImages >= bindings::kImageCount + kTexelViews &&
+                       limits.maxDescriptorSetUpdateAfterBindSampledImages >= bindings::kImageCount + kTexelViews &&
+                       limits.maxPerStageUpdateAfterBindResources >= kStageResources + kTexelViews;
+            for (VkFormat format : { VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_R32G32B32A32_UINT })
+            {
+                VkFormatProperties texels{};
+                vkGetPhysicalDeviceFormatProperties(physical, format, &texels);
+                can = can && (texels.bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT);
+            }
+            const bool turnip6 = driver.driverID == VK_DRIVER_ID_MESA_TURNIP &&
+                                 std::strstr(properties.deviceName, "Adreno (TM) 6") != nullptr;
+            g.vertexTexels = can && (env::Text("MW2_VERTEX_TEXELS") ? env::Flag("MW2_VERTEX_TEXELS") : turnip6);
+            if (g.vertexTexels)
+                LOGI("vulkan: vertex shaders read the arena as texels: a vec4, a draw table entry, vertex data");
+        }
         enabled.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
         indexing = VkPhysicalDeviceDescriptorIndexingFeatures{
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
@@ -734,8 +771,12 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             vkGetDeviceProcAddr(device, "vkGetPipelineExecutablePropertiesKHR"));
         g.getExecutableStatistics = PFN_vkGetPipelineExecutableStatisticsKHR(
             vkGetDeviceProcAddr(device, "vkGetPipelineExecutableStatisticsKHR"));
+        g.getExecutableRepresentations = PFN_vkGetPipelineExecutableInternalRepresentationsKHR(
+            vkGetDeviceProcAddr(device, "vkGetPipelineExecutableInternalRepresentationsKHR"));
+        g.shaderIr = g.getExecutableRepresentations ? env::Text("MW2_SHADER_IR") : nullptr;
         if (!g.getExecutableProperties || !g.getExecutableStatistics) g.shaderStats = false;
-        else LOGI("vulkan: MW2_SHADER_STATS: the driver's statistics for every pipeline built");
+        else LOGI("vulkan: MW2_SHADER_STATS: the driver's statistics for every pipeline built%s%s",
+                  g.shaderIr ? ", and what it compiled each vertex shader to in " : "", g.shaderIr ? g.shaderIr : "");
     }
     VkQueue made = VK_NULL_HANDLE;
     vkGetDeviceQueue(device, family, 0, &made);
@@ -869,7 +910,7 @@ namespace
         textureBindingFlags.bindingCount = 2;
         textureBindingFlags.pBindingFlags = textureFlags;
 
-        VkDescriptorSetLayoutBinding memory[3]{};
+        VkDescriptorSetLayoutBinding memory[5]{};
         for (uint32_t i = 0; i < 2; i++)
         {
             memory[i].binding = i ? bindings::kArenaFloats : bindings::kArenaBinding;
@@ -886,7 +927,18 @@ namespace
         Set sets[3];
         sets[bindings::kConstantSet] = { nullptr, 0 };    // the constants are in the arena
         sets[bindings::kTextureSet] = { textures, 2 };
-        sets[bindings::kArenaSet] = { memory, g.uniformPixelConstants ? 3u : 2u };
+        // The uniform block is there or not, and the two texel views after it.
+        uint32_t memoryBindings = g.uniformPixelConstants ? 3 : 2;
+        for (uint32_t binding : { bindings::kArenaTexels, bindings::kArenaTexelWords })
+        {
+            if (!g.vertexTexels) break;
+            memory[memoryBindings].binding = binding;
+            memory[memoryBindings].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+            memory[memoryBindings].descriptorCount = 1;
+            memory[memoryBindings].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            memoryBindings++;
+        }
+        sets[bindings::kArenaSet] = { memory, memoryBindings };
         for (uint32_t i = 0; i < 3; i++)
         {
             VkDescriptorSetLayoutCreateInfo info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
@@ -1397,6 +1449,12 @@ bool vk::pipeline::CacheLoaded() { return g.cacheLoaded; }
 void vk::pipeline::SetDevice(const std::string& id) { g_wantedDevice = id; }
 bool vk::pipeline::CreationFeedback() { return g.creationFeedback; }
 bool vk::pipeline::ShaderStats() { return g.shaderStats; }
+uint32_t vk::pipeline::CaptureFlags()
+{
+    if (!g.shaderStats) return 0;
+    return VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR |
+           (g.shaderIr ? VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR : 0);
+}
 
 void vk::pipeline::LogShaderStats(void* pipeline, uint64_t vertexHash, uint64_t pixelHash)
 {
@@ -1454,6 +1512,54 @@ void vk::pipeline::LogShaderStats(void* pipeline, uint64_t vertexHash, uint64_t 
         }
         LOGI("shaderstats: vs %016llx ps %016llx stage %s:%s", (unsigned long long)vertexHash,
              (unsigned long long)pixelHash, stage.c_str(), line.c_str());
+    }
+    // MW2_SHADER_IR=<dir>: what the driver compiled each executable to, as it
+    // offers it (Turnip: the NIR and the ir3 disassembly, binning variant
+    // apart), a file each. Only the first pipeline of a vertex shader: the
+    // question is what a vertex costs, and one pixel shader's linking answers it.
+    if (!g.shaderIr) return;
+    {
+        static std::mutex lock;
+        static std::unordered_set<uint64_t> written;
+        std::lock_guard held(lock);
+        if (!written.insert(vertexHash).second) return;
+    }
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        VkPipelineExecutableInfoKHR which{ VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR };
+        which.pipeline = handle;
+        which.executableIndex = i;
+        uint32_t forms = 0;
+        if (g.getExecutableRepresentations(g.device, &which, &forms, nullptr) != VK_SUCCESS || !forms) continue;
+        const VkPipelineExecutableInternalRepresentationKHR emptyForm{
+            VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INTERNAL_REPRESENTATION_KHR };
+        std::vector<VkPipelineExecutableInternalRepresentationKHR> representations(forms, emptyForm);
+        // Asked twice, as the extension has it: once for the sizes, once for the text.
+        if (g.getExecutableRepresentations(g.device, &which, &forms, representations.data()) < 0) continue;
+        std::vector<std::vector<char>> text(forms);
+        for (uint32_t f = 0; f < forms; ++f)
+        {
+            text[f].resize(representations[f].dataSize);
+            representations[f].pData = text[f].data();
+        }
+        if (g.getExecutableRepresentations(g.device, &which, &forms, representations.data()) < 0) continue;
+        for (uint32_t f = 0; f < forms; ++f)
+        {
+            if (!representations[f].isText) continue;
+            std::string name;
+            token(name, executables[i].name);
+            name += '.';
+            token(name, representations[f].name);
+            for (char& c : name) if (c == '/' || c == '(' || c == ')') c = '-';
+            char path[512];
+            std::snprintf(path, sizeof path, "%s/%016llx_%016llx.%s.txt", g.shaderIr,
+                          (unsigned long long)vertexHash, (unsigned long long)pixelHash, name.c_str());
+            if (FILE* file = std::fopen(path, "wb"))
+            {
+                std::fwrite(text[f].data(), 1, strnlen(text[f].data(), text[f].size()), file);
+                std::fclose(file);
+            }
+        }
     }
 }
 
@@ -1603,6 +1709,7 @@ bool     vk::pipeline::HostOrderVertices()
     return !refused && !g.arenaShadow;
 }
 void     vk::pipeline::ArenaHasShadow(bool has) { g.arenaShadow = has; }
+bool     vk::pipeline::VertexTexels() { return g.vertexTexels; }
 bool     vk::pipeline::MirrorClampToEdge() { return g.mirrorClamp; }
 void     vk::pipeline::NoteFallback(const char* what)
 {

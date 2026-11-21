@@ -893,7 +893,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
             bound.recordAt = at / 4;
             bound.recordValid = true;
         }
-        WriteDrawTable(place, bound.recordAt);
+        WriteDrawTable(place, bound.recordAt, vertex->translation);
     }
 
     if (Timing())
@@ -1082,7 +1082,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     else
     {
         op.count = call.indexCount;
-        op.table = place.table + place.slot * bindings::kTableWords;
+        op.table = place.table + place.slot * TableWords();
         bound.runEnd = UINT32_MAX;
     }
     if (vk::pipeline::ShaderStats()) NoteVertexWeight(call.vertexHash, vertex->translation, op.count);

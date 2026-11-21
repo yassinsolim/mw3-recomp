@@ -139,7 +139,7 @@ arena held, which nothing reads.
 |---|---|
 | 0 | nothing |
 | 1 | every texture and sampler, bound once per command buffer |
-| 2 | the arena as dwords and as vec4, bound once per command buffer; where a pixel shader's float constants are a uniform block ([shaders.md](shaders.md#the-module-interface)), bound again at a draw whose pixel constants are others than the last's |
+| 2 | the arena as dwords and as vec4, bound once per command buffer; where a pixel shader's float constants are a uniform block ([shaders.md](shaders.md#the-module-interface)), bound again at a draw whose pixel constants are others than the last's; where a vertex shader reads the arena as texels, the slot's share twice more as texel buffer views |
 
 A draw's record says where each of its five constant blocks is in the arena
 ([shaders.md](shaders.md#the-module-interface)). Consecutive draws whose
@@ -159,6 +159,22 @@ The title's 16-bit indices are written in one pass with a base of zero; its
 write. No pipeline has primitive restart on: a 16-bit 0xFFFF is vertex 65,535
 as it always was, and a 32-bit 0xFFFFFFFF, which would name an entry outside
 the table, becomes the draw's lowest vertex.
+
+Where the vertex shaders read the arena as texels (an Adreno 6xx under Turnip,
+[shaders.md](shaders.md#the-module-interface)) an entry is eight dwords at a
+multiple of four: the same two, and six that hold what the draw's vertex
+program would otherwise load through the record -- the first dword of each
+vertex fetch constant it names and the place of each block of float
+constants it reads -- written from what the draw has just put in the arena
+(`WriteDrawTable`; the fetch constants' first dwords are kept beside the
+block as it is written, the arena not being memory to read back). A fetch
+constant whose data such a program fetches four dwords a texel is pointed at
+a multiple of four dwords: a copy made for the draw is one, the arena's
+alignment being coarser and such a vertex a whole number of texels long; a
+kept window whose buffer is not sixteen bytes' multiple from its range's
+start, or a copy another slot of the draw made, may not be, and the draw
+then copies its own. The fetch block is kept for the next draw only if that
+draw wants the same constants at texels.
 
 - **Float constants.** Each stage reads 256 from its `SQ_VS_CONST` /
   `SQ_PS_CONST` base. A pixel program's window is copied as far as the shader
