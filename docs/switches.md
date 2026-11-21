@@ -120,7 +120,7 @@ walking to it.
 | `MW2_TRACE_ERRORS=1` | the guest call stack under every `Com_Error`; one wrapper raises every error, so the message alone does not say where it came from |
 | `MW2_TRACE_CBUF=1` | every command queued to the title's console, which shows what a menu runs |
 | `MW2_TRACE_BOTS=1` | the bots: the menus' names, each menu answer, where every bot is and what it is doing every five seconds, and each target that went down while a bot fired at it |
-| `MW2_TRACE_MATCH=1` | Modern Warfare 3's multiplayer, on the host: at every landing, how long the player was in the air, how high it rose, how fast it was moving, which way it faced and how far down it looked -- what the `MW2_MATCH_` options and `MW2_FOV`'s turn rate come to |
+| `MW2_TRACE_MATCH=1` | Modern Warfare 3's multiplayer, on the host: at every landing, how long the player was in the air, how high it rose, how fast it was moving, which way it faced, how far down it looked and where it landed -- what the `MW2_MATCH_` options and `MW2_FOV`'s turn rate come to, and where a player stands |
 | `MW2_TRACE_POINTER=1` | Windows, Modern Warfare 3: each menu the mouse points in, with the items that can be chosen and their rectangles on the frame, and every item the pointer gives the focus |
 | `MW2_TRACE_FILES=1` | every file opened, read and written. The files asked for and not found are listed at exit regardless |
 | `MW2_TRACE_XMA=1` | every XMA decoder kick with its buffers, and FFmpeg's log |

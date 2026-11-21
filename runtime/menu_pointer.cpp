@@ -23,6 +23,7 @@
 
 #include <bit>
 #include <cstdint>
+#include <cstring>
 #include <utility>
 
 #if defined(_WIN32) && defined(T_UI_ItemSetFocus)
@@ -184,9 +185,17 @@ menu_pointer::Under menu_pointer::At(PPCContext& ctx, uint8_t* base, float x, fl
     return choice ? Under::Nothing : Under::NoChoice;
 }
 
+bool menu_pointer::OverWorld(uint8_t* base)
+{
+    const uint32_t menu = FocusedMenu(base);
+    const uint32_t name = menu ? PPC_LOAD_U32(menu + kMenuWindow) : 0;
+    return name && std::strcmp(reinterpret_cast<const char*>(base + name), "scoreboard") == 0;
+}
+
 #else
 
 bool menu_pointer::There() { return false; }
 menu_pointer::Under menu_pointer::At(PPCContext&, uint8_t*, float, float) { return Under::NoChoice; }
+bool menu_pointer::OverWorld(uint8_t*) { return false; }
 
 #endif
