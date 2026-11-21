@@ -4,6 +4,34 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-11-21
+
+### Highlights
+The game package built for v0.1.0 goes on working: there is nothing to
+build again.
+
+- **Faster on every Adreno.** The shaders read their data in fewer, wider
+  fetches. AYN Thor at 120 Hz: Modern Warfare 3's Survival 87 to 108 frames
+  a second, Modern Warfare 2's S.S.D.D. opening 100 to 106. Retroid Pocket
+  Flip 2: Team Player's flight 53 to 59.5, and Survival 46 to 58 with the
+  limit set to 60.
+- **Modern Warfare 2 starts at 60 on an Adreno 6xx**, not 30, with an
+  832x480 scene, and holds it on S.S.D.D., Terminal and Rust.
+- **No missing scenery**: Team Player lost its sky and far buildings in
+  some frames, on both devices.
+- **Compiled shaders are kept and used again.** The driver's cache was
+  dropped whole past 64 MB and every pipeline compiled again. It is now
+  several files under that budget; a second run compiles next to nothing.
+- **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
+  models sooner, for more frames a second. The console's by default.
+- **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
+  unfinished are not offered.
+- **A smaller game package**: Modern Warfare 2's is 40 MB, not 98, when
+  next built on a PC that had built both games.
+- **Mali**: a Mali-G57 or newer meets every requirement on paper; none has
+  run the games yet. A G52, G72 or G76 is refused.
+- **Windows build**: the mouse aims as a mouse does and works the menus.
+
 ### Changed
 - **No draw is skipped for want of frame arena**
   ([docs/rendering.md](docs/rendering.md#a-frame-larger-than-its-slots-share)).
@@ -54,44 +82,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   it. In the world the wheel switches weapon.
 - **Escape** opens the pause menu (Start) in the world and goes back (B) in
   a menu; it was the Back button. Tab and Backspace still are.
-
-### Added
-- `MW2_COUNT_PRIMITIVES=1`: at exit, the draws and triangles of a frame in
-  play, by culling, pass and size of draw.
-- `MW2_INPUT_SCRIPT` takes the mouse on Windows (`at<x>/<y>`, `click`,
-  `turn<dx>/<dy>`), `MW2_TRACE_POINTER` lists what a menu offers the
-  pointer, and `MW2_TRACE_MATCH` says how far down a player looks
-  ([docs/switches.md](docs/switches.md)).
-
-## [v0.1.1] - 2026-11-21
-
-### Highlights
-The game package built for v0.1.0 goes on working: there is nothing to
-build again.
-
-- **Modern Warfare 2 is faster.** An AYN Thor at 120 Hz flies S.S.D.D. at
-  116 frames a second. An Adreno 6xx (Retroid Pocket Flip 2) starts at 60
-  instead of 30, with an 832x480 scene, and holds 59 on S.S.D.D., Terminal
-  and Rust.
-- **Adreno 6xx**: vertex shaders are about half the instructions. On the
-  Flip 2 Team Player's flight went from 53 to 56 frames a second, and
-  Modern Warfare 3 has 1.5 to 2 ms less of GPU a frame.
-- **Vertex data in host byte order**: a few frames a second more in both
-  games on Turnip, and the same picture.
-- **Compiled shaders are kept and used again.** The driver's cache was
-  dropped whole past 64 MB and every pipeline compiled again. It is now
-  several files under that budget; a second run compiles next to nothing.
-- **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
-  models sooner, for more frames a second. The console's by default.
-- **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
-  unfinished are not offered.
-- **A smaller game package**: Modern Warfare 2's is 40 MB, not 98, when
-  next built on a PC that had built both games.
-- **Retroid Pocket Flip 2**: Team Player's sky and far buildings are drawn.
-- **Mali**: a Mali-G57 or newer meets every requirement on paper; none has
-  run the games yet. A G52, G72 or G76 is refused.
-
-### Changed
 - **A vertex shader on an Adreno 6xx reads the frame arena as texels**
   ([docs/shaders.md](docs/shaders.md#the-module-interface),
   `MW2_VERTEX_TEXELS=0|1`; the default there under Turnip, off elsewhere,
@@ -216,6 +206,12 @@ build again.
   others unless `MW2_MAP_VOTE_MODES` said which.
 
 ### Added
+- `MW2_COUNT_PRIMITIVES=1`: at exit, the draws and triangles of a frame in
+  play, by culling, pass and size of draw.
+- `MW2_INPUT_SCRIPT` takes the mouse on Windows (`at<x>/<y>`, `click`,
+  `turn<dx>/<dy>`), `MW2_TRACE_POINTER` lists what a menu offers the
+  pointer, and `MW2_TRACE_MATCH` says how far down a player looks
+  ([docs/switches.md](docs/switches.md)).
 - `MW2_SHADER_IR=<dir>` (with `MW2_SHADER_STATS=1`): what the driver
   compiled each vertex shader to, a file each -- on Turnip the NIR and the
   ir3 assembly, binning variant apart.
