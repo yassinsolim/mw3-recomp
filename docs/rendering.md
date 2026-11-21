@@ -139,7 +139,7 @@ arena held, which nothing reads.
 |---|---|
 | 0 | nothing |
 | 1 | every texture and sampler, bound once per command buffer |
-| 2 | the arena as dwords and as vec4, bound once per command buffer; where a pixel shader's float constants are a uniform block ([shaders.md](shaders.md#the-module-interface)), bound again at a draw whose pixel constants are others than the last's; where a vertex shader reads the arena as texels, the slot's share twice more as texel buffer views |
+| 2 | the arena as dwords and as vec4, bound once per command buffer; where a pixel shader's float constants are a uniform block ([shaders.md](shaders.md#the-module-interface)), bound again at a draw whose pixel constants are others than the last's; where a stage's shaders read the arena as texels, the slot's share twice more as texel buffer views |
 
 A draw's record says where each of its five constant blocks is in the arena
 ([shaders.md](shaders.md#the-module-interface)). Consecutive draws whose
@@ -175,6 +175,15 @@ kept window whose buffer is not sixteen bytes' multiple from its range's
 start, or a copy another slot of the draw made, may not be, and the draw
 then copies its own. The fetch block is kept for the next draw only if that
 draw wants the same constants at texels.
+
+Where the pixel shaders read the arena as texels (the same devices, the same
+section) a record holds a texel for each slot the pixel shader samples
+instead of a word: the word, the fetch constant's LOD bias and exponent
+adjust, and one over the size of the image's level 0, which the texture cache
+keeps with each image (`vk::textures::Handle`; a resolve's copy is adopted
+with its image's size). `TexturesFor` writes them, from the register file's
+fetch constants and the slots' images, so the pixel shader's fetch constants
+are not copied into the arena at all.
 
 - **Float constants.** Each stage reads 256 from its `SQ_VS_CONST` /
   `SQ_PS_CONST` base. A pixel program's window is copied as far as the shader

@@ -5,6 +5,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **A pixel shader on an Adreno 6xx reads its draw's record as texels**
+  ([docs/shaders.md](docs/shaders.md#the-module-interface),
+  `MW2_PIXEL_TEXELS=0|1`; the default there under Turnip, off elsewhere,
+  where a module is the same bytes as before). A lit surface's pixel shader
+  fetched 26 to 44 single dwords of the storage buffer a pixel, asked each
+  texture its size and computed a reciprocal pair and an `exp2` for it. The
+  record now holds one texel a texture with the slot's word, the fetch
+  constant's LOD bias and exponent adjust and one over the image's size,
+  and the alpha test's four words are one fetch. On the Retroid Pocket
+  Flip 2, Modern Warfare 2's Team Player holds 59 to 60 frames a second at
+  its heavy views for 48 to 51 (15.3 ms of GPU a frame for 18.5), and its
+  flight is 59.5 with 87.9% of the frames on time for 56.6 and 69.3%, its
+  first half 59 for 51; S.S.D.D., Terminal and Rust hold 59.9 to 60.0. The
+  picture is the same. Modern Warfare 3 there: Survival with the limit at
+  60 is 58.2 frames a second for 46.1 and Black Tuesday's opening 55.8 for
+  46.3; at its limit of 30 it holds 30 with 6 to 7 ms less of GPU a frame.
 - **Windows: the mouse is a mouse** ([docs/runtime.md](docs/runtime.md#the-mouse)).
   It turned the view by driving the right stick, through the title's
   response curve and turn acceleration: a thousand counts in a second
@@ -21,6 +37,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   a menu; it was the Back button. Tab and Backspace still are.
 
 ### Added
+- `MW2_COUNT_PRIMITIVES=1`: at exit, the draws and triangles of a frame in
+  play, by culling, pass and size of draw.
 - `MW2_INPUT_SCRIPT` takes the mouse on Windows (`at<x>/<y>`, `click`,
   `turn<dx>/<dy>`), `MW2_TRACE_POINTER` lists what a menu offers the
   pointer, and `MW2_TRACE_MATCH` says how far down a player looks

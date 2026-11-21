@@ -575,6 +575,45 @@ bundled Turnip v27.0.0-R2. The reasons are in
 - The device charged at 6 to 10% an hour; the runs were made between 20
   and 28%.
 
+### Team Player at 60 on the Flip 2: the pixel shaders' record as texels
+
+The same device and driver, `.dev` builds. The reasons are in
+[shaders.md](shaders.md#the-module-interface), the tables in
+[android.md](android.md#modern-warfare-2-there-60-frames-a-second).
+
+- **Tried, in the order of what it gave.** The pixel shaders' fetches
+  (kept, below). The vertex shader without the window transform: the scene
+  11.2 ms against 11.3, nothing one run does not differ from the next by;
+  not kept. Primitives: counted (`MW2_COUNT_PRIMITIVES`), 860,000 triangles
+  in 8,200 draws a frame, 91% with back faces culled as the title's
+  `PA_SU_SC_MODE_CNTL` says, draws of one or two triangles 537 a frame with
+  927 triangles between them; nothing to take away.
+- **`MW2_PIXEL_TEXELS`**, the default on an Adreno 6xx under Turnip. A
+  pixel fetched 26 to 44 single dwords of the storage buffer in a lit
+  surface's shader, asked each texture its size and took two reciprocals
+  and an `exp2` a texture. The record now holds a texel a texture with the
+  slot's word, the LOD bias, the exponent adjust and one over the size.
+  Team Player's heavy views 48 to 51 frames a second without, 59 to 60
+  with; the frame 18.3 to 19.1 ms of GPU, 15.2 to 15.4; its flight 59.5
+  frames a second with 87.9% on time and a first half of 59.0, for 56.6,
+  69.3% and 51. S.S.D.D. five minutes 59.9 and 93.4%, Terminal 60.0 and
+  97.5%, Rust 59.9 and 95.6%.
+- **The picture.** Four fixed views of S.S.D.D. against the captures
+  without from earlier in the day: 66.9 to 92.6% of the pixels the same to
+  the bit, 65.6 to 94.6% between two runs without, and the differences in
+  the same places.
+- **Modern Warfare 3 with it**, the same day, against
+  `MW2_PIXEL_TEXELS=0` in one `.dev` build with the cache warm for each:
+  Survival on Resistance at the limit of 30, 30.0 frames a second both
+  ways, 24.2 ms of GPU a frame without and 18.2 with; with the limit at 60,
+  46.1 frames a second and 58.2 (21.6 ms; 16.6). Black Tuesday's opening
+  29.8 and 30.0 (22.9 ms; 15.9), and 46.3 and 55.8 at 60 (20.1 ms; 15.0).
+  No renderer error; the picture differs with and without by what two runs
+  of one way differ by. The `.dev` app and the copy of its files are off
+  the device again.
+- The device stopped charging at 22% (a restart set it going) and was off
+  `adb` for a while; the Modern Warfare 3 runs were made once it was back.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

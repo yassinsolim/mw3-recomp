@@ -32,6 +32,7 @@ bool     vk::pipeline::SubgroupPixelRecords() { return false; }
 bool     vk::pipeline::UniformPixelConstants() { return false; }
 bool     vk::pipeline::HostOrderVertices() { return false; }
 bool     vk::pipeline::VertexTexels() { return false; }
+bool     vk::pipeline::PixelTexels() { return false; }
 void     vk::pipeline::ArenaHasShadow(bool) {}
 bool     vk::pipeline::MirrorClampToEdge() { return false; }
 void     vk::pipeline::NoteFallback(const char*) {}
@@ -137,6 +138,7 @@ namespace
         bool subgroupPixelRecords = false;
         bool uniformPixelConstants = false;
         bool vertexTexels = false;
+        bool pixelTexels = false;
         bool arenaShadow = false;
         // VK_KHR_sampler_mirror_clamp_to_edge is enabled: without it a sampler
         // may not be made with that address mode.
@@ -628,6 +630,14 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
             g.vertexTexels = can && (env::Text("MW2_VERTEX_TEXELS") ? env::Flag("MW2_VERTEX_TEXELS") : turnip6);
             if (g.vertexTexels)
                 LOGI("vulkan: vertex shaders read the arena as texels: a vec4, a draw table entry, vertex data");
+            // The pixel shaders' side of it (shader::PixelArena): a lit
+            // surface's read 26 to 44 dwords of the storage buffer a pixel
+            // there, three for each texture it samples and four for the
+            // alpha test, and asked each texture its size.
+            g.pixelTexels = can && (env::Text("MW2_PIXEL_TEXELS") ? env::Flag("MW2_PIXEL_TEXELS") : turnip6);
+            if (g.pixelTexels)
+                LOGI("vulkan: pixel shaders read the arena as texels: the alpha test, and a texel of the record"
+                     " for each texture");
         }
         enabled.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
         indexing = VkPhysicalDeviceDescriptorIndexingFeatures{
@@ -927,15 +937,17 @@ namespace
         Set sets[3];
         sets[bindings::kConstantSet] = { nullptr, 0 };    // the constants are in the arena
         sets[bindings::kTextureSet] = { textures, 2 };
-        // The uniform block is there or not, and the two texel views after it.
+        // The uniform block is there or not, and the two texel views after
+        // it, for the stages that read them.
         uint32_t memoryBindings = g.uniformPixelConstants ? 3 : 2;
         for (uint32_t binding : { bindings::kArenaTexels, bindings::kArenaTexelWords })
         {
-            if (!g.vertexTexels) break;
+            if (!g.vertexTexels && !g.pixelTexels) break;
             memory[memoryBindings].binding = binding;
             memory[memoryBindings].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
             memory[memoryBindings].descriptorCount = 1;
-            memory[memoryBindings].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            memory[memoryBindings].stageFlags = (g.vertexTexels ? VK_SHADER_STAGE_VERTEX_BIT : 0u) |
+                                                (g.pixelTexels ? VK_SHADER_STAGE_FRAGMENT_BIT : 0u);
             memoryBindings++;
         }
         sets[bindings::kArenaSet] = { memory, memoryBindings };
@@ -1710,6 +1722,7 @@ bool     vk::pipeline::HostOrderVertices()
 }
 void     vk::pipeline::ArenaHasShadow(bool has) { g.arenaShadow = has; }
 bool     vk::pipeline::VertexTexels() { return g.vertexTexels; }
+bool     vk::pipeline::PixelTexels() { return g.pixelTexels; }
 bool     vk::pipeline::MirrorClampToEdge() { return g.mirrorClamp; }
 void     vk::pipeline::NoteFallback(const char* what)
 {

@@ -39,6 +39,11 @@ namespace shader
         // What each sampled slot is declared as: 0 a 2D image, 1 a cube map,
         // 2 a 3D image. A view of another kind is invalid there.
         uint8_t textureKinds[32]{};
+        // For a pixel program that reads the arena as texels
+        // (PixelArena::Texels): the texels its slots take in a draw's
+        // record, one a slot and two for a volume
+        // (bindings::kRecordPixelTexels).
+        uint32_t textureTexels = 0;
         uint32_t vertexFetchMask = 0;       // fetch constant groups read
         // A group of six dwords is either one texture constant or three vertex
         // ones, so the group mask alone names slots the program never reads --
@@ -130,6 +135,23 @@ namespace shader
     // vertex to 99 and 11, and what the vertex computes is not touched.
     enum class VertexArena { Storage, Texels };
 
+    // How a pixel shader reads its draw's record and what it samples a slot
+    // with. Storage: from the storage buffer, a load a dword -- the alpha
+    // test's four words, and for each slot its word of the record and two
+    // dwords of the fetch constant, found through another word of the
+    // record -- and it asks each image its size, to turn the title's half
+    // texels into coordinates. Texels: through the texel buffer view of
+    // four dwords a texel. The alpha test's words are one fetch, and a slot
+    // is one texel of the record that the renderer fills with the slot's
+    // word, the constant's LOD bias and exponent adjust and one over the
+    // image's size (bindings::kRecordPixelTexels), so a pixel neither loads
+    // the fetch constants nor asks a size. For the GPU VertexArena::Texels
+    // is for: a lit surface's pixel shader in Team Player ran 26 to 44 such
+    // fetches for seven to thirteen textures. It applies to both stages:
+    // a vertex shader that samples finds its own slots' words elsewhere in
+    // the record (bindings::kRecordTexelVertexTextures).
+    enum class PixelArena { Storage, Texels };
+
     // `words` is the program in host byte order, `count` its length in dwords.
     // `scaled`: the render targets may be larger than the title's, and the
     // shader reads the record's bindings::kRecordScaled.
@@ -137,7 +159,8 @@ namespace shader
                           PixelRecord record = PixelRecord::Subgroup,
                           PixelConstants constants = PixelConstants::Arena,
                           VertexOrder order = VertexOrder::Guest,
-                          VertexArena arena = VertexArena::Storage);
+                          VertexArena arena = VertexArena::Storage,
+                          PixelArena pixels = PixelArena::Storage);
 
     std::string Describe(const Translation& result);
 }

@@ -124,6 +124,12 @@ namespace vk::pipeline
     // under Turnip, which loads a storage buffer a dword at a time, and as
     // MW2_VERTEX_TEXELS says where the device has such views.
     bool     VertexTexels();
+    // Whether pixel shaders read their draw's record and what they sample a
+    // slot with as texels of the same views (shader::PixelArena::Texels; a
+    // record then holds bindings::kRecordPixelTexels): by default on an
+    // Adreno 6xx under Turnip, and as MW2_PIXEL_TEXELS says where the device
+    // has such views.
+    bool     PixelTexels();
     // Whether a sampler may be made with the mirror-once address mode
     // (VK_KHR_sampler_mirror_clamp_to_edge).
     bool     MirrorClampToEdge();

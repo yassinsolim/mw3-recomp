@@ -514,7 +514,7 @@ namespace vk::renderer::detail
             VkPipeline pipeline = VK_NULL_HANDLE;
             // The last draw's record, and where it is: the next draw names the
             // same one when nothing in it differs.
-            uint32_t record[bindings::kRecordWords]{};
+            uint32_t record[bindings::kRecordMostWords]{};
             uint32_t recordWords = 0, recordAt = 0;
             bool recordValid = false;
             VkViewport viewport{};
@@ -792,6 +792,18 @@ namespace vk::renderer::detail
         return on;
     }
 
+    // MW2_COUNT_PRIMITIVES=1: what the draws of the frames in play are made
+    // of -- triangles a frame, by the culling they are drawn with, by pass
+    // (depth alone or with colour) and by the size of their draw, and how
+    // many draws join a run with other textures or another alpha test than
+    // the draw before -- reported at the end of the run. Through env::, as
+    // MW2_NO_MERGE is.
+    inline bool CountingPrimitives()
+    {
+        static const bool on = env::Flag("MW2_COUNT_PRIMITIVES");
+        return on;
+    }
+
     // MW2_ASYNC_PIPELINES=1: a pipeline never built before is compiled by a
     // worker and its draws are skipped until it is there, instead of the
     // consumer stopping for it. The Android app turns it on by default (its
@@ -991,6 +1003,12 @@ namespace vk::renderer::detail
     // that reaches the recorder; reported at the end of the run.
     void NoteVertexWeight(uint64_t vertexHash, const shader::Translation& program, uint32_t vertices);
     void ReportVertexWeight();
+    // MW2_COUNT_PRIMITIVES=1: one draw that reached the recorder. `corners`
+    // is its index count; `pixelStateChanged`, that its record's alpha test
+    // or pixel texture handles are not those of the draw before.
+    void NotePrimitives(VkPrimitiveTopology topology, uint32_t corners, uint32_t modeCntl, bool depthOnly,
+                        bool joins, bool pixelStateChanged);
+    void ReportPrimitives();
 
     // The depth and stencil tests RB_DEPTHCONTROL asks for, as dynamic state.
     struct DepthTests

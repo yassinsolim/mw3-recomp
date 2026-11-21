@@ -36,7 +36,7 @@
 int main(int argc, char** argv)
 {
     bool compile = false, pixelRecords = false, uniformConstants = false, hostOrder = false, scaled = false;
-    bool vertexTexels = false;
+    bool vertexTexels = false, pixelTexels = false;
     int arg = 1;
     for (; arg < argc && std::strncmp(argv[arg], "--", 2) == 0; arg++)
     {
@@ -45,6 +45,7 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[arg], "--uniform-constants") == 0) uniformConstants = true;
         else if (std::strcmp(argv[arg], "--host-order") == 0) hostOrder = true;
         else if (std::strcmp(argv[arg], "--vertex-texels") == 0) vertexTexels = true;
+        else if (std::strcmp(argv[arg], "--pixel-texels") == 0) pixelTexels = true;
         else if (std::strcmp(argv[arg], "--scaled") == 0) scaled = true;
         else { std::fprintf(stderr, "translate-shader: no switch %s\n", argv[arg]); return 2; }
     }
@@ -85,7 +86,8 @@ int main(int argc, char** argv)
                                                      : shader::PixelConstants::Arena,
                                     hostOrder ? shader::VertexOrder::Host : shader::VertexOrder::Guest,
                                     vertexTexels ? shader::VertexArena::Texels
-                                                 : shader::VertexArena::Storage);
+                                                 : shader::VertexArena::Storage,
+                                    pixelTexels ? shader::PixelArena::Texels : shader::PixelArena::Storage);
 
     std::printf("%-40s %s\n", path.c_str(), shader::Describe(result).c_str());
     if (!result.ok) return 1;
