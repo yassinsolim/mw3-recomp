@@ -602,10 +602,17 @@ The same device and driver, `.dev` builds. The reasons are in
   without from earlier in the day: 66.9 to 92.6% of the pixels the same to
   the bit, 65.6 to 94.6% between two runs without, and the differences in
   the same places.
-- **Not done.** Modern Warfare 3 with it on this device (its `.dev` app
-  and a copy of its files were installed for the run and are still there):
-  the device stopped charging at 22% -- a restart set it charging again --
-  and then was gone from `adb`. No other GPU has run the form.
+- **Modern Warfare 3 with it**, the same day, against
+  `MW2_PIXEL_TEXELS=0` in one `.dev` build with the cache warm for each:
+  Survival on Resistance at the limit of 30, 30.0 frames a second both
+  ways, 24.2 ms of GPU a frame without and 18.2 with; with the limit at 60,
+  46.1 frames a second and 58.2 (21.6 ms; 16.6). Black Tuesday's opening
+  29.8 and 30.0 (22.9 ms; 15.9), and 46.3 and 55.8 at 60 (20.1 ms; 15.0).
+  No renderer error; the picture differs with and without by what two runs
+  of one way differ by. The `.dev` app and the copy of its files are off
+  the device again.
+- The device stopped charging at 22% (a restart set it going) and was off
+  `adb` for a while; the Modern Warfare 3 runs were made once it was back.
 
 ## Build (WSL2 Ubuntu 24.04)
 

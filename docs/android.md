@@ -285,11 +285,28 @@ Modern Warfare 2 is lighter, and on this class it starts with the cap at 60 (`Pr
   | Team Player's two steady heavy views, frames a second | 48.6, 51.4; 51.2, 47.8 | 59.5, 59.1; 59.8, 59.5 |
   | GPU ms a frame there (the scene) | 18.3 (13.0), 19.1 (13.9) | 15.2 (11.2), 15.4 (11.3) |
   | the 1280x720 passes after the scene, GPU ms | 2.94 | 1.73 |
-  | Team Player's flight: frames a second, on time (the day before; today) | 56.6, 69.3% | 59.5, 87.9% |
+  | Team Player's flight: frames a second, on time (without: the build before) | 56.6, 69.3% | 59.5, 87.9% |
   | its first half | 51.2, 49.6 | 59.0 |
   | its worst ten seconds | 48.8, 46.8 | 57.3 |
 
-  The table above has S.S.D.D., Terminal and Rust with it. The picture: four fixed views of S.S.D.D. against the day before's captures without, 66.9 to 92.6% of the pixels the same to the bit, 65.6 to 94.6% between two runs without, the differences in the same places (what moves). Without the switch the modules are the bytes they were: the build found all 1,133 pipelines of the cache made before the change. Counted on the way (`MW2_COUNT_PRIMITIVES`): a frame there is 8,200 draws and 860,000 triangles, 43% of them drawn for depth alone, 91% with back faces culled and 9% with none, as the title sets it; 537 draws are of one or two triangles and hold 927 triangles, so small draws are not where the triangles are. 525 of the 7,100 draws that join a run come with other textures or another alpha test, which is what handing the record to the pixel shader as a uniform block would cost in hardware draws; it was not built. The vertex shader without the window transform (a test build that left it out of every shader that reads a constant): the scene 11.2 ms against 11.3, inside what one run differs from the next, so there is no second form of the vertex shaders. Modern Warfare 3 was not run with the pixel texels on this device: it stopped charging and then left `adb` before that run.
+  The table above has S.S.D.D., Terminal and Rust with it. The picture: four fixed views of S.S.D.D. against that morning's captures without, 66.9 to 92.6% of the pixels the same to the bit, 65.6 to 94.6% between two runs without, the differences in the same places (what moves). Without the switch the modules are the bytes they were: the build found all 1,133 pipelines of the cache made before the change. Counted on the way (`MW2_COUNT_PRIMITIVES`): a frame there is 8,200 draws and 860,000 triangles, 43% of them drawn for depth alone, 91% with back faces culled and 9% with none, as the title sets it; 537 draws are of one or two triangles and hold 927 triangles, so small draws are not where the triangles are. 525 of the 7,100 draws that join a run come with other textures or another alpha test, which is what handing the record to the pixel shader as a uniform block would cost in hardware draws; it was not built. The vertex shader without the window transform (a test build that left it out of every shader that reads a constant): the scene 11.2 ms against 11.3, inside what one run differs from the next, so there is no second form of the vertex shaders.
+
+  Modern Warfare 3 with and without (`MW2_PIXEL_TEXELS=0`), one `.dev` build, the cache warm for each, the levels started from the menus as above:
+
+  | | without | with |
+  |---|---|---|
+  | Survival on Resistance, limit 30: frames a second | 30.0 | 30.0 |
+  | frames within two display periods | 91.8% | 91.5% |
+  | GPU ms a frame (the scene) | 24.2 (16.9) | 18.2 (12.1) |
+  | the same, limit 60: frames a second | 46.1 | 58.2 |
+  | GPU ms a frame (the scene) | 21.6 (15.2) | 16.6 (11.2) |
+  | Black Tuesday's opening, limit 30: frames a second | 29.8 | 30.0 |
+  | frames within two display periods | 90.4% | 91.2% |
+  | GPU ms a frame (the scene) | 22.9 (17.8) | 15.9 (11.6) |
+  | the same, limit 60: frames a second | 46.3 | 55.8 |
+  | GPU ms a frame (the scene) | 20.1 (15.5) | 15.0 (11.2) |
+
+  No renderer error either way, the draws skipped of the same kinds. The picture: the menus' mean difference of a pixel's channels is 0.03 to 0.2 of 255 with and without, 0.05 to 0.6 between two runs of one way; in play (the weapon sways, the fires burn) 5.4 to 15 in Black Tuesday with and without against 4.0 to 17 and 4.8 to 22 between two runs of one way, and Survival's first spawn likewise.
 - **Threads.** On the 865 the ring consumer has the prime core (cpu 7) to itself, and the title's threads, the recorder, the workers and the audio the three other Cortex-A77 (4 to 6). The one thread on the Cortex-A55 was the warm-up worker, at 44% of one: it wrote the driver's whole pipeline cache, 10 MB and more, to its file after every five pipelines it found there already, 147 times in a hundred seconds. It is written now when it has grown.
 - **Joined segments** (`MW2_JOIN_SEGMENTS`, from the Thor's work) measure the same here, 13.8 against 13.6 ms: Turnip draws these passes in system memory, where a pass boundary costs little.
 - **The sun's shadows** are 6 ms a frame after all of the above (21.5 ms with them at the console's scene, 15.3 without): 1.7 ms drawing the two cascades' 790 draws, 2.7 ms clearing and copying the 1024x2048 map between its passes, the rest resolves and the scene's own sampling. They stay off at 60; `MW2_SHADOWS=1` with the cap at 30 holds 30.

@@ -18,7 +18,9 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   its heavy views for 48 to 51 (15.3 ms of GPU a frame for 18.5), and its
   flight is 59.5 with 87.9% of the frames on time for 56.6 and 69.3%, its
   first half 59 for 51; S.S.D.D., Terminal and Rust hold 59.9 to 60.0. The
-  picture is the same. Modern Warfare 3 has not run with it yet.
+  picture is the same. Modern Warfare 3 there: Survival with the limit at
+  60 is 58.2 frames a second for 46.1 and Black Tuesday's opening 55.8 for
+  46.3; at its limit of 30 it holds 30 with 6 to 7 ms less of GPU a frame.
 - **Windows: the mouse is a mouse** ([docs/runtime.md](docs/runtime.md#the-mouse)).
   It turned the view by driving the right stick, through the title's
   response curve and turn acceleration: a thousand counts in a second
