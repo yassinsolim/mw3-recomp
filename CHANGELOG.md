@@ -240,7 +240,8 @@ again.
   after the surface's two lines: no crash, but the app showing "The game
   code is not on this device" after Install & Play, with nothing logged.
   The log now has `app: the run was not started: ...`, and Install & Play
-  says the game code is missing instead of starting a run that cannot go.
+  and the launcher's Multiplayer entry say the game code is missing instead
+  of starting a run that cannot go.
 - **A fault's report reaches the log before the process ends**
   (`runtime/crash.cpp`, `runtime/android/log.cpp`). On Android it is printed
   through a pipe another thread reads into `game.log`, and the process

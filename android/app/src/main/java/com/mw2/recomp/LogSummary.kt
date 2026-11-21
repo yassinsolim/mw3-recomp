@@ -36,6 +36,9 @@ object LogSummary {
     /** One line, so a dumped buffer cannot fill the screen it is shown on. */
     private const val kLineLength = 200
 
+    /** The first line of a fault's report in the run's log (runtime/crash.cpp). */
+    private val kFaultMarkers = listOf("---- guest fault", "---- the process is ending", "---- indirect call")
+
     /**
      * An address, which is the part a line repeats with and the part nobody
      * reads. Two lines that differ only here are one line that happened twice:
@@ -54,7 +57,15 @@ object LogSummary {
         if (log.isBlank() && crash.isBlank() && sessionTail.isBlank())
             return context.getString(R.string.log_empty)
 
-        val lines = log.substringAfterLast(kRunMarker).lines().filter { it.isNotBlank() }
+        val run = log.substringAfterLast(kRunMarker).lines().filter { it.isNotBlank() }
+        // A fault's report (runtime/crash.cpp) ends the log with a hundred
+        // error lines of registers and stack, each unlike the last: counted
+        // as kinds of error they were all the summary showed. Its top is
+        // what says what happened, so it is shown as the crash and the
+        // counts are of the run before it.
+        val faultAt = run.indexOfLast { line -> kFaultMarkers.any { it in line } }
+        val fault = if (faultAt >= 0) run.subList(faultAt, run.size) else emptyList()
+        val lines = if (faultAt >= 0) run.subList(0, faultAt) else run
 
         val errors = lines.count { levelOf(it) == 'E' }
         val warnings = lines.count { levelOf(it) == 'w' }
@@ -87,11 +98,11 @@ object LogSummary {
             val exit = DeviceInfo.lastRunExit(context)
             if (exit.isNotBlank()) append(trimmed(exit)).append('\n')
 
-            if (crash.isNotBlank())
+            val stopped = crash.lines().filter { it.isNotBlank() }.ifEmpty { fault }
+            if (stopped.isNotEmpty())
             {
                 append('\n').append(context.getString(R.string.log_stopped)).append('\n')
-                crash.lines().filter { it.isNotBlank() }.take(kCrashLines)
-                    .forEach { append(trimmed(it)).append('\n') }
+                stopped.take(kCrashLines).forEach { append(trimmed(it)).append('\n') }
             }
 
             append('\n')

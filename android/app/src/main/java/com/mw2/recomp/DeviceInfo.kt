@@ -180,8 +180,8 @@ object DeviceInfo {
                 } catch (_: Throwable) {
                     null
                 }
-                // Some systems write no tombstone an app may read (the Retroid
-                // Pocket Flip 2's Android 13 is one).
+                // Not every crash leaves one an app may read: the Retroid
+                // Pocket Flip 2 kept one for one crash of two.
                 text.append(
                     trace ?: "    (this system kept no tombstone to read; the fault's report in game.log has the backtrace)\n",
                 )

@@ -441,6 +441,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun startGame(title: Title) {
         if (!nativeReady) return
+        // Every way into a run comes through here: without the title's game
+        // code (GameLibrary.kt) one only ends in "The game could not start",
+        // and the second entry is not greyed out as Play is.
+        if (!GameLibrary.ready(this, title)) {
+            showDetail(getString(R.string.cannot_start), getString(R.string.game_code_missing))
+            return
+        }
         // A second controller means a second player can join (split-screen
         // Spec Ops / multiplayer); the touch controls and the first controller
         // are both player one. Warn once: two viewports cost frames and heat.
