@@ -318,17 +318,25 @@ namespace vk::renderer::detail
             // to the next, where there is no shadow of guest memory
             // (renderer_arena.cpp, KeptWindow): ranges of guest physical
             // memory by where they start, each with where it ends, where
-            // its copy is -- or that it was met once and is not copied yet
-            // -- the watch's stamp for its pages, the last frame to draw
-            // from it or meet it, and the endianness its bytes were
-            // exchanged for as they were copied (CopyVertices). The copies
-            // are handed out from the share's end downwards, `keptBytes` of
-            // it, the frame's own from its start up. Full: emptied when the
-            // slot next begins a frame.
+            // its copy is, the watch's stamp for its pages, the last frame
+            // to draw from it, and the endianness its bytes were exchanged
+            // for as they were copied (CopyVertices). `met`: the ranges met
+            // once and not copied yet, with the stamp and frame of the
+            // meeting. The copies are handed out from the share's end
+            // downwards, `keptBytes` of it, the frame's own from its start
+            // up. A range another took the place of leaves its own, with
+            // its size, in `keptFreed` until the frame is done, and then in
+            // `keptSpare`, by place, for the ranges that come. `keptLet`:
+            // what the slot lets go of when it next begins a frame.
             struct Kept { uint32_t end, at; uint64_t stamp, frame; uint32_t endian; };
+            struct Met { uint32_t end; uint64_t stamp, frame; };
+            enum class Let : uint8_t { None, Stale, All };
             std::map<uint32_t, Kept> kept;
+            std::map<uint32_t, Met> met;
+            std::map<uint32_t, uint32_t> keptSpare;
+            std::vector<std::pair<uint32_t, uint32_t>> keptFreed;
             uint32_t keptBytes = 0;
-            bool keptFull = false;
+            Let keptLet = Let::None;
         };
         Slot slots[kFrameSlots];
         uint32_t slot = kFrameSlots - 1;   // BeginFrame moves on before it records
@@ -611,12 +619,15 @@ namespace vk::renderer::detail
         // the longest any pipeline was waited for, in frames, and how many
         // the consumer built itself because their draws had waited too long.
         uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0, pipelinesOverdue = 0;
-        uint64_t arenaOverflows = 0;
+        // Draws that found their slot's share of the arena full and were
+        // made in the next slot's instead (vk::renderer::Draw).
+        uint64_t arenaSpills = 0;
         uint64_t arenaWritten[kArenaKinds]{}, arenaReused[kArenaKinds]{};
         // The most of a share its kept vertex data took, and how often a
-        // slot let all of it go (Slot::kept).
+        // slot let the ranges it had not drawn from lately go, or all of
+        // them (Slot::kept).
         uint32_t keptPeak = 0;
-        uint64_t keptEmptied = 0;
+        uint64_t keptStale = 0, keptEmptied = 0;
         uint32_t arenaPeak = 0;
         uint64_t vertsTraced = 0, vertsMatched = 0;
         uint64_t passFrames = 0;
