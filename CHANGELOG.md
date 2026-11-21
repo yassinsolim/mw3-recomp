@@ -18,7 +18,11 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   204 and 16; what a vertex computes is the same and so is the picture. On
   the Retroid Pocket Flip 2, Team Player's flight is 56.4 frames a second
   with 69% of the frames on time for 53.0 and 55%, its heavy views 50 to
-  53.5 for 44 to 46; S.S.D.D., Terminal and Rust hold 59.5 to 59.9.
+  53.5 for 44 to 46; S.S.D.D., Terminal and Rust hold 59.5 to 59.9. Modern
+  Warfare 3 there holds its 30 either way with 1.5 to 2 ms less of GPU a
+  frame (Survival 25.3 to 23.8 ms, Black Tuesday 25.1 to 23.1, Seatown with
+  bots 20.0 to 18.3), and with the limit at 60 Survival is 46.4 frames a
+  second for 42.3 and Black Tuesday 45.3 for 42.1; the picture is the same.
 
 ### Added
 - `MW2_SHADER_IR=<dir>` (with `MW2_SHADER_STATS=1`): what the driver

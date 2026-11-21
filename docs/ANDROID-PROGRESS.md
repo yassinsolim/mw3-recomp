@@ -554,8 +554,24 @@ bundled Turnip v27.0.0-R2. The reasons are in
 - **Not done.** Team Player is not a locked 60: its first half is 50. The
   window transform, a fetch and seven instructions a vertex that are the
   identity for every draw but the clears, could be a second form of the
-  shader. No other GPU, and not Modern Warfare 3, has run the texel form;
-  the Thor was not to hand.
+  shader. No other GPU has run the texel form; the Thor was not to hand.
+- **Modern Warfare 3 with it**, later that day, against
+  `MW2_VERTEX_TEXELS=0` in the same `.dev` build, each with its pipelines
+  cached, the levels started from the menus (Mission Select opened with
+  `mis_cheat 1` on a new profile, whose New Game is the Prologue). At the
+  limit of 30, without and with: Survival on Resistance 30.0 and 30.0
+  frames a second, 90.9 and 89.9% of the frames within two display periods,
+  25.3 and 23.8 ms of GPU a frame; Black Tuesday's opening 29.6 and 29.8,
+  89.8 and 91.1%, 25.1 and 23.1 ms; Seatown with six bots 30.0 and 30.0,
+  89.5 and 88.3%, 20.0 and 18.3 ms from the same spawn. With the limit at
+  60: Survival's first spawn 42.3 and 46.4 frames a second, 23.5 and
+  21.6 ms (the scene 16.6 and 15.3); Black Tuesday's opening 42.1 and 45.3,
+  22.4 and 20.7 ms (17.7 and 16.1). No renderer error either way. The
+  picture: the campaign's menus 99 to 100% the same to the bit with and
+  without at 30 (53 to 100% over all the menus' pairs, 56 to 86% between
+  two runs of one way); at the first spawns the mean difference of a
+  pixel's channels 1.2 to 5.1 of 255 with and without, 3.3 or more between
+  two runs of one way. The default stays for both games.
 - The device charged at 6 to 10% an hour; the runs were made between 20
   and 28%.
 
