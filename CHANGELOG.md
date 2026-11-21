@@ -5,6 +5,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **The Retroid Pocket Flip 2 at 60, measured again**
+  ([docs/android.md](docs/android.md#modern-warfare-2-there-60-frames-a-second)):
+  Turnip's autotune, `sysmem`, `nobin`, `nolrz` and `noearlypreamble`,
+  TurnipZ 0.4.0, image compression by image class and a depth clear that
+  keeps LRZ change nothing in Modern Warfare 2's Team Player; Turnip 24.1.0
+  R18 and `gmem` are slower. No default changed. With vertex data in host
+  byte order S.S.D.D. holds 59.8 frames a second for five minutes, Terminal
+  59.5, Rust 59.4, and Team Player's flight 52.6: its opening is still 37
+  to 50.
 - **Mali, worked out without one** ([docs/android.md](docs/android.md#mali),
   [docs/TESTING-MALI.md](docs/TESTING-MALI.md)): `tools/check_device_report.py`
   walks the runtime's start-up checks against a phone's report from

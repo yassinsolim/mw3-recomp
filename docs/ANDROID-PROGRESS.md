@@ -450,6 +450,50 @@ each way unless said. `MW2_HOST_ORDER=0` is the build before.
   world's shaders only, and twice to four times the draws skipped for want
   of arena.
 
+### The Flip 2 at 60: the driver's switches, two more drivers, compression
+
+Retroid Pocket Flip 2 (Adreno 650), performance mode, `.dev` builds, the
+bundled Turnip v27.0.0-R2 unless said. The numbers and the reasons are in
+[android.md](android.md#modern-warfare-2-there-60-frames-a-second).
+
+- **Nothing of the driver's moves Team Player.** At its three heavy views
+  (41 to 46 frames a second from one run to the next, the scene 15.4 to
+  18.0 ms): `TU_AUTOTUNE_ALGO=prefer_sysmem` 43.9, `profiled` 41.6,
+  `TU_AUTOTUNE_FLAGS=tune_small` 44.5, `TU_DEBUG=sysmem` 42.9, `nobin`
+  41.9, `nolrz` 42.0, `IR3_SHADER_DEBUG=noearlypreamble` 42.4; `gmem` 32.7.
+- **Drivers.** TurnipZ 0.4.0 46.3 and 44.4, the same as R2; K11MCH1's
+  Turnip 24.1.0 R18 for a6xx 34.2, 32.1 and 32.2. R2 stays bundled.
+- **LRZ.** Turnip gives it up at the title's pair of clear rectangles
+  (depth written with the test ALWAYS). With those made a clear of the
+  depth image the message goes and the scene's time does not change; the
+  title's stencil tests and blended depth writes end LRZ's writes anyway.
+  Not kept.
+- **Barriers**: 32 a frame, none without a change of layout.
+- **Image compression** left on, whole and one image class at a time
+  (through `VK_EXT_image_compression_control` in a test build): 41.6 to
+  45.3 frames a second against 45.9 without, and no reset in six starts of
+  Team Player. `noubwc` stays.
+- **The clock**: 670 MHz, the device's most, in seven readings of eight
+  under load.
+- **The scene's size** tells what is left: 512x300 gives 52.5 frames a
+  second there, so some 5 ms of the scene are its pixels and 11 its
+  vertices.
+- **As merged, with vertex data in host byte order**: S.S.D.D. flown for
+  five minutes 59.8 frames a second, 92.0% of the frames on time (59.9 and
+  91.5% before any of this); Team Player's flight 52.6 and 56% (52.5 and
+  57%); Terminal 59.5 and 94.8% (59.3 and 95.5%); Rust 59.4 and 95.6%
+  (59.3 and 95.7%). Team Player's first half is still 37 to 50. The GPU's
+  zone reached 62 C, the processor's 71, the skin's 51.
+- **Modern Warfare 3** in a `.dev` build, at its limit of 30 on this
+  class: Survival on Resistance from the menus 30.0 frames a second in
+  play, Black Tuesday from Mission Select 29.7, the picture as before by
+  eye. Started with `devmap sp_ny_manhattan` instead, the campaign stops
+  at "Unable to write to default save device" over a black screen, on
+  this build and on the one before the day's changes alike; why was not
+  looked into.
+- The device charges at 5 V and 0.5 A and lost a percent of battery every
+  three minutes of play; the runs were spread over the charge it had.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).
