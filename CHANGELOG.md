@@ -37,6 +37,10 @@ The game package built for v0.1.0 still fits: nothing to build again.
 - **Windows build**: the mouse aims as a mouse does and works the menus.
 
 ### Changed
+- **Modern Warfare 2's app has its own launcher emblem**
+  (`android/app/src/mw2/res/drawable`): two stencil bars in a blue ring.
+  Both apps drew the amber three-bar one and could only be told apart by
+  name on one home screen.
 - `MW2_TRACE_MATCH` also says where each player landed.
 - **No draw is skipped for want of frame arena**
   ([docs/rendering.md](docs/rendering.md#a-frame-larger-than-its-slots-share)).
