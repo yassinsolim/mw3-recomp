@@ -23,4 +23,9 @@ namespace menu_pointer
     // its right or bottom. On the title's main thread, from inside a kernel
     // import: `ctx` is the guest's, and is as it was on return.
     Under At(PPCContext& ctx, uint8_t* base, float x, float y);
+
+    // Whether the menu on top is the scoreboard, which the title draws over
+    // a world it goes on taking the controller for: the player still walks,
+    // jumps and fires under it, so the mouse stays the world's too.
+    bool OverWorld(uint8_t* base);
 }

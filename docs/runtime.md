@@ -356,6 +356,21 @@ nothing to choose it is A. A list one item draws (the lobby's players) has no
 rows to point at; the wheel goes through it. Modern Warfare 2's menus are not
 pointed in: the window keeps the mouse and the buttons and wheel choose.
 
+The scoreboard (Tab, the pad's Back) is a menu to the title and the world to
+the mouse: the title goes on taking the controller under it -- the player
+walks, jumps and fires -- so the window keeps the mouse, the view turns and
+the buttons are the triggers (`menu_pointer::OverWorld`). Treated as a menu
+it showed the desktop's cursor over a match with nothing to click and
+stopped the view until Tab was pressed again. The Tab of `Alt+Tab` is not
+Back: the window sees it go down before the desktop takes the keyboard, and
+the scoreboard was up on coming back.
+
+Checked with a real mouse through `SendInput` on Windows 11, window and
+fullscreen: the cursor hidden and kept to one pixel in the world; a thousand
+counts 110.0 degrees, three hundred down 33.0, two hundred in one report or
+in two hundred 22.0; `Alt+Tab` away, the mouse moved, and back, the same
+facing; the pause menu's items picked by clicks.
+
 A button belongs to the world or to the menu by where it went down, and is
 let go when that changes under it: the click on Resume is not a shot, the
 Escape that opened the pause menu not the B that closes it.

@@ -204,9 +204,12 @@ namespace
         if (!SDL_WasInit(SDL_INIT_VIDEO)) return 0;
         const bool* keys = SDL_GetKeyboardState(nullptr);
         if (!keys) return 0;
+        // Alt+Tab is the desktop's: its Tab, which the window still sees go
+        // down, is not Back, or leaving the window would open the scoreboard.
+        const bool alt = keys[SDL_SCANCODE_LALT] || keys[SDL_SCANCODE_RALT];
         uint16_t buttons = 0;
         for (const Key& key : kKeys)
-            if (keys[key.code]) buttons |= key.bit;
+            if (keys[key.code] && !(alt && key.code == SDL_SCANCODE_TAB)) buttons |= key.bit;
         return buttons;
     }
 
@@ -783,8 +786,9 @@ PPC_FUNC(__imp__XamInputGetState)
             b |= EscapeButton(menu);
 #ifdef _WIN32
             // The mouse answers only while the window has it, a scripted one
-            // whenever the script says.
-            b |= MouseInputs(ctx, base, menu, triggers, axes[2], axes[3]);
+            // whenever the script says. Under the scoreboard it is the
+            // world's, as the controller is.
+            b |= MouseInputs(ctx, base, menu && !menu_pointer::OverWorld(base), triggers, axes[2], axes[3]);
             // The keyboard stands in for a pad on Windows, and only
             // while the game's window has the keyboard: GetAsyncKeyState
             // answers for the whole desktop, and keys typed into another
@@ -794,7 +798,7 @@ PPC_FUNC(__imp__XamInputGetState)
                 KeyboardMoveAxes(axes[0], axes[1]);
                 auto isDown = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
                 if (isDown(VK_RETURN))                      b |= BTN_START;
-                if (isDown(VK_TAB) || isDown(VK_BACK))      b |= BTN_BACK;
+                if ((isDown(VK_TAB) && !isDown(VK_MENU)) || isDown(VK_BACK)) b |= BTN_BACK;
                 if (isDown(VK_UP))                          b |= BTN_DPAD_UP;
                 if (isDown(VK_DOWN))                        b |= BTN_DPAD_DOWN;
                 if (isDown(VK_LEFT))                        b |= BTN_DPAD_LEFT;

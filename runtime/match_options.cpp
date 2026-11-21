@@ -177,7 +177,8 @@ namespace
 
     // MW2_TRACE_MATCH: how high, how long and how fast each player's jump was,
     // when it lands -- what gravity, speed and jump height come to, in the
-    // title's units and the server's time.
+    // title's units and the server's time -- and where it landed, which is
+    // how a test with a real mouse knows where it stands and where to aim.
     struct Leap { bool up = false; float from = 0, peak = 0, speed = 0; int32_t since = 0; };
     Leap g_leaps[kSlots];
 
@@ -196,9 +197,10 @@ namespace
             leap.peak = std::max(leap.peak, height);
         } else if (leap.up) {
             leap.up = false;
-            LOGI("match: %s was in the air %d ms and rose %.0f units, moving at %.0f a second, facing %.1f and looking %.1f down",
+            LOGI("match: %s was in the air %d ms and rose %.0f units, moving at %.0f a second, facing %.1f and looking %.1f down, at %.0f %.0f %.0f",
                  GuestPtr<const char>(state + T_GCLIENT_NAME), time - leap.since, leap.peak - leap.from, leap.speed,
-                 Real(base, state + T_PS_VIEW_ANGLES + 4), Real(base, state + T_PS_VIEW_ANGLES));
+                 Real(base, state + T_PS_VIEW_ANGLES + 4), Real(base, state + T_PS_VIEW_ANGLES),
+                 Real(base, state + T_PS_ORIGIN), Real(base, state + T_PS_ORIGIN + 4), height);
         }
     }
 }

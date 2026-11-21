@@ -4,6 +4,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Fixed
+- **Windows, the mouse**: `Alt+Tab` no longer opens the scoreboard (its Tab
+  was taken as the pad's Back before the window lost the keyboard), and
+  with the scoreboard up the mouse still turns the view and fires, the
+  cursor staying hidden, as the controller does there. Found with real
+  Windows input (`SendInput`) in Modern Warfare 3's multiplayer, window and
+  fullscreen ([runtime.md](docs/runtime.md#the-mouse)).
+
+### Changed
+- `MW2_TRACE_MATCH` also says where each player landed.
+
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
