@@ -126,8 +126,8 @@ set 2  binding 0  uint[]   the frame arena, as dwords
        binding 2  vec4[256]  a pixel shader's float constants, a uniform block at a
                   dynamic offset; only where they are one (below)
        binding 3  samplerBuffer   the slot's share of the arena as texels of four
-       binding 4  usamplerBuffer  floats and of four dwords, for a vertex shader;
-                  only where it reads the arena so (below)
+       binding 4  usamplerBuffer  floats and of four dwords, for the stages that
+                  read the arena so; only where one does (below)
 no push constants
 a draw table, in the arena at the dword the hardware draw passes as its base
 vertex (vertexOffset, or firstVertex for a draw without indices), two words an
@@ -158,6 +158,14 @@ the draw's record:
                  index (low 16 bits) and the sampler's (high 16)
   52  (1 a slot) vertex: the same for its own slots, only when it samples any; a
                  stage's own because the two may declare a slot as different kinds
+or, where the pixel shaders read the arena as texels, from 20 on:
+  20  (4 a slot) pixel: a texel for each slot it samples, in the slots' order:
+                 the word above; the fetch constant's LOD bias as a float, with
+                 its exponent adjust plus 32 in the low six bits (nought in
+                 any bias); one over the width and over the height of level 0
+                 as the title sized it. A slot sampled as a volume has a
+                 second texel after it, which starts with one over the depth
+  276 (1 a slot) vertex: its own slots' words, only when it samples any
 ```
 
 - **Finding the record.** One hardware draw is a run of the title's draws
@@ -354,6 +362,45 @@ the draw's record:
   ([android.md](android.md#modern-warfare-2-there-60-frames-a-second)).
   No other GPU has run this form, and without it a vertex shader's module
   is the bytes it was before, so no device's pipeline cache is spent.
+- **The record as texels, for a pixel shader on an Adreno 6xx**
+  (`shader::PixelArena::Texels`). The same chip, the other stage. What
+  Turnip compiled the pixel shaders of Team Player to: a lit surface's is
+  470 to 850 instructions with 26 to 44 fetches of single dwords of the
+  storage buffer, for 7 to 13 textures. Four are the alpha test's words; for
+  each texture three -- its word of the record and the two dwords of the
+  fetch constant that hold the LOD bias and the exponent adjust, found
+  through another word of the record -- and then the shifts and conversions
+  that take those fields out, an `exp2`, a `getsize` of the image and two
+  reciprocals for the half-texel offsets. With the two dwords and the size
+  read as nothing (a test build: the wrong exposure, and 60 frames a second
+  where there were 50) that was three milliseconds of a frame. So where the
+  device says so (`vk::pipeline::PixelTexels`: an Adreno 6xx under Turnip,
+  or `MW2_PIXEL_TEXELS=0|1`) the texel view of four dwords is bound to the
+  pixel stage too, and a pixel shader:
+  - fetches the alpha test's four words as the one texel they are;
+  - fetches one texel of the record for each slot it samples, which the
+    renderer fills at the draw (`TexturesFor`) with the slot's word, the
+    constant's LOD bias already a float, the exponent adjust beside it
+    (three integer operations make two to its power, exactly, where `exp2`
+    of a converted field was the driver's), and one over the size of
+    level 0, kept with each image by the texture cache
+    (`vk::textures::Handle`). It reads no fetch constant, so a draw copies
+    none for it, and asks no image its size. Under `MW2_SCALE` the size is
+    the title's already, and such a shader does not read the record's
+    scale words.
+
+  A record then ends after the pixel shader's texels (four words a slot
+  sampled, by rank, not thirty-two words of slots), and two draws'
+  records are the same exactly when their bytes are, as before. Without
+  this form a module is the bytes it was. The picture: the offset is
+  `offset * (1 / size)` where it was `offset / size`, which the driver
+  compiled to a reciprocal and a multiply as well; of four fixed views of
+  S.S.D.D. 66.9 to 92.6% of the pixels are the same to the bit as a run
+  without, against 65.6 to 94.6% between two runs without, and what
+  differs is in the same places, the helicopters, the soldiers and the
+  dust. On the Retroid Pocket Flip 2 Team Player's heavy views went from
+  50 frames a second to 59.5 or more, the frame's GPU time from 18.5 ms to
+  15.4 ([android.md](android.md#modern-warfare-2-there-60-frames-a-second)).
 - The translator records the highest float constant a program reads
   (`Translation::constantsRead`) so the renderer copies only that much, unless
   the program addresses constants through a0/aL (`addressedConstants`), where
@@ -523,9 +570,13 @@ constant ([textures.md](textures.md)). The translator:
   unnormalised coordinates are in texels of the bound image's size, which
   under `MW2_SCALE` or `MW2_SHADOW_SCALE` is divided by the copy's scale for
   a slot bound to a resolve's copy ([rendering.md](rendering.md#resolution-scale));
+  the shader asks the image, or, where a pixel shader reads the arena as
+  texels, takes one over the size from the slot's texel of the record
+  ([above](#the-module-interface));
 - computes LOD from the fetch constant's LOD bias (dword 4 bits 12..21, signed,
-  in 32nds, read from binding 1 at run time), the instruction's own bias (in
-  16ths) and, when `use_register_lod` is set, the `set_lod` value;
+  in 32nds, read from binding 1 at run time, or from the slot's texel), the
+  instruction's own bias (in 16ths) and, when `use_register_lod` is set, the
+  `set_lod` value;
 - samples with implicit LOD plus bias in a pixel shader, explicit LOD in a
   vertex shader (which has no derivatives; `get_gradients` returns zero there);
 - scales the result by the fetch constant's exponent adjust (dword 3 bits

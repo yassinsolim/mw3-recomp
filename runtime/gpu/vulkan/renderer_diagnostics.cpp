@@ -801,6 +801,77 @@ namespace vk::renderer::detail
                  (unsigned long long)ranked[i].second.vertices, text);
         }
     }
+
+    namespace
+    {
+        // The ring consumer's alone.
+        struct Primitives
+        {
+            static constexpr uint32_t kSizes = 7;
+            uint64_t firstFrame = 0, lastFrame = 0;
+            uint64_t draws = 0, triangles = 0, depthOnly = 0;
+            uint64_t byCull[4]{};                       // none, front, back, both
+            uint64_t sizeDraws[kSizes]{}, sizeTriangles[kSizes]{};
+            uint64_t joined = 0, joinedOtherPixelState = 0;
+        } g_primitives;
+        constexpr uint32_t kSizeLimits[Primitives::kSizes] = { 2, 8, 32, 128, 512, 2048, UINT32_MAX };
+    }
+
+    void NotePrimitives(VkPrimitiveTopology topology, uint32_t corners, uint32_t modeCntl, bool depthOnly,
+                        bool joins, bool pixelStateChanged)
+    {
+        if (!g.worldFrames) return;
+        Primitives& p = g_primitives;
+        if (!p.firstFrame) p.firstFrame = g.worldFrames;
+        p.lastFrame = g.worldFrames;
+        const uint32_t triangles = topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST ? corners / 3
+                                 : topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP ||
+                                   topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN ? (corners > 2 ? corners - 2 : 0)
+                                 : 0;
+        VkCullModeFlags cull = 0;
+        VkFrontFace front{};
+        FacesFor(modeCntl, cull, front);
+        p.draws++;
+        p.triangles += triangles;
+        if (depthOnly) p.depthOnly += triangles;
+        p.byCull[cull & 3] += triangles;
+        uint32_t size = 0;
+        while (triangles > kSizeLimits[size]) size++;
+        p.sizeDraws[size]++;
+        p.sizeTriangles[size] += triangles;
+        if (joins)
+        {
+            p.joined++;
+            if (pixelStateChanged) p.joinedOtherPixelState++;
+        }
+    }
+
+    void ReportPrimitives()
+    {
+        const Primitives& p = g_primitives;
+        if (!p.draws) return;
+        const double frames = double(p.lastFrame - p.firstFrame + 1);
+        const double all = double(std::max<uint64_t>(p.triangles, 1));
+        LOGI("primitives: in play, %.0f draws and %.0f triangles a frame over %.0f frames; %.1f%% of the triangles"
+             " drawn for depth alone; culled: %.1f%% back faces, %.1f%% front faces, %.1f%% both, %.1f%% neither",
+             double(p.draws) / frames, double(p.triangles) / frames, frames, 100.0 * double(p.depthOnly) / all,
+             100.0 * double(p.byCull[VK_CULL_MODE_BACK_BIT]) / all, 100.0 * double(p.byCull[VK_CULL_MODE_FRONT_BIT]) / all,
+             100.0 * double(p.byCull[3]) / all, 100.0 * double(p.byCull[0]) / all);
+        char text[320];
+        int n = 0;
+        for (uint32_t size = 0; size < Primitives::kSizes; size++)
+        {
+            char limit[24];
+            if (kSizeLimits[size] == UINT32_MAX) std::snprintf(limit, sizeof limit, "more");
+            else std::snprintf(limit, sizeof limit, "up to %u", kSizeLimits[size]);
+            n += std::snprintf(text + n, sizeof text - size_t(n), "%s%s: %.0f draws, %.0f triangles", size ? "; " : "",
+                               limit, double(p.sizeDraws[size]) / frames, double(p.sizeTriangles[size]) / frames);
+        }
+        LOGI("primitives: a frame's draws by their triangles: %s", text);
+        LOGI("primitives: %.0f draws a frame joined the run before them, %.0f of those with other pixel textures"
+             " or another alpha test than the draw before", double(p.joined) / frames,
+             double(p.joinedOtherPixelState) / frames);
+    }
 }
 
 using namespace vk::renderer::detail;
@@ -817,6 +888,7 @@ void vk::renderer::FlashSeen(const char* how)
 void vk::renderer::Report()
 {
     ReportVertexWeight();
+    ReportPrimitives();
     if constexpr (!diag::kOn) return;
     vk::capture::Report();
     vk::display::Report();

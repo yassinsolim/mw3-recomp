@@ -36,9 +36,9 @@ uint64_t vk::textures::UploadData(const gpu::TextureData&, uint32_t, const char*
     if (error) *error = "built without Vulkan";
     return kNone;
 }
-uint64_t vk::textures::Adopt(uint64_t, void*, const gpu::TextureFetch&) { return kNone; }
+uint64_t vk::textures::Adopt(uint64_t, void*, const gpu::TextureFetch&, uint32_t, uint32_t) { return kNone; }
 void vk::textures::ForgetViews() {}
-uint32_t vk::textures::Handle(uint64_t, uint8_t) { return 0; }
+uint32_t vk::textures::Handle(uint64_t, uint8_t, const float**) { return 0; }
 void* vk::textures::Set() { return nullptr; }
 bool  vk::textures::Readback(uint64_t, std::vector<uint8_t>&, const char** error)
 {
@@ -162,6 +162,11 @@ namespace
         VkImageView written = VK_NULL_HANDLE;
         VkFormat format = VK_FORMAT_UNDEFINED;
         uint32_t width = 0, height = 0;
+        // One over the extent of level 0 each way, the third a volume's
+        // depth: what Handle gives a pixel shader that takes its textures'
+        // sizes from the draw's record (shader::PixelArena::Texels). Set
+        // where the image is made (MakeImage) or its view borrowed (Adopt).
+        float perTexel[3] = { 1.0f, 1.0f, 1.0f };
         uint32_t blocksWide = 0, blocksHigh = 0, bytesPerBlock = 0;
         uint32_t blockWidth = 1, blockHeight = 1;
         uint32_t swizzle = 0x688;             // XYZW, the identity
@@ -499,6 +504,9 @@ namespace
         info.imageType = out.volume ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
         info.format = out.format;
         info.extent = { out.width, out.height, out.volume ? out.layers : 1 };
+        out.perTexel[0] = 1.0f / float(info.extent.width);
+        out.perTexel[1] = 1.0f / float(info.extent.height);
+        out.perTexel[2] = 1.0f / float(info.extent.depth);
         info.mipLevels = uint32_t(std::max<size_t>(out.levels.size(), 1));
         info.arrayLayers = out.volume ? 1 : out.layers;
         info.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -2620,7 +2628,8 @@ uint64_t vk::textures::UploadData(const gpu::TextureData& data, uint32_t xenosFo
     return UploadOne(data, xenosFormat, 0, 0x688, false, error);
 }
 
-uint64_t vk::textures::Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch)
+uint64_t vk::textures::Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch, uint32_t width,
+                             uint32_t height)
 {
     if (!g.device && !Initialise()) return kNone;
     // A resolve's copy is one level, whatever the fetch constant says.
@@ -2634,6 +2643,10 @@ uint64_t vk::textures::Adopt(uint64_t key, void* view, const gpu::TextureFetch& 
     Image& image = g.images[size_t(id - 1)];
     image.borrowed = true;
     image.view = static_cast<VkImageView>(view);
+    image.width = width;
+    image.height = height;
+    image.perTexel[0] = 1.0f / float(width);
+    image.perTexel[1] = 1.0f / float(height);
     // A copy's view changes only once the GPU is done with the old one
     // (ForgetViews), so nothing pending reads the entry being rewritten.
     if (image.written != image.view) WriteImage(ElementOf(id), image);
@@ -2646,12 +2659,14 @@ void vk::textures::ForgetViews()
         if (image.borrowed) image.written = VK_NULL_HANDLE;
 }
 
-uint32_t vk::textures::Handle(uint64_t id, uint8_t kind)
+uint32_t vk::textures::Handle(uint64_t id, uint8_t kind, const float** perTexel)
 {
     const Image* image = Find(id);
     if (image && !image->written) image = nullptr;   // released
     if (image && KindOf(*image) != kind) { image = nullptr; g.kindMismatches++; }
-    const uint32_t sampler = SamplerSlotOf(id, image ? *image : FallbackOf(kind));
+    const Image& sampled = image ? *image : FallbackOf(kind);
+    if (perTexel) *perTexel = sampled.perTexel;
+    const uint32_t sampler = SamplerSlotOf(id, sampled);
     return (image ? ElementOf(id) : uint32_t(kind)) | (sampler << vk::bindings::kHandleImageBits);
 }
 

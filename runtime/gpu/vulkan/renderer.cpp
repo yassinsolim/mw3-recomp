@@ -409,7 +409,8 @@ bool vk::renderer::Initialise()
         buffer.size = VkDeviceSize(wanted) + (withShadow ? shadowBytes : 0);
         buffer.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        if (vk::pipeline::VertexTexels()) buffer.usage |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
+        if (vk::pipeline::VertexTexels() || vk::pipeline::PixelTexels())
+            buffer.usage |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
         if (vkCreateBuffer(g.device, &buffer, nullptr, &g.arena) != VK_SUCCESS) continue;
         VkMemoryRequirements needs{};
         vkGetBufferMemoryRequirements(g.device, g.arena, &needs);
@@ -493,12 +494,12 @@ bool vk::renderer::Initialise()
     // The pool's sizes in the order the kinds may be absent from the end:
     // the texels are moved up where there is no uniform block.
     const bool uniformConstants = vk::pipeline::UniformPixelConstants();
-    const bool vertexTexels = vk::pipeline::VertexTexels();
+    const bool texelViews = vk::pipeline::VertexTexels() || vk::pipeline::PixelTexels();
     VkDescriptorPoolSize sizes[3] = { { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kFrameSlots },
                                       { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFrameSlots },
                                       { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 2 * kFrameSlots } };
     uint32_t kinds = uniformConstants ? 2 : 1;
-    if (vertexTexels) sizes[kinds++] = sizes[2];
+    if (texelViews) sizes[kinds++] = sizes[2];
     VkDescriptorPoolCreateInfo descriptors{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
     descriptors.maxSets = kFrameSlots;
     descriptors.poolSizeCount = kinds;
@@ -553,11 +554,11 @@ bool vk::renderer::Initialise()
         writes[2].pBufferInfo = &pixelConstants;
         uint32_t written = uniformConstants ? 3 : 2;
         // The share again as texels of four floats and of four dwords; the
-        // shadow is not for a vertex shader to read that way.
+        // shadow is not for a shader to read that way.
         struct { VkBufferView* view; VkFormat format; uint32_t binding; } const texels[2] = {
             { &slot.arenaTexels, VK_FORMAT_R32G32B32A32_SFLOAT, bindings::kArenaTexels },
             { &slot.arenaTexelWords, VK_FORMAT_R32G32B32A32_UINT, bindings::kArenaTexelWords } };
-        for (uint32_t i = 0; vertexTexels && i < 2; i++)
+        for (uint32_t i = 0; texelViews && i < 2; i++)
         {
             VkBufferViewCreateInfo view{ VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO };
             view.buffer = g.arena;

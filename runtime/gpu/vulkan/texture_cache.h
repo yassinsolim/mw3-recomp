@@ -65,10 +65,10 @@ namespace vk::textures
     uint64_t Upload(const gpu::TextureFetch& fetch, const char** error);
 
     // A render target the title resolved out to memory and samples back. The
-    // image belongs to the caller, so the entry only borrows its view; `key`
-    // names the copy, so an id survives across frames, and so does its entry
-    // in the set.
-    uint64_t Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch);
+    // image belongs to the caller, so the entry only borrows its view, of an
+    // image `width` by `height`; `key` names the copy, so an id survives
+    // across frames, and so does its entry in the set.
+    uint64_t Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch, uint32_t width, uint32_t height);
 
     // The caller is destroying views it lent to Adopt, with the GPU idle. Each
     // adopted entry is written again at its next Adopt, because a replacement
@@ -85,7 +85,9 @@ namespace vk::textures
     // image's place in set 1 and its sampler's. `kind` is what the shaders
     // declare the slot as (shader::Translation::textureKinds); nothing, or a
     // texture of another kind, is the declared kind's 1x1 stand-in.
-    uint32_t Handle(uint64_t id, uint8_t kind);
+    // `perTexel`, when asked for, is given one over the extent of that
+    // image's level 0 each way, three floats, the third a volume's depth.
+    uint32_t Handle(uint64_t id, uint8_t kind, const float** perTexel = nullptr);
     // Set 1, a VkDescriptorSet: bound once a command buffer.
     void* Set();
 

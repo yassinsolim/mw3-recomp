@@ -226,6 +226,10 @@ Modern Warfare 2 is lighter, and on this class it starts with the cap at 60 (`Pr
 | Team Player's flight | 52.6 | 56% | 16.3 ms |
 | Terminal, 170 seconds | 59.5 | 94.8% | 13.3 ms |
 | Rust, three minutes | 59.4 | 95.6% | 13.0 ms |
+| with the pixel shaders' record as texels (`MW2_PIXEL_TEXELS`, below), 2026-11-21: S.S.D.D., five minutes | 59.9 | 93.4% | 10.1 ms |
+| Team Player's flight | 59.5 | 87.9% | 11.4 ms |
+| Terminal, five minutes | 60.0 | 97.5% | 9.4 ms |
+| Rust, three minutes | 59.9 | 95.6% | 8.5 ms |
 
 - **Where the time went.** A device without subgroup ballot in the fragment stage reads a draw's record a pixel at a time ([shaders.md](shaders.md#the-module-interface)), and every float constant a pixel shader read was a fetch from the arena's storage buffer: 46 to 59 buffer and texture fetches in a lit surface's pixel shader by the driver's own count (`MW2_SHADER_STATS`), of which the textures are six or eight. Read as constants of no value the frame took 16.1 ms instead of 22.4. They are a uniform block now (`MW2_PIXEL_UNIFORMS`), which the driver hands the shader without a fetch.
 - **Merging is worth more than it was thought to cost.** `MW2_NO_MERGE=1` took S.S.D.D. from 40.5 frames a second to 28.4: about 210 hardware draws a frame against 2,900. Ending a run where the pixel constants change adds some hundred.
@@ -274,6 +278,18 @@ Modern Warfare 2 is lighter, and on this class it starts with the cap at 60 (`Pr
   | GPU ms a frame, from the same spawn | 20.0 | 18.3 |
 
   No run logged a renderer error, and the draws skipped are of the same kinds either way. The picture is the same: in the menus 53 to 100% of the pixels are identical to the bit with and without (99 to 100% in the campaign's at 30), 56 to 86% between two runs of one way, whose background drifts; at the first spawn of each level the mean difference of a pixel's channels is 1.2 to 5.1 of 255 with and without at 30, and 3.3 or more between two runs of one way: fire, smoke, the weapon's sway and the bots.
+- **What a pixel shader costs there, and its record as texels** (2026-11-21, `MW2_PIXEL_TEXELS`, [shaders.md](shaders.md#the-module-interface)). The same reading of Turnip's assembly for the other stage: a lit surface's pixel shader in Team Player was 470 to 850 instructions with 26 to 44 fetches of single dwords of the storage buffer for its 7 to 13 textures -- the alpha test's four words, and for each texture its word of the record and two dwords of its fetch constant -- plus a `getsize`, two reciprocals and an `exp2` a texture. A test build that read the fetch constants and the sizes as nothing held 59 frames a second at the heavy views where there were 50. The record now has a texel for each texture with all of that in it, and a pixel fetches that and the alpha test's texel. In one build, each way with its pipelines cached:
+
+  | | without | with |
+  |---|---|---|
+  | Team Player's two steady heavy views, frames a second | 48.6, 51.4; 51.2, 47.8 | 59.5, 59.1; 59.8, 59.5 |
+  | GPU ms a frame there (the scene) | 18.3 (13.0), 19.1 (13.9) | 15.2 (11.2), 15.4 (11.3) |
+  | the 1280x720 passes after the scene, GPU ms | 2.94 | 1.73 |
+  | Team Player's flight: frames a second, on time (the day before; today) | 56.6, 69.3% | 59.5, 87.9% |
+  | its first half | 51.2, 49.6 | 59.0 |
+  | its worst ten seconds | 48.8, 46.8 | 57.3 |
+
+  The table above has S.S.D.D., Terminal and Rust with it. The picture: four fixed views of S.S.D.D. against the day before's captures without, 66.9 to 92.6% of the pixels the same to the bit, 65.6 to 94.6% between two runs without, the differences in the same places (what moves). Without the switch the modules are the bytes they were: the build found all 1,133 pipelines of the cache made before the change. Counted on the way (`MW2_COUNT_PRIMITIVES`): a frame there is 8,200 draws and 860,000 triangles, 43% of them drawn for depth alone, 91% with back faces culled and 9% with none, as the title sets it; 537 draws are of one or two triangles and hold 927 triangles, so small draws are not where the triangles are. 525 of the 7,100 draws that join a run come with other textures or another alpha test, which is what handing the record to the pixel shader as a uniform block would cost in hardware draws; it was not built. The vertex shader without the window transform (a test build that left it out of every shader that reads a constant): the scene 11.2 ms against 11.3, inside what one run differs from the next, so there is no second form of the vertex shaders. Modern Warfare 3 was not run with the pixel texels on this device: it stopped charging and then left `adb` before that run.
 - **Threads.** On the 865 the ring consumer has the prime core (cpu 7) to itself, and the title's threads, the recorder, the workers and the audio the three other Cortex-A77 (4 to 6). The one thread on the Cortex-A55 was the warm-up worker, at 44% of one: it wrote the driver's whole pipeline cache, 10 MB and more, to its file after every five pipelines it found there already, 147 times in a hundred seconds. It is written now when it has grown.
 - **Joined segments** (`MW2_JOIN_SEGMENTS`, from the Thor's work) measure the same here, 13.8 against 13.6 ms: Turnip draws these passes in system memory, where a pass boundary costs little.
 - **The sun's shadows** are 6 ms a frame after all of the above (21.5 ms with them at the console's scene, 15.3 without): 1.7 ms drawing the two cascades' 790 draws, 2.7 ms clearing and copying the 1024x2048 map between its passes, the rest resolves and the scene's own sampling. They stay off at 60; `MW2_SHADOWS=1` with the cap at 30 holds 30.

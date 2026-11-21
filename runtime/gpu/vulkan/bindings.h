@@ -72,9 +72,10 @@ namespace vk::bindings
     // the dynamic offset of the draw's pixel constants. The one thing bound
     // again within a command buffer, when a draw's differ from the last's.
     constexpr uint32_t kPixelConstants = 2;
-    // On a device whose vertex shaders read the arena as texels
-    // (shader::VertexArena::Texels): the slot's share twice more, as uniform
-    // texel buffers of four floats a texel and of four dwords a texel.
+    // On a device whose shaders read the arena as texels
+    // (shader::VertexArena::Texels, shader::PixelArena::Texels): the slot's
+    // share twice more, as uniform texel buffers of four floats a texel and
+    // of four dwords a texel.
     constexpr uint32_t kArenaTexels = 3;
     constexpr uint32_t kArenaTexelWords = 4;
 
@@ -132,7 +133,9 @@ namespace vk::bindings
     // arena, and every vertex loads these as one.
     constexpr uint32_t kRecordNdc = 8;
     // Pixel: { uint alpha function, float alpha reference, float colour scale,
-    //          uint the target is the gamma form }.
+    //          uint the target is the gamma form }. At a multiple of four
+    // words too: where the pixel shaders read the arena as texels
+    // (shader::PixelArena::Texels) a pixel fetches the four as one.
     constexpr uint32_t kRecordPixel = 12;
     // Both, read only by shaders built for render targets larger than the
     // title's (MW2_SCALE, MW2_SHADOW_SCALE): { uint frame copies, uint shadow
@@ -149,6 +152,29 @@ namespace vk::bindings
     // different kinds, and an element of set 1 is read as one kind only.
     constexpr uint32_t kRecordVertexTextures = kRecordTextures + kTextureSlots;
     constexpr uint32_t kRecordWords = kRecordVertexTextures + kTextureSlots;
+    // Where the pixel shaders read the arena as texels
+    // (shader::PixelArena::Texels) the pixel shader's slots are texels of
+    // four dwords instead, from the same word on: one for each slot it
+    // samples, in the slots' order, and a second after it for a slot it
+    // samples as a volume. The first is
+    //
+    //     { the slot's word as above,
+    //       the fetch constant's LOD bias as a float, in whose low
+    //       kTexelExponentBits (nought in any bias: it is a whole number of
+    //       32nds under 16) is the constant's exponent adjust plus
+    //       kTexelExponentBias,
+    //       float2 one over the width and the height of level 0 as the
+    //       title sized it }
+    //
+    // and the second starts with one over the depth. A pixel then has all
+    // it needs to sample a slot from one fetch, where it loaded the word,
+    // two dwords of the fetch constant and asked the image its size. The
+    // vertex shader's words come after the most texels there can be.
+    constexpr uint32_t kRecordPixelTexels = kRecordTextures;
+    constexpr uint32_t kTexelExponentBits = 6;
+    constexpr uint32_t kTexelExponentBias = 32;
+    constexpr uint32_t kRecordTexelVertexTextures = kRecordPixelTexels + 2 * 4 * kTextureSlots;
+    constexpr uint32_t kRecordMostWords = kRecordTexelVertexTextures + kTextureSlots;
     // After the title's sixteen interpolators.
     constexpr uint32_t kRecordLocation = 16;
 }

@@ -50,12 +50,13 @@ namespace
     public:
         Translator(shader::Type type, const uint32_t* words, size_t count, bool scaled,
                    shader::PixelRecord record, shader::PixelConstants constants,
-                   shader::VertexOrder order, shader::VertexArena arena)
+                   shader::VertexOrder order, shader::VertexArena arena, shader::PixelArena pixels)
             : m_type(type), m_words(words), m_count(count), m_scaled(scaled),
               m_waterfall(type == shader::Type::Pixel && record == shader::PixelRecord::Subgroup),
               m_uniformConstants(type == shader::Type::Pixel && constants == shader::PixelConstants::Uniform),
               m_exchange(order == shader::VertexOrder::Guest),
-              m_texels(type == shader::Type::Vertex && arena == shader::VertexArena::Texels) {}
+              m_texels(type == shader::Type::Vertex && arena == shader::VertexArena::Texels),
+              m_pixelTexels(pixels == shader::PixelArena::Texels) {}
 
         shader::Translation Run();
 
@@ -80,6 +81,7 @@ namespace
         Id ConstantBlock(uint32_t block);
         Id RecordWord(uint32_t index);
         Id RecordFloat(uint32_t index);
+        Id RecordTexel(uint32_t texel);
         Id FetchConstantWord(uint32_t pair, uint32_t word);
         Id ArenaWord(Id dword);
         Id ArenaFloat4(Id vec4);
@@ -156,6 +158,11 @@ namespace
         // texel, its draw table entry as two, and vertex data four dwords
         // a texel.
         bool m_texels;
+        // The pixel programs read their record and what they sample a slot
+        // with as texels of four dwords (shader::PixelArena). A vertex
+        // program then finds its own slots' words further on in the record
+        // (bindings::kRecordTexelVertexTextures).
+        bool m_pixelTexels;
 
         Module m_module;
         shader::Translation m_result;
@@ -184,9 +191,11 @@ namespace
         // the block and the place in the code, in the order emitted. After
         // them, in the same arrays, the words of a vertex program's constant
         // table, loaded once in the same way from where the record says the
-        // table is.
-        enum : uint32_t { kTableWord = bindings::kRecordWords,
-                          kPlacedWords = kTableWord + bindings::kConstantTableWords };
+        // table is, and the texels of the record a pixel program fetches
+        // whole (RecordTexel).
+        enum : uint32_t { kTableWord = bindings::kRecordMostWords,
+                          kTexelLoad = kTableWord + bindings::kConstantTableWords,
+                          kPlacedWords = kTexelLoad + bindings::kRecordMostWords / 4 };
         Id m_recordWords[kPlacedWords]{};
         struct RecordRead { uint32_t block; size_t at; };
         std::vector<RecordRead> m_recordReads[kPlacedWords];
@@ -216,6 +225,9 @@ namespace
         Id m_samplers = 0;
         // A slot is only ever sampled at one dimensionality within one program.
         FetchDimension m_textureDimensions[32]{};
+        // Where a pixel program's slot is among the record's texels
+        // (bindings::kRecordPixelTexels), counted from the first.
+        uint32_t m_slotTexel[32]{};
         Id m_arena = 0;               // the frame arena, as dwords
         Id m_arenaFloats = 0;         // and as vec4
         Id m_arenaTexels = 0;         // or, for a vertex program's vec4, a texel buffer of them
@@ -547,23 +559,23 @@ namespace
         // record holds for its block (bindings.h).
         m_arena = DeclareArrayBlock(m_uint, 0, 4, bindings::kArenaSet, bindings::kArenaBinding,
                                     "arena");
+        // The same memory as texels of a buffer view: four floats, and four
+        // dwords (bindings::kArenaTexels, kArenaTexelWords).
+        const auto view = [this](Id sampled, uint32_t binding, const char* name) {
+            m_module.RequireCapability(kCapabilitySampledBuffer);
+            const Id variable = m_module.Allocate();
+            Module::Emit(m_module.Declarations(), Op::Variable,
+                         { m_module.Pointer(StorageClass::UniformConstant, m_module.Image(sampled, kDimBuffer)),
+                           variable, uint32_t(StorageClass::UniformConstant) });
+            Module::Emit(m_module.Decorations(), Op::Decorate,
+                         { variable, uint32_t(Decoration::DescriptorSet), bindings::kArenaSet });
+            Module::Emit(m_module.Decorations(), Op::Decorate,
+                         { variable, uint32_t(Decoration::Binding), binding });
+            Module::EmitString(m_module.Debug(), Op::Name, { variable }, name);
+            return variable;
+        };
         if (m_texels)
         {
-            // The same memory as texels of a buffer view: four floats, and
-            // four dwords (bindings::kArenaTexels, kArenaTexelWords).
-            m_module.RequireCapability(kCapabilitySampledBuffer);
-            const auto view = [this](Id sampled, uint32_t binding, const char* name) {
-                const Id variable = m_module.Allocate();
-                Module::Emit(m_module.Declarations(), Op::Variable,
-                             { m_module.Pointer(StorageClass::UniformConstant, m_module.Image(sampled, kDimBuffer)),
-                               variable, uint32_t(StorageClass::UniformConstant) });
-                Module::Emit(m_module.Decorations(), Op::Decorate,
-                             { variable, uint32_t(Decoration::DescriptorSet), bindings::kArenaSet });
-                Module::Emit(m_module.Decorations(), Op::Decorate,
-                             { variable, uint32_t(Decoration::Binding), binding });
-                Module::EmitString(m_module.Debug(), Op::Name, { variable }, name);
-                return variable;
-            };
             m_arenaTexels = view(m_float, bindings::kArenaTexels, "arena_texels");
             m_arenaWords4 = view(m_uint, bindings::kArenaTexelWords, "arena_words4");
             m_uint4 = m_module.Vector(m_uint, 4);
@@ -571,6 +583,11 @@ namespace
         else
             m_arenaFloats = DeclareArrayBlock(m_float4, 0, 16, bindings::kArenaSet,
                                               bindings::kArenaFloats, "arena_floats");
+        if (m_pixelTexels && m_type == shader::Type::Pixel)
+        {
+            m_arenaWords4 = view(m_uint, bindings::kArenaTexelWords, "arena_words4");
+            m_uint4 = m_module.Vector(m_uint, 4);
+        }
         if (m_uniformConstants)
             m_pixelConstants = DeclareArrayBlock(m_float4, bindings::kFloatConstants, 16, bindings::kArenaSet,
                                                  bindings::kPixelConstants, "pixel_constants");
@@ -644,6 +661,7 @@ namespace
             }
         }
 
+        uint32_t texels = 0;
         for (uint32_t slot = 0; slot < 32; slot++)
         {
             if (!(m_result.textureMask & (1u << slot))) continue;
@@ -662,6 +680,10 @@ namespace
             }
             const uint32_t kind = dim == 2 ? 2 : dim == 3 ? 1 : 0;
             m_result.textureKinds[slot] = uint8_t(kind);
+            // One texel of the record a slot, and a volume's depth in a
+            // second (bindings::kRecordPixelTexels).
+            m_slotTexel[slot] = texels;
+            texels += kind == 2 ? 2 : 1;
             Id image = m_module.Image(m_float, dim, false);
             m_textureImageTypes[slot] = image;
             m_textureTypes[slot] = m_module.SampledImage(image);
@@ -690,6 +712,7 @@ namespace
             // Before SPIR-V 1.4 the entry point's interface lists only Input and
             // Output variables.
         }
+        if (m_pixelTexels && m_type == shader::Type::Pixel) m_result.textureTexels = texels;
 
         for (uint32_t i = 0; i < kInterpolatorCount; i++)
         {
@@ -835,13 +858,29 @@ namespace
     // loaded where PlaceRecordLoads puts it once every read is known. One
     // value a vertex, that is, and one a pass of a pixel shader's waterfall
     // or a pixel without it: a hardware draw is many of the title's draws,
-    // each with a record of its own.
+    // each with a record of its own. A pixel program that reads the arena
+    // as texels takes the four words of bindings::kRecordPixel from their
+    // texel.
     Id Translator::RecordWord(uint32_t index)
     {
+        if (m_pixelTexels && m_type == shader::Type::Pixel &&
+            index >= bindings::kRecordPixel && index < bindings::kRecordPixel + 4)
+            return Emit(Op::CompositeExtract, m_uint,
+                        { RecordTexel(bindings::kRecordPixel / 4), index - bindings::kRecordPixel });
         Id& word = m_recordWords[index];
         if (!word) word = m_module.Allocate();
         m_recordReads[index].push_back({ m_block, m_module.Code().size() });
         return word;
+    }
+
+    // Texel `texel` of the draw's record, four dwords, fetched once as a
+    // word of it is loaded once.
+    Id Translator::RecordTexel(uint32_t texel)
+    {
+        Id& value = m_recordWords[kTexelLoad + texel];
+        if (!value) value = m_module.Allocate();
+        m_recordReads[kTexelLoad + texel].push_back({ m_block, m_module.Code().size() });
+        return value;
     }
 
     // Each record word's one load, in the narrowest block that dominates every
@@ -905,7 +944,20 @@ namespace
         {
             std::vector<uint32_t> words;
             const Id at = m_module.Allocate(), pointer = m_module.Allocate();
-            const bool ofTable = load.index >= kTableWord;
+            const bool ofTable = load.index >= kTableWord && load.index < kTexelLoad;
+            m_result.loads[ofTable ? shader::kLoadConstantTable : shader::kLoadRecord]++;
+            if (load.index >= kTexelLoad)
+            {
+                // The record starts at a texel.
+                const Id first = m_module.Allocate(), image = m_module.Allocate();
+                Module::Emit(words, Op::ShiftRightLogical, { m_uint, first, m_record, m_module.ConstantU(2) });
+                Module::Emit(words, Op::IAdd, { m_uint, at, first, m_module.ConstantU(load.index - kTexelLoad) });
+                Module::Emit(words, Op::Bitcast, { m_int, pointer, at });
+                Module::Emit(words, Op::Load, { m_module.Image(m_uint, kDimBuffer), image, m_arenaWords4 });
+                Module::Emit(words, Op::ImageFetch, { m_uint4, m_recordWords[load.index], image, pointer });
+                code.insert(code.begin() + std::ptrdiff_t(load.at), words.begin(), words.end());
+                continue;
+            }
             if (ofTable)
                 Module::Emit(words, Op::IAdd, { m_uint, at, m_recordWords[bindings::kRecordOffsets + bindings::kVertexFloats],
                                                 m_module.ConstantU(load.index - kTableWord) });
@@ -913,7 +965,6 @@ namespace
                 Module::Emit(words, Op::IAdd, { m_uint, at, m_record, m_module.ConstantU(load.index) });
             Module::Emit(words, Op::AccessChain, { m_module.Pointer(StorageClass::Uniform, m_uint), pointer,
                                                    m_arena, m_module.ConstantS(0), at });
-            m_result.loads[ofTable ? shader::kLoadConstantTable : shader::kLoadRecord]++;
             Module::Emit(words, Op::Load, { m_uint, m_recordWords[load.index], pointer });
             code.insert(code.begin() + std::ptrdiff_t(load.at), words.begin(), words.end());
         }
@@ -1945,9 +1996,46 @@ namespace
                     dimension == FetchDimension::D1 ? m_module.ConstantF(0.0f) : pick(1),
                     axes == 3 || dimension == FetchDimension::Cube ? pick(2) : 0 };
 
-        // The size of level 0, in texels: offsets are in half texels of it, and
-        // unnormalised coordinates are texels of it.
-        m_module.RequireCapability(kCapabilityImageQuery);
+        // What the draw's record holds for the slot. Where a pixel program
+        // reads the arena as texels, one texel has all of it
+        // (bindings::kRecordPixelTexels): the slot's word, the fetch
+        // constant's LOD bias and exponent adjust, and one over the size of
+        // level 0, in texels -- offsets are in half texels of it, and
+        // unnormalised coordinates are texels of it. Otherwise the word is
+        // loaded here, the constant's two dwords where they are used, and the
+        // image is asked its size.
+        const bool texels = m_pixelTexels && m_type == shader::Type::Pixel;
+        Id handle, perTexel[3]{}, constantLod = 0, scale = 0;
+        if (texels)
+        {
+            const uint32_t first = bindings::kRecordPixelTexels / 4 + m_slotTexel[slot];
+            const Id texel = RecordTexel(first);
+            const auto word = [&](Id of, uint32_t i) { return Emit(Op::CompositeExtract, m_uint, { of, i }); };
+            handle = word(texel, 0);
+            const Id packed = word(texel, 1);
+            const uint32_t exponent = (1u << bindings::kTexelExponentBits) - 1;
+            constantLod = Emit(Op::Bitcast, m_float,
+                               { Emit(Op::BitwiseAnd, m_uint, { packed, m_module.ConstantU(~exponent) }) });
+            // Two to the power of the exponent adjust, made as the bits of
+            // the float: its exponent field, and nothing below it.
+            scale = Emit(Op::Bitcast, m_float,
+                         { Emit(Op::ShiftLeftLogical, m_uint,
+                                { Emit(Op::IAdd, m_uint,
+                                       { Emit(Op::BitwiseAnd, m_uint, { packed, m_module.ConstantU(exponent) }),
+                                         m_module.ConstantU(127 - bindings::kTexelExponentBias) }),
+                                  m_module.ConstantU(23) }) });
+            perTexel[0] = Emit(Op::Bitcast, m_float, { word(texel, 2) });
+            perTexel[1] = Emit(Op::Bitcast, m_float, { word(texel, 3) });
+            if (axes == 3) perTexel[2] = Emit(Op::Bitcast, m_float, { word(RecordTexel(first + 1), 0) });
+        }
+        else
+        {
+            m_module.RequireCapability(kCapabilityImageQuery);
+            handle = RecordWord((m_type == shader::Type::Vertex
+                                     ? (m_pixelTexels ? bindings::kRecordTexelVertexTextures
+                                                      : bindings::kRecordVertexTextures)
+                                     : bindings::kRecordTextures) + slot);
+        }
         // The slot's image and sampler, by the indices the record holds for it.
         // A hardware draw is many of the title's, each with its own record. In
         // a vertex shader the indices are therefore not the same in every
@@ -1971,8 +2059,6 @@ namespace
                              { id, uint32_t(Decoration::NonUniform) });
             return id;
         };
-        Id handle = RecordWord((m_type == shader::Type::Vertex ? bindings::kRecordVertexTextures
-                                                                : bindings::kRecordTextures) + slot);
         Id imageIndex = Emit(Op::BitwiseAnd, m_uint,
                              { handle, m_module.ConstantU((1u << bindings::kHandleImageBits) - 1) });
         Id samplerIndex = Emit(Op::ShiftRightLogical, m_uint,
@@ -1987,11 +2073,15 @@ namespace
                                        m_module.Pointer(StorageClass::UniformConstant, m_module.Sampler()),
                                        { m_samplers, samplerIndex })) }));
         Id sampler = nonUniform(Emit(Op::SampledImage, m_textureTypes[slot], { bare, samplerObject }));
-        const uint32_t sizeCount = dimension == FetchDimension::D3 ? 3 : 2;
-        Id size = Emit(Op::ConvertSToF, sizeCount == 3 ? m_module.Float3() : m_module.Float2(),
-                       { Emit(Op::ImageQuerySizeLod, m_module.IntVector(sizeCount),
-                              { bare, m_module.ConstantS(0) }) });
-        size = GuestSize(size, slot, sizeCount);
+        Id size = 0;
+        if (!texels)
+        {
+            const uint32_t sizeCount = dimension == FetchDimension::D3 ? 3 : 2;
+            size = Emit(Op::ConvertSToF, sizeCount == 3 ? m_module.Float3() : m_module.Float2(),
+                        { Emit(Op::ImageQuerySizeLod, m_module.IntVector(sizeCount),
+                               { bare, m_module.ConstantS(0) }) });
+            size = GuestSize(size, slot, sizeCount);
+        }
 
         // Offsets are in half texels, and every axis gets a sliver more: the
         // hardware turns a coordinate into fixed point with 8 bits below the
@@ -2003,10 +2093,17 @@ namespace
         for (uint32_t i = 0; i < axes; i++)
         {
             Id offset = m_module.ConstantF(float(offsets[i]) * 0.5f + kRounding);
-            Id extent = Component(size, i);
-            c[i] = op.CoordinatesUnnormalised()
-                ? Emit(Op::FDiv, m_float, { Emit(Op::FAdd, m_float, { c[i], offset }), extent })
-                : Emit(Op::FAdd, m_float, { c[i], Emit(Op::FDiv, m_float, { offset, extent }) });
+            if (texels)
+                c[i] = op.CoordinatesUnnormalised()
+                    ? Emit(Op::FMul, m_float, { Emit(Op::FAdd, m_float, { c[i], offset }), perTexel[i] })
+                    : Emit(Op::FAdd, m_float, { c[i], Emit(Op::FMul, m_float, { offset, perTexel[i] }) });
+            else
+            {
+                Id extent = Component(size, i);
+                c[i] = op.CoordinatesUnnormalised()
+                    ? Emit(Op::FDiv, m_float, { Emit(Op::FAdd, m_float, { c[i], offset }), extent })
+                    : Emit(Op::FAdd, m_float, { c[i], Emit(Op::FDiv, m_float, { offset, extent }) });
+            }
         }
 
         Id coordinates;
@@ -2027,8 +2124,10 @@ namespace
         // instruction's (in 16ths). Implicit LOD needs derivatives, which only a
         // fragment shader has, so a vertex shader always states the level.
         const bool computed = op.UseComputedLod() && m_type == shader::Type::Pixel;
-        Id word4 = TextureFetchWord(slot, 4);
-        Id lod = Emit(Op::FMul, m_float, { SignedField(word4, 12, 10), m_module.ConstantF(1.0f / 32.0f) });
+        if (!constantLod)
+            constantLod = Emit(Op::FMul, m_float,
+                               { SignedField(TextureFetchWord(slot, 4), 12, 10), m_module.ConstantF(1.0f / 32.0f) });
+        Id lod = constantLod;
         if (op.UseRegisterLod())
             lod = Emit(Op::FAdd, m_float, { Emit(Op::Load, m_float, { m_lod }), lod });
         if (op.LodBias())
@@ -2041,7 +2140,7 @@ namespace
 
         // The fetch constant's exponent adjust scales what comes back by a
         // power of two.
-        Id scale = Glsl450(Glsl::Exp2, m_float, { SignedField(TextureFetchWord(slot, 3), 13, 6) });
+        if (!scale) scale = Glsl450(Glsl::Exp2, m_float, { SignedField(TextureFetchWord(slot, 3), 13, 6) });
         Id components[4];
         for (uint32_t i = 0; i < 4; i++)
             components[i] = Emit(Op::FMul, m_float, { Component(sampled, i), scale });
@@ -2901,9 +3000,9 @@ namespace
 
 shader::Translation shader::Translate(Type type, const uint32_t* words, size_t count,
                                       bool scaled, PixelRecord record, PixelConstants constants,
-                                      VertexOrder order, VertexArena arena)
+                                      VertexOrder order, VertexArena arena, PixelArena pixels)
 {
-    Translator translator(type, words, count, scaled, record, constants, order, arena);
+    Translator translator(type, words, count, scaled, record, constants, order, arena, pixels);
     return translator.Run();
 }
 

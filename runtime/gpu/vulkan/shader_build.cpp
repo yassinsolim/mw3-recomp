@@ -151,7 +151,9 @@ vk::shaders::Built vk::shaders::Build(shader::Type type, const uint32_t* code, s
                                           vk::pipeline::HostOrderVertices()
                                               ? shader::VertexOrder::Host : shader::VertexOrder::Guest,
                                           vk::pipeline::VertexTexels()
-                                              ? shader::VertexArena::Texels : shader::VertexArena::Storage);
+                                              ? shader::VertexArena::Texels : shader::VertexArena::Storage,
+                                          vk::pipeline::PixelTexels()
+                                              ? shader::PixelArena::Texels : shader::PixelArena::Storage);
     if (!built.translation.ok) return built;
     VkShaderModuleCreateInfo info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
     info.codeSize = built.translation.spirv.size() * 4;

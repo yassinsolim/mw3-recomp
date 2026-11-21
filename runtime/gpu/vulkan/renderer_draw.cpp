@@ -81,7 +81,9 @@ namespace vk::renderer::detail
     // What the draw's record holds for each slot a shader samples
     // (vk::textures::Handle), in the stage's own words (bindings.h), each
     // with the kind that stage declares the slot as; slots neither names are
-    // left as they are.
+    // left as they are. Where the pixel shaders read the arena as texels a
+    // pixel slot is a texel instead, with what else the pixel shader samples
+    // it with (bindings::kRecordPixelTexels).
     //
     // `scaled` gets a bit for each slot bound to a resolve's copy, whose image
     // is a whole number of times the size the title gave it: [0] for the
@@ -182,7 +184,8 @@ namespace vk::renderer::detail
                                      (uint64_t(found->second.newest + 1) << 32) |
                                      (uint64_t(linearise ? 1 : 0) << 34);
                 ids[slot] = vk::textures::Adopt(
-                    key, linearise ? newest->gammaView : newest->view, fetch);
+                    key, linearise ? newest->gammaView : newest->view, fetch,
+                    newest->width * newest->scale, newest->height * newest->scale);
                 if (ids[slot])
                 {
                     note(slot, newest->scale);
@@ -201,16 +204,45 @@ namespace vk::renderer::detail
                     ids[slot] = vk::textures::NoteDrawnInWorld(ids[slot]);
             if (g.drawRecord) NoteDrawTexture(slot, fetch, ids[slot], false);
         }
+        const bool texels = vk::pipeline::PixelTexels();
+        uint32_t* texel = record + bindings::kRecordPixelTexels;
         for (uint32_t bits = pixel.textureMask; bits; bits &= bits - 1)
         {
             const uint32_t slot = uint32_t(std::countr_zero(bits));
-            record[bindings::kRecordTextures + slot] = vk::textures::Handle(ids[slot], pixel.textureKinds[slot]);
+            const uint8_t kind = pixel.textureKinds[slot];
+            if (!texels)
+            {
+                record[bindings::kRecordTextures + slot] = vk::textures::Handle(ids[slot], kind);
+                continue;
+            }
+            const float* perTexel = nullptr;
+            texel[0] = vk::textures::Handle(ids[slot], kind, &perTexel);
+            // The fetch constant's LOD bias, ten bits of 32nds, and its
+            // exponent adjust, six bits, both signed, as the title has them
+            // whether or not it names a texture.
+            const int32_t bias = int32_t(r[gpu::kConstantBaseFetch + slot * 6 + 4] << 10) >> 22;
+            const int32_t exponent = int32_t(r[gpu::kConstantBaseFetch + slot * 6 + 3] << 13) >> 26;
+            texel[1] = std::bit_cast<uint32_t>(float(bias) * (1.0f / 32.0f)) |
+                       uint32_t(exponent + int32_t(bindings::kTexelExponentBias));
+            // The size the title gave the texture: a resolve's copy is its
+            // surface's scale times that each way.
+            const float larger = (scaled[0] >> slot & 1) ? float(g.scale)
+                               : (scaled[1] >> slot & 1) ? float(g.shadowScale) : 1.0f;
+            const float size[2] = { perTexel[0] * larger, perTexel[1] * larger };
+            std::memcpy(texel + 2, size, sizeof size);
+            texel += 4;
+            if (kind == 2)
+            {
+                texel[0] = std::bit_cast<uint32_t>(perTexel[2]);
+                texel[1] = texel[2] = texel[3] = 0;
+                texel += 4;
+            }
         }
+        const uint32_t vertexWords = texels ? bindings::kRecordTexelVertexTextures : bindings::kRecordVertexTextures;
         for (uint32_t bits = vertex.textureMask; bits; bits &= bits - 1)
         {
             const uint32_t slot = uint32_t(std::countr_zero(bits));
-            record[bindings::kRecordVertexTextures + slot] =
-                vk::textures::Handle(ids[slot], vertex.textureKinds[slot]);
+            record[vertexWords + slot] = vk::textures::Handle(ids[slot], vertex.textureKinds[slot]);
         }
     }
 
@@ -769,12 +801,22 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     }
 
     // The draw's record (bindings.h), filled from here on and written into
-    // the arena just before the draw. The vertex shader's texture words are
-    // there only when it samples a texture.
+    // the arena just before the draw, as far as the highest slot sampled.
+    // The vertex shader's texture words are there only when it samples a
+    // texture.
     const uint32_t pixelTextures = pixel->translation.textureMask;
     const uint32_t vertexTextures = vertex->translation.textureMask;
-    uint32_t values[bindings::kRecordWords];
-    std::memset(values, 0, (vertexTextures ? bindings::kRecordWords : bindings::kRecordVertexTextures) * 4);
+    const bool pixelTexels = vk::pipeline::PixelTexels();
+    // Where the pixel shader's slots end: its words, or its texels.
+    const uint32_t pixelWords =
+        pixelTexels ? bindings::kRecordPixelTexels + 4 * pixel->translation.textureTexels
+                    : bindings::kRecordTextures + (pixelTextures ? 32 - uint32_t(std::countl_zero(pixelTextures)) : 0);
+    const uint32_t recordWords =
+        vertexTextures ? (pixelTexels ? bindings::kRecordTexelVertexTextures : bindings::kRecordVertexTextures) +
+                             32 - uint32_t(std::countl_zero(vertexTextures))
+                       : pixelWords;
+    uint32_t values[bindings::kRecordMostWords];
+    std::memset(values, 0, recordWords * 4);
     uint32_t scaledSlots[2]{};
     gpu::detail::SetCurrentDrawStage("Draw_TexturesFor");
     TexturesFor(r, vertex->translation, pixel->translation, values, scaledSlots);
@@ -876,12 +918,16 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         std::memcpy(values + bindings::kRecordPixel, &test, sizeof test);
     }
 
-    // The record, as far as the highest slot sampled. Draws come in runs with
-    // the same state, and a run shares one.
+    // The record. Draws come in runs with the same state, and a run shares
+    // one.
+    bool pixelStateChanged = false;
     {
-        const uint32_t words =
-            vertexTextures ? bindings::kRecordVertexTextures + 32 - uint32_t(std::countl_zero(vertexTextures))
-                           : bindings::kRecordTextures + (pixelTextures ? 32 - uint32_t(std::countl_zero(pixelTextures)) : 0);
+        const uint32_t words = recordWords;
+        if (CountingPrimitives())
+            pixelStateChanged = !bound.recordValid ||
+                std::memcmp(bound.record + bindings::kRecordPixel, values + bindings::kRecordPixel, 16) ||
+                std::memcmp(bound.record + bindings::kRecordTextures, values + bindings::kRecordTextures,
+                            (pixelWords - bindings::kRecordTextures) * 4);
         if (!bound.recordValid || bound.recordWords != words ||
             std::memcmp(bound.record, values, words * 4))
         {
@@ -1086,6 +1132,9 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         bound.runEnd = UINT32_MAX;
     }
     if (vk::pipeline::ShaderStats()) NoteVertexWeight(call.vertexHash, vertex->translation, op.count);
+    if (CountingPrimitives())
+        NotePrimitives(topology, op.count, modeCntl, edramMode == gpu::EdramMode::DepthOnly, op.joins,
+                       pixelStateChanged);
     gpu::detail::SetCurrentDrawStage("Draw_Record");
     vk::record::Joining(op);
     colourTarget->draws++;
