@@ -4,67 +4,39 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
-### Fixed
-- **A match no longer freezes on a write the runtime answers for ever**
-  (`runtime/gpu/memory_watch.cpp`, [docs/rendering.md](docs/rendering.md#the-shadow-of-guest-memory)).
-  A page of guest memory could be left marked as written while still
-  read-only, when it was copied again between the two steps of making a range
-  writable for the image pool's moves, or between the two steps of a write
-  fault's answer. The next write to it faulted, was answered as handled, and
-  faulted again: the title's render backend spun there and the picture
-  stopped. Seen on the AYN Thor hosting a Find Game match of Modern Warfare 2
-  with the Retroid Pocket Flip 2, at the match's first frame; the other
-  player was dropped with "Server connection timed out".
-- **Modern Warfare 2's Find Game has its playlists on a relay that has none
-  for it** (`runtime/online/server.cpp`, [docs/relay.md](docs/relay.md)): the
-  project's relay is started without a playlists file, and FIND MATCH listed
-  nothing ("Maximum party size of 0"). A relay that says it has none now
-  leaves each copy the list its release was built with, as Modern Warfare 3
-  and Steam already had.
-- **Install & Play starts the game on a slower phone**
-  (`Prefs.gameDirectory`): the installer started the game before the game
-  folder's setting was on disk, and the game's process, which reads the file,
-  said "The game files are not installed" (Retroid Pocket Flip 2, first
-  install).
-- **Windows, the mouse**: `Alt+Tab` no longer opens the scoreboard (its Tab
-  was taken as the pad's Back before the window lost the keyboard), and
-  with the scoreboard up the mouse still turns the view and fires, the
-  cursor staying hidden, as the controller does there. Found with real
-  Windows input (`SendInput`) in Modern Warfare 3's multiplayer, window and
-  fullscreen ([runtime.md](docs/runtime.md#the-mouse)).
-
-### Changed
-- `MW2_TRACE_MATCH` also says where each player landed.
-
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
-The game package built for v0.1.0 goes on working: there is nothing to
-build again.
+The game package built for v0.1.0 goes on working: nothing to build
+again.
 
-- **Faster on every Adreno.** The shaders read their data in fewer, wider
-  fetches. AYN Thor at 120 Hz: Modern Warfare 3's Survival 87 to 108 frames
-  a second, Modern Warfare 2's S.S.D.D. opening 100 to 106. Retroid Pocket
-  Flip 2: Team Player's flight 53 to 59.5, and Survival 46 to 58 with the
-  limit set to 60.
+- **Faster on every Adreno.** AYN Thor at 120 Hz: Modern Warfare 3's
+  Survival 87 to 108 frames a second, Modern Warfare 2's S.S.D.D. opening
+  100 to 106. Retroid Pocket Flip 2: Team Player's flight 53 to 59.5, and
+  Survival 46 to 58 with the limit set to 60.
 - **Modern Warfare 2 starts at 60 on an Adreno 6xx**, not 30, with an
   832x480 scene, and holds it on S.S.D.D., Terminal and Rust.
+- **Online**: the host of a match no longer freezes at its first frame,
+  and Modern Warfare 2's Find Match has its playlists, not "Maximum party
+  size of 0".
+- **Install & Play** starts the game; a slower phone said "The game files
+  are not installed".
 - **No missing scenery**: Team Player lost its sky and far buildings in
-  some frames, on both devices.
-- **Compiled shaders are kept and used again.** The driver's cache was
-  dropped whole past 64 MB and every pipeline compiled again. It is now
-  several files under that budget; a second run compiles next to nothing.
+  some frames.
+- **Compiled shaders are kept and used again**, not dropped whole past
+  64 MB and compiled again.
 - **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
   models sooner, for more frames a second. The console's by default.
 - **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
   unfinished are not offered.
 - **A smaller game package**: Modern Warfare 2's is 40 MB, not 98, when
-  next built on a PC that had built both games.
-- **Mali**: a Mali-G57 or newer meets every requirement on paper; none has
-  run the games yet. A G52, G72 or G76 is refused.
+  next built.
+- **Mali**: a G57 or newer meets every requirement on paper; none has run
+  them yet. A G52, G72 or G76 is refused.
 - **Windows build**: the mouse aims as a mouse does and works the menus.
 
 ### Changed
+- `MW2_TRACE_MATCH` also says where each player landed.
 - **No draw is skipped for want of frame arena**
   ([docs/rendering.md](docs/rendering.md#a-frame-larger-than-its-slots-share)).
   Modern Warfare 2's Team Player skipped 34,000 draws in a flight of two
@@ -214,6 +186,33 @@ build again.
   the disc version of Modern Warfare 2 as well (`runtime/title.h`).
 
 ### Fixed
+- **A match no longer freezes on a write the runtime answers for ever**
+  (`runtime/gpu/memory_watch.cpp`, [docs/rendering.md](docs/rendering.md#the-shadow-of-guest-memory)).
+  A page of guest memory could be left marked as written while still
+  read-only, when it was copied again between the two steps of making a range
+  writable for the image pool's moves, or between the two steps of a write
+  fault's answer. The next write to it faulted, was answered as handled, and
+  faulted again: the title's render backend spun there and the picture
+  stopped. Seen on the AYN Thor hosting a Find Game match of Modern Warfare 2
+  with the Retroid Pocket Flip 2, at the match's first frame; the other
+  player was dropped with "Server connection timed out".
+- **Modern Warfare 2's Find Game has its playlists on a relay that has none
+  for it** (`runtime/online/server.cpp`, [docs/relay.md](docs/relay.md)): the
+  project's relay is started without a playlists file, and FIND MATCH listed
+  nothing ("Maximum party size of 0"). A relay that says it has none now
+  leaves each copy the list its release was built with, as Modern Warfare 3
+  and Steam already had.
+- **Install & Play starts the game on a slower phone**
+  (`Prefs.gameDirectory`): the installer started the game before the game
+  folder's setting was on disk, and the game's process, which reads the file,
+  said "The game files are not installed" (Retroid Pocket Flip 2, first
+  install).
+- **Windows, the mouse**: `Alt+Tab` no longer opens the scoreboard (its Tab
+  was taken as the pad's Back before the window lost the keyboard), and
+  with the scoreboard up the mouse still turns the view and fires, the
+  cursor staying hidden, as the controller does there. Found with real
+  Windows input (`SendInput`) in Modern Warfare 3's multiplayer, window and
+  fullscreen ([runtime.md](docs/runtime.md#the-mouse)).
 - An imported Turnip asked to disassemble its shaders
   (`IR3_SHADER_DEBUG=disasm`) aborted the game at the first pipeline: the
   driver's file redirect had no `dev` folder for the `/dev/null` its
