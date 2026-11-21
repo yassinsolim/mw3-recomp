@@ -4,6 +4,34 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-11-21
+
+### Highlights
+The game package built for v0.1.0 goes on working: there is nothing to
+build again.
+
+- **Modern Warfare 2 is faster.** An AYN Thor at 120 Hz flies S.S.D.D. at
+  116 frames a second. An Adreno 6xx (Retroid Pocket Flip 2) starts at 60
+  instead of 30, with an 832x480 scene, and holds 59 on S.S.D.D., Terminal
+  and Rust.
+- **Adreno 6xx**: vertex shaders are about half the instructions. On the
+  Flip 2 Team Player's flight went from 53 to 56 frames a second, and
+  Modern Warfare 3 has 1.5 to 2 ms less of GPU a frame.
+- **Vertex data in host byte order**: a few frames a second more in both
+  games on Turnip, and the same picture.
+- **Compiled shaders are kept and used again.** The driver's cache was
+  dropped whole past 64 MB and every pipeline compiled again. It is now
+  several files under that budget; a second run compiles next to nothing.
+- **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
+  models sooner, for more frames a second. The console's by default.
+- **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
+  unfinished are not offered.
+- **A smaller game package**: Modern Warfare 2's is 40 MB, not 98, when
+  next built on a PC that had built both games.
+- **Retroid Pocket Flip 2**: Team Player's sky and far buildings are drawn.
+- **Mali**: a Mali-G57 or newer meets every requirement on paper; none has
+  run the games yet. A G52, G72 or G76 is refused.
+
 ### Changed
 - **A vertex shader on an Adreno 6xx reads the frame arena as texels**
   ([docs/shaders.md](docs/shaders.md#the-module-interface),
@@ -23,47 +51,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   frame (Survival 25.3 to 23.8 ms, Black Tuesday 25.1 to 23.1, Seatown with
   bots 20.0 to 18.3), and with the limit at 60 Survival is 46.4 frames a
   second for 42.3 and Black Tuesday 45.3 for 42.1; the picture is the same.
-
-### Added
-- `MW2_SHADER_IR=<dir>` (with `MW2_SHADER_STATS=1`): what the driver
-  compiled each vertex shader to, a file each -- on Turnip the NIR and the
-  ir3 assembly, binning variant apart.
-
-### Fixed
-- An imported Turnip asked to disassemble its shaders
-  (`IR3_SHADER_DEBUG=disasm`) aborted the game at the first pipeline: the
-  driver's file redirect had no `dev` folder for the `/dev/null` its
-  disassembler opens.
-
-## [v0.1.1] - 2026-11-21
-
-### Highlights
-The game package built for v0.1.0 goes on working: only the app is updated,
-and there is nothing to build again.
-
-- **Modern Warfare 2 is faster.** An AYN Thor at 120 Hz flies S.S.D.D. at
-  116 frames a second. An Adreno 6xx (Retroid Pocket Flip 2) starts at 60
-  instead of 30, with an 832x480 scene, and holds 59 on S.S.D.D., Terminal
-  and Rust; Team Player is at 53.
-- **Vertex data in host byte order**: its bytes are exchanged once as they
-  are copied, not for every vertex. A few frames a second more in both
-  games on Turnip, and the same picture.
-- **Compiled shaders are kept and used again.** The driver's cache was
-  dropped whole past 64 MB and every pipeline compiled again, with the
-  stutter of it. It is now several files under that budget, written as it
-  grows; a second run compiles next to nothing.
-- **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
-  models sooner, for more frames a second. The console's by default.
-- **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
-  unfinished are not offered.
-- **A smaller game package**: setup packaged both games' libraries on a PC
-  that had built both. Modern Warfare 2's is 40 MB, not 98, when next built.
-- **Retroid Pocket Flip 2**: Team Player's sky and far buildings are drawn.
-- **Mali**: a Mali-G57 or newer meets every requirement, by its device
-  report and Arm's offline compiler; none has run the games yet. A G52, G72
-  or G76 is refused.
-
-### Changed
 - **The Retroid Pocket Flip 2 at 60, measured again**
   ([docs/android.md](docs/android.md#modern-warfare-2-there-60-frames-a-second)):
   Turnip's autotune, `sysmem`, `nobin`, `nolrz` and `noearlypreamble`,
@@ -146,6 +133,10 @@ and there is nothing to build again.
   the disc version of Modern Warfare 2 as well (`runtime/title.h`).
 
 ### Fixed
+- An imported Turnip asked to disassemble its shaders
+  (`IR3_SHADER_DEBUG=disasm`) aborted the game at the first pipeline: the
+  driver's file redirect had no `dev` folder for the `/dev/null` its
+  disassembler opens.
 - **A game package holds its own game's libraries only**
   ([docs/game-library.md](docs/game-library.md)): setup kept both games'
   libraries in one folder and packaged the folder, so a PC that had built
@@ -166,6 +157,9 @@ and there is nothing to build again.
   others unless `MW2_MAP_VOTE_MODES` said which.
 
 ### Added
+- `MW2_SHADER_IR=<dir>` (with `MW2_SHADER_STATS=1`): what the driver
+  compiled each vertex shader to, a file each -- on Turnip the NIR and the
+  ir3 assembly, binning variant apart.
 - **Detail at distance** (Modern Warfare 2; Settings, Graphics;
   `MW2_LOD_BIAS`, [docs/rendering.md](docs/rendering.md#detail-at-distance)):
   models change to their coarser meshes at half or a quarter of the
