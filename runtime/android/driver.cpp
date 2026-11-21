@@ -292,6 +292,13 @@ void* android::driver::Open(std::string& error)
             LOGW("driver: could not make %s", temporary.c_str());
         if (!MakeDirectory(redirect))
             LOGW("driver: could not make %s", redirect.c_str());
+        // Turnip's disassembler opens /dev/null to write a first pass into,
+        // and the redirect sends that here too: without the folder the file
+        // is not opened and the driver aborts the process writing to it
+        // ("FORTIFY: fputc: null FILE*"), which is every pipeline built
+        // under IR3_SHADER_DEBUG=disasm or MW2_SHADER_IR.
+        if (!MakeDirectory(redirect + "dev/"))
+            LOGW("driver: could not make %sdev/", redirect.c_str());
 
         // The hook libraries are dlopened by name out of the apk's own
         // library directory. If the build did not package them there is

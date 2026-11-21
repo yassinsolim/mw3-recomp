@@ -494,6 +494,69 @@ bundled Turnip v27.0.0-R2 unless said. The numbers and the reasons are in
 - The device charges at 5 V and 0.5 A and lost a percent of battery every
   three minutes of play; the runs were spread over the charge it had.
 
+## 2026-11-21
+
+### What a vertex shader costs on the Flip 2, and the arena as texels
+
+Retroid Pocket Flip 2 (Adreno 650), performance mode, `.dev` builds, the
+bundled Turnip v27.0.0-R2. The reasons are in
+[shaders.md](shaders.md#the-module-interface), the numbers in
+[android.md](android.md#modern-warfare-2-there-60-frames-a-second).
+
+- **Asking the driver.** `MW2_SHADER_IR=<dir>` (with `MW2_SHADER_STATS=1`)
+  writes what Turnip compiled each vertex shader to: the NIR and the ir3
+  assembly, binning variant apart. `IR3_SHADER_DEBUG=disasm` and this both
+  aborted the game at the first pipeline ("FORTIFY: fputc: null FILE*"):
+  Turnip's disassembler opens `/dev/null`, the driver's file redirect sends
+  that to `driver_files/dev/null`, and there was no such folder. There is
+  now.
+- **What it said.** Two vertex shaders run three vertices in five of Team
+  Player. The depth pass's (37% of them) was 207 instructions, 45 of them
+  fetches, in 21 registers, six waves a core; the lit world's (25%) 348, 61
+  and 32, four waves. On a 6xx ir3 reads a storage buffer one dword a fetch
+  (`isam` of a buffer texture, an add for the address, a move of zero for
+  the second coordinate), so a vec4 was twelve instructions, and the loads
+  waited on loads four deep. The position alone is most of it: the depth
+  pass's shader is its own binning variant, the lit world's is 229
+  instructions. The driver already drops the outputs a pixel shader does
+  not read (9 of 16 left in the lit world's), so there was nothing for the
+  translator to drop.
+- **Where the scene's time is.** With every primitive put outside the clip
+  volume (a test build, not kept; the GPU's clock at 587 MHz, having less
+  to do): 3.9 ms a frame with vertex shaders that compute nothing, 10.3 with
+  the real ones. So of the scene's 15 to 16 ms some 6 were vertex shading,
+  3.5 to 4 its 550,000 primitives however they are shaded, and 6 pixels.
+- **The arena as texels** (`MW2_VERTEX_TEXELS`, the default on an Adreno
+  6xx under Turnip). Set 2 has the slot's share twice more, as texel buffer
+  views of four floats and of four dwords. A vertex shader fetches a vec4
+  as one texel; its draw table entry is two texels, eight dwords, whose
+  last six hold what it loaded through the record before (the first dword
+  of its fetch constants, the places of its blocks of constants); and
+  vertex data the renderer copied is fetched four dwords a texel, the copy
+  starting at a multiple of four. The depth pass's shader: 99 instructions,
+  11 fetches, 10 registers, twelve waves. The lit world's: 204, 16, 16,
+  eight. The culled scene: 7.5 ms, so 3.5 of vertex shading for 6.4. What a
+  vertex computes is untouched.
+- **Measured**, against `MW2_VERTEX_TEXELS=0` in the same build, each with
+  its pipelines cached: Team Player's three heavy views 43.8 and 45.9
+  frames a second without, 50.0, 51.5 and 53.5 with (the scene 15.7 and
+  16.5 ms; 12.5 to 14.1); its flight 53.0 and 52.9 with 54.5 and 55.8% of
+  the frames on time, 56.6 and 56.2 with 69.3 and 69.4% (the first half
+  45 to 51; the worst ten seconds 39 and 41 to 47 and 49; 16.1 ms of GPU a
+  frame to 14.6 and 14.8). With it, S.S.D.D. flown for five minutes 59.9
+  and 93.7% (12.4 ms), Terminal 59.8 and 96.0%, Rust 59.5 and 95.8%.
+- **The picture.** Four fixed views of S.S.D.D., two runs each way: 64.3 to
+  99.7% of the pixels below the status line are the same to the bit with
+  and without, 65.3 to 99.7% between the two runs without; in the stillest
+  view 0.32% differ either way, the helicopters.
+- **Not done.** Team Player is not a locked 60: its first half is 50. The
+  window transform, a fetch and seven instructions a vertex that are the
+  identity for every draw but the clears, could be a second form of the
+  shader. No other GPU, and not Modern Warfare 3, has run the texel form;
+  the Thor was not to hand.
+- The device charged at 6 to 10% an hour; the runs were made between 20
+  and 28%.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

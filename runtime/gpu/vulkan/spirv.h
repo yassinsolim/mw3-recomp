@@ -33,7 +33,7 @@ namespace spirv
         VectorShuffle = 79, CompositeConstruct = 80, CompositeExtract = 81,
         CompositeInsert = 82, Transpose = 84, SampledImage = 86,
         ImageSampleImplicitLod = 87, ImageSampleExplicitLod = 88,
-        ImageRead = 98, ImageWrite = 99,
+        ImageFetch = 95, ImageRead = 98, ImageWrite = 99,
         Image = 100, ImageQuerySizeLod = 103,
         DPdx = 207, DPdy = 208,
         ConvertFToU = 109, ConvertFToS = 110, ConvertSToF = 111,

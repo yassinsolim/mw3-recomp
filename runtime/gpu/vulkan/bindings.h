@@ -72,6 +72,11 @@ namespace vk::bindings
     // the dynamic offset of the draw's pixel constants. The one thing bound
     // again within a command buffer, when a draw's differ from the last's.
     constexpr uint32_t kPixelConstants = 2;
+    // On a device whose vertex shaders read the arena as texels
+    // (shader::VertexArena::Texels): the slot's share twice more, as uniform
+    // texel buffers of four floats a texel and of four dwords a texel.
+    constexpr uint32_t kArenaTexels = 3;
+    constexpr uint32_t kArenaTexelWords = 4;
 
     // A draw table: what a hardware draw names as its base vertex
     // (vertexOffset, or firstVertex for a draw without indices), as a dword
@@ -92,6 +97,18 @@ namespace vk::bindings
     // without indices has entries of its own and names the first as its
     // first vertex, so its vertices count up through them the same way.
     constexpr uint32_t kTableWords = 2;
+    // Where the vertex shaders read the arena as texels
+    // (shader::VertexArena::Texels) an entry is two texels of four dwords,
+    // at a multiple of four: the same two words, and kHeaderWords more that
+    // hold what the draw's vertex program would otherwise load through the
+    // record -- the first dword of a vertex fetch constant, or the place of
+    // a block of its float constants (kHeaderBlock and the block), in the
+    // order the program gives (Translation::vertexHeader). A vertex then has
+    // everything it loads next from one fetch of its entry instead of from
+    // loads that wait on loads.
+    constexpr uint32_t kTableTexelWords = 8;
+    constexpr uint32_t kHeaderWords = kTableTexelWords - kTableWords;
+    constexpr uint32_t kHeaderBlock = 0x80;
     constexpr uint32_t kTableIndexBits = 16;
 
     // A draw's record: what is register state rather than shader state, in

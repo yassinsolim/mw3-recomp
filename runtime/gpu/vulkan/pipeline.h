@@ -59,6 +59,9 @@ namespace vk::pipeline
     // VK_KHR_pipeline_executable_properties: pipelines are then created with
     // VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR and handed to LogShaderStats.
     bool ShaderStats();
+    // The capture bits a pipeline is created with for LogShaderStats: the
+    // statistics, and under MW2_SHADER_IR the internal representations too.
+    uint32_t CaptureFlags();
     // Logs the driver's statistics for each executable of a pipeline (a
     // VkPipeline) made with the capture bit, one "shaderstats:" line per stage,
     // tagged with the vertex and pixel shader hashes it was built from.
@@ -115,6 +118,12 @@ namespace vk::pipeline
     // MW2_HOST_ORDER=0 keeps the exchange in the shaders.
     bool     HostOrderVertices();
     void     ArenaHasShadow(bool has);
+    // Whether vertex shaders read the arena through texel buffer views too
+    // (shader::VertexArena::Texels, set 2's last two bindings, draw table
+    // entries of bindings::kTableTexelWords): by default on an Adreno 6xx
+    // under Turnip, which loads a storage buffer a dword at a time, and as
+    // MW2_VERTEX_TEXELS says where the device has such views.
+    bool     VertexTexels();
     // Whether a sampler may be made with the mirror-once address mode
     // (VK_KHR_sampler_mirror_clamp_to_edge).
     bool     MirrorClampToEdge();

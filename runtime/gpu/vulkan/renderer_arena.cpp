@@ -404,7 +404,8 @@ namespace vk::renderer::detail
                                  g.fetchBlock.valid && g.fetchBlock.stamp == fetchStamp &&
                                  g.fetchBlock.base == VertexRange(lowestVertex, highestVertex) &&
                                  std::equal(subs, subs + 3, g.fetchSubs) &&
-                                 std::equal(pairs, pairs + 3, g.fetchPairs);
+                                 std::equal(pairs, pairs + 3, g.fetchPairs) &&
+                                 std::equal(program.vertexFetchTexels, program.vertexFetchTexels + 3, g.fetchTexels);
 
         // The fetch window is 32 groups of six dwords; the shader sees 96
         // constants of two dwords each, padded to a vec4.
@@ -501,11 +502,20 @@ namespace vk::renderer::detail
                 return true;
             }
 
+            // A program that fetches this data four dwords a texel
+            // (Translation::vertexFetchTexels) has to find vertex 0 at a
+            // multiple of four dwords. Its vertex is a whole number of
+            // texels long and the arena's alignment is coarser, so a copy
+            // made for it is; one made for another slot of the draw, or a
+            // kept window of a buffer that is not at a multiple of sixteen
+            // bytes from its range's start, may not be, and then the draw
+            // copies its own.
+            const bool texels = (program.vertexFetchTexels[slot / 32] >> (slot % 32)) & 1;
             // A window the slot keeps from frame to frame (KeptWindow).
             if (KeepingVertices() && va == guest::kPhysicalBase + physical)
             {
                 const uint32_t at = KeptWindow(physical + first * 4, words * 4, endian);
-                if (at != UINT32_MAX)
+                if (at != UINT32_MAX && !(texels && ((at - first * 4) & 15)))
                 {
                     entry[0] = (at - first * 4) | type;
                     return true;
@@ -526,7 +536,8 @@ namespace vk::renderer::detail
             for (uint32_t i = 0; i < madeCount; i++)
                 if (made[i].address == physical && made[i].endian == endian) { found = &made[i]; break; }
             const bool covered = found && found->dwords && found->first <= first &&
-                                 found->first + found->dwords >= last;
+                                 found->first + found->dwords >= last &&
+                                 !(texels && (found->base & 15));
             if (covered)
                 g.arenaReused[kArenaVertices] += words * 4;
             else
@@ -567,6 +578,7 @@ namespace vk::renderer::detail
                     // None where the copy is in host byte order already.
                     entry[0] = (entry[0] & ~3u) | (hostOrder ? 0u : source[1] & 3u);
                 }
+                g.fetchFirst[pair] = entry[0];
                 std::memcpy(ArenaAt(out.fetch + pair * 16), entry, sizeof entry);
                 written += 16;
             }
@@ -602,6 +614,7 @@ namespace vk::renderer::detail
         g.fetchBlock = { fetchStamp, VertexRange(lowestVertex, highestVertex), out.fetch, true };
         std::copy(subs, subs + 3, g.fetchSubs);
         std::copy(pairs, pairs + 3, g.fetchPairs);
+        std::copy(program.vertexFetchTexels, program.vertexFetchTexels + 3, g.fetchTexels);
         out.ok = true;
         return out;
     }
@@ -623,7 +636,7 @@ namespace vk::renderer::detail
             place.refused = "index range too wide for a draw table";
             return place;
         }
-        const uint32_t bytes = place.entries * bindings::kTableWords * 4;
+        const uint32_t bytes = place.entries * TableWords() * 4;
         const bool goesOn = MergingDraws() && g.drawTableOpen &&
                             g.drawTableEntries + place.entries <= g.mostTableEntries &&
                             g.tableStream.end - g.tableStream.at >= bytes;
@@ -645,17 +658,35 @@ namespace vk::renderer::detail
         return place;
     }
 
-    // Entry k is { the draw's record, the guest index its 65,536 start from }.
+    uint32_t TableWords()
+    {
+        return vk::pipeline::VertexTexels() ? bindings::kTableTexelWords : bindings::kTableWords;
+    }
+
+    // Entry k is { the draw's record, the guest index its 65,536 start from }
+    // and, where an entry is two texels, what the draw's vertex program reads
+    // from it in place of loads through the record: the first dword of a
+    // fetch constant as WriteConstants last wrote it, or the place of a block
+    // of float constants as the constant table has it -- this draw's, both.
     // Put together here and copied across: the arena is not memory to build
     // something in piece by piece.
-    void WriteDrawTable(const DrawPlace& place, uint32_t record)
+    void WriteDrawTable(const DrawPlace& place, uint32_t record, const shader::Translation& program)
     {
-        uint8_t* out = ArenaAt((place.table + place.slot * bindings::kTableWords) * 4);
+        static_assert(bindings::kFetchSlots <= bindings::kHeaderBlock, "a header byte names either");
+        const uint32_t words = TableWords();
+        uint32_t entry[bindings::kTableTexelWords] = { record, place.base };
+        if (words == bindings::kTableTexelWords)
+            for (uint32_t i = 0; i < program.vertexHeaderWords; i++)
+            {
+                const uint32_t what = program.vertexHeader[i];
+                entry[bindings::kTableWords + i] = what & bindings::kHeaderBlock
+                    ? g.constantTableWords[what & ~bindings::kHeaderBlock] : g.fetchFirst[what];
+            }
+        uint8_t* out = ArenaAt((place.table + place.slot * words) * 4);
         for (uint32_t k = 0; k < place.entries; k++)
         {
-            const uint32_t entry[bindings::kTableWords] = {
-                record, place.base + (k << bindings::kTableIndexBits) };
-            std::memcpy(out + k * sizeof entry, entry, sizeof entry);
+            entry[1] = place.base + (k << bindings::kTableIndexBits);
+            std::memcpy(out + k * words * 4, entry, words * 4);
         }
     }
 

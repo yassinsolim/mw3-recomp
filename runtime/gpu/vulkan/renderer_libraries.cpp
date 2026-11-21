@@ -91,7 +91,7 @@ namespace
         info.pNext = &linked;
         info.flags = optimise ? VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT : 0;
         // On the link, not the libraries: the executables are the linked pipeline's.
-        if (vk::pipeline::ShaderStats()) info.flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+        info.flags |= vk::pipeline::CaptureFlags();
         info.layout = Layout();
         VkPipeline made = VK_NULL_HANDLE;
         int fromCache = -1;
