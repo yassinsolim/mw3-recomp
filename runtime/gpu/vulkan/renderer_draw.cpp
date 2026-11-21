@@ -413,30 +413,20 @@ const vk::renderer::detail::GatheredCounts& vk::renderer::detail::Gathered() { r
 
 using namespace vk::renderer::detail;
 
-void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
+namespace vk::renderer::detail
 {
-    struct StageScope
-    {
-        StageScope() { gpu::detail::SetCurrentDrawStage("Draw_Start"); }
-        ~StageScope() { gpu::detail::SetCurrentDrawStage("Draw_Idle"); }
-    } stageScope;
+    // One attempt at a draw, in the frame slot being recorded. `full` comes
+    // back set when the slot's share of the arena had no room for something
+    // the draw copies; nothing of the draw was recorded then, and what it
+    // had copied is left where it lies (vk::renderer::Draw).
+    void DrawInSlot(const gpu::RegisterFile& r, const DrawCall& call, bool& full);
+}
 
-    Stopwatch watch(g.drawNanoseconds);
-    if (!g.device) return;
-    // A flash hunt's record of this draw, open until it returns however it does.
-    if constexpr (diag::kOn)
-        g.drawRecord = BeginDrawRecord(r, call.vertexHash, call.pixelHash, call.primitive,
-                                       call.indexCount, call.indexed ? call.indexAddress : 0);
-    struct CloseRecord {
-        ~CloseRecord() {
-            g.drawRecord = nullptr;
-            gpu::detail::SetCurrentDrawStage("idle");
-        }
-    } closeRecord;
-    // and the pass and framebuffer that go with it.
+void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall& call, bool& full)
+{
+    // The draw's set-up: its shaders, and the pass and targets that go with it.
     const auto setupFrom = Timing() ? std::chrono::steady_clock::now()
                                     : std::chrono::steady_clock::time_point{};
-    g.draws++;
 
     const VkPrimitiveTopology topology = TopologyFor(call.primitive);
     if (topology == VK_PRIMITIVE_TOPOLOGY_MAX_ENUM) { Skip("primitive type"); return; }
@@ -626,6 +616,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         Stopwatch indices(g.indexNanoseconds);
         place = WriteIndices(call.indexAddress, call.indexCount, call.index32,
                              lowestVertex, highestVertex);
+        if (place.refused == kArenaFull) { full = true; return; }
         if (place.refused) { Skip(place.refused); return; }
     }
 
@@ -640,7 +631,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
         [&] { Stopwatch watch(g.constantsNanoseconds);
               return WriteConstants(r, vertex->translation, pixel->translation,
                                     lowestVertex, highestVertex, rectangles); }();
-    if (!constants.ok) { Skip(kArenaFull); return; }
+    if (!constants.ok) { full = true; return; }
     // From here to the first command recorded: the pipeline key, the texture
     // handles and the viewport.
     const auto stateFrom = Timing() ? std::chrono::steady_clock::now()
@@ -651,6 +642,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     if (!call.indexed)
     {
         place = rectangles ? WriteRectangleIndices(rectangles) : PlaceInTable(highestVertex, 0);
+        if (place.refused == kArenaFull) { full = true; return; }
         if (place.refused) { Skip(place.refused); return; }
     }
 
@@ -932,7 +924,7 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
             std::memcmp(bound.record, values, words * 4))
         {
             const uint32_t at = Allocate(words * 4, kArenaConstants);
-            if (at == UINT32_MAX) { Skip(kArenaFull); return; }
+            if (at == UINT32_MAX) { full = true; return; }
             std::memcpy(ArenaAt(at), values, words * 4);
             std::memcpy(bound.record, values, words * 4);
             bound.recordWords = words;
@@ -1147,6 +1139,55 @@ void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
     g.drawsRecorded++;
     g.segmentDraws = true;
     gpu::detail::SetCurrentDrawStage("idle");
+}
+
+void vk::renderer::Draw(const gpu::RegisterFile& r, const DrawCall& call)
+{
+    struct StageScope
+    {
+        StageScope() { gpu::detail::SetCurrentDrawStage("Draw_Start"); }
+        ~StageScope() { gpu::detail::SetCurrentDrawStage("Draw_Idle"); }
+    } stageScope;
+
+    Stopwatch watch(g.drawNanoseconds);
+    if (!g.device) return;
+    // A flash hunt's record of this draw, open until it returns however it does.
+    if constexpr (diag::kOn)
+        g.drawRecord = BeginDrawRecord(r, call.vertexHash, call.pixelHash, call.primitive,
+                                       call.indexCount, call.indexed ? call.indexAddress : 0);
+    struct CloseRecord {
+        ~CloseRecord() {
+            g.drawRecord = nullptr;
+            gpu::detail::SetCurrentDrawStage("idle");
+        }
+    } closeRecord;
+    g.draws++;
+
+    // A draw the slot's share has no room for is not dropped: what the frame
+    // has recorded so far is submitted and the draw made again in the next
+    // slot, whose share is empty but for the vertex data it keeps. A frame
+    // that copies more than a share holds -- Team Player's, 116 MB of vertex
+    // windows in a frame whose slot keeps none of them yet, of a 128 MB
+    // share -- is then two submissions, where it was a frame with a few
+    // thousand draws missing: the far buildings.
+    //
+    // What a slot keeps stays when its frame's own copies run out of room:
+    // letting it go made the next frames copy all of it again, and run out
+    // again. It goes only where it alone leaves a draw no room, in a share
+    // the draw is the first to copy into; so a draw is skipped only when a
+    // share with nothing kept cannot hold it either.
+    for (;;)
+    {
+        const bool first = !g.recording || !g.arenaUsed;
+        bool full = false;
+        DrawInSlot(r, call, full);
+        if (!full) return;
+        State::Slot& slot = g.slots[g.slot];
+        if (first && !slot.keptBytes) { Skip(kArenaFull); return; }
+        if (first) slot.keptLet = State::Slot::Let::All;
+        if (!Submit()) { Skip(kArenaFull); return; }
+        g.arenaSpills++;
+    }
 }
 
 #endif  // MW2_HAVE_VULKAN

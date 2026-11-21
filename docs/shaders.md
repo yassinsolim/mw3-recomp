@@ -326,8 +326,8 @@ or, where the pixel shaders read the arena as texels, from 20 on:
   lit world's 348 with 61 in 32. The loads also waited on each other four
   deep: the entry, the record, the table's word or the fetch constant, the
   constant or the vertex. So where the device says so
-  (`vk::pipeline::VertexTexels`: an Adreno 6xx under Turnip, or
-  `MW2_VERTEX_TEXELS=0|1`)
+  (`vk::pipeline::VertexTexels`: an Adreno under Turnip, the 7xx too, which
+  is measured below; or `MW2_VERTEX_TEXELS=0|1`)
   set 2 has the slot's share twice more, as texel buffer views of four
   floats and of four dwords, and a vertex shader:
   - fetches a vec4 -- a float constant, the window transform -- as one
@@ -374,7 +374,7 @@ or, where the pixel shaders read the arena as texels, from 20 on:
   reciprocals for the half-texel offsets. With the two dwords and the size
   read as nothing (a test build: the wrong exposure, and 60 frames a second
   where there were 50) that was three milliseconds of a frame. So where the
-  device says so (`vk::pipeline::PixelTexels`: an Adreno 6xx under Turnip,
+  device says so (`vk::pipeline::PixelTexels`: an Adreno under Turnip,
   or `MW2_PIXEL_TEXELS=0|1`) the texel view of four dwords is bound to the
   pixel stage too, and a pixel shader:
   - fetches the alpha test's four words as the one texel they are;

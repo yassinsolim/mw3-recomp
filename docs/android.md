@@ -314,6 +314,23 @@ Modern Warfare 2 is lighter, and on this class it starts with the cap at 60 (`Pr
 - **Image compression stays off, and is not what is missing.** The reset is put down to compressed images that are also copied from (`VK_IMAGE_USAGE_TRANSFER_SRC_BIT`, nckstwrt/NetherSX2-Turnip issue 70). The bundled Turnip takes `VK_EXT_image_compression_control`, so a test build left the compression on (`MW2_ADRENO6_UBWC=1`) and asked for it off image by image, all but one class at a time. At Team Player's three views, against 45.9 frames a second and a scene of 16.0 ms without compression in the same sitting: the textures alone compressed 41.6 and 17.7 ms, the colour targets 44.0 and 16.6, the depth targets 45.1 and 16.4, the images resolves are copied into 44.2 and 16.7, all four 45.3 and 16.3, and every image (the switch alone) 42.8 and 17.7. Nothing gained, which is the vertices again; and no reset in those six starts of a Modern Warfare 2 level, where Modern Warfare 3's Survival had one at every start. `noubwc` stays for both games, and the test build's switch was not kept.
 - **The modes and the clocks.** In the device's standard mode the baseline ran at 42.3 frames a second and 23.1 ms of GPU a frame, in its performance mode at 40.5 and 22.4 (the same flight, before the changes and before the player was kept unhurt): the GPU, at the same 670 MHz in both, was the limit, not the processor. `/sys/class/kgsl/kgsl-3d0/gpuclk` read every four seconds of play is 670 MHz, the device's `max_gpuclk`, in seven readings of eight where the frame is late (Team Player) and four of five where the cap is held (S.S.D.D.), 587 in the rest, with the chip 83 to 89% busy; the fast cores reach their 2,419 and 2,842 MHz. There is nothing above that for a performance hint to ask for. In the five-minute runs the GPU's zone reached 63 C, the processor's 72, the skin's 52.
 
+### Adreno 7xx (Snapdragon 8 Gen 2 class)
+
+Measured on the AYN Thor (Adreno 740, 120 Hz, the bundled Turnip v27.0.0-R2), 2026-11-21, `.dev` builds with the limit at 120.
+
+- **The arena as texels is the default there too** (`MW2_VERTEX_TEXELS`, `MW2_PIXEL_TEXELS`, [shaders.md](shaders.md#the-module-interface)): on every Adreno under Turnip, where it was the 6xx alone. Turnip's compiler has a load of several dwords from the 7xx on, and the texels are faster all the same. GPU time a frame and frames a second, two runs each way after one to fill the pipeline cache, switched in one build:
+
+  | | neither | vertex | pixel | both |
+  |---|---|---|---|---|
+  | S.S.D.D.'s opening | 9.08 ms, 99.8 | 7.88 ms, 104.3 | 8.69 ms, 101.6 | 7.43 ms, 106.1 |
+  | S.S.D.D., four fixed views | 6.49 ms, 117.3 | 5.89 ms, 117.6 | | 5.63 ms, 118.1 |
+  | Team Player's three heavy views | 13.16 ms, 70.2 | 11.19 ms, 73.2 | 12.22 ms, 73.5 | 10.35 ms, 73.5 |
+  | Rust (at the limit) | 6.48 ms, 119.0 | 5.99 ms, 118.8 | 6.36 ms, 119.0 | 5.54 ms, 119.0 |
+  | Modern Warfare 3, Survival on Resistance | 10.87 ms, 86.7 | 9.17 ms, 102.6 | 10.23 ms, 91.0 | 8.52 ms, 107.8 |
+
+  Both together are 13 to 22% less GPU time everywhere. Team Player's views gain little in frames a second because the ring consumer is their limit there (87 to 95% of its core). The picture is the same: at S.S.D.D.'s four views 68.2 to 99.1% of the pixels are identical to the bit with both and with neither, 68.3 to 99.1% between two runs with neither; Modern Warfare 3's menus 96.9 to 100%; in play what differs is what moves. No run logged a renderer error.
+- **No draw is skipped for want of arena** ([rendering.md](rendering.md#a-frame-larger-than-its-slots-share)). Team Player's flight skipped 34,197 draws as `frame arena full` on this device, and 8,486 on the Retroid Pocket Flip 2: frames with the far buildings and the sky missing, at the level's start, after each checkpoint loaded again and whenever a slot's kept vertex data had filled its share. With a draw made in the next slot when its own is full, and the vertex data kept by block, the same flight skips none on either device (1 or 2 draws made in the next slot, no slot letting its copies go, 61 to 72 MB kept at most), nor do five minutes of S.S.D.D. or Modern Warfare 3's Survival.
+
 ---
 
 ## 7. Building from Source

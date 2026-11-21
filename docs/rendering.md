@@ -237,17 +237,25 @@ The shadow needs arena and shadow within what one storage buffer descriptor
 reaches. Turnip reaches 128 MB, so on an Adreno under it there is none, and
 every draw copied its vertex windows: 12 to 31 MB a frame of Modern Warfare 2,
 half of the ring consumer's time on a Snapdragon 865, and in Team Player more
-than a slot's 85 MB share held, so its far buildings and its sky went undrawn
+than a slot's share held, so its far buildings and its sky went undrawn
 (`draws skipped: frame arena full`, five million of them in one flight).
 
 There a frame slot keeps what it copies (`KeptWindow`, `renderer_arena.cpp`),
 at the end of its share, the frame's own allocations coming up from the
 start:
 
-- **By range, in 64 KB chunks.** The window is rounded out to whole chunks
-  and the range kept by where it starts, so the windows of other draws into
-  the same buffer fall inside it. Kept window by window, Team Player's filled
-  the share every few frames.
+- **By block.** What is kept is the block of guest memory the window lies
+  in: a power of two of 64 KB chunks at a multiple of its own size, so two
+  blocks are apart or one inside the other, never partly over each other.
+  The windows of other draws into the same buffer fall inside it, and a
+  window that reaches past it makes the block that holds both, which takes
+  the place of the ones inside it. A block is at most four times its window
+  rounded up and at most 16 MB; a window no block is allowed for, or whose
+  block holds a page the title keeps writing, is kept alone. Kept window by
+  window, Team Player's filled the share every few frames; kept as the window
+  rounded out to chunks, the ranges lay over each other and a longer range
+  from the same start threw the shorter one's place away, 76 MB of a share
+  for 41 MB of vertex data.
 - **For as long as the watch says the window's pages are unwritten**
   (`gpu::watch::TrackSteady`, `Unwritten`). `TrackSteady` is `Track` with the
   shadow's pacing: pages the title keeps writing are not watched again for
@@ -256,19 +264,51 @@ start:
   dynamic geometry goes round a ring, each stretch drawn once and written
   over a lap later; kept at first sight it took a megabyte of the share a
   frame.
-- **Copied again in place when it was written**, a soldier's skinned
-  vertices for one, unless a draw of the same frame has named the copy: the
-  slot's earlier frames are done before it begins another.
-- **Let go together** when the copies reach two thirds of the share (the
-  frame's own keeps a third, 24 MB at least) or a frame's own allocation
-  finds no room: the slot starts its next frame with none.
+- **Brought up to date at its first use in a frame** (`Refresh`): the pages
+  written since the copy was made, a soldier's skinned vertices for one, are
+  copied again where they are, page by page. In place because the slot's
+  earlier frames are done before it begins another and no draw of this one
+  has named the range yet; a window written later in the frame is copied by
+  its draw.
+- **Places are used again.** A range another took the place of, and one the
+  slot lets go, leave their places to the ranges that come; neighbouring
+  spare places join, and the lowest goes back to the frame's own.
+- **Let go a part at a time** when the copies reach two thirds of the share
+  (the frame's own keeps a third, 24 MB at least): the ranges the slot has
+  not drawn from for 300 frames go. All of them go only when that frees less
+  than a sixteenth of the share, or when what is kept leaves a single draw no
+  room.
 
 Each of the three slots has its own, so a range is copied three times in all.
 On the Flip 2 the vertex data copied a frame went from 31 MB to 4 in Team
 Player (33 MB a frame drawn from kept copies), the ring consumer from 76% of
-its core to 46%, and nothing overflows. `MW2_KEEP_VERTICES=0` copies every
-window. The arena is 384 MB on a phone of 7 GB and more, a share of 128 MB
-where the reach is that.
+its core to 46%. `MW2_KEEP_VERTICES=0` copies every window. The arena is
+384 MB on a phone of 7 GB and more, a share of 128 MB where the reach is
+that.
+
+### A frame larger than its slot's share
+
+A slot's share cannot grow past what one storage buffer reaches, and a frame
+can need more: one whose slot keeps nothing yet copies every window of every
+pass, 105 to 116 MB of vertex data in Team Player on the AYN Thor, beside
+11 MB of indices and 5 MB of constants. That is the level's first frames, the
+frames after a checkpoint is loaded again, and the frames after a slot let
+its copies go, which used to be whenever its frame's own copies ran out of
+room: 34,197 draws skipped in one flight of two minutes there and 8,486 on
+the Retroid Pocket Flip 2, each in a frame with most of the scene missing.
+
+A draw the share has no room for is now made in the next slot
+(`vk::renderer::Draw`): what the frame has recorded is submitted, as a
+resolve does with a share half used, and the draw is made again from its
+start in the slot after, whose share is empty but for what it keeps. A slot's
+kept copies stay when its frame's own run out; they go only where they alone
+leave a draw no room. So a draw is skipped as `frame arena full` only if a
+share with nothing kept cannot hold it. The report counts the draws made
+that way (`draws found their frame slot's share of the arena full`): 1 or 2
+in that flight on either device, at the level's start, with no draw skipped
+and no slot letting its copies go (61 to 72 MB kept at most). With the kept
+part held to 40 MB for a test the slots let stale ranges go 16 times and all
+of them 15 times in the flight, and still no draw was skipped.
 
 ### Vertex data in host byte order
 

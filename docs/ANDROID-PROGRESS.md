@@ -614,6 +614,42 @@ The same device and driver, `.dev` builds. The reasons are in
 - The device stopped charging at 22% (a restart set it going) and was off
   `adb` for a while; the Modern Warfare 3 runs were made once it was back.
 
+### No draw skipped for want of arena, and the texels on the Adreno 740
+
+AYN Thor (Adreno 740, 120 Hz) and Retroid Pocket Flip 2, the bundled Turnip,
+`.dev` builds. The reasons are in
+[rendering.md](rendering.md#a-frame-larger-than-its-slots-share), the table
+in [android.md](android.md#adreno-7xx-snapdragon-8-gen-2-class).
+
+- **What was skipped.** Team Player's flight logged 34,197 draws skipped as
+  `frame arena full` on the Thor and 8,486 on the Flip 2. A frame whose slot
+  keeps no vertex data yet copies 105 to 116 MB of windows, of a 128 MB
+  share: the level's first frames, the frames after each checkpoint loaded
+  again, and three frames, one a slot, each time a slot let its copies go,
+  which was whenever its frame's own ran out of room (13 to 17 times a
+  flight). The kept ranges lay over each other and lost their places: 76 MB
+  of a share for 41 MB of vertex data.
+- **What changed.** A draw with no room is made in the next slot after a
+  submission; a slot's copies stay when its frame's own run out; vertex data
+  is kept by blocks that lie apart, their places used again, written pages
+  copied again one by one, and the ranges not drawn from lately let go
+  first.
+- **After.** No draw skipped as `frame arena full` on either device in Team
+  Player's flight (1 or 2 draws made in the next slot, no slot letting its
+  copies go), five minutes of S.S.D.D. or Modern Warfare 3's Survival. The
+  flight's frame rate is as it was: 95 to 97 frames a second on the Thor,
+  59.6 to 59.7 with 88% on time on the Flip 2. Screen recordings of the
+  flight before and after show the frames after a checkpoint with the scene
+  missing, and whole.
+- **The texels on the Thor.** `MW2_VERTEX_TEXELS=1` with
+  `MW2_PIXEL_TEXELS=1` against both off, GPU ms a frame: S.S.D.D.'s opening
+  9.08 to 7.43, Team Player's heavy views 13.16 to 10.35, Rust 6.48 to 5.54,
+  Modern Warfare 3's Survival 10.87 to 8.52 (86.7 frames a second to 107.8).
+  The vertex form alone is two thirds of it. The picture is the same, so
+  both are the default on every Adreno under Turnip.
+- The Modern Warfare 3 `.dev` app and the copy of its files are off both
+  devices again.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).
