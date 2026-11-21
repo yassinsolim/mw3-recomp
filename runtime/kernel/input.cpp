@@ -19,6 +19,8 @@
 #include "../stutters.h"
 #include "../gpu/vulkan/renderer.h"
 #include "../gpu/vulkan/presenter.h"
+#include "../menu_pointer.h"
+#include "../title.h"
 #include "../env.h"
 
 #ifdef MW2_ANDROID
@@ -34,6 +36,7 @@
 #include <chrono>
 #include <cmath>
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
@@ -160,12 +163,22 @@ namespace
         { "guide", signin::kGuide },
     };
 
+    // What MW2_INPUT_SCRIPT does with the mouse this poll (ScriptedButtons):
+    // `at<x>/<y>` puts a menu's pointer at that part of the frame and `click`
+    // holds the left button, with no window and no hand.
+    struct ScriptedMouse
+    {
+        bool pointing = false;
+        float x = 0, y = 0;
+        bool click = false;
+    } g_scriptMouse;
+
     // The keyboard, for when there is no controller. Only useful with the window
     // open, since that is what gives SDL a focused surface to read keys from.
 #ifdef MW2_USE_SDL
     struct Key { SDL_Scancode code; uint16_t bit; };
     constexpr Key kKeys[] = {
-        { SDL_SCANCODE_RETURN, BTN_START },   { SDL_SCANCODE_ESCAPE, BTN_BACK },
+        { SDL_SCANCODE_RETURN, BTN_START },
         { SDL_SCANCODE_TAB, BTN_BACK },       { SDL_SCANCODE_BACKSPACE, BTN_BACK },
         { SDL_SCANCODE_UP, BTN_DPAD_UP },     { SDL_SCANCODE_DOWN, BTN_DPAD_DOWN },
         { SDL_SCANCODE_LEFT, BTN_DPAD_LEFT }, { SDL_SCANCODE_RIGHT, BTN_DPAD_RIGHT },
@@ -192,6 +205,34 @@ namespace
         return buttons;
     }
 
+    // Whether the title has a menu up: the first local client's key catchers
+    // have the menus' bit while one takes the controller (title.h). Never,
+    // for an executable they have not been found in.
+    bool MenuUp(uint8_t* base)
+    {
+#ifdef T_DATA_KeyCatchers
+        return (PPC_LOAD_U32(T_DATA_KeyCatchers) & 0x10) != 0;
+#else
+        (void)base;
+        return false;
+#endif
+    }
+
+    // Escape is the PC's key for the pause menu and for leaving a menu: Start
+    // in the world, B with a menu up. Which it is is settled as the key goes
+    // down, and the button is let go as soon as the answer changes: the press
+    // that opened the pause menu would otherwise be the B that closed it.
+    uint16_t EscapeButton(bool menu)
+    {
+        static bool wasDown = false, inMenu = false;
+        const bool* keys = SDL_WasInit(SDL_INIT_VIDEO) ? SDL_GetKeyboardState(nullptr) : nullptr;
+        const bool down = keys && keys[SDL_SCANCODE_ESCAPE];
+        if (down && !wasDown) inMenu = menu;
+        wasDown = down;
+        if (!down || inMenu != menu) return 0;
+        return menu ? BTN_B : BTN_START;
+    }
+
 #ifdef _WIN32
     // WASD and the mouse on user 0's sticks and triggers: Windows only, and
     // only while the game's window has the keyboard (XamInputGetState).
@@ -209,9 +250,42 @@ namespace
         if (y != 0) ly = int16_t(y);
     }
 
-    // The mouse on user 0's right stick, triggers and right thumb click, while
-    // the window holds it (vk::TakeMouseMotion): after F2 has given the cursor
-    // back, a click is the desktop's and not a shot.
+    // The wheel, a notch at a time: a tap of Y in the world, which is the
+    // console's one weapon switch whichever way the wheel turns, and of the
+    // d-pad's up or down in a menu. A tap is long enough for a title drawing
+    // 30 frames a second to see it go down and come up.
+    uint16_t WheelTaps(int notches, bool menu)
+    {
+        constexpr auto kHalf = std::chrono::milliseconds(70);
+        static int waiting = 0;                     // notches not tapped yet, up positive
+        static bool forMenu = false, down = false;
+        static std::chrono::steady_clock::time_point turn{};
+        if (menu != forMenu) { waiting = 0; forMenu = menu; }
+        waiting = std::clamp(waiting + notches, -8, 8);
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= turn && (down || waiting))
+        {
+            if (down) waiting -= waiting > 0 ? 1 : -1;
+            down = !down;
+            turn = now + kHalf;
+        }
+        if (!down || !waiting) return 0;
+        return !menu ? BTN_Y : waiting > 0 ? BTN_DPAD_UP : BTN_DPAD_DOWN;
+    }
+
+    // The mouse as user 0's (vk::TakeMouse). In the world the window holds it
+    // and it is the right stick, the triggers (left button the right one,
+    // right button the sights), the right thumb click (middle) and Y (the
+    // wheel). With a menu up it is what chooses: where the title's menus can
+    // be pointed in (menu_pointer.h) the cursor is free, what is under it has
+    // the focus and the left button is A on that; elsewhere the window still
+    // holds it and the left button is A on what the keys chose. The right
+    // button is B and the wheel the d-pad either way. After F2 has given the
+    // cursor back, a click is the desktop's and nothing here.
+    //
+    // A button is the world's or the menu's by where it went down, and is let
+    // go when that changes under it: the click that chose Resume is not a
+    // jump, nor the shot held as the match ended a choice in the next menu.
     //
     // A stick is a rate and a mouse a distance. The counts that came since the
     // last read are how far the view should turn over the frame this read is
@@ -253,26 +327,72 @@ namespace
         int16_t rx = 0, ry = 0;     // to here
     };
 
-    uint16_t MouseInputs(uint8_t triggers[2], int16_t& rx, int16_t& ry)
+    struct MouseButton
+    {
+        bool down = false, menu = false, dead = false;
+        // Whether the button is pressed, as far as the title is to know.
+        bool Held(bool isDown, bool inMenu, bool nothingUnder)
+        {
+            if (isDown && !down) { menu = inMenu; dead = nothingUnder; }
+            down = isDown;
+            return down && !dead && menu == inMenu;
+        }
+    };
+
+    uint16_t MouseInputs(PPCContext& ctx, uint8_t* base, bool menu, uint8_t triggers[2], int16_t& rx, int16_t& ry)
     {
         static MouseLook look;
-        float dx = 0.0f, dy = 0.0f;
-        if (!vk::TakeMouseMotion(dx, dy))
-        {
-            look = MouseLook{};
-            return 0;
-        }
+        static MouseButton left, right, middle;
+        static float pointerX = -1.0f, pointerY = -1.0f;    // where the pointer was last looked under
 
+        vk::Mouse mouse;
+        vk::TakeMouse(menu && menu_pointer::There(), mouse);
         // SDL's buttons, which leave out the click that brought the window to
         // the front: that one was aimed at the window, not at anybody.
-        const SDL_MouseButtonFlags mouse = SDL_GetMouseState(nullptr, nullptr);
-        uint16_t b = 0;
-        if (mouse & SDL_BUTTON_LMASK) triggers[1] = 255;
-        if (mouse & SDL_BUTTON_RMASK) triggers[0] = 255;
-        if (mouse & SDL_BUTTON_MMASK) b |= BTN_RTHUMB;
+        SDL_MouseButtonFlags buttons = mouse.held || mouse.pointing ? SDL_GetMouseState(nullptr, nullptr) : 0;
+        if (g_scriptMouse.pointing)
+        {
+            mouse.held = false;
+            mouse.pointing = menu && menu_pointer::There();
+            mouse.x = g_scriptMouse.x;
+            mouse.y = g_scriptMouse.y;
+        }
+        if (g_scriptMouse.click) buttons |= SDL_BUTTON_LMASK;
 
-        look.x += dx;
-        look.y += dy;
+        // What is under the pointer takes the focus when the pointer moves,
+        // not while it rests, so the keys still walk a menu it lies on; and
+        // again as the left button goes down, which acts on that and on
+        // nothing when the pointer is beside everything.
+        const bool pressed = (buttons & SDL_BUTTON_LMASK) && !left.down;
+        bool nothingUnder = false;
+        if (mouse.pointing && (pressed || mouse.x != pointerX || mouse.y != pointerY))
+        {
+            pointerX = mouse.x;
+            pointerY = mouse.y;
+            nothingUnder = menu_pointer::At(ctx, base, mouse.x, mouse.y) == menu_pointer::Under::Nothing;
+        }
+
+        uint16_t b = WheelTaps(mouse.wheel, menu);
+        if (left.Held(buttons & SDL_BUTTON_LMASK, menu, nothingUnder))
+        {
+            if (menu) b |= BTN_A;
+            else triggers[1] = 255;
+        }
+        if (right.Held(buttons & SDL_BUTTON_RMASK, menu, false))
+        {
+            if (menu) b |= BTN_B;
+            else triggers[0] = 255;
+        }
+        if (middle.Held(buttons & SDL_BUTTON_MMASK, menu, menu)) b |= BTN_RTHUMB;
+
+        // The view turns only in the world, with the mouse held.
+        if (menu || !mouse.held)
+        {
+            look = MouseLook{};
+            return b;
+        }
+        look.x += mouse.dx;
+        look.y += mouse.dy;
         const auto now = std::chrono::steady_clock::now();
         const float since = look.reading ? std::chrono::duration<float>(now - look.read).count() : 0.0f;
         // The title may read the pad more than once a frame. The later reads
@@ -352,13 +472,18 @@ namespace
     // will not accept anything until the slider has been moved, so a run that
     // only presses buttons sits on it forever. A name ending in `@2`, `@3` or
     // `@4` is that player's controller, which the script then stands in for:
-    // "5:a@2" is the second player's A.
+    // "5:a@2" is the second player's A. The first player's mouse can be
+    // scripted in a menu too (Windows): `at<x>/<y>` rests the pointer at that
+    // part of the frame, "30:at0.2/0.45:1" a fifth of the way across and
+    // 0.45 of the way down for a second, and `click` holds the left button.
     // `bit` names a button; the trigger and stick pseudo-names set `trigger` or
     // `axis` instead, and `held` is how long the press lasts.
     struct Press
     {
         double at; uint16_t bit; int trigger = -1; double held = 0.2;
         int axis = -1; int16_t value = 0; uint32_t user = 0;
+        enum class Mouse { None, Pointer, Click } mouse = Mouse::None;
+        float x = 0, y = 0;     // the pointer's place
     };
     std::vector<Press> g_script;
     uint8_t g_scriptTriggers[4][2]{};
@@ -412,10 +537,15 @@ namespace
                     }
                     const size_t before = g_script.size();
                     int axis = -1; int16_t value = 0;
+                    float x = 0, y = 0;
                     if (name == "lt" || name == "rt")
                         g_script.push_back({ when, 0, name == "lt" ? 0 : 1, held });
                     else if (NamedAxis(name, axis, value))
                         g_script.push_back({ when, 0, -1, held, axis, value });
+                    else if (name == "click")
+                        g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Click });
+                    else if (std::sscanf(name.c_str(), "at%f/%f", &x, &y) == 2)
+                        g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Pointer, x, y });
                     else
                         for (const Named& button : kButtons)
                             if (name == button.name)
@@ -437,6 +567,7 @@ namespace
         });
         g_scriptTriggers[user][0] = g_scriptTriggers[user][1] = 0;
         for (int i = 0; i < 4; i++) { g_scriptAxes[user][i] = 0; g_scriptAxisHeld[user][i] = false; }
+        if (user == 0) g_scriptMouse = ScriptedMouse{};
         if (!g_scripted[user]) return 0;
 
         // A press lasts long enough for a title polling at 60 Hz to see it and
@@ -447,7 +578,14 @@ namespace
         for (const Press& press : g_script)
         {
             if (press.user != user || now < press.at || now >= press.at + press.held) continue;
-            if (press.axis >= 0)
+            if (press.mouse == Press::Mouse::Pointer)
+            {
+                g_scriptMouse.pointing = true;
+                g_scriptMouse.x = press.x;
+                g_scriptMouse.y = press.y;
+            }
+            else if (press.mouse == Press::Mouse::Click) g_scriptMouse.click = true;
+            else if (press.axis >= 0)
             {
                 g_scriptAxes[user][press.axis] = press.value;
                 g_scriptAxisHeld[user][press.axis] = true;
@@ -545,7 +683,8 @@ PPC_FUNC(__imp__XamInputGetState)
     SDL_Gamepad* pad = PadFor(user);
     const uint16_t elsewhere = uint16_t((user == 0 ? KeyboardButtons() : 0) | ScriptedButtons(user));
     if (pad || elsewhere ||
-        (user ? g_scripted[user] : ScriptedAxesHeld(0) || player::Wanted() || KeyboardStandsIn()))
+        (user ? g_scripted[user]
+              : g_scripted[0] || ScriptedAxesHeld(0) || player::Wanted() || KeyboardStandsIn()))
     {
 
         if (pad) SDL_UpdateGamepads();
@@ -598,18 +737,21 @@ PPC_FUNC(__imp__XamInputGetState)
                             int16_t(-1 - axis(SDL_GAMEPAD_AXIS_RIGHTY)) };
         if (user == 0)
         {
+            const bool menu = MenuUp(base);
+            b |= EscapeButton(menu);
 #ifdef _WIN32
-            // The keyboard and mouse stand in for a pad on Windows, and only
+            // The mouse answers only while the window has it, a scripted one
+            // whenever the script says.
+            b |= MouseInputs(ctx, base, menu, triggers, axes[2], axes[3]);
+            // The keyboard stands in for a pad on Windows, and only
             // while the game's window has the keyboard: GetAsyncKeyState
             // answers for the whole desktop, and keys typed into another
             // window are not the player's.
             if (SDL_WasInit(SDL_INIT_VIDEO) && SDL_GetKeyboardFocus())
             {
                 KeyboardMoveAxes(axes[0], axes[1]);
-                b |= MouseInputs(triggers, axes[2], axes[3]);
                 auto isDown = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
                 if (isDown(VK_RETURN))                      b |= BTN_START;
-                if (isDown(VK_ESCAPE))                      b |= BTN_BACK;
                 if (isDown(VK_TAB) || isDown(VK_BACK))      b |= BTN_BACK;
                 if (isDown(VK_UP))                          b |= BTN_DPAD_UP;
                 if (isDown(VK_DOWN))                        b |= BTN_DPAD_DOWN;

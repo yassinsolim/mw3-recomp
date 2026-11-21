@@ -137,6 +137,27 @@
 #define T_CONNECTION_SERVER_ADR   16u
 #define T_CONNECTION_NETCHAN_ADR  0x00051248u
 
+// ---- the mouse in the menus (menu_pointer.cpp, kernel/input.cpp) ----
+// Key_SetCatcher (sub_8216F0D8) keeps the first local client's key catchers
+// eight bytes before its connection state; bit 0x10 is set while a menu has
+// the controller. The console's menus have no pointer: the context's cursor
+// (+16, +20) is put in the middle when a menu opens (sub_822E9528) and never
+// read. What they do have is what the d-pad uses. The open menus are a stack
+// in the context (its count at +2680, the menus from +2616); a menu's window
+// is at +4 and an item's at +0, each with its rectangle at +4 (x, y, width,
+// height, then the two alignment bytes) and its flags at +72 (4 visible, 2
+// focused); a menu's items are counted at +180 and listed at +184.
+// ScrPlace_ApplyRect (sub_821A1268, through the wrapper every caller uses)
+// turns such a rectangle into the frame's pixels.
+#define T_DATA_KeyCatchers        0x826E0324u
+#define T_DATA_UiContext          0x836897A8u   // the first local client's
+#define T_UI_OPEN_MENUS           2680u
+#define T_UI_MENU_STACK           2616u
+#define T_UI_ItemSetFocus       82303368   // (context, item) -> whether it took the focus
+#define T_UI_ItemCanFocus       82309818   // (local client, item) -> nonzero when the d-pad could reach it
+#define T_ScrPlace_ApplyRect    821A1628   // (placement, x*, y*, width*, height*, horizontal, vertical)
+#define T_ScrPlace_Active       821A1BE8   // (local client) -> the placement the menus draw with
+
 // The "relay" handler (argv[1] flag, argv[2] target member, no sender check)
 // and the router its forwarder (sub_8217EE68) asks for the next hop:
 // (session, self, target, allow relay) -> self for a direct send, else an
@@ -661,6 +682,16 @@
 #define T_DATA_ScriptPool         0x83C7E3C0u
 #define T_PMem_Alloc            82303878   // (size, alignment, protection, source)
 #define T_PMem_EndAlloc         82303650   // (name, end); Com_Init (sub_8229DA48) closes "$init" with it
+// The mouse in the menus, as the multiplayer's: Key_SetCatcher is
+// sub_82121CD0, the menu stack's top is read by sub_822DB560.
+#define T_DATA_KeyCatchers        0x82743924u
+#define T_DATA_UiContext          0x83BB68A8u
+#define T_UI_OPEN_MENUS           800u
+#define T_UI_MENU_STACK           736u
+#define T_UI_ItemSetFocus       822DEAD0
+#define T_UI_ItemCanFocus       822E4BF8
+#define T_ScrPlace_ApplyRect    821352D0
+#define T_ScrPlace_Active       82135880
 
 #elif defined(MW2_TITLE_MP) && !defined(MW2_VERSION_TU0)
 
@@ -1147,6 +1178,9 @@
 // holds it: the presence strings (presence.cpp).
 #define T_DATA_Spa                0x83D40000u
 #define T_DATA_SpaSize            625298u
+// The first local client's key catchers (Key_SetCatcher, sub_82181B20): bit
+// 0x10 while a menu has the controller (kernel/input.cpp).
+#define T_DATA_KeyCatchers        0x825A1D48u
 
 #else
 
@@ -1192,6 +1226,9 @@
 // holds it: the presence strings (presence.cpp).
 #define T_DATA_Spa                0x83E60000u
 #define T_DATA_SpaSize            625298u
+// The key catchers (Key_SetCatcher, sub_8212FA88): bit 0x10 while a menu has
+// the controller (kernel/input.cpp).
+#define T_DATA_KeyCatchers        0x82648ABCu
 
 #endif
 
