@@ -29,7 +29,7 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Bots | verified on the Thor: `MW2_BOTS=4` (app setting "Bots in my matches") joined, spawned and scored in a System Link match at 60 FPS. A bot dropped with "Server command overflow" after ~40 s; fixed (reliable commands acknowledged), 180 s PC run with 6 bots had no drop. Re-run on the Thor 2026-11-20: six bots through a ten-minute Seatown match, the vote and three and a half minutes of Lockdown, none dropped. Navigation is local only |
 | Camos in a match | verified on the Thor: Gold chosen in Create a Class now spawns gold (the spawn check's weaponRank read was not covered before); Gold replaced by an original animated camo on the weapon in a match (keys in docs/textures.md) |
 | Voice chat | implemented (XamVoice*, PC SDL capture + T push-to-talk, Android AAudio + Talk button, off by default); compiled only, not run |
-| PC build | mouse captured in the window (F2 frees it), keyboard works in menus; mouse capture not yet tried by hand |
+| PC build | the mouse turns the view by an angle (110.0 degrees a thousand counts at sensitivity 5, measured with a scripted mouse) and points in Modern Warfare 3's menus; a System Link match on Seatown with six bots played to its end, the vote and the next map by script, 53 frames a second in play beside another game on the same GPU. Not yet tried with a hand or with real Windows input: the cursor's hiding and confinement, Alt+Tab, fullscreen, the wheel |
 | Profile and saves | profile and campaign saves written and resumed |
 
 ## 2026-11-16

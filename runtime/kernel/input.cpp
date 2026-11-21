@@ -20,6 +20,7 @@
 #include "../gpu/vulkan/renderer.h"
 #include "../gpu/vulkan/presenter.h"
 #include "../menu_pointer.h"
+#include "../mouse_look.h"
 #include "../title.h"
 #include "../env.h"
 
@@ -41,6 +42,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -164,13 +166,16 @@ namespace
     };
 
     // What MW2_INPUT_SCRIPT does with the mouse this poll (ScriptedButtons):
-    // `at<x>/<y>` puts a menu's pointer at that part of the frame and `click`
-    // holds the left button, with no window and no hand.
+    // `at<x>/<y>` puts a menu's pointer at that part of the frame, `click`
+    // holds the left button and `turn<dx>/<dy>` moves the mouse that many
+    // counts, with no window and no hand.
     struct ScriptedMouse
     {
         bool pointing = false;
         float x = 0, y = 0;
         bool click = false;
+        bool turning = false;   // a `turn` is under way, or only just over
+        float dx = 0, dy = 0;   // its counts that MouseInputs has not taken yet
     } g_scriptMouse;
 
     // The keyboard, for when there is no controller. Only useful with the window
@@ -274,7 +279,7 @@ namespace
     }
 
     // The mouse as user 0's (vk::TakeMouse). In the world the window holds it
-    // and it is the right stick, the triggers (left button the right one,
+    // and it turns the view, and is the triggers (left button the right one,
     // right button the sights), the right thumb click (middle) and Y (the
     // wheel). With a menu up it is what chooses: where the title's menus can
     // be pointed in (menu_pointer.h) the cursor is free, what is under it has
@@ -286,6 +291,11 @@ namespace
     // A button is the world's or the menu's by where it went down, and is let
     // go when that changes under it: the click that chose Resume is not a
     // jump, nor the shot held as the match ended a choice in the next menu.
+    //
+    // The view is turned by the angle the counts come to wherever the title
+    // has been found to take one (mouse_look.h), which is the disc's
+    // executables. The update's take the right stick, and what follows is
+    // for them; it is not a mouse, as mouse_look.cpp's measurements say.
     //
     // A stick is a rate and a mouse a distance. The counts that came since the
     // last read are how far the view should turn over the frame this read is
@@ -300,7 +310,7 @@ namespace
     // 0.2 off the stick as dead and the last 0.01 as full
     // (gpad_stick_deadzone_min, _max), and turns a full stick 260 degrees a
     // second across and 90 up and down from the hip, 90 and 55 down the sights
-    // (constants in its sub_820D8E88); they are Modern Warfare 2's
+    // (constants in its sub_820D4088); they are Modern Warfare 2's
     // aim_turnrate dvars too. What it does to a stick besides is still done to
     // the mouse: its response curve (aim_assist/view_input_3.graph), the
     // 1200 degrees a second squared a turn speeds up by, its slowing near a
@@ -358,6 +368,13 @@ namespace
             mouse.y = g_scriptMouse.y;
         }
         if (g_scriptMouse.click) buttons |= SDL_BUTTON_LMASK;
+        if (g_scriptMouse.turning)
+        {
+            mouse.held = true;
+            mouse.pointing = false;
+            mouse.dx += std::exchange(g_scriptMouse.dx, 0.0f);
+            mouse.dy += std::exchange(g_scriptMouse.dy, 0.0f);
+        }
 
         // What is under the pointer takes the focus when the pointer moves,
         // not while it rests, so the keys still walk a menu it lies on; and
@@ -391,6 +408,16 @@ namespace
             look = MouseLook{};
             return b;
         }
+        // MW2_MOUSE_SENSITIVITY is the PC game's `sensitivity`, 5 as there.
+        static const float degrees =
+            kDegreesPerCount * float(std::clamp(env::Real("MW2_MOUSE_SENSITIVITY", 5.0), 0.1, 100.0));
+        // Where the title's view takes an angle, the counts are that angle
+        // and the stick is left alone (mouse_look.h).
+        if (mouse_look::There())
+        {
+            mouse_look::Turn(mouse.dx * degrees, mouse.dy * degrees);
+            return b;
+        }
         look.x += mouse.dx;
         look.y += mouse.dy;
         const auto now = std::chrono::steady_clock::now();
@@ -416,9 +443,6 @@ namespace
         look.sights = std::clamp(triggers[0] > 33 ? 1.0f : 0.0f, look.sights - step, look.sights + step);
         if (look.x == 0.0f && look.y == 0.0f) return b;
 
-        // MW2_MOUSE_SENSITIVITY is the PC game's `sensitivity`, 5 as there.
-        static const float degrees =
-            kDegreesPerCount * float(std::clamp(env::Real("MW2_MOUSE_SENSITIVITY", 5.0), 0.1, 100.0));
         // The counts a full stick turns in a second, and with them the stick
         // these counts ask for: past 1 when the hand is quicker than that.
         const float across = std::lerp(kTurnAcross[0], kTurnAcross[1], look.sights) / degrees;
@@ -473,17 +497,20 @@ namespace
     // only presses buttons sits on it forever. A name ending in `@2`, `@3` or
     // `@4` is that player's controller, which the script then stands in for:
     // "5:a@2" is the second player's A. The first player's mouse can be
-    // scripted in a menu too (Windows): `at<x>/<y>` rests the pointer at that
-    // part of the frame, "30:at0.2/0.45:1" a fifth of the way across and
-    // 0.45 of the way down for a second, and `click` holds the left button.
+    // scripted too (Windows): `at<x>/<y>` rests the pointer at that part of
+    // the frame while a menu is up, "30:at0.2/0.45:1" a fifth of the way
+    // across and 0.45 of the way down for a second; `click` holds the left
+    // button; and `turn<dx>/<dy>` moves the mouse that many counts, evenly
+    // over the hold time, "80:turn1000/0:1" a thousand to the right in a second.
     // `bit` names a button; the trigger and stick pseudo-names set `trigger` or
     // `axis` instead, and `held` is how long the press lasts.
     struct Press
     {
         double at; uint16_t bit; int trigger = -1; double held = 0.2;
         int axis = -1; int16_t value = 0; uint32_t user = 0;
-        enum class Mouse { None, Pointer, Click } mouse = Mouse::None;
-        float x = 0, y = 0;     // the pointer's place
+        enum class Mouse { None, Pointer, Click, Turn } mouse = Mouse::None;
+        float x = 0, y = 0;     // the pointer's place, or a turn's counts
+        float sent = 0;         // how much of a turn has been handed over, of 1
     };
     std::vector<Press> g_script;
     uint8_t g_scriptTriggers[4][2]{};
@@ -546,6 +573,8 @@ namespace
                         g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Click });
                     else if (std::sscanf(name.c_str(), "at%f/%f", &x, &y) == 2)
                         g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Pointer, x, y });
+                    else if (std::sscanf(name.c_str(), "turn%f/%f", &x, &y) == 2)
+                        g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Turn, x, y });
                     else
                         for (const Named& button : kButtons)
                             if (name == button.name)
@@ -567,7 +596,7 @@ namespace
         });
         g_scriptTriggers[user][0] = g_scriptTriggers[user][1] = 0;
         for (int i = 0; i < 4; i++) { g_scriptAxes[user][i] = 0; g_scriptAxisHeld[user][i] = false; }
-        if (user == 0) g_scriptMouse = ScriptedMouse{};
+        if (user == 0) g_scriptMouse.pointing = g_scriptMouse.click = g_scriptMouse.turning = false;
         if (!g_scripted[user]) return 0;
 
         // A press lasts long enough for a title polling at 60 Hz to see it and
@@ -575,8 +604,21 @@ namespace
         const double now = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - g_scriptStart).count();
         uint16_t buttons = 0;
-        for (const Press& press : g_script)
+        for (Press& press : g_script)
         {
+            if (press.mouse == Press::Mouse::Turn)
+            {
+                // The counts due by now, whichever poll comes for them: the
+                // last of them may fall due after the hold time is over, and
+                // the view goes on turning for a moment after that.
+                if (press.user != user || now < press.at || now >= press.at + press.held + 0.5) continue;
+                const float done = float(std::min((now - press.at) / press.held, 1.0));
+                g_scriptMouse.dx += press.x * (done - press.sent);
+                g_scriptMouse.dy += press.y * (done - press.sent);
+                press.sent = done;
+                g_scriptMouse.turning = true;
+                continue;
+            }
             if (press.user != user || now < press.at || now >= press.at + press.held) continue;
             if (press.mouse == Press::Mouse::Pointer)
             {

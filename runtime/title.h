@@ -158,6 +158,21 @@
 #define T_ScrPlace_ApplyRect    821A1628   // (placement, x*, y*, width*, height*, horizontal, vertical)
 #define T_ScrPlace_Active       821A1BE8   // (local client) -> the placement the menus draw with
 
+// ---- the mouse turning the view (mouse_look.cpp) ----
+// CL_GamepadMove (sub_8216B938) hands the view's angles and the stick to
+// AimAssist_UpdateGamePadInput and stores the angles it gets back. The input
+// has the pitch at +8, the yaw at +20 and the local client at +44; the output
+// the pitch at +0 and the yaw at +4. The stick's turn rates (sub_820D4088,
+// the one user of the constant 260) are scaled by the zoom factor in the
+// first local client's aim assist state (T_AimAssist_FovScale keeps it) and
+// by the Sensitivity option, a float at +4 of the controller's settings,
+// which the two functions below find from a local client.
+#define T_AimAssist_UpdateInput 820D4930   // (input, output)
+#define T_DATA_AimAssistState     0x82599480u
+#define T_AIMASSIST_FOV_SCALE     280u
+#define T_CL_ControllerOf       821A1DD0   // (local client) -> its controller
+#define T_Gamepad_Settings      821804D0   // (controller) -> its settings
+
 // The "relay" handler (argv[1] flag, argv[2] target member, no sender check)
 // and the router its forwarder (sub_8217EE68) asks for the next hop:
 // (session, self, target, allow relay) -> self for a direct send, else an
@@ -692,6 +707,13 @@
 #define T_UI_ItemCanFocus       822E4BF8
 #define T_ScrPlace_ApplyRect    821352D0
 #define T_ScrPlace_Active       82135880
+// The mouse turning the view, as the multiplayer's: CL_GamepadMove is
+// sub_8211E858 and the turn rates sub_820C4088.
+#define T_AimAssist_UpdateInput 820C4CF8
+#define T_DATA_AimAssistState     0x82515F90u
+#define T_AIMASSIST_FOV_SCALE     288u
+#define T_CL_ControllerOf       82135AA0
+#define T_Gamepad_Settings      8212E3C8
 
 #elif defined(MW2_TITLE_MP) && !defined(MW2_VERSION_TU0)
 
@@ -1181,6 +1203,13 @@
 // The first local client's key catchers (Key_SetCatcher, sub_82181B20): bit
 // 0x10 while a menu has the controller (kernel/input.cpp).
 #define T_DATA_KeyCatchers        0x825A1D48u
+// The mouse turning the view (mouse_look.cpp), as Modern Warfare 3's block
+// has it: CL_GamepadMove is sub_8217D208 and the turn rates sub_820F54D0.
+#define T_AimAssist_UpdateInput 820F61D0   // (input, output)
+#define T_DATA_AimAssistState     0x82452790u
+#define T_AIMASSIST_FOV_SCALE     288u
+#define T_CL_ControllerOf       821AB3C0   // (local client) -> its controller
+#define T_Gamepad_Settings      82193688   // (controller) -> its settings, the Sensitivity option at +4
 
 #else
 
@@ -1229,6 +1258,13 @@
 // The key catchers (Key_SetCatcher, sub_8212FA88): bit 0x10 while a menu has
 // the controller (kernel/input.cpp).
 #define T_DATA_KeyCatchers        0x82648ABCu
+// The mouse turning the view (mouse_look.cpp), as Modern Warfare 3's block
+// has it: CL_GamepadMove is sub_8212B580 and the turn rates sub_820D6D90.
+#define T_AimAssist_UpdateInput 820D7A68   // (input, output)
+#define T_DATA_AimAssistState     0x82422490u
+#define T_AIMASSIST_FOV_SCALE     288u
+#define T_CL_ControllerOf       82141340   // (local client) -> its controller
+#define T_Gamepad_Settings      8213AF78   // (controller) -> its settings, the Sensitivity option at +4
 
 #endif
 

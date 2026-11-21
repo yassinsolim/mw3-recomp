@@ -310,7 +310,7 @@ which the first local client's key catchers say (`T_DATA_KeyCatchers` in
 `title.h`, bit 0x10; found in the disc's four executables, and "never" in the
 update's, where the mouse is always the world's).
 
-**In the world** the mouse is the right stick, its left button the right
+**In the world** the mouse turns the view, its left button is the right
 trigger, its right button the left one (the sights), its middle one the right
 stick's click and a notch of the wheel a tap of Y, the console's one weapon
 switch whichever way it turns. While the window has the keyboard it holds
@@ -320,14 +320,25 @@ from the thread it reads the device on, so neither the screen's edge nor the
 desktop's acceleration is in them. Losing the keyboard (`Alt+Tab`) ends
 relative mode, which is SDL's rule, and coming back starts it again with the
 counts of the time away dropped; `F2` ends it in place and starts it again,
-as a click in the window does. A stick is a rate and a mouse a distance, so
-`input.cpp` spreads the counts over the time since the last read: the stick is
-what turns that many degrees (0.022 a count times `MW2_MOUSE_SENSITIVITY`) in
-that time at the title's turn rates, placed beyond its dead zone, and what a
-full stick cannot turn in one frame is carried into the next few. The title's
-own stick handling still applies after that -- its response curve, the
-acceleration of a turn, the slowing near a target -- so this is a stick driven
-well, not the PC game's mouse.
+as a click in the window does.
+
+The counts are an angle, as on a PC (`mouse_look.cpp`): 0.022 degrees each
+times `MW2_MOUSE_SENSITIVITY`, added to the view's yaw and pitch where the
+title works them out -- `AimAssist_UpdateGamePadInput`'s output, which
+`CL_GamepadMove` stores as the view's angles -- times the zoom factor the
+title keeps for its stick (1 from the hip, less down a sight) and its own
+Sensitivity option. Measured in Modern Warfare 3's multiplayer with a
+scripted mouse (`turn` in `MW2_INPUT_SCRIPT`, the facing from
+`MW2_TRACE_MATCH`): a thousand counts turn 110.0 degrees at the default 5 and
+55.0 at 2.5, there and back to the same facing; two hundred counts over two
+seconds turn 22.0; three hundred downwards 33.0; a thousand down an ACR's red
+dot 40.3 for the hip's 55; and the view stops at 70 up and down, where the
+title holds it. The update's executables, where those functions have not
+been found, take the mouse as a stick instead: `input.cpp` spreads the counts
+over the time since the last read and sets the stick to what turns that far
+at the title's turn rates. That is not a mouse -- the same thousand counts
+turned 28 degrees, the two hundred 0.3 -- since the title's response curve
+and its acceleration of a turn still apply.
 
 **With a menu up** the left button is A, the right one B and the wheel the
 d-pad's up and down. In Modern Warfare 3 the mouse also points
