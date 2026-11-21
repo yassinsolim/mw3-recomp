@@ -37,7 +37,7 @@ The app is structured into two separate processes in the Android manifest:
 ### System Requirements
 - **Architecture**: 64-bit ARM (`arm64-v8a`). 32-bit devices are strictly unsupported due to the guest's 4 GiB virtual address space reservation.
 - **Operating System**: Android 10 or later (API level 29+). Fully compatible with 16 KB memory page kernels on Android 14 and 15.
-- **RAM**: Minimum 4 GB RAM (6 GB+ recommended).
+- **RAM**: tested on 8 GB (Retroid Pocket Flip 2) and 16 GB (AYN Thor). The game's process uses about 1.8 to 2.3 GB in play (measured on the Flip 2), so 6 GB should do; 4 GB has not been tried and is likely to be closed by Android in the background or mid-game.
 - **Storage**: ~7-8 GB free internal storage for game assets.
 
 ### GPU & Vulkan Driver Requirements
@@ -122,7 +122,7 @@ Modern mobile SoCs use heterogeneous CPU clusters (e.g., 1 Prime + 3 Gold + 4 Si
 
 ### Dynamic Memory Management & Texture Budget
 - **Device-Aware Defaults** (`ApplyMemoryDefaults`, `runtime/android/perf.cpp`): on Unified Memory Architecture the CPU and GPU share one pool, and the desktop defaults are sized for a machine with a separate one. Each default is taken from the memory this phone has, and each is set with overwrite off, so the launcher's own setting or a variable already in the environment wins:
-  - **Texture budget**: a sixth of the device's memory, floor **128 MB**, capped at 1 GB and 1.5 GB at 12 GB — not the desktop "half of device-local RAM", which on a 6 GB phone is most of the phone. RSS stays in the low hundreds of megabytes in active gameplay.
+  - **Texture budget**: a sixth of the device's memory, floor **128 MB**, capped at 1 GB and 1.5 GB at 12 GB — not the desktop "half of device-local RAM", which on a 6 GB phone is most of the phone. The whole process measured 1.8 to 2.3 GB resident in play on the 8 GB Flip 2.
   - **Upload arena** (`MW2_ARENA_MB`): committed up front, so **384 MB** at 8 GB and up, **256 MB** at 6 GB, **192 MB** below. The arena has a floor — a frame that runs out of its share draws nothing from the point it ran out — so unlike the shadow it is not taken below what a heavy frame needs.
   - **Guest-memory shadow** (`MW2_NO_SHADOW`): 512 MB behind the arena, in the same buffer, and a cache rather than a requirement — without it a draw copies its vertex data again, which is slower and nothing else. On a phone of **6 GB or less** the runtime does without, so nothing asks for a gigabyte before the first frame is drawn.
 - **16 MB Memory Slabs (`image_memory.h`)**: Desktop builds allocate texture images in 64 MB blocks (`kBlockBytes`). On Android, block size is reduced to **16 MB** (`16ull << 20`) to eliminate oversized allocations, minimize heap fragmentation, and reduce virtual memory address space pressure.

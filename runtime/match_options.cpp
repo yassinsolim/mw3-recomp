@@ -196,9 +196,9 @@ namespace
             leap.peak = std::max(leap.peak, height);
         } else if (leap.up) {
             leap.up = false;
-            LOGI("match: %s was in the air %d ms and rose %.0f units, moving at %.0f a second, facing %.0f",
+            LOGI("match: %s was in the air %d ms and rose %.0f units, moving at %.0f a second, facing %.1f and looking %.1f down",
                  GuestPtr<const char>(state + T_GCLIENT_NAME), time - leap.since, leap.peak - leap.from, leap.speed,
-                 Real(base, state + T_PS_VIEW_ANGLES + 4));
+                 Real(base, state + T_PS_VIEW_ANGLES + 4), Real(base, state + T_PS_VIEW_ANGLES));
         }
     }
 }

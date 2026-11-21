@@ -19,10 +19,28 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   flight is 59.5 with 87.9% of the frames on time for 56.6 and 69.3%, its
   first half 59 for 51; S.S.D.D., Terminal and Rust hold 59.9 to 60.0. The
   picture is the same. Modern Warfare 3 has not run with it yet.
+- **Windows: the mouse is a mouse** ([docs/runtime.md](docs/runtime.md#the-mouse)).
+  It turned the view by driving the right stick, through the title's
+  response curve and turn acceleration: a thousand counts in a second
+  turned 28 degrees where the PC game turns 110, and a slow hand hardly
+  turned it at all. The counts are now an angle added to the view where the
+  title works it out, in the disc's four executables: 0.022 degrees a count
+  times `MW2_MOUSE_SENSITIVITY`, the title's Sensitivity option and a
+  sight's zoom.
+- **Windows: the mouse works the menus.** With a menu up the left button is
+  A, the right one B and the wheel the d-pad. In Modern Warfare 3 the cursor
+  is let go and points: what is under it has the focus and a click acts on
+  it. In the world the wheel switches weapon.
+- **Escape** opens the pause menu (Start) in the world and goes back (B) in
+  a menu; it was the Back button. Tab and Backspace still are.
 
 ### Added
 - `MW2_COUNT_PRIMITIVES=1`: at exit, the draws and triangles of a frame in
   play, by culling, pass and size of draw.
+- `MW2_INPUT_SCRIPT` takes the mouse on Windows (`at<x>/<y>`, `click`,
+  `turn<dx>/<dy>`), `MW2_TRACE_POINTER` lists what a menu offers the
+  pointer, and `MW2_TRACE_MATCH` says how far down a player looks
+  ([docs/switches.md](docs/switches.md)).
 
 ## [v0.1.1] - 2026-11-21
 

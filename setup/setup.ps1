@@ -882,13 +882,15 @@ if ($ForAndroid) {
 if ($ForPc) {
     if (-not (Test-Path "$MingwDir\bin\x86_64-w64-mingw32-clang++.exe")) { Step 'unpack llvm-mingw'; Unpack (Fetch $Pins.LlvmMingw) $MingwDir }
     $pc = Join-Path $Out 'pc'
-    $game = Join-Path $pc 'game'
-    New-Item -ItemType Directory -Force $game | Out-Null
+    # Not $game: PowerShell names are case-insensitive, so it would be the
+    # -Game parameter and fail its ValidateSet.
+    $pcGame = Join-Path $pc 'game'
+    New-Item -ItemType Directory -Force $pcGame | Out-Null
     # The whole disc, about 7.4 GB: the multiplayer picks its own maps, and a
     # missing zone reads as a dirty disc. Files already there are skipped.
     if ($Iso) {
         Step 'copy the game files from the disc image (read-only; about 7.4 GB)'
-        Exec $Python @('tools/xdvdfs.py', $Iso, $game) -Cwd $Repo -Log 'extract_pc_game.log' -Quiet
+        Exec $Python @('tools/xdvdfs.py', $Iso, $pcGame) -Cwd $Repo -Log 'extract_pc_game.log' -Quiet
     }
     $fwd = { param($p) $p -replace '\\', '/' }
     foreach ($key in @($PcKeys)) {
@@ -908,7 +910,7 @@ if ($ForPc) {
                  'cd /d "%~dp0"', "$($t.Name).exe game\$($t.Xex).xex game"
         [IO.File]::WriteAllText((Join-Path $pc $launcher), (($lines -join "`r`n") + "`r`n"))
     }
-    if (@($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $game 'camos') }
+    if (@($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $pcGame 'camos') }
     $envFile = Join-Path $pc '.env'
     if (-not (Test-Path $envFile)) {
         $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }
