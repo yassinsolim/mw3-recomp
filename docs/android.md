@@ -244,8 +244,8 @@ Modern Warfare 2 is lighter, and on this class it starts with the cap at 60 (`Pr
 
   | | without | with |
   |---|---|---|
-  | Team Player's three heavy views, frames a second | 43.8, 45.9 | 50.0, 51.5, 53.5 |
-  | their scene, GPU ms a frame | 15.7, 16.5 | 12.5, 13.2, 14.1 |
+  | Team Player's three heavy views, frames a second | 43.8, 44.2, 45.9 | 50.0, 51.5, 52.6, 53.5 |
+  | their scene, GPU ms a frame | 15.7, 16.5, 16.8 | 12.5, 12.9, 13.2, 14.1 |
   | Team Player's flight: frames a second | 53.0, 52.9 | 56.6, 56.2 |
   | frames on time | 54.5%, 55.8% | 69.3%, 69.4% |
   | its first half | 45.5, 45.2 | 51.7, 50.1 |

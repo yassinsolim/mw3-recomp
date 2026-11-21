@@ -1770,6 +1770,16 @@ namespace
             // program reads that as texels (HeaderWord).
             Id word0 = m_texels ? HeaderWord(uint8_t(constant)) : 0;
             if (!word0) word0 = FetchConstantWord(constant, 0);
+            // Where the program fetches this constant's data as texels of
+            // four dwords (Translation::vertexFetchTexels) the data starts
+            // at a multiple of four and a vertex is a whole number of them
+            // long, so the vertex starts at a texel: which, for this fetch
+            // and the mini fetches after it. Otherwise the dword it starts
+            // at, each instruction where it was before there were texels: a
+            // module that differs in nothing but their order is another
+            // module to a driver's pipeline cache.
+            m_fetchTexels = (m_result.vertexFetchTexels[constant / 32] >> (constant % 32)) & 1;
+            const Id base = m_fetchTexels ? 0 : Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(2) });
             if (m_exchange)
                 Module::Emit(m_module.Code(), Op::Store,
                              { m_lastFetchEndian, Emit(Op::BitwiseAnd, m_uint, { word0, m_module.ConstantU(3) }) });
@@ -1779,12 +1789,6 @@ namespace
             Id source = LoadTemp(op.SourceRegister());
             Id indexFloat = Component(source, op.SourceComponent());
             Id index = Emit(Op::ConvertFToU, m_uint, { indexFloat });
-            // Where the program fetches this constant's data as texels of
-            // four dwords (Translation::vertexFetchTexels) the data starts
-            // at a multiple of four and a vertex is a whole number of them
-            // long, so the vertex starts at a texel: which, for this fetch
-            // and the mini fetches after it.
-            m_fetchTexels = (m_result.vertexFetchTexels[constant / 32] >> (constant % 32)) & 1;
             if (m_fetchTexels)
             {
                 m_dataTexel = Emit(Op::IAdd, m_uint,
@@ -1794,10 +1798,10 @@ namespace
             }
             else
             {
-                Id base = Emit(Op::ShiftRightLogical, m_uint, { word0, m_module.ConstantU(2) });
+                Id stride = m_module.ConstantU(op.Stride());
                 Module::Emit(m_module.Code(), Op::Store,
                              { m_lastFetchBase, Emit(Op::IAdd, m_uint,
-                                 { base, Emit(Op::IMul, m_uint, { index, m_module.ConstantU(op.Stride()) }) }) });
+                                 { base, Emit(Op::IMul, m_uint, { index, stride }) }) });
             }
         }
         if (!m_haveFetchBase) { Fail("mini vertex fetch with no preceding full fetch", 0); return; }
@@ -2457,6 +2461,7 @@ namespace
                 m_entry[0] = ArenaWords4(texel);
                 m_entry[1] = ArenaWords4(Emit(Op::IAdd, m_uint, { texel, m_module.ConstantU(1) }));
                 m_record = Emit(Op::CompositeExtract, m_uint, { m_entry[0], 0 });
+                Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
                 base = Emit(Op::CompositeExtract, m_uint, { m_entry[0], 1 });
             }
             else
@@ -2466,9 +2471,9 @@ namespace
                                       { Emit(Op::Bitcast, m_uint, { baseVertex }),
                                         Emit(Op::ShiftLeftLogical, m_uint, { slot, m_module.ConstantU(1) }) });
                 m_record = ArenaWord(entry);
+                Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
                 base = ArenaWord(Emit(Op::IAdd, m_uint, { entry, m_module.ConstantU(1) }));
             }
-            Module::Emit(m_module.Code(), Op::Store, { m_recordOutput, m_record });
 
             // The index the title's draw names, which the sequencer puts in r0.x.
             const Id index = Emit(Op::IAdd, m_uint,

@@ -524,8 +524,10 @@ bundled Turnip v27.0.0-R2. The reasons are in
 - **Where the scene's time is.** With every primitive put outside the clip
   volume (a test build, not kept; the GPU's clock at 587 MHz, having less
   to do): 3.9 ms a frame with vertex shaders that compute nothing, 10.3 with
-  the real ones. So of the scene's 15 to 16 ms some 6 were vertex shading,
-  3.5 to 4 its 550,000 primitives however they are shaded, and 6 pixels.
+  the real ones once their vec4 were texels (the first step; before it was
+  not measured this way, and the uncut scene was half a millisecond more).
+  So of the scene's 15 to 16 ms some 6 to 7 were vertex shading, 3.5 to 4
+  its 550,000 primitives however they are shaded, and 6 pixels.
 - **The arena as texels** (`MW2_VERTEX_TEXELS`, the default on an Adreno
   6xx under Turnip). Set 2 has the slot's share twice more, as texel buffer
   views of four floats and of four dwords. A vertex shader fetches a vec4
@@ -538,9 +540,9 @@ bundled Turnip v27.0.0-R2. The reasons are in
   eight. The culled scene: 7.5 ms, so 3.5 of vertex shading for 6.4. What a
   vertex computes is untouched.
 - **Measured**, against `MW2_VERTEX_TEXELS=0` in the same build, each with
-  its pipelines cached: Team Player's three heavy views 43.8 and 45.9
-  frames a second without, 50.0, 51.5 and 53.5 with (the scene 15.7 and
-  16.5 ms; 12.5 to 14.1); its flight 53.0 and 52.9 with 54.5 and 55.8% of
+  its pipelines cached: Team Player's three heavy views 43.8, 44.2 and 45.9
+  frames a second without, 50.0, 51.5, 52.6 and 53.5 with (the scene 15.7
+  to 16.8 ms; 12.5 to 14.1); its flight 53.0 and 52.9 with 54.5 and 55.8% of
   the frames on time, 56.6 and 56.2 with 69.3 and 69.4% (the first half
   45 to 51; the worst ten seconds 39 and 41 to 47 and 49; 16.1 ms of GPU a
   frame to 14.6 and 14.8). With it, S.S.D.D. flown for five minutes 59.9

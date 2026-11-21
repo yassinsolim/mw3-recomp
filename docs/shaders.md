@@ -347,11 +347,13 @@ the draw's record:
   S.S.D.D., 64.3 to 99.7% of the pixels are the same to the bit with and
   without, against 65.3 to 99.7% between two runs without (what differs is
   what moves). On the Retroid Pocket Flip 2 the vertex shaders' share of
-  Team Player's scene went from some 6.4 ms to 3.5 (measured with every
-  primitive put outside the clip volume, at 587 MHz), the scene at its
-  heavy views from 15.7 and 16.5 ms to 12.5 to 14.1
+  Team Player's scene is 3.5 ms, where it was 6.4 with only the vec4 as
+  texels and more with none (measured with every primitive put outside the
+  clip volume, at 587 MHz; not with none), and the scene at its
+  heavy views from 15.7 to 16.8 ms to 12.5 to 14.1
   ([android.md](android.md#modern-warfare-2-there-60-frames-a-second)).
-  No other GPU has run this form.
+  No other GPU has run this form, and without it a vertex shader's module
+  is the bytes it was before, so no device's pipeline cache is spent.
 - The translator records the highest float constant a program reads
   (`Translation::constantsRead`) so the renderer copies only that much, unless
   the program addresses constants through a0/aL (`addressedConstants`), where

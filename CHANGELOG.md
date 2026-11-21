@@ -4,6 +4,33 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Changed
+- **A vertex shader on an Adreno 6xx reads the frame arena as texels**
+  ([docs/shaders.md](docs/shaders.md#the-module-interface),
+  `MW2_VERTEX_TEXELS=0|1`; the default there under Turnip, off elsewhere,
+  where a vertex shader's module is the same bytes as before). Turnip reads
+  a storage buffer one dword a fetch on that chip, three instructions each,
+  and a vertex's loads waited on each other four deep. A float constant is
+  now one texel of a buffer view, the draw table's entry two texels that
+  hold what the vertex loads next, and vertex data four dwords a texel.
+  Modern Warfare 2's commonest vertex shader went from 207 instructions
+  and 45 fetches a vertex to 99 and 11, the lit world's from 348 and 61 to
+  204 and 16; what a vertex computes is the same and so is the picture. On
+  the Retroid Pocket Flip 2, Team Player's flight is 56.4 frames a second
+  with 69% of the frames on time for 53.0 and 55%, its heavy views 50 to
+  53.5 for 44 to 46; S.S.D.D., Terminal and Rust hold 59.5 to 59.9.
+
+### Added
+- `MW2_SHADER_IR=<dir>` (with `MW2_SHADER_STATS=1`): what the driver
+  compiled each vertex shader to, a file each -- on Turnip the NIR and the
+  ir3 assembly, binning variant apart.
+
+### Fixed
+- An imported Turnip asked to disassemble its shaders
+  (`IR3_SHADER_DEBUG=disasm`) aborted the game at the first pipeline: the
+  driver's file redirect had no `dev` folder for the `/dev/null` its
+  disassembler opens.
+
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
