@@ -4,31 +4,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
-### Added
-- **The start screen shows the game's own artwork** once the game files are
-  installed (`DiscArt.kt`, `BackdropView.kt`): the backdrop the console's
-  dashboard shows for the disc, `nxebg.jpg` in the disc's `nxeart` package,
-  which the installer already copies. It is read from the player's own
-  files on the phone and kept in the app's private folder: never in the
-  APK, never in the repository. Without the game files the launcher keeps
-  its haze, and the home-screen icon stays the project's emblem.
-
-### Changed
-- **The launcher's corner credit is the same in both apps**: "Built on
-  mw2-recompiled · mw2-android · XenonRecomp". Modern Warfare 3's named the
-  runtime and Modern Warfare 2's one author; who wrote each is in the
-  README's credits.
-
-### Fixed
-- **Setup on a phone without the game files yet** (`setup/setup.ps1`) says
-  so about the camouflage packs of other authors, as it meant to. It said
-  "could not copy the camouflage packs: adb.exe failed with exit code 1":
-  the test for the game folder was a failed command when the folder was
-  not there, which is every first install.
-- **The Play card after Install & Play** says the game is installed and
-  which version, not "Game Disc Detected ... Ready for one-click setup",
-  which it kept from before the install.
-
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
@@ -40,11 +15,10 @@ The game package built for v0.1.0 still fits: nothing to build again.
   Survival 46 to 58 with the limit set to 60.
 - **Modern Warfare 2 starts at 60 on an Adreno 6xx**, not 30, with an
   832x480 scene.
+- **The start screen shows your game's own artwork**, from your disc.
 - **Online**: the host of a match no longer freezes at its first frame,
-  and Modern Warfare 2's Find Match has its playlists, not "Maximum party
-  size of 0".
-- **Install & Play** starts the game; a slower phone said "The game files
-  are not installed".
+  and Modern Warfare 2's Find Match lists its playlists.
+- **Install & Play** starts the game on a slower phone too.
 - **A clear message when the game code is missing**, and much better crash
   logs to share.
 - **No missing scenery**: Team Player lost its sky and far buildings in
@@ -62,6 +36,10 @@ The game package built for v0.1.0 still fits: nothing to build again.
 - **Windows build**: the mouse aims as a mouse does and works the menus.
 
 ### Changed
+- **The launcher's corner credit is the same in both apps**: "Built on
+  mw2-recompiled · mw2-android · XenonRecomp". Modern Warfare 3's named the
+  runtime and Modern Warfare 2's one author; who wrote each is in the
+  README's credits.
 - **Modern Warfare 2's app has its own launcher emblem**
   (`android/app/src/mw2/res/drawable`): two stencil bars in a blue ring.
   Both apps drew the amber three-bar one and could only be told apart by
@@ -216,6 +194,14 @@ The game package built for v0.1.0 still fits: nothing to build again.
   the disc version of Modern Warfare 2 as well (`runtime/title.h`).
 
 ### Fixed
+- **Setup on a phone without the game files yet** (`setup/setup.ps1`) says
+  so about the camouflage packs of other authors, as it meant to. It said
+  "could not copy the camouflage packs: adb.exe failed with exit code 1":
+  the test for the game folder was a failed command when the folder was
+  not there, which is every first install.
+- **The Play card after Install & Play** says the game is installed and
+  which version, not "Game Disc Detected ... Ready for one-click setup",
+  which it kept from before the install.
 - **A match no longer freezes on a write the runtime answers for ever**
   (`runtime/gpu/memory_watch.cpp`, [docs/rendering.md](docs/rendering.md#the-shadow-of-guest-memory)).
   A page of guest memory could be left marked as written while still
@@ -279,6 +265,13 @@ The game package built for v0.1.0 still fits: nothing to build again.
   uncaught exception) was not reported at all.
 
 ### Added
+- **The start screen shows the game's own artwork** once the game files are
+  installed (`DiscArt.kt`, `BackdropView.kt`): the backdrop the console's
+  dashboard shows for the disc, `nxebg.jpg` in the disc's `nxeart` package,
+  which the installer already copies. It is read from the player's own
+  files on the phone and kept in the app's private folder: never in the
+  APK, never in the repository. Without the game files the launcher keeps
+  its haze, and the home-screen icon stays the project's emblem.
 - `MW2_COUNT_PRIMITIVES=1`: at exit, the draws and triangles of a frame in
   play, by culling, pass and size of draw.
 - `MW2_INPUT_SCRIPT` takes the mouse on Windows (`at<x>/<y>`, `click`,
