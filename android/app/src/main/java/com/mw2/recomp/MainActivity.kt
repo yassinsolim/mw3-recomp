@@ -51,6 +51,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var directLaunchSwitch: androidx.appcompat.widget.SwitchCompat
     private var detectedIsoFile: File? = null
 
+    /** When the artwork on screen was taken from the disc's package; 0 while it is the haze. */
+    @Volatile
+    private var artShown = 0L
+
     /** What the large button starts: the campaign, where the app carries it. */
     private val firstTitle = Title.carried.first()
 
@@ -253,11 +257,41 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        showArt()
         refresh()
         // Back from the install-permission screen with a download waiting.
         pendingUpdateUrl?.let { url ->
             pendingUpdateUrl = null
             if (packageManager.canRequestPackageInstalls()) startUpdateDownload(url)
+        }
+    }
+
+    /**
+     * The game's own artwork behind the menu once the game is installed
+     * (DiscArt.kt), and the haze again when it is removed. On each return to
+     * the launcher, because an install is what brings the picture; decoded
+     * only when it is another picture than the one showing.
+     */
+    private fun showArt() {
+        val gameDirectory = File(
+            prefs.gameDirectory.ifEmpty { File(getExternalFilesDir(null) ?: filesDir, "game").absolutePath },
+        )
+        thread(name = "disc-art", isDaemon = true) {
+            val file = DiscArt.backdrop(this, gameDirectory)
+            val taken = file?.lastModified() ?: 0L
+            if (taken == artShown) return@thread
+            val picture = file?.let { android.graphics.BitmapFactory.decodeFile(it.absolutePath) }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                artShown = if (picture != null) taken else 0L
+                findViewById<BackdropView>(R.id.backdrop).art = picture
+                // The cards let the picture through; alone they would hide
+                // the half of it the menu does not.
+                val alpha = if (picture != null) 160 else 255
+                for (card in intArrayOf(R.id.detail_card, R.id.status_card)) {
+                    findViewById<android.view.View>(card).background.mutate().alpha = alpha
+                }
+            }
         }
     }
 

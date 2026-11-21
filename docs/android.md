@@ -383,6 +383,7 @@ The app does not bundle game files. The player provides an Xbox 360 disc image (
   `/sdcard/Android/data/com.mw2.recomp.sp/files/game/`
 - **Saves Location**: Campaign and profile saves are stored in:
   `/sdcard/Android/data/com.mw2.recomp.sp/files/saves/`
+- **Start-screen artwork** (`DiscArt.kt`): every disc has `nxeart` at its root, the package the console's dashboard takes the game's backdrop from. The installer copies it with the game files; the launcher takes `nxebg.jpg` (1920x1080) out of it once, keeps it in the app's private folder (`files/art/`), and draws it behind the menu under a scrim (`BackdropView.kt`), cropped about its middle on a screen that is not 16:9. It is never in the APK or the repository: without the game files, or with a package it cannot read, the launcher keeps its own haze. The home-screen icon is always the project's emblem.
 
 ---
 

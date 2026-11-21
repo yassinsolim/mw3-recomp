@@ -4,6 +4,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **The start screen shows the game's own artwork** once the game files are
+  installed (`DiscArt.kt`, `BackdropView.kt`): the backdrop the console's
+  dashboard shows for the disc, `nxebg.jpg` in the disc's `nxeart` package,
+  which the installer already copies. It is read from the player's own
+  files on the phone and kept in the app's private folder: never in the
+  APK, never in the repository. Without the game files the launcher keeps
+  its haze, and the home-screen icon stays the project's emblem.
+
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights

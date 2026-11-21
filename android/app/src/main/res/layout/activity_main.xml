@@ -6,6 +6,7 @@
     android:background="#0B1220">
 
     <com.mw2.recomp.BackdropView
+        android:id="@+id/backdrop"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
@@ -124,6 +125,7 @@
                 android:orientation="vertical">
 
                 <LinearLayout
+                    android:id="@+id/detail_card"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1.4"
@@ -162,6 +164,7 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/status_card"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"

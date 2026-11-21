@@ -139,7 +139,9 @@ code (minutes, not hours) and installs it; game files and saves are kept.
    `-PushIso`, or answer yes). Open the app, choose **Install the game files**,
    then **Browse the phone's storage** and pick the image. The app checks
    both executables and copies what it needs into its own storage (about
-   7 GB), once: the campaign and the multiplayer read the same folder.
+   7 GB), once: the campaign and the multiplayer read the same folder. From
+   then on the app's start screen shows the game's own artwork, read from
+   your disc's files on the phone: the app is published without it.
 3. **Play.** Tap **Campaign · Special Ops** or **Multiplayer**. The game's
    own menu entries that go from one to the other work too: the app restarts
    the game with the other half. The on-screen pad can be edited from the
