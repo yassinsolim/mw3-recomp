@@ -607,12 +607,17 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         // -- ir3 has a load of several only from the 7xx on -- and each
         // fetch is three instructions a vertex, so a vec4 as one texel of
         // four floats, and a draw table entry or a vertex's data four dwords
-        // a texel, is what a vertex runs. Nothing else has been measured --
-        // not Qualcomm's own driver for the same chip -- so the rest keep
-        // the storage buffer unless MW2_VERTEX_TEXELS=1 says otherwise. A
-        // view has to reach a slot's share of the arena, which is at most
-        // 512 MB, 32 million texels, and the two count against a stage's
-        // sampled images and resources as set 1's images do.
+        // a texel, is what a vertex runs. An Adreno 740 under Turnip has the
+        // load of several and is faster with the texels all the same: the
+        // opening of S.S.D.D. 9.1 ms of GPU a frame without, 7.9 with these
+        // and 7.4 with the pixel shaders' too; Team Player's heavy views
+        // 13.2, 11.2 and 10.3. So every Adreno under Turnip has both.
+        // Nothing else has been measured -- not Qualcomm's own driver for
+        // the same chips -- so the rest keep the storage buffer unless
+        // MW2_VERTEX_TEXELS=1 says otherwise. A view has to reach a slot's
+        // share of the arena, which is at most 512 MB, 32 million texels,
+        // and the two count against a stage's sampled images and resources
+        // as set 1's images do.
         {
             constexpr uint32_t kTexelViews = 2;
             bool can = properties.limits.maxTexelBufferElements >= (512u << 20) / 16 &&
@@ -625,16 +630,15 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
                 vkGetPhysicalDeviceFormatProperties(physical, format, &texels);
                 can = can && (texels.bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT);
             }
-            const bool turnip6 = driver.driverID == VK_DRIVER_ID_MESA_TURNIP &&
-                                 std::strstr(properties.deviceName, "Adreno (TM) 6") != nullptr;
-            g.vertexTexels = can && (env::Text("MW2_VERTEX_TEXELS") ? env::Flag("MW2_VERTEX_TEXELS") : turnip6);
+            const bool turnip = driver.driverID == VK_DRIVER_ID_MESA_TURNIP;
+            g.vertexTexels = can && (env::Text("MW2_VERTEX_TEXELS") ? env::Flag("MW2_VERTEX_TEXELS") : turnip);
             if (g.vertexTexels)
                 LOGI("vulkan: vertex shaders read the arena as texels: a vec4, a draw table entry, vertex data");
             // The pixel shaders' side of it (shader::PixelArena): a lit
             // surface's read 26 to 44 dwords of the storage buffer a pixel
-            // there, three for each texture it samples and four for the
+            // on a 6xx, three for each texture it samples and four for the
             // alpha test, and asked each texture its size.
-            g.pixelTexels = can && (env::Text("MW2_PIXEL_TEXELS") ? env::Flag("MW2_PIXEL_TEXELS") : turnip6);
+            g.pixelTexels = can && (env::Text("MW2_PIXEL_TEXELS") ? env::Flag("MW2_PIXEL_TEXELS") : turnip);
             if (g.pixelTexels)
                 LOGI("vulkan: pixel shaders read the arena as texels: the alpha test, and a texel of the record"
                      " for each texture");

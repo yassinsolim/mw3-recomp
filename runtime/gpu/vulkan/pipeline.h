@@ -120,14 +120,15 @@ namespace vk::pipeline
     void     ArenaHasShadow(bool has);
     // Whether vertex shaders read the arena through texel buffer views too
     // (shader::VertexArena::Texels, set 2's last two bindings, draw table
-    // entries of bindings::kTableTexelWords): by default on an Adreno 6xx
-    // under Turnip, which loads a storage buffer a dword at a time, and as
-    // MW2_VERTEX_TEXELS says where the device has such views.
+    // entries of bindings::kTableTexelWords): by default on an Adreno under
+    // Turnip, whose 6xx loads a storage buffer a dword at a time and whose
+    // 7xx is faster with them too, and as MW2_VERTEX_TEXELS says where the
+    // device has such views.
     bool     VertexTexels();
     // Whether pixel shaders read their draw's record and what they sample a
     // slot with as texels of the same views (shader::PixelArena::Texels; a
     // record then holds bindings::kRecordPixelTexels): by default on an
-    // Adreno 6xx under Turnip, and as MW2_PIXEL_TEXELS says where the device
+    // Adreno under Turnip, and as MW2_PIXEL_TEXELS says where the device
     // has such views.
     bool     PixelTexels();
     // Whether a sampler may be made with the mirror-once address mode

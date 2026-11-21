@@ -5,6 +5,25 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **No draw is skipped for want of frame arena**
+  ([docs/rendering.md](docs/rendering.md#a-frame-larger-than-its-slots-share)).
+  Modern Warfare 2's Team Player skipped 34,000 draws in a flight of two
+  minutes on the AYN Thor and 8,500 on the Retroid Pocket Flip 2
+  (`draws skipped: frame arena full`): frames with the far buildings and the
+  sky missing at the level's start, after a checkpoint loaded again and
+  whenever a frame slot's kept vertex data had filled its share. A draw its
+  slot's share has no room for is now made in the next slot, after a
+  submission, and a slot keeps vertex data by blocks of guest memory that
+  lie apart, uses their places again, copies written pages again one by one
+  and lets the ranges it has not drawn from lately go first. The same flight,
+  S.S.D.D. and Modern Warfare 3's Survival skip none on either device.
+- **The arena as texels on every Adreno under Turnip**, not the 6xx alone
+  (`MW2_VERTEX_TEXELS`, `MW2_PIXEL_TEXELS`,
+  [docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)).
+  On the AYN Thor's Adreno 740, both against neither: 7.4 ms of GPU a frame
+  for 9.1 in S.S.D.D.'s opening, 10.4 for 13.2 at Team Player's heavy views,
+  and Modern Warfare 3's Survival at 108 frames a second for 87 (8.5 ms for
+  10.9), with the same picture.
 - **A pixel shader on an Adreno 6xx reads its draw's record as texels**
   ([docs/shaders.md](docs/shaders.md#the-module-interface),
   `MW2_PIXEL_TEXELS=0|1`; the default there under Turnip, off elsewhere,
