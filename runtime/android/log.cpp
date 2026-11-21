@@ -20,6 +20,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <string>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 namespace
@@ -131,6 +132,23 @@ void android::CaptureStandardStreams()
     {
         pthread_detach(reader);
     }
+}
+
+// A fault's report is written to stderr by a thread about to end the
+// process, and reaches the log through the reader above: this waits for the
+// pipe to empty and the reader's last line to be written, a second at most
+// (the reader may be the thread that faulted, or be waiting on a lock the
+// faulting thread holds).
+void android::SettleStandardStreams()
+{
+    if (g_capture[0] < 0) return;
+    for (int tries = 0; tries < 100; tries++)
+    {
+        int waiting = 0;
+        if (ioctl(g_capture[0], FIONREAD, &waiting) != 0 || waiting == 0) break;
+        usleep(10 * 1000);
+    }
+    usleep(30 * 1000);
 }
 
 void android::LogLine(char level, const char* text)

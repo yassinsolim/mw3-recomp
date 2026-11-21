@@ -393,4 +393,37 @@ The app does not bundle game files. The player provides an Xbox 360 disc image (
 | **"Renderer Notice: GPU lacks Vulkan 1.3..."** | Device stock driver is Vulkan 1.1 without dynamic rendering. | Check for OEM system software updates. On Adreno devices, import a Turnip driver via the Driver menu. |
 | **"The runtime library would not load"** | Incompatible ABI or 32-bit device. | Ensure device supports 64-bit ARM (`arm64-v8a`). |
 | **Installation fails partway** | Insufficient storage space. | Ensure at least 8 GB of free storage is available on internal storage. |
-| **Log inspection** | Debugging game launch or crashes. | Inspect `/sdcard/Android/data/com.mw2.recomp.sp/files/game.log` via ADB or the in-app Log viewer. |
+| **"The game could not start: the game code is not on this device"** | The app is published without the game's code, which is built from the player's disc on a PC ([game-library.md](game-library.md)). The game files alone (Install & Play) are not enough. | Run `setup\setup.cmd` on a PC with the device connected over USB. The log says `app: the run was not started: ...` and `game code: ... is not installed`. |
+| **Log inspection** | Debugging game launch or crashes. | The in-app Log viewer's **Share**, or `/sdcard/Android/data/com.mw2.recomp.sp/files/game.log` via ADB. |
+
+### What the log share holds
+
+**Share** on the Log screen sends one text that is enough for a bug report
+(`LogSummary.kt`, `DeviceInfo.kt`), 200,000 characters at most:
+
+- `===== report =====`: the app and its version, the phone, its chip, its
+  memory, the GPU with its driver's version (asked of OpenGL ES in the
+  launcher, so a run that dies opening the Vulkan driver has still said it),
+  and whether the game code package is installed. The same lines open
+  `game.log` and `launcher.log`.
+- How the last six of the app's processes ended, as Android recorded it
+  (`ApplicationExitInfo`, Android 11 on): killed for memory, crashed, stopped
+  by the user, exited by itself, with the memory each held. A process the
+  system killed writes nothing itself, so this is the only account of it. For
+  a native crash (Android 12 on) the signal and the crashing thread's
+  backtrace are read out of the system's tombstone.
+- `game.log` and `launcher.log` (their ends), the last crash files, and what
+  each process was in the middle of (`boot-trail-*.txt`).
+
+`game.log` has a `step:` line before each part of start-up that can end the
+process without a word: `game-code`, `start`, `image`, `online`,
+`guest-memory`, `kernel`, `gpu`, `vulkan-library`, `surface`,
+`vulkan-instance`, `vulkan-surface`, `vulkan-device`, `swapchain`,
+`pipeline-layout`, `textures`, `arena`, `guest`. Each line is written to the
+file as it is logged, so the last one names what the process was doing when
+it died. A fault's report quotes it (`last step:`), covers `abort()` and a
+refused system call as well as a bad access, and is in the file before the
+process ends; the process then dies of the signal itself, so Android records
+a native crash with a tombstone. `MW2_DEBUG_CRASH_AT=<step>`
+([switches.md](switches.md)) faults at a step on purpose, to check all of
+this on a device.

@@ -235,6 +235,18 @@ again.
   unfinished** (`runtime/map_vote.cpp`): One Flag CTF, Arena, Global
   Thermonuclear War and the two that do not start were drawn with the
   others unless `MW2_MAP_VOTE_MODES` said which.
+- **A run that is not started says why in the log**, not on the screen
+  alone. The first report from a Mali phone was a `game.log` that ended
+  after the surface's two lines: no crash, but the app showing "The game
+  code is not on this device" after Install & Play, with nothing logged.
+  The log now has `app: the run was not started: ...`, and Install & Play
+  and the launcher's Multiplayer entry say the game code is missing instead
+  of starting a run that cannot go.
+- **A fault's report reaches the log before the process ends**
+  (`runtime/crash.cpp`, `runtime/android/log.cpp`). On Android it is printed
+  through a pipe another thread reads into `game.log`, and the process
+  exited without waiting for that thread; `abort()` (a driver giving up, an
+  uncaught exception) was not reported at all.
 
 ### Added
 - `MW2_COUNT_PRIMITIVES=1`: at exit, the draws and triangles of a frame in
@@ -252,6 +264,16 @@ again.
   console's distances, and nothing disappears sooner. The console's by
   default. On the AYN Thor the opening of S.S.D.D. runs at 111 frames a
   second at half against 102.
+- **A report from a phone says what it is and how the run ended**
+  ([docs/android.md](docs/android.md#what-the-log-share-holds),
+  [docs/TESTING-MALI.md](docs/TESTING-MALI.md)). The Log screen's Share
+  opens with the app's version, the phone, its chip, memory, GPU and driver,
+  and whether the game code package is there; then Android's own record of
+  how the last runs ended (killed for memory, crashed, exited), with a
+  native crash's signal and backtrace out of the system's tombstone.
+  `game.log` has a `step:` line before each part of start-up, a fault's
+  report names the last one and covers `abort()`, and
+  `MW2_DEBUG_CRASH_AT=<step>` faults at one on purpose.
 
 ## [v0.1.0] - 2026-11-20
 

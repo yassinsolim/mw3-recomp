@@ -32,6 +32,22 @@ object GameLibrary {
     fun installed(context: Context): Boolean =
         !separate || Title.carried.any { file(context, it) != null }
 
+    /** Whether [title]'s game code is on this device: what a run of it needs. */
+    fun ready(context: Context, title: Title): Boolean = !separate || file(context, title) != null
+
+    /** The game package and each title's library, for a log (DeviceInfo). */
+    fun describe(context: Context): String {
+        if (!separate) return "part of this app"
+        val version = try {
+            context.packageManager.getPackageInfo(BuildConfig.GAME_PACKAGE, 0).versionName
+        } catch (_: PackageManager.NameNotFoundException) {
+            return "${BuildConfig.GAME_PACKAGE} is not installed (it is built by setup\\setup.cmd on a PC)"
+        }
+        return "${BuildConfig.GAME_PACKAGE} $version, " + Title.carried.joinToString {
+            "lib${it.library}game.so " + if (file(context, it) != null) "is there" else "is MISSING"
+        }
+    }
+
     /**
      * Loads the title's game code into this process, after the runtime
      * (NativeBridge.load). Null when it is ready, or what to tell the player.

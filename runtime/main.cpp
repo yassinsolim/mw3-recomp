@@ -249,6 +249,7 @@ int mw2::Run(int argc, char** argv)
     }
     else
     {
+        crash::Step("image", "reading and decrypting the executable");
         if (!install::LoadImageFile(argv[1], launch.image, launch.xexHeader)) return 1;
         launch.gameRoot = (argc > 2) ? argv[2] : "mw2/game";
     }
@@ -256,8 +257,10 @@ int mw2::Run(int argc, char** argv)
     crash::Install();
     // Logged in before any other thread runs: Steam reads the app id from the
     // environment, which the service sets.
+    crash::Step("online", "starting the network service");
     online::Get();
 
+    crash::Step("guest-memory", "reserving the console's 4 GiB of address space and its 512 MB bank");
     if (!guest::Initialise()) return 1;
     if (!LoadImage(launch.image)) return 1;
     launch.image = {};
@@ -272,8 +275,10 @@ int mw2::Run(int argc, char** argv)
     // here take this thread's cores with them.
     platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
     player::Record();
+    crash::Step("kernel", "the console's kernel and the game's files");
     kernel::Initialise(launch.gameRoot, launch.xexHeader);
     launch.xexHeader.clear();
+    crash::Step("gpu", "bringing up the renderer");
     gpu::Initialise();
     // The device is known now, and nothing of the title has run: the launcher
     // compiles the shaders for it and starts the game again. Ended at once,
@@ -313,6 +318,7 @@ int mw2::Run(int argc, char** argv)
     LOGI("thread block (r13) at %08X", pcr);
     StartDeadline();
     StartArrivalDeadline();
+    crash::Step("guest", "start-up is done; the title's own code runs from here");
     LOGI("entering guest at %08X (stack %08X..%08X)", entry, stackBase, stackTop);
     LOGI("--------------------------------------------------");
     fn(ctx, guest::Base());

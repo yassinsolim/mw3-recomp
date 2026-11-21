@@ -91,6 +91,9 @@ namespace android
     // the runtime prints rather than logs -- the crash handler's backtrace
     // above all -- would otherwise go to /dev/null on a phone.
     void CaptureStandardStreams();
+    // Waits, briefly, for what was printed to reach the log: for a thread
+    // that has written a fault's report and is about to end the process.
+    void SettleStandardStreams();
 
     // ---- what the frame-rate counter shows --------------------------------
     struct Stats

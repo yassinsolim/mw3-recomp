@@ -1389,6 +1389,7 @@ namespace
     {
 #ifdef MW2_ANDROID
         std::string error;
+        crash::Step("vulkan-library", "opening the Vulkan driver");
         if (!vk::loader::Opened() && !vk::loader::Open(error))
         {
             LOGE("vulkan: %s", error.c_str());
@@ -1397,15 +1398,18 @@ namespace
         }
         // The game thread runs ahead of the activity's layout; the first
         // surface can be a moment away.
+        crash::Step("surface", "waiting for the screen's surface");
         while (android::Running() && !android::WaitForWindow(250)) {}
         if (!android::Running()) return false;
         g.generation = android::WindowGeneration();
         g.nativeWindow = android::AcquireWindow();
         if (!g.nativeWindow) { LOGW("vulkan: no surface to present to"); return false; }
+        crash::Step("vulkan-instance", "vkCreateInstance");
         if (!CreateInstance()) {
             android::SetStatus("Failed to create Vulkan instance");
             return false;
         }
+        crash::Step("vulkan-surface", "the surface, and choosing the GPU");
         if (!CreateSurfaceForWindow()) {
             android::SetStatus("Failed to create Vulkan surface for Android window");
             return false;
@@ -1414,10 +1418,12 @@ namespace
             android::SetStatus("No Vulkan physical device found");
             return false;
         }
+        crash::Step("vulkan-device", "the device's features and extensions, and vkCreateDevice");
         if (!CreateDevice()) {
             android::SetStatus("Failed to create Vulkan logical device");
             return false;
         }
+        crash::Step("swapchain", "the swapchain and its frames");
         if (!CreateSwapchain()) {
             android::SetStatus("Failed to create Vulkan swapchain");
             return false;
@@ -1426,6 +1432,7 @@ namespace
             android::SetStatus("Failed to create Vulkan presentation frames");
             return false;
         }
+        crash::Step("pipeline-layout", "the descriptor sets, the pipeline cache and the pipeline layout");
         vk::pipeline::Initialise(g.device, g.physical, g.queue, g.queueFamily, g.instance);
         android::SetStatus((std::string("Running on ") + vk::pipeline::DeviceName()).c_str());
         return true;

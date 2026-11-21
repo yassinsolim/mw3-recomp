@@ -15,6 +15,14 @@ namespace crash
     // fault still prints the end-of-run reports.
     void OnFault();
 
+    // Start-up, a step at a time: a line of the log before each thing that
+    // can end the process without a word (the system killing it for memory,
+    // a graphics driver aborting), so the log's last line names it, and a
+    // fault's report quotes the last one. `name` is a short fixed word that
+    // outlives the call. MW2_DEBUG_CRASH_AT=<name> faults there on purpose.
+    void Step(const char* name, const char* what);
+    const char* LastStep();
+
     // The guest never returns, so nothing else can end the process tidily.
     // Safe to call from any thread, including one the shutdown will join.
     void RequestExit(const char* why);

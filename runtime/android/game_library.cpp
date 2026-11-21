@@ -18,6 +18,7 @@
 #include "title.h"
 #include "guest_memory.h"
 #include "log.h"
+#include "crash.h"
 #include <game_abi_expected.h>
 
 #include <cstring>
@@ -59,6 +60,7 @@ const PPCFuncMapping* game::Mappings() { return g_mappings; }
 
 std::string game::Load(const char* path)
 {
+    crash::Step("game-code", "loading the recompiled game code from its package");
     void* library = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     if (!library)
     {

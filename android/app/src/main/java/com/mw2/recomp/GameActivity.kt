@@ -394,16 +394,6 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            try {
-                val am = getSystemService(android.app.ActivityManager::class.java)
-                val list = am.getHistoricalProcessExitReasons(packageName, 0, 5)
-                val text = list.joinToString("\n") {
-                    "${java.util.Date(it.timestamp)} reason=${it.reason} status=${it.status} rss=${it.rss}KB desc=${it.description}"
-                }
-                java.io.File(getExternalFilesDir(null), "exit_reasons.txt").writeText(text)
-            } catch (e: Exception) { }
-        }
         prefs = Prefs(this)
 
         Trail.note(this, "game: starting")
@@ -472,6 +462,7 @@ val mode60 = modes
             applicationInfo.nativeLibraryDir,
             this,
         )
+        DeviceInfo.log(this)
         // After nativeInit, so that the reason a library is refused is in the
         // run's log as well as on the screen.
         GameLibrary.load(this, request.title)?.let {
@@ -1138,6 +1129,17 @@ val mode60 = modes
     }
 
     private fun fail(message: String) {
+        // In the log as well as on the screen: a tester sends the log, and a
+        // run that was never started used to leave it with nothing to say.
+        val line = "the run was not started: " + message.replace('\n', ' ')
+        Trail.note(this, "game: $line")
+        if (NativeBridge.isLoaded()) {
+            try {
+                NativeBridge.nativeLog(true, line)
+            } catch (_: Throwable) {
+                // A library without the call: the trail has the line.
+            }
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.cannot_start)
             .setMessage(message)

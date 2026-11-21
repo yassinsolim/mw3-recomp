@@ -216,6 +216,9 @@ class MainActivity : AppCompatActivity() {
                     applicationInfo.nativeLibraryDir,
                     null,
                 )
+                // Here too, where the phone's GPU is asked its name: a run
+                // that dies before it has a device finds it written down.
+                DeviceInfo.log(this)
             } catch (error: Throwable) {
                 nativeReady = false
                 NativeBridge.noteInitFailure(error.message ?: error.toString())
@@ -438,6 +441,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun startGame(title: Title) {
         if (!nativeReady) return
+        // Every way into a run comes through here: without the title's game
+        // code (GameLibrary.kt) one only ends in "The game could not start",
+        // and the second entry is not greyed out as Play is.
+        if (!GameLibrary.ready(this, title)) {
+            showDetail(getString(R.string.cannot_start), getString(R.string.game_code_missing))
+            return
+        }
         // A second controller means a second player can join (split-screen
         // Spec Ops / multiplayer); the touch controls and the first controller
         // are both player one. Warn once: two viewports cost frames and heat.
@@ -795,7 +805,9 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(Intent.ACTION_SEND)
         intent.type = "text/plain"
         intent.putExtra(Intent.EXTRA_SUBJECT, "MW2 log")
-        intent.putExtra(Intent.EXTRA_TEXT, text.takeLast(200_000))
+        // The head of it names the app and the device, so it is the end that
+        // goes when a text is too long for the share.
+        intent.putExtra(Intent.EXTRA_TEXT, text.take(200_000))
         startActivity(Intent.createChooser(intent, getString(R.string.share)))
     }
 }

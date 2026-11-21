@@ -36,6 +36,9 @@ object LogSummary {
     /** One line, so a dumped buffer cannot fill the screen it is shown on. */
     private const val kLineLength = 200
 
+    /** The first line of a fault's report in the run's log (runtime/crash.cpp). */
+    private val kFaultMarkers = listOf("---- guest fault", "---- the process is ending", "---- indirect call")
+
     /**
      * An address, which is the part a line repeats with and the part nobody
      * reads. Two lines that differ only here are one line that happened twice:
@@ -54,7 +57,15 @@ object LogSummary {
         if (log.isBlank() && crash.isBlank() && sessionTail.isBlank())
             return context.getString(R.string.log_empty)
 
-        val lines = log.substringAfterLast(kRunMarker).lines().filter { it.isNotBlank() }
+        val run = log.substringAfterLast(kRunMarker).lines().filter { it.isNotBlank() }
+        // A fault's report (runtime/crash.cpp) ends the log with a hundred
+        // error lines of registers and stack, each unlike the last: counted
+        // as kinds of error they were all the summary showed. Its top is
+        // what says what happened, so it is shown as the crash and the
+        // counts are of the run before it.
+        val faultAt = run.indexOfLast { line -> kFaultMarkers.any { it in line } }
+        val fault = if (faultAt >= 0) run.subList(faultAt, run.size) else emptyList()
+        val lines = if (faultAt >= 0) run.subList(0, faultAt) else run
 
         val errors = lines.count { levelOf(it) == 'E' }
         val warnings = lines.count { levelOf(it) == 'w' }
@@ -82,12 +93,16 @@ object LogSummary {
                 .append(" · build ").append(BuildConfig.BUILD_SHA).append('\n')
             if (renderer.isNotBlank())
                 append(renderer.split('|').joinToString(" · ")).append('\n')
+            // Android's own word on the run's process: the only account of a
+            // run that was killed, which wrote nothing itself.
+            val exit = DeviceInfo.lastRunExit(context)
+            if (exit.isNotBlank()) append(trimmed(exit)).append('\n')
 
-            if (crash.isNotBlank())
+            val stopped = crash.lines().filter { it.isNotBlank() }.ifEmpty { fault }
+            if (stopped.isNotEmpty())
             {
                 append('\n').append(context.getString(R.string.log_stopped)).append('\n')
-                crash.lines().filter { it.isNotBlank() }.take(kCrashLines)
-                    .forEach { append(trimmed(it)).append('\n') }
+                stopped.take(kCrashLines).forEach { append(trimmed(it)).append('\n') }
             }
 
             append('\n')
@@ -120,25 +135,38 @@ object LogSummary {
         }
     }
 
-    /** Everything the app has written, in one string: what Share sends. */
+    /**
+     * What Share sends, and enough on its own for a bug report: the app and
+     * the device, how the system says the last runs ended (with a native
+     * crash's backtrace), each process's log, the crash files, what the app
+     * was in the middle of, and this session's lines.
+     *
+     * The share takes 200,000 characters (MainActivity.share) and each part
+     * has a share of them, 190,000 at most together, so no part can push
+     * another out: the ends of the logs are the parts anyone reads.
+     */
     fun whole(context: Context, sessionTail: String): String = buildString {
-        for (name in listOf("game.log", "launcher.log"))
+        append("===== report =====\n")
+        DeviceInfo.lines(context).forEach { append(it).append('\n') }
+        val exits = DeviceInfo.exits(context)
+        if (exits.isNotBlank())
+            append("\n===== how the last runs ended, newest first (Android's record) =====\n")
+                .append(exits.take(16_000))
+        append('\n')
+        for ((name, most) in listOf(
+            "game.log" to 70_000, "launcher.log" to 40_000,
+            "last-crash-game.txt" to 8_000, "last-crash-launcher.txt" to 8_000,
+            "boot-trail-game.txt" to 3_000, "boot-trail-launcher.txt" to 3_000,
+        ))
         {
             val file = File(context.filesDir, name)
             if (!file.exists()) continue
             append("===== ").append(name).append(" =====\n")
-            append(file.readTextTail(60_000)).append("\n\n")
-        }
-        for (name in listOf("last-crash-game.txt", "last-crash-launcher.txt"))
-        {
-            val file = File(context.filesDir, name)
-            if (!file.exists()) continue
-            append("===== ").append(name).append(" =====\n")
-            append(file.readTextTail(8_000)).append("\n\n")
+            append(file.readTextTail(most)).append("\n\n")
         }
         if (sessionTail.isNotBlank())
-            append("===== this session =====\n").append(sessionTail)
-    }.ifBlank { context.getString(R.string.log_empty) }
+            append("===== this session =====\n").append(sessionTail.takeLast(40_000))
+    }
 
     /** The other process's crash, which is the one that matters, or this one's. */
     private fun crashOf(context: Context): String
