@@ -119,6 +119,16 @@ class Prefs(context: Context) {
             val v = if (value in FPS_LIMITS) value else 60
             store.edit().putInt(KEY_FPS_LIMIT, v).putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
         }
+
+    /**
+     * The sun's shadows (MW2_SHADOWS): 0 leaves the choice to the runtime,
+     * which knows the chip and the title (runtime/gpu/d3d_hooks.cpp), 1 is
+     * on and 2 off. The runtime's choice takes them away on an AYN Thor at
+     * its 120, and the player must be able to have them back.
+     */
+    var sunShadows: Int
+        get() = store.getInt(KEY_SUN_SHADOWS, 0).coerceIn(0, 2)
+        set(value) = store.edit().putInt(KEY_SUN_SHADOWS, value.coerceIn(0, 2)).apply()
   
     /**
      * Field of View (cg_fov). Modern phones are 20:9 ultrawide,
@@ -439,6 +449,7 @@ class Prefs(context: Context) {
         private const val KEY_RELAY_ADDRESS = "relayAddress"
         private const val KEY_LIVE_SIGN_IN = "liveSignIn"
         private const val KEY_FPS_LIMIT = "fpsLimit"
+        private const val KEY_SUN_SHADOWS = "sunShadows"
         val FPS_LIMITS = listOf(30, 45, 60, 120)
         private const val KEY_RESOLUTION = "resolutionScale"
         private const val KEY_RENDER_SCALE = "renderScale"

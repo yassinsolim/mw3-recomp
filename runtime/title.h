@@ -63,6 +63,13 @@
 #define T_DEV_PresentInterval  13872u   // D3DRS_PRESENTINTERVAL
 #define T_DEV_ProgressBlock    11024u   // the arena progress block
 
+// The scene the title draws (render_size.cpp, MW2_SCENE): the campaign's
+// sub_823D7320 statement for statement, and MW2's R_VideoSizes with it -- the
+// video mode read, 1024x600 and 1280x720 stored at +8 to +20 of the structure
+// in r3. The frame's own entries (R_SetVidConfig and the rest of MW2_RENDER)
+// have not been located.
+#define T_R_VideoSizes         823FA9B8
+
 // the D3D9 library's hooks: each equal to the campaign's function, instruction
 // for instruction, but for linker-filled immediates and branch targets
 #define T_D3D_Present          820B1B00   // 1972 bytes in both
@@ -627,6 +634,12 @@
 // 10941 -> 11069), and by the arena wait's own first load.
 #define T_DEV_PresentInterval  13872u   // D3DRS_PRESENTINTERVAL (MW2: 13596)
 #define T_DEV_ProgressBlock    11024u   // the arena progress block (MW2: 10896)
+
+// The scene the title draws (render_size.cpp, MW2_SCENE): MW2's R_VideoSizes
+// statement for statement -- the video mode read, 1024x600 and 1280x720
+// stored at +8 to +20 of the structure in r3. The frame's own entries
+// (R_SetVidConfig and the rest of MW2_RENDER) have not been located.
+#define T_R_VideoSizes         823D7320
 
 // the D3D9 library's hooks, found by call structure (docs/MW3-BRINGUP.md)
 #define T_D3D_Present          820A16E8   // takes the device in r3 and writes its flip

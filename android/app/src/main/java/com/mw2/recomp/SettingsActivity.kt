@@ -68,7 +68,7 @@ class SettingsActivity : AppCompatActivity() {
         prefs = Prefs(this)
         colorValues(
             R.id.resolution_label, R.id.render_scale_label, R.id.detail_label, R.id.fps_limit_label,
-            R.id.fov_label, R.id.texture_label, R.id.look_x_label,
+            R.id.sun_shadows_label, R.id.fov_label, R.id.texture_label, R.id.look_x_label,
             R.id.look_y_label, R.id.smoothing_label, R.id.bot_count_label, R.id.bot_skill_label,
             R.id.match_gravity_label, R.id.match_speed_label, R.id.match_jump_label,
         )
@@ -142,6 +142,18 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         if (fromUser) prefs.fpsLimit = fps
     }
 })
+        val shadowChoices = resources.getStringArray(R.array.sun_shadows_choices)
+        val shadowLabel: TextView = findViewById(R.id.sun_shadows_label)
+        val shadows: SeekBar = findViewById(R.id.sun_shadows)
+        shadows.max = shadowChoices.size - 1
+        shadows.progress = prefs.sunShadows
+        shadowLabel.text = getString(R.string.sun_shadows, shadowChoices[shadows.progress])
+        shadows.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                shadowLabel.text = getString(R.string.sun_shadows, shadowChoices[value])
+                if (fromUser) prefs.sunShadows = value
+            }
+        })
         switch(R.id.prewarm_all, prefs.prewarmAllShaders) { prefs.prewarmAllShaders = it }
         switch(R.id.async_pipelines, prefs.asyncPipelines) { prefs.asyncPipelines = it }
         switch(R.id.persist_pipeline, prefs.persistPipelineCache) { prefs.persistPipelineCache = it }

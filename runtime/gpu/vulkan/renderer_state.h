@@ -491,6 +491,10 @@ namespace vk::renderer::detail
             uint64_t lastSince = 0;
             uint64_t lastPublished = 0;
             bool lastValid = false;
+            // The frame the consumer last built an overdue pipeline in: one
+            // a frame, so that a level's first view, whose hundreds fall due
+            // in the same frame, is not one frame seconds long.
+            uint64_t overdueFrame = ~uint64_t(0);
             // The keys of `recorded` below, so that one waited for is not
             // put there twice; and how many were since the cache was written.
             std::unordered_set<PipelineKey, WordsHash> recorded;

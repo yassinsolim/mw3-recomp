@@ -156,6 +156,7 @@ Compiling SPIR-V shaders and graphics pipelines on mobile drivers causes noticea
   All remaining gameplay pipelines are queued into `warmup::g_warmupQueue` and compiled asynchronously on a dedicated background thread (`tid 25205`) during menus and cutscenes without dropping frame rate.
 - **Auto-Flush on Pause / Lifecycle Changes**:
   Whenever the surface is destroyed, the user pauses, or memory is trimmed, `vk::pipeline::SaveCache()` commits the driver's native pipeline state blobs alongside the shader recipes.
+- **A first visit** (`MW2_ASYNC_PIPELINES`, on in the app): a pipeline never built is compiled by the demand worker while its draws are skipped, and by the renderer's own thread once they have been skipped for 20 frames, one such pipeline a frame. A level's first view has hundreds fall due in the same frame; built all at once they were one frame 7.0 s long on the Retroid Pocket Flip 2 and 5.8 s on the AYN Thor (Modern Warfare 3's Survival with empty caches, 242 and 263 pipelines). One a frame, the longest frame of the same start is 91 and 81 ms: the level's first seven seconds run at 20 to 30 frames a second with its surfaces appearing, and the cap is held from there. Empty caches cost little after that: the same five minutes run at 58.8 frames a second against 59.9 with the caches full on the Flip 2, and 116.1 against 118.2 on the Thor.
 - **Signal Safety & Crash Guarding (`runtime/crash.cpp`)**:
   Bionic libc lacks `pthread_kill` validation for arbitrary guest thread IDs. Long-running compilation stages are protected with Android-specific signal guards (`#ifndef MW2_ANDROID`), preventing spurious `SIGABRT` crashes.
 
@@ -192,6 +193,16 @@ Measured on the Retroid Pocket Flip 2 (Adreno 650, kernel 4.19, 60 Hz), in Moder
 - **No UBWC.** Turnip is started with `TU_DEBUG=noubwc` (added to whatever `MW2_DRIVER_ENV` gives). With Turnip's image compression on, the whole device hard-reset within a second of a level's world first being drawn: no kgsl fault in the kernel log, the power controller reporting a shutdown the SoC asked for (`kernel.panic_on_oops` is 1 and there is no pstore, so the kernel's last words are lost). It happened at every one of a dozen level starts, with Mesa 25.1.0 and 27.0.0 alike, with `sysmem`, with draw merging off and with multi-draw off, and at none of the eighteen since with `noubwc`. Which image class trips it was not narrowed down; frame time with and without it is the same. `MW2_ADRENO6_UBWC=1` leaves the compression on, to study the reset.
 - **The cap starts at the screen's rate.** Before the texel forms this chip drew Modern Warfare 3 at 25 frames a second with the cap at 60 (38 ms of GPU a frame at the console's sizes), so the cap used to start at 30 here. With them Survival runs at 58 and Black Tuesday at 56 under a cap of 60 (the table below), so both titles now start at the display's fastest rate like any other phone, 60 on the Flip 2 (`Prefs.fpsLimit`); FPS LIMIT 30 in the launcher still gives the console's pacing at half rate ([switches.md](switches.md), `MW2_FPS_LIMIT`).
 - **No sun shadows** (`MW2_SHADOWS`, unset): about 6 ms of GPU a frame less, which is what lets 60 be approached. `MW2_SHADOWS=1` in `.env` keeps them, best with FPS LIMIT 30.
+- **An 832x480 scene** in both titles (`MW2_SCENE`, unset), under the 1280x720 frame the HUD and the menus keep. Modern Warfare 2 had it first (below); Modern Warfare 3 takes the scene through the same function since it was found in its executables, and with the cap at 60 it is what holds it. Five minutes each on the Flip 2, `.dev` builds, caches full (the second run of each), the console's scene against this one:
+
+  | Modern Warfare 3, cap 60 | frames a second | frames on time | stutters (frames half as long again as due) |
+  |---|---|---|---|
+  | Survival (Resistance), 1024x600 | 55.8 | 36.7% | 251 |
+  | Survival, 832x480 | 59.9 | 76.8% | 42 |
+  | Black Tuesday, 1024x600 | 58.9 | 79.2% | 152 |
+  | Black Tuesday, 832x480 | 59.6 | 79.7% | 95 |
+
+  Survival's five minutes are a first minute of play and, once the player has fallen, the same map behind the result; the Thor's below are the same. In that first minute 896x528 gave 59.4 with 51 stutters and 768x448 59.6 with 47 against 832x480's 59.7 with 35 and the console's 57.5 with 74. `MW2_SCENE=1024x600` keeps the console's.
 
 Measured with the old 30 cap, 246 s of play: 29.6 frames a second, 7,246 frames shown, 152 of them (2.1%) a blank late, none early. That was before the texel forms; with them a cap of 60 is nearly held (the table below).
 
@@ -330,6 +341,17 @@ Measured on the AYN Thor (Adreno 740, 120 Hz, the bundled Turnip v27.0.0-R2), 20
 
   Both together are 13 to 22% less GPU time everywhere. Team Player's views gain little in frames a second because the ring consumer is their limit there (87 to 95% of its core). The picture is the same: at S.S.D.D.'s four views 68.2 to 99.1% of the pixels are identical to the bit with both and with neither, 68.3 to 99.1% between two runs with neither; Modern Warfare 3's menus 96.9 to 100%; in play what differs is what moves. No run logged a renderer error.
 - **No draw is skipped for want of arena** ([rendering.md](rendering.md#a-frame-larger-than-its-slots-share)). Team Player's flight skipped 34,197 draws as `frame arena full` on this device, and 8,486 on the Retroid Pocket Flip 2: frames with the far buildings and the sky missing, at the level's start, after each checkpoint loaded again and whenever a slot's kept vertex data had filled its share. With a draw made in the next slot when its own is full, and the vertex data kept by block, the same flight skips none on either device (1 or 2 draws made in the next slot, no slot letting its copies go, 61 to 72 MB kept at most), nor do five minutes of S.S.D.D. or Modern Warfare 3's Survival.
+- **Modern Warfare 3 without the sun's shadows above 60** (`MW2_SHADOWS`, unset; the app's Sun shadows setting gives them back). Under the limit of 120 the ring consumer is what a frame waits for (98% of its core at work, 2% of that waiting for the chip), and the shadow maps' passes are three in ten of the draws it parses. Five minutes each, caches full:
+
+  | Modern Warfare 3, limit 120 | frames a second | frames on time | stutters |
+  |---|---|---|---|
+  | Survival (Resistance), with shadows | 106.0 | 36.6% | 1,291 |
+  | Survival, without | 118.2 | 86.7% | 122 |
+  | Black Tuesday, with | 114.9 | 78.1% | 490 |
+  | Black Tuesday, without | 118.4 | 89.5% | 183 |
+
+  A smaller scene does nothing for it with the shadows on (832x480: 106.2 frames a second in Survival's first minute against 107.1) and little without them (116.2 against 114.5), so the scene stays the console's there. Modern Warfare 2 keeps its shadows: S.S.D.D.'s flight is 115.9 with them. Team Player's flight is 102.1 with and 111.6 without, which is there to take if that level is to hold more.
+- **A screen the system holds at 60.** The Thor's display setting (`peak_refresh_rate` and `min_refresh_rate`, which its dual-screen assistant writes, and wrote 60 into after a restart) outranks an app's request for a mode, so the limit of 120 it starts with ran on a 60 Hz screen: 125 frames drawn a second by the title's limiter to show 60 of them. A limit above the display's rate is paced by the display now, one frame a blank ([switches.md](switches.md), `MW2_FPS_LIMIT`), and the app says once at the start of a run that the screen is set to 60 Hz and where to change it.
 
 ---
 

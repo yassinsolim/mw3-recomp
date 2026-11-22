@@ -87,21 +87,35 @@ namespace
     // them, 31 without -- and 6 ms of Modern Warfare 2's S.S.D.D., 45 frames
     // a second with them and 58 without (docs/android.md): the difference
     // between holding the cap that class of chip starts at and not, so unset
-    // is off there and on everywhere else. Said once the title presents,
-    // when its console takes commands.
+    // is off there. Their passes are three in ten of Modern Warfare 3's draws
+    // too, which the ring consumer has no time for above 60 a second: on an
+    // AYN Thor (Adreno 740) under a limit of 120 Survival ran at 107 with 39%
+    // of its frames on time, and at 114.5 with 80% without them, so unset is
+    // off for that title under Android wherever the limit is above 60. On
+    // everywhere else. Said once the title presents, when its console takes
+    // commands.
+    const char* WhyNoShadows()
+    {
+        if (env::Text("MW2_SHADOWS")) return env::Flag("MW2_SHADOWS") ? nullptr : "MW2_SHADOWS=0";
+#if defined(MW2_ANDROID)
+        if (android::perf::Adreno6xx())
+            return "an Adreno 6xx holds its frame rate without them; MW2_SHADOWS=1 keeps them";
+#if defined(MW3_TITLE)
+        if (frame_rate::Limit() > frame_rate::kConsole)
+            return "a limit above 60 is nearer held without them; MW2_SHADOWS=1 keeps them";
+#endif
+#endif
+        return nullptr;
+    }
+
     void Shadows()
     {
         static std::atomic<bool> told{ false };
         if (told.exchange(true, std::memory_order_relaxed)) return;
-        const char* asked = env::Text("MW2_SHADOWS");
-#if defined(MW2_ANDROID)
-        if (asked ? env::Flag("MW2_SHADOWS") : !android::perf::Adreno6xx()) return;
-#else
-        if (!asked || env::Flag("MW2_SHADOWS")) return;
-#endif
+        const char* why = WhyNoShadows();
+        if (!why) return;
         console::RunNow("sm_enable 0");
-        LOGI("shadows: the sun casts none (sm_enable 0): %s", asked ? "MW2_SHADOWS=0" :
-             "an Adreno 6xx holds its frame rate without them; MW2_SHADOWS=1 keeps them");
+        LOGI("shadows: the sun casts none (sm_enable 0): %s", why);
     }
 }
 

@@ -549,9 +549,11 @@ whole number of 16 pixels wide and 2 tall. The title stretches the scene over
 the frame as it does the console's 1024x600 over 1280x720, working the
 scene's pixel aspect out of the two sizes itself, so the scene's shape is
 free; the HUD and the menus are drawn into the frame and keep its size. It is
-the cheaper picture for a GPU that the scene's pixels hold back: Modern
-Warfare 2 on an Adreno 6xx under Android starts with 832x480
-([android.md](android.md#adreno-6xx-snapdragon-865-class)).
+the cheaper picture for a GPU that the scene's pixels hold back: both titles
+on an Adreno 6xx under Android start with 832x480
+([android.md](android.md#adreno-6xx-snapdragon-865-class)). Modern Warfare 3
+takes the scene through the same function (`R_VideoSizes`, found in both its
+executables by its instructions); its frame keeps the console's size.
 
 **Pictures made for 16:9.** A cinematic is letterboxed by the title itself:
 `R_DrawCinematicLetterboxed` draws the 16:9 video whole, as wide as the frame,

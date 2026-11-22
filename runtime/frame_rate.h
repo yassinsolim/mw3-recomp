@@ -10,15 +10,16 @@
 // the title off the blank the way the console's D3D offers it, and what
 // paces it then depends on the display:
 //
-//   * the number is the display's refresh rate (120 on a 120 Hz panel): the
-//     display paces it. The title's limiter is off, every frame is shown, and
-//     the renderer waits for the window to have taken a frame before it
-//     finishes the next, so there is one frame a blank whatever the panel's
-//     real rate is -- a "120 Hz" panel may run at 118.4.
-//   * any other number: the title's limiter paces it, with that number as
+//   * the number is the display's refresh rate or above it (120 on a 120 Hz
+//     panel, and 120 on one the system holds at 60): the display paces it.
+//     The title's limiter is off, every frame is shown, and the renderer
+//     waits for the window to have taken a frame before it finishes the
+//     next, so there is one frame a blank whatever the panel's real rate is
+//     -- a "120 Hz" panel may run at 118.4.
+//   * a number under it: the title's limiter paces it, with that number as
 //     com_maxfps; 0 is no limit. The limiter counts whole milliseconds a
-//     frame, so the rate it keeps is 1000 over a whole number: 120 gives 125,
-//     144 gives 166. The window shows the newest frame at each blank.
+//     frame, so the rate it keeps is 1000 over a whole number: 45 gives 45.5.
+//     The window shows the newest frame at each blank.
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -69,13 +70,16 @@ namespace frame_rate
     // A mode that calls itself 120 may be 119.88 or 118.4: 3% takes them all
     // and leaves 90 against 120 or 144 well apart. The mode's rate decides,
     // not the measured period, which moves a little as it is measured and
-    // must not move the title between two pacings.
+    // must not move the title between two pacings. A limit above the
+    // display's rate is the display's too: an AYN Thor whose system setting
+    // holds the panel at 60 was drawn 125 frames a second under the limit of
+    // 120 it starts at, to show 60 of them at uneven steps of the game's time.
     inline Pacing Mode()
     {
         if (Console()) return kByConsole;
         const double hz = DisplayHz();
         const uint32_t limit = Limit();
-        return limit && hz > 0 && std::abs(hz - double(limit)) <= 0.03 * hz ? kByDisplay : kByLimiter;
+        return limit && hz > 0 && double(limit) >= 0.97 * hz ? kByDisplay : kByLimiter;
     }
 
     // How many of the display's blanks a frame is due to stay on screen: one,

@@ -76,7 +76,7 @@ namespace
     float AsFloat(uint32_t bits) { float f; std::memcpy(&f, &bits, 4); return f; }
     uint32_t Bits(float f) { uint32_t u; std::memcpy(&u, &f, 4); return u; }
 
-#ifdef T_R_VideoSizes
+#ifdef T_R_SetVidConfig
     // Whether every texture of `material` was loaded from a file: a picture,
     // not a copy of the screen.
     bool Loaded(uint8_t* base, uint32_t material)
@@ -207,7 +207,7 @@ render::Size render::Frame()
                  "a whole number of 16 pixels wide and 4 tall); it draws the console's 1280x720", asked);
             return kConsoleFrame;
         }
-#ifndef T_R_VideoSizes
+#ifndef T_R_SetVidConfig
         LOGW("render: the " MW2_TITLE_NAME " cannot be given another size than the console's; "
              "MW2_RENDER=%s is left out", asked);
         return kConsoleFrame;
@@ -230,11 +230,13 @@ render::Size render::SceneAsked()
         const Size frame = Frame();
         const Size own = Scene(frame);
         const char* asked = env::Text("MW2_SCENE");
-#if defined(MW2_ANDROID) && defined(T_R_VideoSizes) && !defined(MW3_TITLE)
+#if defined(MW2_ANDROID) && defined(T_R_VideoSizes)
         // An Adreno 650 draws Modern Warfare 2's console scene at 49 to 55
-        // frames a second and this one at 54 to 59 (docs/android.md): the
-        // scene's pixels are what is left to give once the sun's shadows are
-        // off. MW2_SCENE=1024x600 keeps the console's.
+        // frames a second and this one at 54 to 59, and Modern Warfare 3's
+        // Survival at 57.5 with 62% of its frames on time and this one at
+        // 59.7 with 73% (docs/android.md): the scene's pixels are what is
+        // left to give once the sun's shadows are off. MW2_SCENE=1024x600
+        // keeps the console's.
         if (!asked && frame == kConsoleFrame && android::perf::Adreno6xx())
         {
             LOGI("render: an Adreno 6xx draws a %ux%u scene under the %ux%u frame; MW2_SCENE=%ux%u keeps the console's",
@@ -279,6 +281,12 @@ GUEST_HOOK(T_R_VideoSizes)
     PPC_STORE_U32(config + kFrame, frame.width);
     PPC_STORE_U32(config + kFrame + 4, frame.height);
 }
+
+#endif
+
+// The frame's shape: Modern Warfare 2's alone, the scene above being all
+// that has been located in Modern Warfare 3 (title.h).
+#ifdef T_R_SetVidConfig
 
 GUEST_HOOK(T_R_SetVidConfig)
 {

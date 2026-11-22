@@ -660,6 +660,10 @@ namespace vk::renderer::detail
     // of looking through them (Retroid Pocket Flip 2, a first Seatown
     // match). A frame held up is the lesser fault from here on. Where the
     // worker keeps up, a wait is over well inside this and nothing changes.
+    // The consumer builds one such pipeline a frame and the rest go on
+    // waiting: a level's first view has hundreds fall due in the same frame,
+    // and building them all there was one frame of 7 s on the Flip 2 and 6 s
+    // on an AYN Thor (a first Survival match, 242 and 263 pipelines).
     constexpr uint64_t kLongestSkip = 20;
 
     // MW2_ASYNC_PIPELINES: the pipeline for a draw if it is built, and
@@ -740,10 +744,11 @@ namespace vk::renderer::detail
             awaited.lastPublished = published;
             awaited.lastValid = true;
         }
-        if (g.frames - awaited.lastSince >= kLongestSkip)
+        if (g.frames - awaited.lastSince >= kLongestSkip && awaited.overdueFrame != g.frames)
         {
             // Asked again at its next draw, which finds it built.
             awaited.lastValid = false;
+            awaited.overdueFrame = g.frames;
             g.pipelinesOverdue++;
             overdue = true;
             return VK_NULL_HANDLE;

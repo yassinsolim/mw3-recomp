@@ -446,6 +446,7 @@ val mode60 = modes
         }
         logDisplayMode()
         getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, handler)
+        handler.postDelayed({ sayDisplayHeld() }, 5000)
 
         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
@@ -789,6 +790,21 @@ val mode60 = modes
         android.util.Log.i("MW2", line)
     }
 
+    // Said once a run, when the mode request above has had its time: the
+    // system's own display setting outranks an app's request, and an AYN
+    // Thor whose dual-screen assistant put it back to 60 Hz after a restart
+    // showed 60 under a limit of 120 with nothing on screen to say why.
+    private fun sayDisplayHeld() {
+        val shown = shownDisplay() ?: return
+        val limit = prefs.fpsLimit
+        val now = shown.mode.refreshRate
+        if (now >= limit * 0.97f || shown.supportedModes.none { it.refreshRate >= limit * 0.97f }) return
+        android.util.Log.i("MW2", "display: held at $now Hz by the system under an FPS limit of $limit")
+        android.widget.Toast.makeText(
+            this, getString(R.string.display_held, now.roundToInt(), limit), android.widget.Toast.LENGTH_LONG,
+        ).show()
+    }
+
     private fun goFullscreen() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = WindowInsetsControllerCompat(window, window.decorView)
@@ -828,6 +844,11 @@ val mode60 = modes
         // Modern Warfare 2 alone has the hook (runtime/model_detail.cpp).
         if (!Title.isMw3) NativeBridge.nativeSetOption("MW2_LOD_BIAS", prefs.detailBias.toString())
         NativeBridge.nativeSetOption("MW2_FPS_LIMIT", prefs.fpsLimit.toString())
+        // Unset leaves the sun's shadows to the runtime's choice for the
+        // chip and the title.
+        if (prefs.sunShadows != 0) {
+            NativeBridge.nativeSetOption("MW2_SHADOWS", if (prefs.sunShadows == 1) "1" else "0")
+        }
         NativeBridge.nativeSetOption("MW2_STUTTERS", "1")
         // Full synchronous precompile at boot when the player asked for it in
         // Settings; otherwise the tiered instant-boot budget + background warmup.

@@ -129,6 +129,14 @@
     <string name="fov">Field of View (FOV): %1$d°</string>
     <string name="fov_hint">85° is recommended for ultrawide 20:9 mobile displays. (65° was original 16:9 console FOV).</string>
     <string name="fps_limit">FPS limit: %1$d</string>
+    <string name="display_held">The screen is set to %1$d Hz in the system\'s display settings, so %1$d frames a second are shown. Set it to %2$d Hz there for %2$d.</string>
+    <string name="sun_shadows">Sun shadows: %1$s</string>
+    <string-array name="sun_shadows_choices">
+        <item>Chosen for this device</item>
+        <item>On</item>
+        <item>Off</item>
+    </string-array>
+    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device leaves them out on a Snapdragon 865-class chip, and in Modern Warfare 3 wherever the FPS limit is above 60, which is nearer held without them; On keeps them at a lower frame rate.</string>
     <string name="show_stats">Show frames per second</string>
     <string name="hide_stats">Hide frames per second</string>
     <string name="texture_budget_auto">Texture memory: chosen for this phone</string>
