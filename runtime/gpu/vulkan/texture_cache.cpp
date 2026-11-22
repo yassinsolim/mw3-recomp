@@ -1470,13 +1470,24 @@ namespace
     // the pages written since it was staged, when they are known, uploads are
     // open to stage them into and they come to under a quarter of it. Empty
     // for a texture to read whole.
+    //
+    // With replacements on, what is read has to be whole to be looked up
+    // among them, by its bytes -- until the title has rewritten the texture
+    // kOwnBytes times: a streamed picture is whole after a few writes and a
+    // replacement is found for it then, and what goes on being rewritten is
+    // the title's own data, which no picture in a pack is. Modern Warfare
+    // 3's multiplayer has them on for its camouflage packs, and read its
+    // model lighting volume whole for it at a segment's end of every frame:
+    // 2 MB where two of its 512 pages had changed, 5.6 GB in 85 s of a
+    // Seatown match against 0.7 GB for every other texture rewritten.
+    constexpr uint32_t kOwnBytes = 64;
     std::vector<gpu::TextureBox> BoxesToRead(Image& image)
     {
         // MW2_TEXTURE_PARTS=0 reads every rewritten texture whole, as before:
         // what reading in parts saves, and a picture to compare with.
         static const bool parts = !env::Text("MW2_TEXTURE_PARTS") || env::Flag("MW2_TEXTURE_PARTS");
         if (!parts || !g.open || !image.partsKnown || image.writtenPages.empty() ||
-            !ReadInParts(image) || gpu::replace::On())
+            !ReadInParts(image) || (gpu::replace::On() && image.staged < kOwnBytes))
             return {};
         if (!image.boxesAsked)
         {

@@ -23,7 +23,7 @@ namespace platform
     void IdleThreadPriority();
 
     enum class ThreadAffinityRole {
-        PrimeCore,       // The ring consumer: the one stage every frame goes through, alone on the fastest core
+        PrimeCore,       // The ring consumer: the one stage every frame goes through, the only thread let on the fastest core
         PerformanceCore, // The title's threads, the command recorder, the texture readers
         WorkerCore,      // Background shader warmup / audio / file I/O
         Default          // OS scheduler default
@@ -31,6 +31,9 @@ namespace platform
 
     // Pin calling thread to the SoC core cluster appropriate for its role.
     void SetThreadAffinity(ThreadAffinityRole role);
+    // How many cores that cluster has; 0 where threads are not pinned (the
+    // desktop), so a caller sizing a pool falls back to its own number.
+    uint32_t CoreCount(ThreadAffinityRole role);
 
     // The calling thread's host stack to stderr. The recompiled functions are
     // named sub_XXXXXXXX, so where symbols resolve this is the guest's stack.

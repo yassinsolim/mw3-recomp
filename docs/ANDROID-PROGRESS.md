@@ -650,6 +650,40 @@ in [android.md](android.md#adreno-7xx-snapdragon-8-gen-2-class).
 - The Modern Warfare 3 `.dev` app and the copy of its files are off both
   devices again.
 
+## Stutter on the AYN Thor (22 November 2026)
+
+Measured with `MW2_REPORT=1` on `.dev` builds, four to four and a half minutes of play
+each, Turnip v27.0.0-R2 at 120 Hz. Stutters are world frames half a blank late or more;
+"long" is the longest frame.
+
+| Run | Before: stutters / long / fps | After: stutters / long / fps |
+|---|---|---|
+| MW3 Seatown, empty caches | 550 / 463 ms / 107.4 | 91 / 68 ms / 118.6 |
+| MW3 Seatown, second session | 436 / 1283 ms / 105.8 | 54 / 81 ms / 118.9 |
+| MW3 Bakaara, first visit / second | not measured | 123 / 67 ms / 118.5; 387 / 50 ms / 115.9 |
+| MW3 Survival, empty caches / second | not measured | 272 / 79 ms / 117.5; 126 / 126 ms / 118.2 |
+| MW2 Afghan, empty caches | 286 / 814 ms / 110.7 | 86 / 83 ms / 118.6 |
+| MW2 Afghan, second session | 91 / 264 ms / 117.3 | 34 / 71 ms / 118.8 |
+| MW2 S.S.D.D., second session (same inputs) | 1208 / 57 ms / 96.4 | 631 / 72 ms / 97.4 |
+
+What it was, in the order of what it cost:
+
+- The relay's keep-alive thread never slept (`online/server.cpp`: a quarter of one second
+  in whole seconds is a wait of none). It ran a whole core in every multiplayer session,
+  usually the fastest one, which the ring consumer was pinned to and could not leave: the
+  consumer, runnable, got 0.19 s of processor in 4.4 s. The thread sleeps now, and the
+  consumer may run on the performance cores too.
+- Pipelines compiled on the renderer's thread, one a frame (rendering.md).
+- Modern Warfare 3's model lighting volume read whole every frame, and BC textures
+  decoded in software under Turnip (textures.md).
+- The warm-up and the cache writes held locks the consumer takes, at lowered priority.
+
+S.S.D.D.'s opening is bound by the ring consumer (96% of a core at 97 frames a second),
+not by any of the above. Pipeline libraries were tried again under Turnip
+(`MW2_FORCE_PIPELINE_LIBRARIES=1`): four minutes without a fault, but 3,416 compiles and
+54 MB of cache for one map, 2.1 GB of memory against 0.8, and links waiting up to 184 ms
+behind the optimiser; not made the default.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

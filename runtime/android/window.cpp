@@ -16,7 +16,7 @@
 #include "android.h"
 #include "../frame_rate.h"
 #include "../log.h"
-#include "../gpu/vulkan/pipeline.h"
+#include "../gpu/vulkan/renderer.h"
 
 #include <android/native_window.h>
 #include <dlfcn.h>
@@ -160,7 +160,9 @@ namespace android::detail
     // an application that stops answering.
     void DestroyWindow()
     {
-        vk::pipeline::SaveCache();
+        // A game swiped away or left in the background is killed without
+        // another word: this is the last moment to keep what it compiled.
+        vk::renderer::SaveCaches();
         ANativeWindow* going = nullptr;
         {
             std::lock_guard lock(g_lock);

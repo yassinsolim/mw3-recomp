@@ -30,14 +30,21 @@ namespace vk::renderer::detail
     namespace
     {
         std::mutex g_shadersMutex;
-        // Set on the warm-up worker, which builds pipelines beside the consumer.
+        // The run's list of pipelines (g.recorded) is added to by the
+        // consumer and written out by the saver thread: a push, and the
+        // saver's copy, hold this.
+        std::mutex g_recordedMutex;
+        // Set on the threads that build pipelines beside the consumer.
         thread_local bool t_warmupThread = false;
         // How many entries g.pipelines has been given, counted after each is
-        // in the map. A draw waiting for the worker (PipelineWhenReady)
+        // in the map. A draw waiting for a worker (PipelineWhenReady)
         // looks in the map again only when this has moved.
         std::atomic<uint64_t> g_pipelinesPublished{ 0 };
-        // The pipelines the worker built because a draw was waiting for them.
+        // The pipelines the workers built because a draw was waiting for them.
         std::atomic<uint64_t> g_pipelinesBuiltForDraws{ 0 };
+        // The pipelines a worker is building now (g_pipelinesMutex): the
+        // same one can be in the warm-up's queue and asked for by a draw.
+        std::unordered_set<PipelineKey, WordsHash> g_building;
 
         PipelineKey KeyOf(const Recorded& recorded)
         {
@@ -441,6 +448,7 @@ namespace vk::renderer::detail
         // After the map has it, and the handle is whole before either: a
         // draw that sees the count moved finds a pipeline it can record.
         g_pipelinesPublished.fetch_add(1, std::memory_order_release);
+        if (built) NoteUnsaved();
         return built;
     }
 
@@ -458,11 +466,13 @@ namespace vk::renderer::detail
         // The pipelines draws are being skipped for (PipelineWhenReady), in
         // the order they were first asked for.
         std::deque<QueueItem> g_demandQueue;
-        // One thread for each queue. A thread that has lowered its priority
-        // cannot be given it back (platform.h), and a draw is lost every
-        // frame its pipeline is not there: the demand queue's thread keeps
-        // the priority it was made with, on a performance core.
-        std::thread g_warmupThread, g_demandThread;
+        // One thread for the warm-up and CompileThreads for the draws. A
+        // thread that has lowered its priority cannot be given it back
+        // (platform.h), and a draw is lost every frame its pipeline is not
+        // there: the demand queue's threads keep the priority they were made
+        // with, on the performance cores.
+        std::thread g_warmupThread;
+        std::vector<std::thread> g_demandThreads;
         std::atomic<bool> g_warmupRunning{ false };
         std::atomic<bool> g_warmupStopping{ false };
         std::atomic<bool> g_cutsceneActive{ false };
@@ -500,23 +510,59 @@ namespace vk::renderer::detail
             return (nowMs - lastMs) < 150;
         }
 
+        // How many threads compile the pipelines draws are waiting for. The
+        // consumer compiles none of them (PipelineWhenReady), so how long a
+        // first visit's surfaces stay undrawn is how fast these get through
+        // them: one thread took a first Seatown match's 440 pipelines at 25
+        // to 35 ms each, eleven seconds and more of them. All but one of the
+        // performance cores, which the title's own threads are on as well,
+        // and three at most; one where the driver takes one creation at a
+        // time anyway. MW2_COMPILE_THREADS=<n> says otherwise.
+        uint32_t CompileThreads()
+        {
+            static const uint32_t threads = [] {
+                if (const uint64_t asked = env::Number("MW2_COMPILE_THREADS"))
+                    return uint32_t(std::min<uint64_t>(asked, 8));
+                if (vk::pipeline::OneCreation()) return 1u;
+                const uint32_t cores = platform::CoreCount(platform::ThreadAffinityRole::PerformanceCore);
+                return std::clamp(cores ? cores - 1 : std::thread::hardware_concurrency() / 4, 1u, 3u);
+            }();
+            return threads;
+        }
+
+        // A creation the driver answers out of its cache takes well under
+        // this; one it compiles takes ten times it and more.
+        constexpr uint32_t kCompiledMs = 3;
+
         void Worker(bool demanded)
         {
             t_warmupThread = true;
-            if (demanded)
-                platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
-            else
-            {
-                platform::LowerThreadPriority();
-                platform::SetThreadAffinity(platform::ThreadAffinityRole::WorkerCore);
-            }
+            // The warm-up on the little cores, out of the title's way, but at
+            // the priority it was made with: it takes the locks the consumer
+            // takes at every change of shader or pipeline, and held back with
+            // one -- the little cores are busy too, and a lowered thread is
+            // the last they run -- it held the consumer for as long. A ring
+            // batch of a hundred dwords took up to three seconds that way.
+            platform::SetThreadAffinity(demanded ? platform::ThreadAffinityRole::PerformanceCore
+                                                 : platform::ThreadAffinityRole::WorkerCore);
             std::deque<QueueItem>& queue = demanded ? g_demandQueue : g_warmupQueue;
             LOGI("warmup: %s worker thread started", demanded ? "demand" : "scheduler");
+            // The warm-up's run since its queue was last empty: how many
+            // pipelines, how many of them the driver compiled, and from when.
+            uint32_t run = 0, runCompiled = 0;
+            auto runStart = std::chrono::steady_clock::now();
             while (!g_warmupStopping.load(std::memory_order_relaxed))
             {
                 QueueItem item{};
                 {
                     std::unique_lock lock(g_warmupMutex);
+                    if (queue.empty() && run)
+                    {
+                        LOGI("warmup: %u recorded pipelines ready in %lld ms, %u of them compiled by the driver",
+                             run, (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      std::chrono::steady_clock::now() - runStart).count(), runCompiled);
+                        run = runCompiled = 0;
+                    }
                     g_warmupCv.wait(lock, [&queue] {
                         return g_warmupStopping.load(std::memory_order_relaxed) || !queue.empty();
                     });
@@ -527,19 +573,24 @@ namespace vk::renderer::detail
                     item = queue.front();
                     queue.pop_front();
                 }
+                if (!demanded && !run) runStart = std::chrono::steady_clock::now();
 
                 const PipelineKey key = KeyOf(item.recorded);
 
-                // Check if already created
+                // Built already, or being built by another thread, whose
+                // publishing it is what a draw waiting for it sees.
                 {
                     std::lock_guard lock(g_pipelinesMutex);
-                    if (g.pipelines.find(key) != g.pipelines.end())
+                    if (g.pipelines.contains(key) || !g_building.insert(key).second)
                         continue;
                 }
 
-                Shader vertexCopy{};
-                Shader pixelCopy{};
-                bool foundShaders = false;
+                // The shaders where they are, not copies made under the
+                // lock: none leaves g.shaders before Shutdown, which stops
+                // these threads first, and a copy was the microcode and the
+                // translation of both with the consumer waiting.
+                const Shader* vertex = nullptr;
+                const Shader* pixel = nullptr;
                 {
                     std::lock_guard lock(g_shadersMutex);
                     auto vIt = g.shaders.find(key.vertexShader);
@@ -547,54 +598,42 @@ namespace vk::renderer::detail
                     if (vIt != g.shaders.end() && vIt->second.module &&
                         pIt != g.shaders.end() && pIt->second.module)
                     {
-                        vertexCopy = vIt->second;
-                        pixelCopy = pIt->second;
-                        foundShaders = true;
+                        vertex = &vIt->second;
+                        pixel = &pIt->second;
                     }
                 }
-
-                if (!foundShaders)
-                    continue;
 
                 const auto start = std::chrono::steady_clock::now();
                 bool made = false;
-                VkPipeline built = EnsurePipeline(key, vertexCopy, pixelCopy, &made);
+                const VkPipeline built = vertex ? EnsurePipeline(key, *vertex, *pixel, &made) : VK_NULL_HANDLE;
                 const uint32_t tookMs = uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - start).count());
+                {
+                    std::lock_guard lock(g_pipelinesMutex);
+                    g_building.erase(key);
+                }
+                if (!built || !made) continue;
+                g_statCompleted.fetch_add(1, std::memory_order_relaxed);
+                g_statLastCompileMs.store(tookMs, std::memory_order_relaxed);
 
-                // No pause after a pipeline a draw is waiting for, and the
-                // driver's cache is not written out between them: the
-                // consumer would have compiled it at this same moment itself.
-                // The pauses below pace the ones nothing is waiting for.
+                // No pause after a pipeline a draw is waiting for: its
+                // surface is undrawn every frame until it is there. The
+                // pauses below pace the ones nothing is waiting for.
                 if (demanded)
                 {
-                    if (built && made)
-                    {
-                        g_pipelinesBuiltForDraws.fetch_add(1, std::memory_order_relaxed);
-                        g_statCompleted.fetch_add(1, std::memory_order_relaxed);
-                        g_statLastCompileMs.store(tookMs, std::memory_order_relaxed);
-                        LOGI("warmup: pipeline %016llX/%016llX a draw waited for built in %u ms",
-                             (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
-                             tookMs);
-                    }
+                    g_pipelinesBuiltForDraws.fetch_add(1, std::memory_order_relaxed);
                     continue;
                 }
 
-                if (built && made)
-                {
-                    const uint32_t c = g_statCompleted.fetch_add(1, std::memory_order_relaxed) + 1;
-                    g_statLastCompileMs.store(tookMs, std::memory_order_relaxed);
-                    LOGI("warmup: precompiled pipeline %016llX/%016llX in %u ms (%u of %u ready)",
-                         (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader,
-                         tookMs, c, g_statQueued.load(std::memory_order_relaxed));
-
-                    static uint32_t s_lastSave = 0;
-                    if (c - s_lastSave >= 5)
-                    {
-                        s_lastSave = c;
-                        vk::pipeline::SaveCache();
-                    }
-                }
+                // Nor after one the driver had in its cache, which is every
+                // one of a level played before: it cost a millisecond and
+                // nothing of the GPU's. Paced like a compile, 200 ms apart in
+                // play, a multiplayer's 1500 recorded pipelines took five
+                // minutes to be there, and the draws that came first each
+                // waited for theirs.
+                run++;
+                if (tookMs < kCompiledMs) continue;
+                runCompiled++;
 
                 // Backpressure: when the render thread is actively submitting
                 // frames the GPU command queue is shared and can saturate,
@@ -634,12 +673,88 @@ namespace vk::renderer::detail
 #endif
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
-                if (sleepMs >= 200)
-                    LOGI("warmup: render-active backpressure -- slept %d ms after %u ms compile",
-                         sleepMs, tookMs);
             }
             LOGI("warmup: %s worker thread exiting", demanded ? "demand" : "scheduler");
         }
+    }
+
+    // The recorded pipelines and the driver's cache, written from a thread
+    // of their own while something in them is new. They were written by
+    // whoever made the twenty-fifth new pipeline -- the consumer, in the
+    // middle of a frame, a megabyte of shaders and several of cache to the
+    // phone's storage -- and otherwise only at a clean end, which a game
+    // swiped away or killed by the system for its memory never reaches: now
+    // a run that ends any way has lost kSaveEvery of what it compiled at most.
+    namespace saver
+    {
+        constexpr auto kSaveEvery = std::chrono::seconds(10);
+        std::mutex g_lock;
+        std::condition_variable g_wake;
+        std::thread g_thread;
+        bool g_stopping = false;
+        std::atomic<bool> g_started{ false };
+        std::atomic<bool> g_unsaved{ false };
+        // One writer of the two files at a time: the thread, or whoever
+        // says the game is going away (SaveCaches).
+        std::mutex g_writing;
+
+        // `whole`: the list is written whether or not it has changed (the
+        // run's end). The driver's cache is asked every time: it knows
+        // itself whether it has grown, and what was found in its closed
+        // files is counted there whatever was built.
+        void Save(bool whole = false)
+        {
+            std::lock_guard writing(g_writing);
+            if (!g.ready && !whole) return;
+            if (g_unsaved.exchange(false, std::memory_order_acq_rel) || whole) WriteShaderCache();
+            vk::pipeline::SaveCache();
+        }
+
+        void Work()
+        {
+            // At the priority it was made with: it holds the shaders' and
+            // the list's locks while it copies them, and a thread held back
+            // with one of those is the consumer held back.
+            platform::SetThreadName("cache saver");
+            std::unique_lock lock(g_lock);
+            while (!g_wake.wait_for(lock, kSaveEvery, [] { return g_stopping; }))
+            {
+                lock.unlock();
+                Save();
+                lock.lock();
+            }
+        }
+
+        void Stop()
+        {
+            {
+                std::lock_guard lock(g_lock);
+                g_stopping = true;
+            }
+            g_wake.notify_all();
+            if (g_thread.joinable()) g_thread.join();
+            std::lock_guard lock(g_lock);
+            g_stopping = false;
+            g_started.store(false, std::memory_order_release);
+        }
+    }
+
+    void NoteUnsaved()
+    {
+        saver::g_unsaved.store(true, std::memory_order_release);
+        if (saver::g_started.load(std::memory_order_acquire)) return;
+        std::lock_guard lock(saver::g_lock);
+        if (saver::g_started.exchange(true, std::memory_order_acq_rel)) return;
+        saver::g_thread = std::thread(saver::Work);
+    }
+
+    void RecordPipeline(const Recorded& recorded)
+    {
+        {
+            std::lock_guard lock(g_recordedMutex);
+            g.recorded.push_back(recorded);
+        }
+        NoteUnsaved();
     }
 
     void StartWarmupScheduler()
@@ -649,35 +764,29 @@ namespace vk::renderer::detail
         warmup::g_warmupStopping.store(false);
         warmup::g_warmupRunning.store(true);
         warmup::g_warmupThread = std::thread(warmup::Worker, false);
-        if (AsyncPipelines()) warmup::g_demandThread = std::thread(warmup::Worker, true);
+        if (!AsyncPipelines()) return;
+        const uint32_t threads = warmup::CompileThreads();
+        for (uint32_t i = 0; i < threads; i++) warmup::g_demandThreads.emplace_back(warmup::Worker, true);
+        LOGI("warmup: %u thread%s for the pipelines draws wait for", threads, threads == 1 ? "" : "s");
     }
 
-    // How many frames a draw is skipped for before the consumer builds its
-    // pipeline itself. The phones' drivers are given one creation at a time
-    // (BuildPipeline), so the worker gets through a first visit's hundred
-    // and more pipelines one after another: at 50 ms each on an Adreno 650
-    // the last of them left its walls undrawn for 288 frames, ten seconds
-    // of looking through them (Retroid Pocket Flip 2, a first Seatown
-    // match). A frame held up is the lesser fault from here on. Where the
-    // worker keeps up, a wait is over well inside this and nothing changes.
-    // The consumer builds one such pipeline a frame and the rest go on
-    // waiting: a level's first view has hundreds fall due in the same frame,
-    // and building them all there was one frame of 7 s on the Flip 2 and 6 s
-    // on an AYN Thor (a first Survival match, 242 and 263 pipelines).
-    constexpr uint64_t kLongestSkip = 20;
-
     // MW2_ASYNC_PIPELINES: the pipeline for a draw if it is built, and
-    // otherwise null with `compiling` set, once the worker has been asked
-    // for it, or with `overdue` set once its draws have been skipped for
-    // kLongestSkip frames: then the caller builds it. Null with neither is a
-    // pipeline the driver refused. The consumer's alone, and on its path for
-    // every draw: a run of draws with a
-    // built pipeline stops at the first comparison, a run waiting for one at
-    // the second, and only a change of pipeline takes the lock.
+    // otherwise null with `compiling` set, once the workers have been asked
+    // for it. Null without it is a pipeline the driver refused. The
+    // consumer never builds one itself: it did once a draw had been skipped
+    // for twenty frames, one a frame, and a first visit's hundreds were then
+    // 25 to 35 ms of every frame for as long as they lasted, behind the
+    // worker compiling the same ones -- 193 of an AYN Thor's 201 logged
+    // stutters in a multiplayer match, back to back. The surfaces stayed
+    // undrawn for as long either way; how soon they come is the workers'
+    // number (CompileThreads). The consumer's alone, and on its path for
+    // every draw: a run of draws with a built pipeline stops at the first
+    // comparison, a run waiting for one at the second, and only a change of
+    // pipeline takes the lock.
     VkPipeline PipelineWhenReady(const PipelineKey& key, uint32_t depthControl, uint32_t modeCntl,
-                                 bool& compiling, bool& overdue)
+                                 bool& compiling)
     {
-        compiling = overdue = false;
+        compiling = false;
         TakeOptimisedPipelines();
         if (g.lastPipeline && g.lastPipelineSwaps == g.pipelinesOptimised && key == g.lastPipelineKey)
             return g.lastPipeline;
@@ -710,8 +819,7 @@ namespace vk::renderer::detail
                     return found->second;
                 }
             }
-            const auto [waiting, first] = awaited.since.emplace(key, g.frames);
-            awaited.lastSince = waiting->second;
+            const bool first = awaited.since.emplace(key, g.frames).second;
             if (first)
             {
                 const Recorded recorded{ key.vertexShader, key.pixelShader, key.colourFormat, key.depthFormat,
@@ -726,11 +834,7 @@ namespace vk::renderer::detail
                         awaited.recordedSeeded = true;
                         for (const Recorded& known : g.recorded) awaited.recorded.insert(KeyOf(known));
                     }
-                    if (awaited.recorded.insert(key).second)
-                    {
-                        g.recorded.push_back(recorded);
-                        if (++awaited.unsaved >= 25) { awaited.unsaved = 0; WriteShaderCache(); }
-                    }
+                    if (awaited.recorded.insert(key).second) RecordPipeline(recorded);
                 }
                 {
                     std::lock_guard lock(warmup::g_warmupMutex);
@@ -744,15 +848,6 @@ namespace vk::renderer::detail
             awaited.lastPublished = published;
             awaited.lastValid = true;
         }
-        if (g.frames - awaited.lastSince >= kLongestSkip && awaited.overdueFrame != g.frames)
-        {
-            // Asked again at its next draw, which finds it built.
-            awaited.lastValid = false;
-            awaited.overdueFrame = g.frames;
-            g.pipelinesOverdue++;
-            overdue = true;
-            return VK_NULL_HANDLE;
-        }
         compiling = true;
         g.drawsAwaitingPipelines++;
         return VK_NULL_HANDLE;
@@ -761,16 +856,18 @@ namespace vk::renderer::detail
     void ReportAsyncPipelines()
     {
         if (!AsyncPipelines()) return;
-        LOGI("renderer: MW2_ASYNC_PIPELINES: %llu pipelines built in the background, %llu draws skipped"
-             " while waiting for one, the longest wait %llu frames; %llu built at their draw after"
-             " %llu frames of waiting",
+        LOGI("renderer: MW2_ASYNC_PIPELINES: %llu pipelines built in the background on %u thread%s, %llu draws"
+             " skipped while waiting for one, the longest wait %llu frames",
              (unsigned long long)g_pipelinesBuiltForDraws.load(std::memory_order_relaxed),
-             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.longestPipelineWait,
-             (unsigned long long)g.pipelinesOverdue, (unsigned long long)kLongestSkip);
+             warmup::CompileThreads(), warmup::CompileThreads() == 1 ? "" : "s",
+             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.longestPipelineWait);
     }
 
     void StopWarmupScheduler()
     {
+        // First, and whether or not the workers ever ran: what it would
+        // write is written whole by the caller once everything has stopped.
+        saver::Stop();
         {
             std::lock_guard lock(warmup::g_warmupMutex);
             if (!warmup::g_warmupRunning.load()) return;
@@ -779,8 +876,8 @@ namespace vk::renderer::detail
         }
         if (warmup::g_warmupThread.joinable())
             warmup::g_warmupThread.join();
-        if (warmup::g_demandThread.joinable())
-            warmup::g_demandThread.join();
+        for (std::thread& thread : warmup::g_demandThreads) thread.join();
+        warmup::g_demandThreads.clear();
         warmup::g_warmupRunning.store(false);
     }
 
@@ -820,36 +917,51 @@ namespace vk::renderer::detail
     constexpr uint32_t kCacheVersion = 5;   // 5: a pixel program runs once for
                                             // each record its subgroup holds
 
+    // Any thread, one at a time (saver::Save, and Shutdown once the saver
+    // has stopped): the list and the shaders are copied under their locks
+    // and written without them, so the consumer waits for neither the
+    // storage nor a megabyte of words. A shader is never taken out of
+    // g.shaders before Shutdown and its words never change, so the pointers
+    // stay good.
     void WriteShaderCache()
     {
         const char* path = ShaderCachePath();
-        if (!path || g.recorded.empty()) return;
+        if (!path) return;
+        std::vector<Recorded> recorded;
+        {
+            std::lock_guard lock(g_recordedMutex);
+            recorded = g.recorded;
+        }
+        if (recorded.empty()) return;
+        std::vector<std::pair<uint64_t, const Shader*>> shaders;
+        {
+            std::lock_guard lock(g_shadersMutex);
+            shaders.reserve(g.shaders.size());
+            for (const auto& [hash, shader] : g.shaders) shaders.emplace_back(hash, &shader);
+        }
         const std::string tmpPath = std::string(path) + ".tmp";
         std::FILE* file = std::fopen(tmpPath.c_str(), "wb");
         if (!file) return;
 
         bool writeOk = true;
         const uint32_t header[4] = { kCacheMagic, kCacheVersion,
-                                     uint32_t(g.shaders.size()), uint32_t(g.recorded.size()) };
+                                     uint32_t(shaders.size()), uint32_t(recorded.size()) };
         if (std::fwrite(header, sizeof header, 1, file) != 1) writeOk = false;
-        for (const auto& [hash, shader] : g.shaders)
+        for (const auto& [hash, shader] : shaders)
         {
             if (!writeOk) break;
-            const uint32_t entry[2] = { uint32_t(shader.type == shader::Type::Pixel),
-                                        uint32_t(shader.code.size()) };
+            const std::vector<uint32_t>& code = shader->code;
+            const uint32_t entry[2] = { uint32_t(shader->type == shader::Type::Pixel), uint32_t(code.size()) };
             if (std::fwrite(&hash, sizeof hash, 1, file) != 1 ||
                 std::fwrite(entry, sizeof entry, 1, file) != 1 ||
-                (shader.code.size() && std::fwrite(shader.code.data(), 4, shader.code.size(), file) != shader.code.size()))
+                (code.size() && std::fwrite(code.data(), 4, code.size(), file) != code.size()))
             {
                 writeOk = false;
                 break;
             }
         }
-        if (writeOk && !g.recorded.empty())
-        {
-            if (std::fwrite(g.recorded.data(), sizeof(Recorded), g.recorded.size(), file) != g.recorded.size())
-                writeOk = false;
-        }
+        if (writeOk && std::fwrite(recorded.data(), sizeof(Recorded), recorded.size(), file) != recorded.size())
+            writeOk = false;
 
         if (std::fclose(file) != 0) writeOk = false;
 
@@ -858,7 +970,7 @@ namespace vk::renderer::detail
             if (std::rename(tmpPath.c_str(), path) == 0)
             {
                 LOGI("renderer: wrote %zu shaders and %zu pipelines to %s",
-                     g.shaders.size(), g.recorded.size(), path);
+                     shaders.size(), recorded.size(), path);
             }
             else
             {
@@ -871,9 +983,6 @@ namespace vk::renderer::detail
             LOGW("renderer: failed writing shader cache, removing temporary file");
             std::remove(tmpPath.c_str());
         }
-
-        // Commit driver's persistent pipeline cache alongside recipes
-        vk::pipeline::SaveCache();
     }
 
     // Work the draw path would otherwise do mid-frame, which is where a hitch
@@ -966,23 +1075,39 @@ namespace vk::renderer::detail
         LOGI("renderer: prewarming %u recorded pipelines%s", uint32_t(wanted.size()),
              prewarmAll ? ", all of them synchronously" : "");
 
+        const auto shadersOf = [](const Recorded& want, const Shader*& vertex, const Shader*& pixel) {
+            const auto v = g.shaders.find(want.vertexShader);
+            const auto p = g.shaders.find(want.pixelShader);
+            if (v == g.shaders.end() || p == g.shaders.end() || !v->second.module || !p->second.module)
+                return false;
+            vertex = &v->second;
+            pixel = &p->second;
+            return true;
+        };
+        // The list whole before the first of them is built: the saver
+        // writes what is in it, and a list written halfway through this
+        // would have lost the rest for good.
+        {
+            std::lock_guard lock(g_recordedMutex);
+            const Shader* vertex = nullptr;
+            const Shader* pixel = nullptr;
+            for (const Recorded& want : wanted)
+                if (shadersOf(want, vertex, pixel)) g.recorded.push_back(want);
+        }
+
         for (size_t i = 0; i < wanted.size(); i++)
         {
             const Recorded& want = wanted[i];
-            auto vertex = g.shaders.find(want.vertexShader);
-            auto pixel = g.shaders.find(want.pixelShader);
-            if (vertex == g.shaders.end() || pixel == g.shaders.end() ||
-                !vertex->second.module || !pixel->second.module)
-                continue;
+            const Shader* vertex = nullptr;
+            const Shader* pixel = nullptr;
+            if (!shadersOf(want, vertex, pixel)) continue;
             const PipelineKey key = KeyOf(want);
-
-            g.recorded.push_back(want);
 
             const bool syncCandidate = prewarmAll || ((i < maxSync) &&
                                        (hasFastLibraries || std::chrono::steady_clock::now() < syncDeadline));
             if (syncCandidate)
             {
-                if (EnsurePipeline(key, vertex->second, pixel->second)) g.prewarmed++;
+                if (EnsurePipeline(key, *vertex, *pixel)) g.prewarmed++;
                 const uint32_t percent = 100 * uint32_t(i + 1) / uint32_t(wanted.size());
                 const uint32_t step = prewarmAll ? 10 : 25;
                 if (percent >= last + step) { LOGI("compiling shaders: %u%%", percent); last = percent; }
@@ -1012,6 +1137,10 @@ namespace vk::renderer::detail
              g.prewarmed, g.prewarmWanted, g.shaders.size(),
              (unsigned long long)g.prewarmMicroseconds);
     }
+
+    void SaveCachesAtEnd() { saver::Save(true); }
 }
+
+void vk::renderer::SaveCaches() { detail::saver::Save(); }
 
 #endif  // MW2_HAVE_VULKAN

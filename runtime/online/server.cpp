@@ -517,7 +517,14 @@ namespace
         void KeepAlive()
         {
             std::unique_lock g(stopLock_);
-            const auto every = std::chrono::seconds(relay::ALIVE_EVERY_SECONDS);
+            // In milliseconds: a quarter of one whole second is no seconds
+            // at all, and a wait of none returned at once, so this thread
+            // never slept. It ran a whole core for as long as the
+            // multiplayer was up, at the title's priority and on its cores:
+            // the fastest one, usually, which the ring consumer was held to,
+            // and the consumer had half of it at best and for seconds at a
+            // time nearly none (an AYN Thor: frames of 1.5 to 4 s).
+            const std::chrono::milliseconds every = std::chrono::seconds(relay::ALIVE_EVERY_SECONDS);
             auto pinged = Clock::time_point{};
             while (!stop_.wait_for(g, every / 4, [this] { return stopping_; }))
             {

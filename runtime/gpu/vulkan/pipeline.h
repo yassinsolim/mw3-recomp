@@ -175,6 +175,9 @@ namespace vk::pipeline
     // cache to itself.
     int CreateGraphicsPipeline(const void* createInfo, void* pipeline, int* fromCache = nullptr);
     void SaveCache();
+    // Whether the driver is given one creation at a time (a phone's, unless
+    // it is Turnip): threads compiling side by side then only wait in turn.
+    bool OneCreation();
 
     // Creates and destroys a shader module: a stronger check than spirv-val,
     // because it is the compiler that will actually run the shader.

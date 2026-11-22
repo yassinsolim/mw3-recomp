@@ -132,6 +132,17 @@ is the case its sampler is known to get wrong; `MW2_ADRENO_BC=hw` (the same as
 `MW2_FORCE_BC_DECOMPRESS=1` makes a desktop driver exercise the same decoder, so a decode
 bug can be told apart from a driver one.
 
+That is Qualcomm's driver. Under Turnip the driver's sampling stays on (`MW2_ADRENO_BC=sw`
+asks for the decoder): Modern Warfare 3 streams textures in and its pool moves them all
+match long, and decoding them was most of the long frames left once every pipeline was
+built -- on an AYN Thor, a Seatown match lost a blank 127 times in four minutes decoding
+and 32 times sampling, with 80 MB of textures in place of 300 and the same picture.
+
+A texture read in parts (the model lighting volume) is read in parts with replacements on
+as well, once the title has rewritten it 64 times (`kOwnBytes`): Modern Warfare 3's
+multiplayer has replacements on for its camouflage packs and read the 2 MB volume whole at
+a segment's end of every frame, 5.6 GB in 85 s against 0.7 GB for every other texture.
+
 | Xenos (id) | Vulkan |
 |---|---|
 | 8, 8_A, 8_B (2, 8, 9) | R8 |

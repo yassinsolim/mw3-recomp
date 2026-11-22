@@ -113,7 +113,8 @@ namespace
         // Every draw of a frame is parsed here, one after another, and the
         // title's render thread waits when this falls behind. Sharing the
         // fastest core with the title's main thread, which started it, it
-        // got two thirds of it (AYN Thor, 120 Hz).
+        // got two thirds of it (AYN Thor, 120 Hz): the title's threads are
+        // kept off that core, and this one may run there or on theirs.
         platform::SetThreadAffinity(platform::ThreadAffinityRole::PrimeCore);
         t_guestPcr = g.gpuPcr;
         LOGI("gpu: ring consumer started");

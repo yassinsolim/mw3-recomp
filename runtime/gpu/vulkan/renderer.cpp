@@ -631,8 +631,7 @@ void vk::renderer::Shutdown()
     StopPassTimes();
     StopPreparing();
     vk::display::Shutdown();
-    WriteShaderCache();
-    vk::pipeline::SaveCache();
+    SaveCachesAtEnd();
     SummariseTargets();
     ClearRenderPassCache();
     g.pipelineCount = g.pipelines.size();

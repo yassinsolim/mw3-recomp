@@ -752,9 +752,9 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     bool newPipeline = false;
     VkPipeline built = VK_NULL_HANDLE;
     // MW2_ASYNC_PIPELINES: a draw whose pipeline is not built yet is skipped
-    // while a worker compiles it, and built here once it has been skipped
-    // for too long (PipelineWhenReady). A pair with libraries is linked here
-    // all the same: that takes well under a millisecond, and loses no draw.
+    // while the workers compile it (PipelineWhenReady). A pair with
+    // libraries is linked here all the same: that takes well under a
+    // millisecond, and loses no draw.
     //
     // The skip leaves nothing behind for the draws after it. No command was
     // queued and nothing in g.bound was touched, so the next draw sets what
@@ -763,12 +763,10 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     // before as though it followed it.
     if (AsyncPipelines() && !(vertex->library && pixel->library))
     {
-        bool compiling = false, overdue = false;
+        bool compiling = false;
         {
             Stopwatch watch(g.pipelineNanoseconds);
-            built = PipelineWhenReady(key, depthControl, modeCntl, compiling, overdue);
-            // Already in the shader cache's list, from when it was asked for.
-            if (overdue) built = EnsurePipeline(key, *vertex, *pixel);
+            built = PipelineWhenReady(key, depthControl, modeCntl, compiling);
         }
         if (compiling) { Skip("pipeline compiling in the background"); return; }
     }
@@ -779,18 +777,10 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     }
     if (!built) { Skip("pipeline rejected"); return; }
     if (newPipeline && ShaderCachePath())
-    {
-        g.recorded.push_back({ key.vertexShader, key.pixelShader,
-                               uint32_t(colourTarget->format), uint32_t(depthTarget->format),
-                               key.topology, depthControl, key.blendControl,
-                               key.colourMask, modeCntl, key.samples });
-        static uint32_t s_lastSaved = 0;
-        if (g.recorded.size() - s_lastSaved >= 5)
-        {
-            s_lastSaved = uint32_t(g.recorded.size());
-            WriteShaderCache();
-        }
-    }
+        RecordPipeline({ key.vertexShader, key.pixelShader,
+                         uint32_t(colourTarget->format), uint32_t(depthTarget->format),
+                         key.topology, depthControl, key.blendControl,
+                         key.colourMask, modeCntl, key.samples });
 
     // The draw's record (bindings.h), filled from here on and written into
     // the arena just before the draw, as far as the highest slot sampled.

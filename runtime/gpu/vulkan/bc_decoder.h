@@ -9,13 +9,14 @@ namespace vk::bc
     bool IsBCFormat(uint32_t xenosFormat);
 
     // How much of the Snapdragon workaround applies where the driver's own BC
-    // sampling is left enabled (pipeline.cpp turns it off on Adreno, because
-    // its compressed-sampling path renders BC1-with-1-bit-alpha surfaces black
-    // or missing for a frame at a time). MW2_ADRENO_BC picks a narrower rule
-    // for a driver that proves clean:
+    // sampling is left enabled (pipeline.cpp turns it off on Qualcomm's
+    // driver, because its compressed-sampling path renders
+    // BC1-with-1-bit-alpha surfaces black or missing for a frame at a time,
+    // and leaves it on under Turnip). MW2_ADRENO_BC says otherwise:
     //   hw    -- keep the driver's BC sampling, as MW2_FORCE_BC_HW=1 does
     //   dxt1  -- keep it, and decode only the BC1 family in software
-    // Unset, or anything else, is every BC format in software.
+    //   sw    -- every BC format in software, Turnip's too
+    // Unset is `sw` on Qualcomm's driver and `hw` on Turnip.
     enum class AdrenoBC { kAll, kHardware, kDxt1Only };
     AdrenoBC AdrenoMode();
 

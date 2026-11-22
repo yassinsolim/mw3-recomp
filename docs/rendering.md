@@ -891,23 +891,43 @@ pipelines are built at their first draw.
 Built there, a pipeline holds the frame up for as long as the driver takes
 over it: up to 46 ms each on Turnip, and some 510 of them the first time a
 map is played. `MW2_ASYNC_PIPELINES=1` is the option of not waiting, which
-the Android app turns on by default (unset on the desktop): a thread of its own, at normal priority on a performance core,
-builds the pipeline instead (`PipelineWhenReady`), and the draws that need
-it are skipped until it is in the map, so what they draw appears late. The
-warm-up worker keeps to the pipelines it is rebuilding from a previous run,
-at low priority and with its pauses. A skipped draw queues no command and
-changes none of the bound state, and the indices it wrote keep the next draw
-from joining the run before it. Creation stays one at a time
-(`vk::pipeline::CreationMutex`), so the worker gets through a first visit's
-pipelines one after another, and a draw is skipped for 20 frames at most
-(`kLongestSkip`): after that the consumer builds its pipeline at the draw,
-and the frame waits as it would without the switch. Unbounded, a first
-Seatown match on an Adreno 650 with empty caches left walls out for 288
-frames (298,275 draws skipped); bounded, 37,790 draws are skipped and one
-frame at the first spawn takes 4.4 s. Where the worker keeps up no wait
-reaches the bound. The run's log counts the pipelines built in the
-background, the draws skipped, the longest wait in frames and the pipelines
-built at their draw.
+the Android app turns on by default (unset on the desktop): threads of their
+own, at normal priority on the performance cores, build the pipeline instead
+(`PipelineWhenReady`), and the draws that need it are skipped until it is in
+the map, so what they draw appears late. A skipped draw queues no command
+and changes none of the bound state, and the indices it wrote keep the next
+draw from joining the run before it.
+
+The consumer never builds one of these itself. It did once a draw had been
+skipped for 20 frames, one pipeline a frame, behind a single worker
+compiling the same ones: a first visit's hundreds were then 25 to 35 ms of
+every frame, 193 of an AYN Thor's 201 logged stutters in one multiplayer
+match. Now there are `CompileThreads` workers (all but one of the
+performance cores, three at most; `MW2_COMPILE_THREADS=<n>`), and Turnip is
+given several creations at once (`vk::pipeline::OneCreation`,
+`MW2_ONE_PIPELINE_CREATION`; Mali and Qualcomm's driver still one). A first
+Seatown match on the Thor with empty caches: 400 pipelines compiled, none of
+the renderer's time, the longest frame 68 ms where it was 463, and the
+longest wait for a surface 311 frames (2.6 s, at the first spawn) where one
+worker and the consumer took 124 frames with 4,967 ms of the renderer's.
+The run's log counts the pipelines built in the background, the threads,
+the draws skipped and the longest wait in frames.
+
+The warm-up worker rebuilds a previous run's recorded pipelines, on the
+little cores. One the driver has in its cache costs a millisecond and is
+followed by no pause (it was paced like a compile, 200 ms apart in play: a
+multiplayer's 1,500 took five minutes); `warmup: N recorded pipelines ready
+in X ms, M of them compiled by the driver` says when they are all there.
+None of these threads lowers its priority: each takes locks the consumer
+takes, and a lowered thread held back with one held the consumer.
+
+What a run records and compiles is written by a thread of its own
+(`saver`, every 10 s while something is new), when the activity pauses,
+when its surface goes and when memory is trimmed
+(`vk::renderer::SaveCaches`): the pipelines' list and the driver's cache
+were written by the consumer in the middle of a frame, every 25 new
+pipelines, and otherwise only at a clean end. A game killed any way has
+lost ten seconds of compiling at most.
 
 ### Every shader compiled before play
 

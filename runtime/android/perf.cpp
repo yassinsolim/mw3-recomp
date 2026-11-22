@@ -17,7 +17,7 @@
 #include "../env.h"
 #include "../log.h"
 #include "../gpu/vulkan/texture_cache.h"
-#include "../gpu/vulkan/pipeline.h"
+#include "../gpu/vulkan/renderer.h"
 
 #include <malloc.h>
 #include <pthread.h>
@@ -293,7 +293,7 @@ void android::perf::RestoreMemory()
 
 void android::perf::TrimMemory(int level)
 {
-    vk::pipeline::SaveCache();
+    vk::renderer::SaveCaches();
     const uint64_t budget = vk::textures::Budget();
     if (budget && !g_fullTextureBudget) g_fullTextureBudget = budget;
 

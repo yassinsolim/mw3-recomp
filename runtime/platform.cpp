@@ -302,32 +302,45 @@ namespace
         topo.discovered = true;
         return topo;
     }
+
+    const CpuTopology& Topology()
+    {
+        static const CpuTopology topology = DiscoverCpuTopology();
+        return topology;
+    }
+
+    uint32_t MaskOf(const CpuTopology& topology, platform::ThreadAffinityRole role)
+    {
+        switch (role)
+        {
+        // The performance cores as well as the fastest one. A thread held
+        // to the one core has nowhere to go when something else takes it:
+        // the ring consumer, runnable, got 0.19 s of processor in 4.4 s on
+        // an AYN Thor's (a frame 4.1 s long), and a second or so of nearly
+        // none nine more times in three minutes. What took it then was a
+        // thread of this game's own that never slept (online/server.cpp,
+        // since put right), but any thread the system runs there does the
+        // same. The scheduler still gives the fastest core to the busiest
+        // thread that may have it, which this one is.
+        case platform::ThreadAffinityRole::PrimeCore:
+            return topology.primeMask | topology.perfMask;
+        case platform::ThreadAffinityRole::PerformanceCore:
+            return topology.perfMask ? topology.perfMask : topology.primeMask;
+        case platform::ThreadAffinityRole::WorkerCore:
+            return topology.workerMask ? topology.workerMask : topology.perfMask;
+        default:
+            return 0;
+        }
+    }
 }
 
 // Pins the calling thread to the SoC's core cluster for its role. Android
 // only: a desktop scheduler places threads better than this would.
 void platform::SetThreadAffinity(ThreadAffinityRole role)
 {
-    if (role == ThreadAffinityRole::Default) return;
-    static CpuTopology s_topo = DiscoverCpuTopology();
-    if (!s_topo.discovered) return;
-
-    uint32_t targetMask = 0;
-    switch (role)
-    {
-    case ThreadAffinityRole::PrimeCore:
-        targetMask = s_topo.primeMask ? s_topo.primeMask : s_topo.perfMask;
-        break;
-    case ThreadAffinityRole::PerformanceCore:
-        targetMask = s_topo.perfMask ? s_topo.perfMask : s_topo.primeMask;
-        break;
-    case ThreadAffinityRole::WorkerCore:
-        targetMask = s_topo.workerMask ? s_topo.workerMask : s_topo.perfMask;
-        break;
-    default:
-        return;
-    }
-
+    const CpuTopology& topology = Topology();
+    if (!topology.discovered) return;
+    const uint32_t targetMask = MaskOf(topology, role);
     if (!targetMask) return;
 
     cpu_set_t cpuset;
@@ -339,8 +352,15 @@ void platform::SetThreadAffinity(ThreadAffinityRole role)
     }
     sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
 }
+
+uint32_t platform::CoreCount(ThreadAffinityRole role)
+{
+    const CpuTopology& topology = Topology();
+    return topology.discovered ? uint32_t(__builtin_popcount(MaskOf(topology, role))) : 0;
+}
 #else
 void platform::SetThreadAffinity(ThreadAffinityRole) {}
+uint32_t platform::CoreCount(ThreadAffinityRole) { return 0; }
 #endif
 
 #if defined(__ANDROID__)

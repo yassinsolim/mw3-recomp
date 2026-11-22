@@ -11,6 +11,7 @@
 bool vk::pipeline::Initialise(void*, void*, void*, uint32_t, void*) { return false; }
 void vk::pipeline::Shutdown() {}
 void vk::pipeline::SaveCache() {}
+bool vk::pipeline::OneCreation() { return true; }
 bool vk::pipeline::Ready() { return false; }
 const char* vk::pipeline::DeviceName() { return "none"; }
 void*    vk::pipeline::Instance() { return nullptr; }
@@ -115,6 +116,8 @@ namespace
         uint32_t samplers = 0;    // the most samplers the texture cache may make
         bool pipelineLibraries = false, fastLinking = false;
         bool creationFeedback = false;
+        // The driver is given one pipeline creation at a time (CreationLock).
+        bool oneCreation = false;
         // A creation can be asked of a cache without being compiled
         // (pipelineCreationCacheControl): what lets the cache be several.
         bool cacheControl = false;
@@ -298,8 +301,18 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     // devices to the software BC decoder, whose results are correct on both.
     // MW2_FORCE_BC_HW=1 puts it back when a driver proves clean.
     // The env flag is also available to users who hit this on another GPU vendor.
+    //
+    // That driver is Qualcomm's. Turnip keeps its own BC sampling: the
+    // decoder was a tenth to a fifth of the ring consumer and most of its
+    // long frames on an AYN Thor, where Modern Warfare 3 streams textures in
+    // and its pool moves them all match long -- a Seatown match with every
+    // pipeline built lost a blank or more 127 times in four minutes
+    // decoding and 32 times sampling, the longest frame 569 ms against 154,
+    // with 80 MB of textures in place of 300 and the same picture.
+    // MW2_ADRENO_BC=sw asks Turnip for the decoder all the same.
     const vk::bc::AdrenoBC adrenoBc = vk::bc::AdrenoMode();
-    if (physicalProperties.vendorID == 0x5143 && supported.textureCompressionBC &&
+    const bool decodeAsked = driver.driverID != VK_DRIVER_ID_MESA_TURNIP || env::Text("MW2_ADRENO_BC");
+    if (physicalProperties.vendorID == 0x5143 && supported.textureCompressionBC && decodeAsked &&
         !env::Flag("MW2_FORCE_BC_HW") && adrenoBc == vk::bc::AdrenoBC::kAll)
     {
         enabled.textureCompressionBC = VK_FALSE;
@@ -681,6 +694,15 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
         g.fastLinking = linking.graphicsPipelineLibraryFastLinking;
     }
     else libraries.graphicsPipelineLibrary = VK_FALSE;
+#ifdef MW2_ANDROID
+    // A phone's driver is given one creation at a time unless it is known to
+    // take several: Mali's cache deadlocked with two under way. Turnip takes
+    // them (CompileThreads in renderer_pipelines.cpp has the measurements),
+    // and a first visit to a level, hundreds of pipelines nobody has
+    // compiled, is over in a third of the time on three threads.
+    // MW2_ONE_PIPELINE_CREATION=1 or 0 says otherwise, either way.
+    g.oneCreation = env::Text("MW2_ONE_PIPELINE_CREATION") ? env::Flag("MW2_ONE_PIPELINE_CREATION") : !turnip;
+#endif
 
     void* chain = features;
     if (g.pipelineLibraries)
@@ -1104,16 +1126,31 @@ namespace
         std::chrono::steady_clock::time_point said{};
     } c;
 
-#ifdef MW2_ANDROID
-    // The phones' drivers are given one creation at a time, and the cache to
-    // itself: Turnip faulted in its compiler with two under way, and Mali's
-    // cache deadlocked.
-    using CreationLock = std::unique_lock<std::shared_mutex>;
-#else
-    // Elsewhere the fast link at a draw must not wait behind the optimised
-    // link in the background.
-    using CreationLock = std::shared_lock<std::shared_mutex>;
-#endif
+    // A creation holds the caches' lock shared, so that several run side by
+    // side and none of them finds the cache being added to replaced under it
+    // (CloseCache); alone where the driver must be given one at a time
+    // (g.oneCreation). Elsewhere the fast link at a draw must not wait behind
+    // the optimised link in the background.
+    class CreationLock
+    {
+    public:
+        explicit CreationLock(std::shared_mutex& lock) : m_lock(lock), m_alone(g.oneCreation)
+        {
+            if (m_alone) m_lock.lock();
+            else m_lock.lock_shared();
+        }
+        ~CreationLock()
+        {
+            if (m_alone) m_lock.unlock();
+            else m_lock.unlock_shared();
+        }
+        CreationLock(const CreationLock&) = delete;
+        CreationLock& operator=(const CreationLock&) = delete;
+
+    private:
+        std::shared_mutex& m_lock;
+        const bool m_alone;
+    };
 
     std::string ClosedPath(const char* path, uint32_t number) { return std::string(path) + "." + std::to_string(number); }
 
@@ -1316,6 +1353,10 @@ namespace
             closed.lastUsed = file.used.lastUsed;
             closed.found = file.used.found;
         }
+        // At every start, not only once something is found in a closed file:
+        // a cache still in its first file was session 1 at every start, and
+        // read in the log as a cache lost between runs.
+        WriteIndex(path);
     }
 
     void CreateCache()
@@ -1748,6 +1789,7 @@ std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t set) { return set < 3 ? g.sets[set] : nullptr; }
 void*    vk::pipeline::Layout() { return g.layout; }
 void     vk::pipeline::SaveCache() { ::SaveCache(); }
+bool     vk::pipeline::OneCreation() { return g.oneCreation; }
 
 int vk::pipeline::CreateGraphicsPipeline(const void* createInfo, void* pipeline, int* fromCache)
 {

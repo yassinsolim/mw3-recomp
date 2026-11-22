@@ -21,6 +21,7 @@
 #include "../gpu/vulkan/presenter.h"
 #include "../gpu/vulkan/texture_cache.h"
 #include "../gpu/vulkan/pipeline.h"
+#include "../gpu/vulkan/renderer.h"
 #include "../gpu/vulkan/renderer_state.h"
 #include "../console.h"
 #include "../online/service.h"
@@ -425,6 +426,9 @@ MW2_NATIVE(void, nativeSetPaused)(JNIEnv*, jobject, jboolean paused)
 {
     android::detail::SetPaused(paused == JNI_TRUE);
     android::audio::SetMuted(paused == JNI_TRUE);
+    // onPause comes before the surface goes, and is all a game left behind
+    // another window gets: from here the system may kill it for its memory.
+    if (paused == JNI_TRUE) vk::renderer::SaveCaches();
 }
 
 MW2_NATIVE(void, nativeTrimMemory)(JNIEnv*, jobject, jint level)

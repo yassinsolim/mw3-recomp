@@ -474,8 +474,8 @@ namespace vk::renderer::detail
         VkPipeline lastPipeline = VK_NULL_HANDLE;
         uint64_t lastPipelineSwaps = 0;
         // MW2_ASYNC_PIPELINES: the pipelines draws are being skipped for
-        // while the demand worker builds them (PipelineWhenReady). The
-        // consumer's alone.
+        // while the workers build them (PipelineWhenReady). The consumer's
+        // alone.
         struct Awaited
         {
             // Each one, and the frame its first draw was skipped in.
@@ -483,23 +483,16 @@ namespace vk::renderer::detail
             // How many pipelines had been published when `since` was last
             // checked against them.
             uint64_t settledAt = 0;
-            // The last key answered "not yet", the frame its first draw was
-            // skipped in, and how many pipelines had been published then:
-            // the draws after it with the same key ask nothing more until
-            // that number moves.
+            // The last key answered "not yet" and how many pipelines had
+            // been published then: the draws after it with the same key ask
+            // nothing more until that number moves.
             PipelineKey lastKey{};
-            uint64_t lastSince = 0;
             uint64_t lastPublished = 0;
             bool lastValid = false;
-            // The frame the consumer last built an overdue pipeline in: one
-            // a frame, so that a level's first view, whose hundreds fall due
-            // in the same frame, is not one frame seconds long.
-            uint64_t overdueFrame = ~uint64_t(0);
             // The keys of `recorded` below, so that one waited for is not
-            // put there twice; and how many were since the cache was written.
+            // put there twice.
             std::unordered_set<PipelineKey, WordsHash> recorded;
             bool recordedSeeded = false;
-            uint32_t unsaved = 0;
         };
         Awaited awaited;
         std::unordered_map<uint64_t, Shader> shaders;
@@ -616,13 +609,14 @@ namespace vk::renderer::detail
         // ---- counted for the report only; kept through Shutdown ----
         uint64_t resolves = 0, submits = 0;
         // What a first run pays that a later one does not.
-        uint64_t translateMicroseconds = 0, compileMicroseconds = 0;
+        // The pipelines' share is added to by the threads that build them.
+        uint64_t translateMicroseconds = 0;
+        std::atomic<uint64_t> compileMicroseconds{ 0 };
         uint64_t prewarmMicroseconds = 0;
         uint32_t prewarmed = 0, prewarmWanted = 0;
         // MW2_ASYNC_PIPELINES: draws skipped for a pipeline still compiling,
-        // the longest any pipeline was waited for, in frames, and how many
-        // the consumer built itself because their draws had waited too long.
-        uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0, pipelinesOverdue = 0;
+        // and the longest any pipeline was waited for, in frames.
+        uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0;
         // Draws that found their slot's share of the arena full and were
         // made in the next slot's instead (vk::renderer::Draw).
         uint64_t arenaSpills = 0;
@@ -1039,10 +1033,18 @@ namespace vk::renderer::detail
                               bool* made = nullptr);
     // The pipeline of a draw that can wait for it (renderer_pipelines.cpp).
     VkPipeline PipelineWhenReady(const PipelineKey& key, uint32_t depthControl, uint32_t modeCntl,
-                                 bool& compiling, bool& overdue);
+                                 bool& compiling);
     void ReportAsyncPipelines();
     const char* ShaderCachePath();
+    // A pipeline the run needed, for the next one's start (g.recorded); the
+    // consumer's to call.
+    void RecordPipeline(const Recorded& recorded);
+    // Something the saver thread writes has changed: the recorded
+    // pipelines, or what the driver's cache holds. Any thread.
+    void NoteUnsaved();
     void WriteShaderCache();
+    // Both written whole, once the threads that add to them have stopped.
+    void SaveCachesAtEnd();
     void PrewarmFromCache();
 
     struct WarmupStats

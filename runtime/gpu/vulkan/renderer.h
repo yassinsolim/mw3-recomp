@@ -43,6 +43,12 @@ namespace vk::renderer
     // thread now, so its first draw finds it ready. Any thread; returns at once.
     void PrepareShader(bool pixel, const uint32_t* code, size_t words);
 
+    // The game is going out of sight and may not come back: what the run
+    // has recorded and compiled since the last save is written now (the
+    // pipelines' list and the driver's cache; renderer_pipelines.cpp). Any
+    // thread; nothing to do before Initialise or after Shutdown.
+    void SaveCaches();
+
     // What the draw packet carries that the register file does not.
     struct DrawCall
     {

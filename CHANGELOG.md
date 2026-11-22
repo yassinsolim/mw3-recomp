@@ -4,6 +4,24 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+- **Far fewer stutters, and none of the long ones** (both games, most of all
+  multiplayer on a Snapdragon with Turnip). On an AYN Thor a first Seatown
+  match went from 550 late frames in four and a half minutes, the longest
+  463 ms, to 91 and 68 ms; a second session from 436 and 1.3 s to 54 and
+  81 ms. Modern Warfare 2's Afghan: 286 and 814 ms to 86 and 83 ms.
+  - A network thread that never slept took a whole processor core in every
+    multiplayer session, usually the one the renderer was held to.
+  - Shaders new to a level are compiled on up to three threads and never on
+    the renderer's; its surfaces appear over the first two or three seconds
+    of a first visit instead of every frame waiting for one.
+  - What is compiled is saved every ten seconds, when the game is paused and
+    when its window goes, so a game swiped away or killed keeps it; a level
+    played before is ready within a second of the start.
+  - Turnip samples compressed textures itself (a quarter of the texture
+    memory), and Modern Warfare 3's lighting volume is read in parts.
+  - New switches: `MW2_COMPILE_THREADS`, `MW2_ONE_PIPELINE_CREATION`,
+    `MW2_ADRENO_BC=sw` (docs/switches.md).
+
 - **Bots are on the start screen** (Modern Warfare 3 multiplayer): a
   **Bots** entry under **Multiplayer** sets how many, how good and whether
   they all play against the players, and shows what is set. They were at the
