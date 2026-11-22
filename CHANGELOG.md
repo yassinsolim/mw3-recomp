@@ -4,6 +4,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Fixed
+- **Camo packs no longer look near black on a weapon.** A pack camouflage is
+  drawn through Gold's image, whose alpha is Gold's gloss; a PC mod's maps
+  are opaque, which the game read as a mirror's gloss, so Interstellar and
+  Bubble Gum showed only pinpoints of light. A picture without alpha of its
+  own is now drawn with Gold's gloss. The packs themselves are unchanged:
+  nothing to fetch or import again.
+- The Windows build links again (`platform::CoreCount` had no Windows
+  definition).
+
 ## [v0.1.2] - 2026-11-22
 
 ### Highlights

@@ -76,6 +76,7 @@ namespace
         std::vector<fs::path> chosen;
         double chosenFps = 12.0;
         gpu::replace::Effect chosenEffect = gpu::replace::Effect::None;
+        gpu::replace::Alpha chosenAlpha = gpu::replace::Alpha::Picture;
         // `request` counts what was asked for (Select) and `choice` what the
         // pictures in hand are of: the second moves only as `pictures` does,
         // so an image never marks a choice shown while it still holds the
@@ -454,14 +455,29 @@ namespace
         out.ok = true;
     }
 
+    // The alpha of `title`, a picture of the same size in a replacement's
+    // form, over RGBA that is opaque throughout.
+    void TakeAlpha(std::vector<uint8_t>& rgba, const gpu::TextureData& title)
+    {
+        const size_t size = rgba.size();
+        if (title.levels.empty() || title.levels[0].size != size) return;
+        for (size_t at = 3; at < size; at += 4)
+            if (rgba[at] != 255) return;
+        const uint8_t* from = title.bytes.data() + title.levels[0].offset;
+        for (size_t at = 3; at < size; at += 4) rgba[at] = from[at];
+    }
+
     // A replacement's file as the texture the cache uploads in the original's
-    // place, at the size given when there is one.
+    // place, at the size given when there is one, and with the alpha of
+    // `alphaOf` when that is given and the file has none.
     bool Decode(const fs::path& path, uint32_t format, bool gamma, gpu::TextureData& out,
-                const char*& error, uint32_t toWidth = 0, uint32_t toHeight = 0)
+                const char*& error, uint32_t toWidth = 0, uint32_t toHeight = 0,
+                const gpu::TextureData* alphaOf = nullptr)
     {
         uint32_t width = 0, height = 0;
         if (!ReadPicture(path, out.bytes, width, height, error)) return false;
         if (toWidth && toHeight) Resize(out.bytes, width, height, toWidth, toHeight);
+        if (alphaOf) TakeAlpha(out.bytes, *alphaOf);
         Shape(width, height, format, gamma, out);
         return true;
     }
@@ -523,8 +539,10 @@ namespace
     // lock, with what it reads of the entry copied out under it.
     std::vector<std::shared_ptr<const gpu::TextureData>> Chosen(
         const std::vector<fs::path>& files, const std::shared_ptr<const gpu::TextureData>& own,
-        uint32_t format, bool gamma, uint32_t width, uint32_t height, gpu::replace::Effect effect)
+        uint32_t format, bool gamma, uint32_t width, uint32_t height, gpu::replace::Effect effect,
+        gpu::replace::Alpha alpha)
     {
+        const gpu::TextureData* alphaOf = alpha == gpu::replace::Alpha::Title ? own.get() : nullptr;
         std::vector<std::shared_ptr<const gpu::TextureData>> pictures;
         if (files.size() == 1 && effect != gpu::replace::Effect::None)
         {
@@ -534,6 +552,7 @@ namespace
             if (ReadPicture(files[0], still, w, h, error))
             {
                 Resize(still, w, h, width, height);
+                if (alphaOf) TakeAlpha(still, *alphaOf);
                 for (uint32_t frame = 0; frame < gpu::replace::kEffectFrames; frame++)
                 {
                     const auto made = std::make_shared<gpu::TextureData>();
@@ -549,7 +568,7 @@ namespace
         {
             const auto decoded = std::make_shared<gpu::TextureData>();
             const char* error = nullptr;
-            if (!Decode(files[i], format, gamma, *decoded, error, width, height))
+            if (!Decode(files[i], format, gamma, *decoded, error, width, height, alphaOf))
             {
                 LOGW("textures: %s is not used: %s", Utf8(files[i]).c_str(),
                      error ? error : "it does not decode");
@@ -630,7 +649,7 @@ void gpu::replace::Switchable(uint32_t group, uint64_t key)
 }
 
 void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::path>& frames,
-                          double fps, Effect effect)
+                          double fps, Effect effect, Alpha alpha)
 {
     // Decoded here, on the caller's thread, for the textures whose shape is
     // known: the renderer then only copies (Due). The rest decode when they
@@ -641,6 +660,7 @@ void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::pat
         uint32_t request, format, width, height;
         bool gamma;
         Effect effect;
+        Alpha alpha;
         std::vector<fs::path> files;
         std::shared_ptr<const gpu::TextureData> own;
     };
@@ -650,20 +670,24 @@ void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::pat
         for (auto& [key, entry] : s.index)
         {
             if (!entry.switchable || entry.group != group) continue;
-            if (entry.chosen == frames && entry.chosenFps == fps && entry.chosenEffect == effect) continue;
+            if (entry.chosen == frames && entry.chosenFps == fps && entry.chosenEffect == effect &&
+                entry.chosenAlpha == alpha)
+                continue;
             entry.chosen = frames;
             entry.chosenFps = fps;
             entry.chosenEffect = effect;
+            entry.chosenAlpha = alpha;
             entry.request++;
             if (entry.shaped)
                 shaped.push_back({ &entry, entry.request, entry.format, entry.width, entry.height,
-                                   entry.gamma, frames.empty() ? Effect::None : effect, FilesOf(entry),
-                                   entry.own });
+                                   entry.gamma, frames.empty() ? Effect::None : effect,
+                                   frames.empty() ? Alpha::Picture : alpha, FilesOf(entry), entry.own });
         }
     }
     for (Shaped& one : shaped)
     {
-        auto pictures = Chosen(one.files, one.own, one.format, one.gamma, one.width, one.height, one.effect);
+        auto pictures = Chosen(one.files, one.own, one.format, one.gamma, one.width, one.height, one.effect,
+                               one.alpha);
         std::lock_guard lock(s.lock);
         // Chosen again meanwhile: that call's pictures are the ones to keep.
         if (one.entry->request != one.request) continue;
@@ -767,6 +791,7 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
         std::vector<fs::path> files;
         uint32_t request = 0;
         Effect effect = Effect::None;
+        Alpha alpha = Alpha::Picture;
         {
             std::lock_guard lock(s.lock);
             entry->shaped = true;
@@ -777,10 +802,14 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
             entry->own = own;
             files = FilesOf(*entry);
             request = entry->request;
-            // The effect belongs to what was chosen, not to the folder's or the title's picture.
-            if (!entry->chosen.empty()) effect = entry->chosenEffect;
+            // The effect and the alpha belong to what was chosen, not to the folder's or the title's picture.
+            if (!entry->chosen.empty())
+            {
+                effect = entry->chosenEffect;
+                alpha = entry->chosenAlpha;
+            }
         }
-        auto pictures = Chosen(files, own, fetch.Format(), gamma, width, height, effect);
+        auto pictures = Chosen(files, own, fetch.Format(), gamma, width, height, effect, alpha);
         std::lock_guard lock(s.lock);
         // Chosen again meanwhile, and decoded there now that the shape is known.
         if (entry->request == request || entry->pictures.empty())

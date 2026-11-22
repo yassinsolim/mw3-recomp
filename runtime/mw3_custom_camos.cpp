@@ -317,8 +317,14 @@ namespace
                             : camo.animation == camo::Animation::Shimmer ? Effect::Shimmer
                             : camo.animation == camo::Animation::Hue ? Effect::Hue
                             : Effect::None;
+        // The weapon image's alpha is Gold's gloss (183 of 255 on every
+        // texel): a mod's maps are opaque, which read as gloss is a mirror's
+        // and leaves the weapon dark but for pinpoints of light, so the
+        // picture is drawn with Gold's.
+        using gpu::replace::Alpha;
         // An effect's loop of gpu::replace::kEffectFrames is three seconds.
-        gpu::replace::Select(group, *pictures, effect == Effect::None ? camo.fps : 16.0, effect);
+        gpu::replace::Select(group, *pictures, effect == Effect::None ? camo.fps : 16.0, effect,
+                             group == kWeapon ? Alpha::Title : Alpha::Picture);
         if (group != kWeapon) return;
         // What the weapons wear, said when it changes: a log's answer to
         // "which camouflage was that".

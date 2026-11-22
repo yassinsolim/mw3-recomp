@@ -610,7 +610,13 @@ themselves, sheet for sheet, are a job for the texture replacement above
 What is drawn on the weapon is `frames` (an animation at `fps`, 12 when
 absent), else `image`, else `specular`, else `colour`: Gold's image on the
 console is a specular map, so a mod's specular map is the one that looks as
-it did on PC, and its colour map is kept for a mod that has no other.
+it did on PC, and its colour map is kept for a mod that has no other. The
+alpha of Gold's image is its gloss, 183 of 255 on every texel, and every map
+of every PC mod looked at is opaque: read as gloss, 255 is a mirror's, which
+left a weapon near black but for pinpoints of light. A picture on a weapon
+that is opaque throughout is therefore drawn with Gold's alpha
+(`gpu::replace::Alpha::Title`); one that has alpha of its own keeps it as its
+gloss. The pack's files are not changed.
 `weapons` gives a weapon, as a class names it, a picture of its own. `swatch`
 (or `swatch_frames`) is the menu's preview and `banner` the strip behind the
 weapon; both default to the camouflage. `target` notes which image the mod
@@ -707,7 +713,11 @@ class being looked at, and the weapon image the class chosen in the match.
   included, until a class without one is chosen. In the menus each class
   and weapon keeps and shows its own.
 - A camouflage drawn through Gold has Gold's material: a PC mod's flat
-  camouflage (`weapon_camo_<x>`) comes out with Gold's shine.
+  camouflage (`weapon_camo_<x>`) comes out with Gold's shine. That material's
+  colour map is black paint, where the PC game's Gold has a colour map a mod
+  can replace (`detail_gold_col`): what a mod painted there is not drawn, and
+  a camouflage shows by what it reflects, so it is darker indoors than under
+  the sky, as Gold is.
 - Other players see Gold: the choice is local and nothing but `gold` leaves
   the device.
 - The class in use is learned from the class menu of the match

@@ -78,6 +78,7 @@ void platform::IdleThreadPriority() { SetThreadPriority(GetCurrentThread(), THRE
 // Only Android pins threads (below): a desktop scheduler places them better
 // than a guess at the machine's cores would.
 void platform::SetThreadAffinity(ThreadAffinityRole) {}
+uint32_t platform::CoreCount(ThreadAffinityRole) { return 0; }
 
 // No symbols without a PDB: each frame as its offset in the executable, which
 // `llvm-symbolizer --obj=mw2.exe` turns back into a name on the build machine.

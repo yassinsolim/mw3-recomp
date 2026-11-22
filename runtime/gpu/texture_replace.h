@@ -52,6 +52,14 @@ namespace gpu::replace
     enum class Effect : uint8_t { None, Scroll, Shimmer, Hue };
     constexpr uint32_t kEffectFrames = 48;
 
+    // Whose alpha a chosen picture is drawn with. An alpha that is data and
+    // not coverage belongs to the title's material rather than to the
+    // picture: Modern Warfare 3's Gold keeps its gloss there, and a picture
+    // that is opaque throughout, as every PC camouflage's is, says nothing
+    // about gloss. Title gives such a picture the alpha of the title's own
+    // texels; a picture with alpha of its own keeps it either way.
+    enum class Alpha : uint8_t { Picture, Title };
+
     // What the textures of `group` show from now on: the frames in order, at
     // `fps` when there are several, each made the size of the title's own
     // picture; or with no frames, the folder's replacement where there is one
@@ -59,7 +67,7 @@ namespace gpu::replace
     // effect is kEffectFrames of them at `fps`. Decodes on the calling
     // thread. Callable from any thread.
     void Select(uint32_t group, const std::vector<std::filesystem::path>& frames, double fps,
-                Effect effect = Effect::None);
+                Effect effect = Effect::None, Alpha alpha = Alpha::Picture);
 
     // The level the key is taken over: the lowest the sampler may use, which
     // is the base unless the title has yet to stream the base in. A streamed
