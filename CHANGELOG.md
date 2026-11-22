@@ -4,44 +4,41 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
-### Changed
-- **The FPS cap starts at the screen's own rate**: 120 on a 120 Hz panel (AYN Thor), 60 on a 60 Hz one. Modern Warfare 3 on an Adreno 6xx no longer starts at 30, since it now draws 56 to 58 under a cap of 60 there. A cap saved before this is dropped once, since the old defaults were saved as readily as a choice (a Thor was left at 60 and a Flip 2 at 30); one chosen from now on is kept.
-- **Modern Warfare 3 holds those caps better.** On an Adreno 6xx it draws the 832x480 scene Modern Warfare 2 already had there (`MW2_SCENE` now works in Modern Warfare 3): Survival on the Flip 2 from 55.8 frames a second with 37% of them on time to 59.9 with 77%. Above 60 it leaves the sun's shadows out: Survival on the Thor from 106.0 with 37% on time to 118.2 with 87%, Black Tuesday from 114.9 to 118.4. **Sun shadows** in Settings (Graphics) gives them back, or takes them away anywhere ([docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)).
-- **A first visit to a level no longer freezes for seconds** while its shaders compile: the renderer builds one overdue pipeline a frame, not hundreds in one. The longest frame of a first Survival match went from 7.0 s to 91 ms on the Flip 2 and from 5.8 s to 81 ms on the Thor; the first seven seconds run slowly instead.
-- **A screen the system holds under the FPS limit** (the AYN Thor's display setting at 60 Hz) is drawn one frame a blank, not 125 a second to show 60, and the app says at the start of a run that the screen is set to 60 Hz ([docs/switches.md](docs/switches.md), `MW2_FPS_LIMIT`).
-
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights
 The game package built for v0.1.0 still fits: nothing to build again.
 
-- **Faster on every Adreno.** AYN Thor at 120 Hz: Modern Warfare 3's
-  Survival 87 to 108 frames a second, Modern Warfare 2's S.S.D.D. opening
-  100 to 106. Retroid Pocket Flip 2: Team Player's flight 53 to 59.5, and
-  Survival 46 to 58 with the limit set to 60.
-- **Modern Warfare 2 starts at 60 on an Adreno 6xx**, not 30, with an
-  832x480 scene.
+- **Faster on every Adreno.** Modern Warfare 3's Survival: 116 to 118
+  frames a second on an AYN Thor at 120 Hz (it was 87), 59 to 60 on a
+  Retroid Pocket Flip 2 (46). Modern Warfare 2: S.S.D.D.'s opening 100 to
+  106 on the Thor, Team Player's flight 53 to 59.5 on the Flip 2.
+- **The FPS cap follows the screen**: 120 on a 120 Hz panel, 60 on a 60 Hz
+  one. A cap saved before is dropped once.
+- **Adreno 6xx**: both games draw an 832x480 scene.
+- **Modern Warfare 3 leaves the sun's shadows out above 60**; Sun shadows
+  in Settings (Graphics) gives them back.
+- **Shaders**: no freeze of seconds at a level's first visit while they
+  compile, and the compiled ones are kept past 64 MB.
 - **The start screen shows your game's own artwork**, from your disc.
 - **Online**: the host of a match no longer freezes at its first frame,
   and Modern Warfare 2's Find Match lists its playlists.
 - **Install & Play** starts the game on a slower phone too.
-- **A clear message when the game code is missing**, and much better crash
-  logs to share.
-- **No missing scenery**: Team Player lost its sky and far buildings in
-  some frames.
-- **Compiled shaders are kept and used again**, not dropped whole past
-  64 MB.
+- **A clear message when the game code is missing**, and better crash logs
+  to share.
+- **No missing scenery** in Team Player.
 - **Detail at distance** (Modern Warfare 2; Settings, Graphics): coarser
-  models sooner, for more frames a second. The console's by default.
+  models sooner.
 - **Map vote** (Modern Warfare 3 multiplayer): the game modes the disc left
   unfinished are not offered.
-- **A smaller game package**: Modern Warfare 2's is 40 MB, not 98, when
-  next built.
 - **Mali**: a G57 or newer meets every requirement on paper; a G52, G72 or
   G76 is refused.
-- **Windows build**: the mouse aims as a mouse does and works the menus.
 
 ### Changed
+- **The FPS cap starts at the screen's own rate**: 120 on a 120 Hz panel (AYN Thor), 60 on a 60 Hz one. Modern Warfare 3 on an Adreno 6xx no longer starts at 30, since it now draws 56 to 58 under a cap of 60 there. A cap saved before this is dropped once, since the old defaults were saved as readily as a choice (a Thor was left at 60 and a Flip 2 at 30); one chosen from now on is kept.
+- **Modern Warfare 3 holds those caps better.** On an Adreno 6xx it draws the 832x480 scene Modern Warfare 2 already had there (`MW2_SCENE` now works in Modern Warfare 3): Survival on the Flip 2 from 55.8 frames a second with 37% of them on time to 59.9 with 77%. Above 60 it leaves the sun's shadows out: Survival on the Thor from 106.0 with 37% on time to 118.2 with 87%, Black Tuesday from 114.9 to 118.4. **Sun shadows** in Settings (Graphics) gives them back, or takes them away anywhere ([docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)).
+- **A first visit to a level no longer freezes for seconds** while its shaders compile: the renderer builds one overdue pipeline a frame, not hundreds in one. The longest frame of a first Survival match went from 7.0 s to 91 ms on the Flip 2 and from 5.8 s to 81 ms on the Thor; the first seven seconds run slowly instead.
+- **A screen the system holds under the FPS limit** (the AYN Thor's display setting at 60 Hz) is drawn one frame a blank, not 125 a second to show 60, and the app says at the start of a run that the screen is set to 60 Hz ([docs/switches.md](docs/switches.md), `MW2_FPS_LIMIT`).
 - **The launcher's corner credit is the same in both apps**: "Built on
   mw2-recompiled · mw2-android · XenonRecomp". Modern Warfare 3's named the
   runtime and Modern Warfare 2's one author; who wrote each is in the
