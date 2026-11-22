@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var play: Button
     private lateinit var installButton: Button
     private lateinit var secondButton: Button
+    private lateinit var botsButton: Button
     private lateinit var modsButton: Button
     private lateinit var tu6Button: Button
     private lateinit var updatesButton: Button
@@ -66,6 +67,12 @@ class MainActivity : AppCompatActivity() {
 
     /** The multiplayer, in the app that carries the whole game. */
     private val secondTitle = Title.carried.getOrNull(1)
+
+    /**
+     * Whether the launcher has the Bots entry: Modern Warfare 3's multiplayer,
+     * the only title with bots (runtime/bots.cpp).
+     */
+    private val hasBots = Title.isMw3 && Title.MULTIPLAYER.carried
     private var nativeReady = false
     private var hasAutoLaunched = false
     private var pendingInstallId: Long = -1
@@ -95,6 +102,7 @@ class MainActivity : AppCompatActivity() {
         play = findViewById(R.id.play)
         installButton = findViewById(R.id.install)
         secondButton = findViewById(R.id.other_app)
+        botsButton = findViewById(R.id.entry_bots)
         modsButton = findViewById(R.id.entry_mods)
         tu6Button = findViewById(R.id.entry_tu6)
         updatesButton = findViewById(R.id.entry_updates)
@@ -143,11 +151,19 @@ class MainActivity : AppCompatActivity() {
             select(secondButton)
             val second = secondTitle
             if (second != null) {
-                showDetail(getString(R.string.title_multiplayer), getString(R.string.multiplayer_detail))
+                showDetail(
+                    getString(R.string.title_multiplayer),
+                    getString(if (hasBots) R.string.multiplayer_detail_bots else R.string.multiplayer_detail),
+                )
                 launch(second)
             } else {
                 launchOtherApp()
             }
+        }
+        botsButton.setOnClickListener {
+            select(botsButton)
+            showDetail(getString(R.string.bots_title), getString(R.string.bots_detail))
+            showBots()
         }
         installButton.setOnClickListener {
             select(installButton)
@@ -333,6 +349,7 @@ class MainActivity : AppCompatActivity() {
         // A disc to install from is looked for only while something is missing.
         detectedIsoFile = if (missing.isEmpty()) null else findDisc()
         refreshSecondEntry(gameDirectory)
+        refreshBotsEntry()
 
         if (installed) {
             play.isEnabled = true
@@ -569,6 +586,73 @@ class MainActivity : AppCompatActivity() {
             secondButton.visibility = android.view.View.VISIBLE
             secondButton.text = other.second
         }
+    }
+
+    /** The Bots entry says what is set, so it is read without opening anything. */
+    private fun refreshBotsEntry() {
+        if (!hasBots) return
+        botsButton.visibility = android.view.View.VISIBLE
+        val count = prefs.botCount
+        botsButton.text = if (count == 0) getString(R.string.entry_bots_off)
+        else getString(
+            R.string.entry_bots, count,
+            resources.getStringArray(R.array.bot_skills)[prefs.botSkill].uppercase(),
+        )
+    }
+
+    /**
+     * The bots of the matches this device hosts, set where a match is started
+     * from: the same three settings as the Multiplayer tab of Settings, which
+     * has the rest.
+     */
+    private fun showBots() {
+        val view = layoutInflater.inflate(R.layout.dialog_bots, null)
+        val countLabel: TextView = view.findViewById(R.id.bot_count_label)
+        val count: android.widget.SeekBar = view.findViewById(R.id.bot_count)
+        val skillLabel: TextView = view.findViewById(R.id.bot_skill_label)
+        val skill: android.widget.SeekBar = view.findViewById(R.id.bot_skill)
+        val against: androidx.appcompat.widget.SwitchCompat = view.findViewById(R.id.bots_against_players)
+        val skills = resources.getStringArray(R.array.bot_skills)
+        fun countText(value: Int) =
+            if (value == 0) getString(R.string.bot_count_none) else getString(R.string.bot_count, value)
+
+        count.max = Prefs.MAX_BOTS
+        count.progress = prefs.botCount
+        countLabel.text = countText(count.progress)
+        skill.max = skills.size - 1
+        skill.progress = prefs.botSkill
+        skillLabel.text = getString(R.string.bot_skill, skills[skill.progress])
+        against.isChecked = prefs.botsAgainstPlayers
+        val changed = object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: android.widget.SeekBar, value: Int, fromUser: Boolean) {
+                if (bar === count) {
+                    countLabel.text = countText(value)
+                    if (fromUser) prefs.botCount = value
+                } else {
+                    skillLabel.text = getString(R.string.bot_skill, skills[value])
+                    if (fromUser) prefs.botSkill = value
+                }
+                refreshBotsEntry()
+            }
+            override fun onStartTrackingTouch(bar: android.widget.SeekBar) = Unit
+            override fun onStopTrackingTouch(bar: android.widget.SeekBar) = Unit
+        }
+        count.setOnSeekBarChangeListener(changed)
+        skill.setOnSeekBarChangeListener(changed)
+        against.setOnCheckedChangeListener { _, on -> prefs.botsAgainstPlayers = on }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.bots_title)
+            .setView(view)
+            .setPositiveButton(R.string.done, null)
+            .setNeutralButton(R.string.bots_more) { _, _ ->
+                startActivity(
+                    Intent(this, SettingsActivity::class.java).apply {
+                        putExtra(SettingsActivity.EXTRA_TAB, SettingsActivity.TAB_MULTIPLAYER)
+                    },
+                )
+            }
+            .show()
     }
 
     private fun launchOtherApp() {

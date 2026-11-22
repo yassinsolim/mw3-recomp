@@ -1032,6 +1032,10 @@ val mode60 = modes
             labels.add(getString(R.string.unlock_all) to { _: android.content.DialogInterface -> runCheat(R.string.unlock_all, Cheats::unlockEverything) })
             labels.add(getString(R.string.prestige_up) to { _: android.content.DialogInterface -> runCheat(R.string.prestige_up, Cheats::prestigeUp) })
         }
+        if (isMw3Multiplayer) {
+            val bots = if (prefs.botCount == 0) getString(R.string.bot_count_none) else getString(R.string.bot_count, prefs.botCount)
+            labels.add(bots to { _: android.content.DialogInterface -> pickBotCount() })
+        }
         labels.add(getString(if (prefs.touchControls) R.string.hide_touch_controls else R.string.show_touch_controls) to { _: android.content.DialogInterface -> setTouchControls(!prefs.touchControls) })
         labels.add(getString(if (prefs.gamepadEnabled) R.string.disable_gamepad else R.string.enable_gamepad) to { _: android.content.DialogInterface -> setGamepad(!prefs.gamepadEnabled) })
         labels.add(getString(if (prefs.showStats) R.string.hide_stats else R.string.show_stats) to { _: android.content.DialogInterface -> setStats(!prefs.showStats) })
@@ -1041,6 +1045,29 @@ val mode60 = modes
             .setItems(labels.map { it.first }.toTypedArray()) { dialog, which ->
                 dialog.dismiss()
                 labels[which].second(dialog)
+            }
+            .setOnDismissListener { goFullscreen() }
+            .show()
+    }
+
+    /**
+     * The bots, changed without leaving the game: the host's console takes
+     * `bots <n>` (runtime/bots.cpp) and the server adds or drops them on its
+     * next frame. Kept as the setting too, so the next start has the same.
+     */
+    private fun pickBotCount() {
+        val counts = Array(Prefs.MAX_BOTS + 1) { if (it == 0) getString(R.string.bot_count_none) else getString(R.string.bot_count, it) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.bots_in_game_title)
+            .setSingleChoiceItems(counts, prefs.botCount) { dialog, which ->
+                prefs.botCount = which
+                if (NativeBridge.isLoaded()) {
+                    try {
+                        NativeBridge.nativeRunConsoleCommand("bots $which")
+                    } catch (_: Throwable) {
+                    }
+                }
+                dialog.dismiss()
             }
             .setOnDismissListener { goFullscreen() }
             .show()

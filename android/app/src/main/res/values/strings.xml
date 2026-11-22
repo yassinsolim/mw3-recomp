@@ -36,7 +36,15 @@
     <string name="title_campaign">CAMPAIGN · SPECIAL OPS</string>
     <string name="title_multiplayer">MULTIPLAYER</string>
     <string name="title_multiplayer_install">MULTIPLAYER · INSTALL</string>
-    <string name="multiplayer_detail">Online through a relay, on the local network, or split screen with bots. Network, bots and voice chat are in Settings.</string>
+    <string name="multiplayer_detail">Online through a relay, on the local network, or split screen. Network and voice chat are in Settings.</string>
+    <string name="multiplayer_detail_bots">Online through a relay, on the local network, or split screen. Bots are the entry below; unlocks, match options, network and voice chat are in Settings.</string>
+    <!-- the launcher's bots entry (Modern Warfare 3's multiplayer) -->
+    <string name="entry_bots_off">BOTS · OFF</string>
+    <string name="entry_bots">BOTS · %1$d · %2$s</string>
+    <string name="bots_title">Bots</string>
+    <string name="bots_detail">Computer players for multiplayer. They join the matches this device hosts: System Link, Create Game, or a private match. They do nothing in a match somebody else hosts. Choose how many and how good here, then start Multiplayer.</string>
+    <string name="bots_more">More in Settings</string>
+    <string name="bots_in_game_title">Bots (in the matches this device hosts)</string>
     <string name="status_multiplayer_missing">The campaign is ready.\nThe multiplayer\'s executable is not in the game folder yet: install from your disc image once more. Only what is missing is copied.</string>
 
     <!-- launcher -->
@@ -184,9 +192,12 @@
     <string name="prewarm_all_hint">Compiles every recorded pipeline before the title screen instead of warming them up during play. Boot takes minutes on a cold cache and the phone gets warm, but there is almost no in-game shader stutter left afterwards. Off means the quick 2-second boot with background warmup.</string>
     <string name="async_pipelines">Compile shaders in the background</string>
     <string name="async_pipelines_hint">Avoids freezes the first time a map is played; some objects may appear a few seconds late while their shaders compile. Off compiles each shader the moment it is first drawn, which can freeze the game briefly.</string>
-    <string name="section_multiplayer">Multiplayer</string>
+    <string name="tab_multiplayer">MULTIPLAYER</string>
+    <string name="section_bots">Bots</string>
+    <string name="section_unlocks">Unlocks</string>
+    <string name="section_matches">Matches</string>
     <string name="unlock_all_items">Unlock all camos and items</string>
-    <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, killstreak, title and emblem can be chosen whatever the rank. Nothing is written to the stats: off shows what was really earned again. Takes effect the next time the game starts.</string>
+    <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, piece of equipment, death streak, strike package streak, title and emblem can be chosen whatever the rank, and there are fifteen custom classes. Only this device reads them so: nothing is written to the stats, and off shows what was really earned again. Takes effect the next time the game starts.</string>
     <string name="camo_packs">Camo packs</string>
     <string name="camo_packs_hint">Extra camouflages, listed below Gold in Create a Class. A pack is a folder in the game folder\'s camos folder; this shows who made each one and by what permission it is here.</string>
     <string name="camo_packs_none">No camo pack is installed. Packs go in the camos folder of the game folder (%1$s).</string>
@@ -194,7 +205,7 @@
     <string name="camo_pack_unnamed">an unnamed author</string>
     <string name="bot_count">Bots in my matches: %1$d</string>
     <string name="bot_count_none">Bots in my matches: none</string>
-    <string name="bot_count_hint">Computer players that join every match this device hosts, and leave to make room when a player joins. They do nothing in a match somebody else hosts. Each one costs the host some speed, so start with a few. Takes effect the next time the game starts.</string>
+    <string name="bot_count_hint">Computer players that join every match this device hosts (System Link, Create Game, or a private match), and leave to make room when a player joins. They do nothing in a match somebody else hosts. Each one costs the host some speed, so start with a few. Takes effect the next time the game starts; the launcher\'s Bots entry sets the same.</string>
     <string name="bot_skill">Bot skill: %1$s</string>
     <string-array name="bot_skills">
         <item>Recruit</item>

@@ -72,23 +72,44 @@ object CamoPacks {
         }
     }
 
-    /** Every pack in the game folder, in the order the game lists them. */
-    fun installed(gameDirectory: String): List<Pack> =
-        (folder(gameDirectory).listFiles() ?: emptyArray())
-            .filter { it.isDirectory }
-            .sortedBy { it.name }
-            .mapNotNull { pack ->
-                try {
-                    val json = JSONObject(File(pack, PACK_FILE).readText())
-                    Pack(
-                        name = json.optString("name").ifEmpty { pack.name },
-                        author = json.optString("author"),
-                        url = json.optString("url"),
-                        permission = json.optString("permission"),
-                        camos = json.optJSONArray("camos")?.length() ?: 0,
-                    )
-                } catch (_: Throwable) {
-                    null
-                }
+    private fun pack(id: String, json: String): Pack? = try {
+        val read = JSONObject(json)
+        Pack(
+            name = read.optString("name").ifEmpty { id },
+            author = read.optString("author"),
+            url = read.optString("url"),
+            permission = read.optString("permission"),
+            camos = read.optJSONArray("camos")?.length() ?: 0,
+        )
+    } catch (_: Throwable) {
+        null
+    }
+
+    /**
+     * Every pack the game will list, in its order: those in the game folder,
+     * and those this app carries and copies there when the multiplayer next
+     * starts (installBundled), so an app updated over one that had no packs
+     * credits them before its first match.
+     */
+    fun credits(context: Context, gameDirectory: String): List<Pack> {
+        val packs = sortedMapOf<String, Pack>()
+        for (id in try { context.assets.list(ASSETS) ?: emptyArray() } catch (_: Throwable) { emptyArray() }) {
+            val json = try {
+                context.assets.open("$ASSETS/$id/$PACK_FILE").use { it.readBytes().decodeToString() }
+            } catch (_: Throwable) {
+                continue
             }
+            pack(id, json)?.let { packs[id] = it }
+        }
+        for (folder in folder(gameDirectory).listFiles() ?: emptyArray()) {
+            if (!folder.isDirectory) continue
+            val json = try {
+                File(folder, PACK_FILE).readText()
+            } catch (_: Throwable) {
+                continue
+            }
+            pack(folder.name, json)?.let { packs[folder.name] = it }
+        }
+        return packs.values.toList()
+    }
 }

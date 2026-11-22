@@ -27,9 +27,9 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 | Multiplayer, split screen | plays (Seatown at 60 FPS) | not tested |
 | Multiplayer online, System Link over the relay | works (Android to PC tested) | works (joined an Android host) |
 | Xbox LIVE menu (Find Match, served by this project, not Microsoft or Activision) | signs in, lists playlists, opens a public lobby; a full match not yet tested | two copies matched through Find Match |
-| Bots in your matches (Settings, 0 to 17) | join, fight and score | same |
+| Bots in your matches (the launcher's **Bots** entry, 0 to 17) | join, fight and score | same (`MW2_BOTS`) |
 | Voice chat (off by default; push-to-talk) | built, not yet tested | built, not yet tested |
-| Everything unlocked in multiplayer | yes, chosen camos show in matches | yes |
+| Everything unlocked in multiplayer, with fifteen custom classes | yes, chosen camos show in matches | yes |
 | Extra camouflages below Gold in multiplayer ([packs](docs/textures.md#camouflage-packs)) | works | works |
 | Custom skins (texture replacement, animated) | works | should work, not tested |
 | Audio | works | not checked |
@@ -179,6 +179,28 @@ Settings → Network is **Online** with that address, and the PC's `.env` has
   or password. **LAN** in the app's settings (or `MW2_NETWORK=lan`) plays on
   your own network only.
 - You can run your own relay: [docs/relay.md](docs/relay.md).
+
+## Bots and unlocks (multiplayer)
+
+- **Bots.** On the app's start screen, tap **Bots** (under **Multiplayer**)
+  and choose how many and how good; the entry then reads `BOTS · 6 · REGULAR`.
+  Start **Multiplayer**, then **System Link → Create Game → Start Game** (or a
+  private match): the bots join the matches *your* device hosts, and leave
+  to make room when a player joins. They do nothing in a match somebody else
+  hosts. In a match, the app's pause menu has **Bots in my matches** to change
+  the number without leaving. The same settings and the rest (all bots
+  against the players, map vote, match options) are in **Settings →
+  Multiplayer**. On the PC: `MW2_BOTS=6` in `.env`.
+- **Everything unlocked.** On by default (**Settings → Multiplayer → Unlock
+  all camos and items**; `MW2_UNLOCK_ALL=1` on the PC): every weapon,
+  attachment, proficiency, camouflage, reticle, perk, piece of equipment,
+  death streak and strike package streak, every title and emblem, and
+  fifteen custom classes, from rank 1. It is your copy reading your stats as
+  unlocked: nothing is written to them, and your rank, prestige and weapon
+  levels stay what you earned. Other players see the class you built; a
+  match hosted by a copy without the switch gives you only what your real
+  levels allow. Prestige Mode and its double experience are left as earned
+  ([details](docs/MW3-MP-BRINGUP.md#everything-unlocked)).
 
 ## Linux
 

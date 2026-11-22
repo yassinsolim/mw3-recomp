@@ -29,6 +29,8 @@ class SettingsActivity : AppCompatActivity() {
         const val TAB_CONTROLS = 1
         const val TAB_NETWORK = 2
         const val TAB_FILES = 3
+        /** Modern Warfare 3's multiplayer only: bots, unlocks and match options. */
+        const val TAB_MULTIPLAYER = 4
     }
 
     private lateinit var prefs: Prefs
@@ -83,10 +85,20 @@ class SettingsActivity : AppCompatActivity() {
         tabPages.add(findViewById(R.id.page_controls))
         tabPages.add(findViewById(R.id.page_network))
         tabPages.add(findViewById(R.id.page_files))
+        // The bots, the unlock switch and the match options are for Modern
+        // Warfare 3's multiplayer, the only title that reads them: a tab of
+        // their own, where they were the end of the Graphics page.
+        val hasMultiplayerTab = Title.isMw3 && Title.MULTIPLAYER.carried
+        if (hasMultiplayerTab) {
+            val tab: Button = findViewById(R.id.tab_multiplayer)
+            tab.visibility = android.view.View.VISIBLE
+            tabButtons.add(tab)
+            tabPages.add(findViewById(R.id.page_multiplayer))
+        }
         tabButtons.forEachIndexed { index, button ->
             button.setOnClickListener { selectTab(index) }
         }
-        selectTab(intent.getIntExtra(EXTRA_TAB, TAB_GRAPHICS).coerceIn(0, 3))
+        selectTab(intent.getIntExtra(EXTRA_TAB, TAB_GRAPHICS).coerceIn(0, tabButtons.lastIndex))
 
         // ---- picture ----
         val resolutionLabel: TextView = findViewById(R.id.resolution_label)
@@ -157,10 +169,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         switch(R.id.prewarm_all, prefs.prewarmAllShaders) { prefs.prewarmAllShaders = it }
         switch(R.id.async_pipelines, prefs.asyncPipelines) { prefs.asyncPipelines = it }
         switch(R.id.persist_pipeline, prefs.persistPipelineCache) { prefs.persistPipelineCache = it }
-        // The unlock switch and the bots are for Modern Warfare 3's
-        // multiplayer, the only title that reads them.
-        if (Title.isMw3 && Title.MULTIPLAYER.carried) {
-            findViewById<android.view.View>(R.id.unlock_all_items_group).visibility = android.view.View.VISIBLE
+        if (hasMultiplayerTab) {
             switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
             findViewById<Button>(R.id.camo_packs).setOnClickListener { showCamoPacks() }
 
@@ -366,12 +375,12 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         }
     }
 
-    /** The credits of the camouflage packs in the game folder: whose each is, and by what permission. */
+    /** The credits of the camouflage packs the game lists: whose each is, and by what permission. */
     private fun showCamoPacks() {
         val gameDir = prefs.gameDirectory.ifEmpty {
             (getExternalFilesDir(null) ?: filesDir).absolutePath + "/game"
         }
-        val packs = CamoPacks.installed(gameDir)
+        val packs = CamoPacks.credits(this, gameDir)
         val text = if (packs.isEmpty()) getString(R.string.camo_packs_none, gameDir + "/camos")
         else packs.joinToString("\n\n") {
             getString(

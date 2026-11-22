@@ -62,6 +62,10 @@
 
                 <Button android:id="@+id/other_app" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+                <!-- Modern Warfare 3's multiplayer only (MainActivity shows it). -->
+                <Button android:id="@+id/entry_bots" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:visibility="gone" />
                 <Button android:id="@+id/install" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
                     android:text="@string/install_game" />

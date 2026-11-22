@@ -334,13 +334,15 @@
 #define T_StringTable_GetAsset  82315A68   // (name, StringTable**)
 #define T_STR_WeaponRankTable   0x82022610u   // "mp/weaponRankTable.csv"
 // The script's getPlayerData (the method; the client's stats on the server,
-// sub_822BFAE8) and the script calls it reads its path with and answers an
-// integer through (sub_8224C3B8 and sub_8224C550 use them).
+// sub_822BFAE8) and the script calls it reads its path with and answers
+// through (sub_8224C3B8 and sub_8224C550 use them): an integer or a bool,
+// two functions with the same body.
 #define T_Scr_GetPlayerData     8225A710
 #define T_Scr_GetNumParam       822B9768   // () -> count
 #define T_Scr_GetType           822B95C8   // (index) -> type, 2 a string
 #define T_Scr_GetString         822B8E00   // (index) -> text
 #define T_Scr_AddInt            822B97B0   // (value)
+#define T_Scr_AddBool           822B9778   // (value)
 
 // Custom camouflages in Create a Class (mw3_custom_camos.cpp). The menus are
 // the context's (sub_822E7DA0 gives 0x836897A8 + 5796 per local client):

@@ -77,6 +77,23 @@
             android:fontFamily="sans-serif-condensed"
             android:letterSpacing="0.1"
             android:stateListAnimator="@null" />
+
+        <!-- Modern Warfare 3's multiplayer only (SettingsActivity shows it). -->
+        <Button
+            android:id="@+id/tab_multiplayer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.4"
+            android:minHeight="36dp"
+            android:background="@android:color/transparent"
+            android:gravity="center"
+            android:text="@string/tab_multiplayer"
+            android:textColor="#E8EAED"
+            android:textSize="11sp"
+            android:fontFamily="sans-serif-condensed"
+            android:letterSpacing="0.1"
+            android:stateListAnimator="@null"
+            android:visibility="gone" />
     </LinearLayout>
 
     <View
@@ -315,161 +332,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/audio_on" />
-
-                <!-- Modern Warfare 3 multiplayer only (SettingsActivity shows it). -->
-                <LinearLayout
-                    android:id="@+id/unlock_all_items_group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <TextView
-                        style="@style/SectionHeading"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/section_multiplayer" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/unlock_all_items"
-                        style="@style/SettingSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/unlock_all_items" />
-
-                    <TextView
-                        style="@style/SettingHint"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/unlock_all_items_hint" />
-
-                    <Button
-                        android:id="@+id/camo_packs"
-                        android:background="@drawable/bg_button_action"
-                        android:textColor="#E8EAED"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="@string/camo_packs" />
-
-                    <TextView
-                        style="@style/SettingHint"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/camo_packs_hint" />
-
-                    <TextView
-                        android:id="@+id/bot_count_label"
-                        style="@style/SettingLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <SeekBar
-                        android:id="@+id/bot_count"
-                        style="@style/SettingSeek"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <TextView
-                        style="@style/SettingHint"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/bot_count_hint" />
-
-                    <TextView
-                        android:id="@+id/bot_skill_label"
-                        style="@style/SettingLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <SeekBar
-                        android:id="@+id/bot_skill"
-                        style="@style/SettingSeek"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/bots_against_players"
-                        style="@style/SettingSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/bots_against_players" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/map_vote"
-                        style="@style/SettingSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/map_vote" />
-
-                    <TextView
-                        style="@style/SettingHint"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/map_vote_hint" />
-
-                    <TextView
-                        style="@style/SectionHeading"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/section_match_options" />
-
-                    <TextView
-                        style="@style/SettingHint"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/match_options_hint" />
-
-                    <TextView
-                        android:id="@+id/match_gravity_label"
-                        style="@style/SettingLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <SeekBar
-                        android:id="@+id/match_gravity"
-                        style="@style/SettingSeek"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <TextView
-                        android:id="@+id/match_speed_label"
-                        style="@style/SettingLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <SeekBar
-                        android:id="@+id/match_speed"
-                        style="@style/SettingSeek"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <TextView
-                        android:id="@+id/match_jump_label"
-                        style="@style/SettingLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <SeekBar
-                        android:id="@+id/match_jump"
-                        style="@style/SettingSeek"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/match_sprint"
-                        style="@style/SettingSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/match_sprint" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/match_fall_damage"
-                        style="@style/SettingSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/match_fall_damage" />
-                </LinearLayout>
             </LinearLayout>
 
             <!-- CONTROLS -->
@@ -776,6 +638,173 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/lan_iface_hint" />
+            </LinearLayout>
+
+            <!-- MULTIPLAYER -->
+            <LinearLayout
+                android:id="@+id/page_multiplayer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/SectionHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_bots" />
+
+                <TextView
+                    android:id="@+id/bot_count_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/bot_count"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/bot_count_hint" />
+
+                <TextView
+                    android:id="@+id/bot_skill_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/bot_skill"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/bots_against_players"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/bots_against_players" />
+
+                <TextView
+                    style="@style/SectionHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_unlocks" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/unlock_all_items"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/unlock_all_items" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/unlock_all_items_hint" />
+
+                <Button
+                    android:id="@+id/camo_packs"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/camo_packs" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/camo_packs_hint" />
+
+                <TextView
+                    style="@style/SectionHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_matches" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/map_vote"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/map_vote" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/map_vote_hint" />
+
+                <TextView
+                    style="@style/SectionHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_match_options" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/match_options_hint" />
+
+                <TextView
+                    android:id="@+id/match_gravity_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/match_gravity"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/match_speed_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/match_speed"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/match_jump_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/match_jump"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/match_sprint"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/match_sprint" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/match_fall_damage"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/match_fall_damage" />
             </LinearLayout>
 
             <!-- FILES + STORAGE -->

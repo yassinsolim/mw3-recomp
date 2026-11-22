@@ -4,6 +4,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+- **Bots are on the start screen** (Modern Warfare 3 multiplayer): a
+  **Bots** entry under **Multiplayer** sets how many, how good and whether
+  they all play against the players, and shows what is set. They were at the
+  end of Settings' Graphics page, below Sound. Settings has a
+  **Multiplayer** tab now (Bots, Unlocks, Matches, Match options), and the
+  pause menu changes the number of bots in a match. Bots join the matches
+  this device hosts: System Link, Create Game, or a private match.
+- **Unlock all covers the strike packages**: every Assault, Support and
+  Specialist streak can be ticked and is given in a match (they needed the
+  rank's unlock tokens: only each package's first three could be chosen).
+  Also **fifteen custom classes** instead of five, and the **Marine and
+  Winter camouflages**. As before nothing is written to the stats. Prestige
+  Mode and its shop are left as earned. `MW2_TRACE_UNLOCKS=1` (diagnostics
+  builds) logs what the title asks and would have answered.
+- **The camo packs' credits list the pack the app carries** before the
+  multiplayer has first copied it into the game folder.
+
 ## [v0.1.1] - 2026-11-21
 
 ### Highlights

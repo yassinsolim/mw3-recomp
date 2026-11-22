@@ -572,6 +572,41 @@ to Dome Domination by rotation). On an AYN Thor a System Link match with four bo
 went from Seatown to Lockdown by the vote's draw, nobody voting. Not run: a
 private match, End Game.
 
+## Bots and unlocks
+
+Modern Warfare 3's multiplayer only; Modern Warfare 2's has neither.
+
+**Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
+a System Link game it created or a private match, and nothing else: in a
+match somebody else hosts they do not exist. Where to set them in the Android
+app:
+
+| where | what |
+|---|---|
+| the launcher, **Bots** under **Multiplayer** | how many (0 to 17), how good, and whether all of them play against the players; the entry shows what is set (`BOTS · 6 · REGULAR`) |
+| Settings → **Multiplayer** (a tab of its own; it was the end of the Graphics page, below Sound, which is why it was not found) | the same under the heading Bots, then Unlocks, Matches (map vote) and Match options |
+| in a match, the app's pause menu → **Bots in my matches** | the number, at once: it sends the host's console `bots <n>` and keeps it as the setting |
+
+The launcher's and the Settings' take effect the next time the game starts.
+On the PC they are `MW2_BOTS`, `MW2_BOT_SKILL` and `MW2_BOT_TEAMS` in `.env`.
+
+**Unlocks** (`runtime/mw3_unlock_all.cpp`, `MW2_UNLOCK_ALL`, on by default in
+the app) are this copy's reading of its own stats: every item, title and
+emblem can be chosen and fifteen custom classes are listed, and nothing is
+written to the stats. What other players see, and what a host without the
+switch gives, is in
+[MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#what-other-players-see).
+
+Modern Warfare 2's bots, were they wanted: its multiplayer executable still
+has the strings of the test-client command MW3's lost (`connect bot%d`,
+`addtestclient`), so the join that `bots.cpp` rebuilds by hand is there to
+call. What would carry over is the half of the file that is not the
+title's: the think (targets, aim, bursts, the feelers), the top-up, the
+settings and the console line. What would not is every address and offset
+of its block in `runtime/title.h` (about fifty: the server's clients, the
+usercmd, the player state, `G_SightTrace`), the team and class menu answers
+of MW2's scripts, and the same again for title update 6. Not started.
+
 ## Voice chat
 
 Modern Warfare 3's multiplayer only, and off by default (`MW2_VOICE=1`, the

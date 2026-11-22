@@ -251,11 +251,12 @@ then through the relay.
 ## Everything unlocked
 
 `MW2_UNLOCK_ALL=1` (the app's "Unlock all camos and items", Settings →
-Graphics → Multiplayer, on by default) makes every item read as unlocked.
+Multiplayer → Unlocks, on by default) makes every item read as unlocked.
 `runtime/mw3_unlock_all.cpp` hooks the title's own checks and what the menus
-read of a weapon's level; the stats (rank, prestige, weapon levels,
-challenges) are not written, and a match counts experience from what was
-earned, so switching it off shows that again.
+read of a weapon's level, a strike package's streaks, the entitlement
+camouflages and the number of custom classes; the stats (rank, prestige,
+weapon levels, challenges, tokens) are not written, and a match counts
+experience from what was earned, so switching it off shows that again.
 
 | function | what it is | evidence |
 |---|---|---|
@@ -264,6 +265,8 @@ earned, so switching it off shows that again.
 | `821829A0`, `821829B0`, `82182AA8` | the profile's `iconUnlocked`, `titleUnlocked` and `unlock` bits | three-instruction leaves that load the name and jump to `82182610`; the menu functions call them when the stats are not the source (`82288968` returns 0) |
 | `822D6120` (controller, operands, first, result) | the menu's `getPlayerData` | for a path starting with `weaponRank` the result is raised to the highest level in `mp/weaponRankTable.csv` (the largest number of its column 4, which `8228AC18` compares the stats' `weaponRank` with), for `weaponXP` to the largest number in the table. The table is read at the first such call (`82315A68`), and the log says `unlock: the menus read every weapon at level N` |
 | `8225A710`, `822B97B0` | the script's `getPlayerData` and `Scr_AddInt`, which hands back its integer | a `weaponRank` read is raised to the same level while the script checks a class it has just read: from a read of a `…weaponSetups…` path until a read that is neither a class nor `weaponRank`. The log says `unlock: a spawning player's class is checked against weapon level N` |
+| `822D6120` again | `killstreakUnlocked.<streak>`, `unlockedCamo.<n>`, `extraCustomClassesPrestige` | not rows of the table: a streak reads as bought with its unlock token (1), the entitlement camouflages as owned (1: Marine and Winter join the end of the camouflage list), and the custom classes bought in the Prestige shop as ten, so the menus list fifteen (the stats hold fifteen, `customClasses.0` to `.14`) |
+| `8225A710`, `822B9778` | the script's `getPlayerData` and the twin of `Scr_AddInt` that hands back a bool | the script reads `killstreakUnlocked.<streak>` of every streak when a player spawns (traced; what it does with a 0 was not observed); the read is raised to 1. The log says `unlock: a spawning player's strike package is checked with every streak unlocked` |
 
 The menu's `isItemUnlocked` already answers 1 for everything in a private match
 (`xblive_privatematch`, tested at `822D6B74`), and 1 for a name the table does
@@ -302,9 +305,54 @@ itself, which the M14's gold material has in the same place),
 has `~weapon_remington_msr_spc-rgb~655e7a06`, `weapon_remington_msr_nml`,
 `weapon_remington_msr_col` and `detail_tanned` in those places.
 
-Not covered: a menu that reads the bits an entitlement sets (`unlockedCamo`,
-`unlockedReticles`, written by `823C6980` and `823C6AC8`; no unlock check in
-the executable names them). The rank and prestige shown are the real ones.
+### What a fresh profile shows
+
+Walked on the PC build with a new profile, scripted input and a frame every
+half second (System Link's own menu has Create a Class, Callsign and
+Barracks), looking for the menus' padlock, the unlock token's mark and greyed
+rows; `MW2_TRACE_UNLOCKS=1` (diagnostics builds) logs every question the
+title asks and what it would have answered, each once.
+
+| | before | now |
+|---|---|---|
+| Create a Class itself (rank 4) | open | open |
+| Primary and secondary weapons, every class | all | all |
+| Attachments, proficiencies, reticles | all | all |
+| Camouflages: the game's twelve, and the packs' below Gold | all, on every weapon class | all, and Marine and Winter after the packs' |
+| Lethal and tactical equipment, perks and their Pro versions, death streaks | all | all |
+| Strike packages: Assault, Support, Specialist | each package's first three streaks; the rest carried the unlock token's mark and could not be ticked | all, and a match gives them |
+| Titles and emblems (Callsign) | all | all |
+| Custom classes | 5 | 15 |
+| Prestige Mode and its shop (Barracks) | locked until rank 80 | locked, on purpose |
+
+Prestige Mode stays as earned: entering it resets the rank, and what its
+shop sells besides the classes is not an unlock. Double experience and
+double weapon experience change what a match writes to the stats, and the
+rest (a regular package, resetting the stats) writes them outright. A title
+or an emblem still says what unlocks it under the list; it can be chosen all
+the same.
+
+### What other players see
+
+Everything here is this copy's reading of its own stats.
+
+- A class is stored as the game stores it, so every player in a match sees
+  the weapon, attachments, the game's camouflages, title and emblem that
+  were chosen. A pack's camouflage is stored as Gold, and other players see
+  Gold ([textures.md](textures.md#camouflage-packs)).
+- The class is checked on the host when a player spawns. A host with the
+  switch on gives every player what their class says, a console's player
+  included. A host without it (a console, or a copy with the switch off)
+  checks against the real weapon levels and gives the weapon in its stock
+  finish, without what its level does not allow (seen with the switch off);
+  it reads the real streak tokens too, and by the same reasoning would not
+  give a streak that was not bought (not run). No console has been in a
+  match with this.
+- The rank, prestige, weapon levels and challenges everybody sees are the
+  earned ones.
+
+Not covered: `unlockedReticles` (the reticle menu reads its first entry and
+lists the same six either way).
 
 ## Match options
 
