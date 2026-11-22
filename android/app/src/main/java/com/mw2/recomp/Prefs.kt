@@ -91,25 +91,33 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_FILL_SCREEN, value).apply()
 
     /**
-     * The old 60 FPS lock, kept only so a player who set it before the cap
-     * existed keeps 60: fpsLimit reads it when no cap has been saved.
+     * Once per install: a saved cap goes, so the screen's own rate takes
+     * over. Before the cap followed the screen, the settings screen and the
+     * old 60 FPS lock saved the old defaults (30 for Modern Warfare 3 on an
+     * Adreno 6xx, 60 elsewhere) as readily as a player's choice, and those
+     * kept a 120 Hz Thor at 60 and a Flip 2 at 30. A saved cap cannot be told
+     * from a chosen one, so every one is dropped once; a player who wants a
+     * lower cap sets it again, and it is kept from then on.
      */
-    private val lockedTo60: Boolean
-        get() = store.contains(KEY_60HZ) && store.getBoolean(KEY_60HZ, false)
+    private fun forgetOldDefault() {
+        if (store.getBoolean(KEY_CAP_FOLLOWS_SCREEN, false)) return
+        store.edit().putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).remove(KEY_FPS_LIMIT).remove(KEY_60HZ).apply()
+        android.util.Log.i("mw2", "prefs: the saved FPS cap was dropped once; it now starts at the screen's $displayLimit")
+    }
 
     /**
      * Frame-rate cap, one of FPS_LIMITS (MW2_FPS_LIMIT). Until the player
-     * chooses, the old lock's 60 if it was on, otherwise the screen's own
-     * fastest rate (displayLimit).
+     * chooses, the screen's own fastest rate (displayLimit).
      */
     var fpsLimit: Int
         get() {
+            forgetOldDefault()
             val saved = store.getInt(KEY_FPS_LIMIT, 0)
-            return if (saved in FPS_LIMITS) saved else if (lockedTo60) 60 else displayLimit
+            return if (saved in FPS_LIMITS) saved else displayLimit
         }
         set(value) {
             val v = if (value in FPS_LIMITS) value else 60
-            store.edit().putInt(KEY_FPS_LIMIT, v).putBoolean(KEY_60HZ, v <= 60).apply()
+            store.edit().putInt(KEY_FPS_LIMIT, v).putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
         }
   
     /**
@@ -442,6 +450,7 @@ class Prefs(context: Context) {
         private const val KEY_SHOW_STATS = "showStats"
         private const val KEY_FILL_SCREEN = "fillScreen"
         private const val KEY_60HZ = "prefer60Hz"
+        private const val KEY_CAP_FOLLOWS_SCREEN = "fpsCapFollowsScreen"
         private const val KEY_FOV = "fov"
         private const val KEY_AUDIO = "audio"
         private const val KEY_TOUCH = "touchControls"
