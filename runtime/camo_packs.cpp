@@ -9,6 +9,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <set>
 #include <system_error>
 
 namespace
@@ -180,6 +181,39 @@ namespace
         }
         return files;
     }
+
+    // The player's choices about the packs (camo_packs.h).
+    struct Options
+    {
+        std::set<std::string> off, animate;
+        bool animateGold = false;
+    };
+
+    Options ReadOptions(const fs::path& folder)
+    {
+        Options options;
+        std::ifstream in(folder / "options.txt");
+        std::string line;
+        while (std::getline(in, line))
+        {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            const size_t equals = line.find('=');
+            if (equals == std::string::npos) continue;
+            const std::string name = line.substr(0, equals), value = line.substr(equals + 1);
+            if (name == "off") options.off.insert(value);
+            else if (name == "animate") options.animate.insert(value);
+            else if (name == "animate-gold") options.animateGold = value == "1";
+        }
+        return options;
+    }
+
+    camo::Animation AnimationNamed(const std::string& name)
+    {
+        return name == "scroll" ? camo::Animation::Scroll
+             : name == "shimmer" ? camo::Animation::Shimmer
+             : name == "hue" ? camo::Animation::Hue
+             : camo::Animation::None;
+    }
 }
 
 std::vector<camo::Camo> camo::Read(const fs::path& folder)
@@ -190,11 +224,18 @@ std::vector<camo::Camo> camo::Read(const fs::path& folder)
     for (fs::directory_iterator at(folder, ec), end; !ec && at != end; at.increment(ec))
         if (at->is_directory(ec)) packs.push_back(at->path());
     std::sort(packs.begin(), packs.end());
+    const Options options = ReadOptions(folder);
 
     for (const fs::path& pack : packs)
     {
+        const std::string id = Utf8(pack.filename());
         std::ifstream in(pack / "pack.json", std::ios::binary);
         if (!in) continue;
+        if (options.off.count(id))
+        {
+            LOGI("camos: pack %s is switched off (options.txt)", id.c_str());
+            continue;
+        }
         const std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         Value root;
         Parser parser{ json };
@@ -206,9 +247,9 @@ std::vector<camo::Camo> camo::Read(const fs::path& folder)
                  Utf8(pack).c_str());
             continue;
         }
-        const std::string id = Utf8(pack.filename());
         const std::string packName = root.Text("name").empty() ? id : root.Text("name");
-        size_t listed = 0;
+        const std::string author = root.Text("author");
+        const size_t first = all.size();
         for (const Value& entry : camos->list)
         {
             if (entry.kind != Value::Kind::Object) continue;
@@ -216,29 +257,43 @@ std::vector<camo::Camo> camo::Read(const fs::path& folder)
             one.key = id + "/" + entry.Text("id");
             one.name = entry.Text("name").empty() ? entry.Text("id") : entry.Text("name");
             one.pack = packName;
-            one.author = root.Text("author");
+            one.author = author;
             one.frames = Pictures(pack, entry, "image", "frames");
+            for (const char* map : { "specular", "colour" })
+                if (one.frames.empty()) one.frames = Pictures(pack, entry, map, "");
             one.swatch = Pictures(pack, entry, "swatch", "swatch_frames");
             if (one.swatch.empty()) one.swatch = one.frames;
+            one.banner = Pictures(pack, entry, "banner", "");
+            if (one.banner.empty()) one.banner = one.frames;
+            if (const Value* weapons = entry.Member("weapons", Value::Kind::Object))
+                for (const auto& [weapon, picture] : weapons->members)
+                    if (fs::path file; picture.kind == Value::Kind::Text && Picture(pack, picture.text, file))
+                        one.weapons.emplace_back(weapon, file);
             if (const Value* fps = entry.Member("fps", Value::Kind::Number))
                 one.fps = std::clamp(fps->number, 0.1, 120.0);
+            one.animation = AnimationNamed(entry.Text("animation"));
+            if (one.animation == Animation::None &&
+                (options.animate.count(id) || options.animate.count(one.key) ||
+                 (options.animateGold && entry.Text("target") == "gold")))
+                one.animation = Animation::Scroll;
             if (entry.Text("id").empty() || one.frames.empty())
             {
                 LOGW("camos: an entry of %s is left out: it has no id, or no picture that is a file"
                      " in the pack", Utf8(pack / "pack.json").c_str());
                 continue;
             }
-            if (all.size() == kMost)
-            {
-                LOGW("camos: only the first %zu camos are listed; %s has more", kMost, Utf8(pack).c_str());
-                break;
-            }
             all.push_back(std::move(one));
-            listed++;
         }
+        // In the list a camouflage carries its pack: `<pack> - <name>`, or for
+        // a pack of one, which is usually named as its camouflage is,
+        // `<name> - <author>`.
+        const size_t listed = all.size() - first;
+        const std::string label = root.Text("label").empty() ? packName : root.Text("label");
+        for (size_t i = first; i < all.size(); i++)
+            all[i].label = listed > 1 ? label + " - " + all[i].name
+                         : author.empty() ? all[i].name : all[i].name + " - " + author;
         LOGI("camos: pack \"%s\" by %s, %zu camos (%s)", packName.c_str(),
-             root.Text("author").empty() ? "an unnamed author" : root.Text("author").c_str(), listed,
-             Utf8(pack).c_str());
+             author.empty() ? "an unnamed author" : author.c_str(), listed, Utf8(pack).c_str());
     }
     return all;
 }

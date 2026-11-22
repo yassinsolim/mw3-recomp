@@ -375,29 +375,9 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         }
     }
 
-    /** The credits of the camouflage packs the game lists: whose each is, and by what permission. */
+    /** The camouflage packs' own screen: which are installed, whose each is, adding one. */
     private fun showCamoPacks() {
-        val gameDir = prefs.gameDirectory.ifEmpty {
-            (getExternalFilesDir(null) ?: filesDir).absolutePath + "/game"
-        }
-        val packs = CamoPacks.credits(this, gameDir)
-        val text = if (packs.isEmpty()) getString(R.string.camo_packs_none, gameDir + "/camos")
-        else packs.joinToString("\n\n") {
-            getString(
-                R.string.camo_pack_entry, it.name, it.camos,
-                it.author.ifEmpty { getString(R.string.camo_pack_unnamed) }, it.url, it.permission,
-            ).trim()
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.camo_packs)
-            .setMessage(text)
-            .setPositiveButton(R.string.close, null)
-            .show()
-        // The authors' links open where they published their packs.
-        dialog.findViewById<TextView>(android.R.id.message)?.let {
-            android.text.util.Linkify.addLinks(it, android.text.util.Linkify.WEB_URLS)
-            it.movementMethod = android.text.method.LinkMovementMethod.getInstance()
-        }
+        startActivity(Intent(this, CamoPacksActivity::class.java))
     }
 
     /** Extra maps/weapons/modes from an extracted mod folder into game/. */

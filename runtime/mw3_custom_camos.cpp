@@ -28,14 +28,14 @@
 // The menu's item list is replaced by one with the copies in it. What a copy
 // shares with Gold's row (most of its handlers) is not copied.
 //
-// THE CHOICE. A copy is named cc<nn> in its expressions. mp/camoTable.csv has
+// THE CHOICE. A copy is named cc<nnn> in its expressions. mp/camoTable.csv has
 // no such row, so the menu's tableLookup (StringTable_Lookup) is answered for
 // these names: the pack's name for the camouflage, and Gold's material for
 // the preview and the banner. The button's action still writes "gold" to the
 // class (the stats' enum has nothing else to hold), and the hook on the
 // menu's setPlayerData notes which copy's script is running, by the script's
 // address, and records `<class>.weaponSetups.<n>` -> `<pack>/<camo>` in
-// saves/custom_camos.txt. The menu's getPlayerData then answers cc<nn> for a
+// saves/custom_camos.txt. The menu's getPlayerData then answers cc<nnn> for a
 // class whose camouflage is stored as Gold and recorded there, so the list
 // marks the right row and the class summary names it; a script that writes a
 // value it read that way (copying a class) is given "gold" for the stats and
@@ -44,13 +44,18 @@
 //
 // THE PICTURE. Gold on a weapon is one image (docs/textures.md), as are the
 // menu's preview and banner for it. They are made switchable
-// (gpu::replace::Switchable): the preview shows the row that has focus, the
-// banner the class being looked at, and the weapon image the camouflage of
-// the class the player chose in the match (the changeclass menu's
+// (gpu::replace::Switchable): the preview shows the row that has focus (the
+// menu's own lookup of that row's material, StringTable_Lookup), the banner
+// the class being looked at, and the weapon image the camouflage of the
+// class the player chose in the match (the changeclass menu's
 // scriptmenuresponse "custom<n>"), its primary weapon's before its
 // secondary's. One image means one camouflage at a time on this device:
 // every Gold weapon in view, other players' included, is drawn with it, and
-// other players see Gold. Without a choice Gold is Gold.
+// other players see Gold. Without a choice Gold is Gold. A camouflage with a
+// picture a weapon (a pack made from whole-weapon skins) is drawn by the
+// weapon the class has in that slot, noted as the menus read it; a still
+// one the pack or the player animates is given its frames by the renderer
+// (gpu::replace::Effect).
 #include <ppc_recomp_shared.h>
 #include "mw3_custom_camos.h"
 #include "title.h"
@@ -86,8 +91,6 @@ namespace
     constexpr uint32_t kMostMenus = 640;
     // menuDef_t: {data, window (0xB0 bytes, its name first), itemCount, items}
     constexpr uint32_t kMenuName = 0x04, kMenuItemCount = 0xB4, kMenuItems = 0xB8;
-    // The engine's bound on a menu's items; the largest camouflage menu has 271.
-    constexpr uint32_t kMostItems = 512;
     // itemDef_s. The window is first: name, rect {x, y, w, h}, the rect it was
     // given, and from 0x48 the dynamic flags of the four local clients (bit 1:
     // has focus). Then nine handler sets, the type's data, the expressions
@@ -200,14 +203,14 @@ namespace
     struct Listed
     {
         camo::Camo camo;
-        uint32_t ref = 0;            // "cc<nn>", in guest memory, as the rest are
+        uint32_t ref = 0;            // "cc<nnn>", in guest memory, as the rest are
         uint32_t name = 0;           // in capitals, as the menu writes the game's
         uint32_t description = 0;
     };
 
-    // A script of a copy, by where its text is: the button's action, which
-    // chooses camouflage `index`, or its onFocus, which previews it.
-    struct Script { uint32_t at, size; size_t index; bool action; };
+    // The script of a copy's action, which chooses camouflage `index`, by
+    // where its text is.
+    struct Script { uint32_t at, size; size_t index; };
 
     struct State
     {
@@ -224,6 +227,9 @@ namespace
         // What the banner last showed for a primary weapon, so that a
         // secondary's is shown only when the primary has none.
         bool primaryHasBanner = false;
+        // The camouflage whose unlock (the table's column 6) the menu last
+        // looked up: the preview pane's, when its material is asked for next.
+        std::string lastUnlockOf;
     };
     State g;
 
@@ -265,21 +271,65 @@ namespace
         return nullptr;
     }
 
-    // "cc<nn>" as a listed camouflage.
+    // "cc<nnn>" as a listed camouflage.
     const Listed* ByRef(const char* text)
     {
-        if (text[0] != 'c' || text[1] != 'c' || text[2] < '0' || text[2] > '9' || text[3] < '0' ||
-            text[3] > '9' || text[4])
-            return nullptr;
-        const size_t index = size_t(text[2] - '0') * 10 + size_t(text[3] - '0');
-        return index < g.listed.size() ? &g.listed[index] : nullptr;
+        if (text[0] != 'c' || text[1] != 'c') return nullptr;
+        size_t index = 0;
+        for (int i = 2; i < 5; i++)
+        {
+            if (text[i] < '0' || text[i] > '9') return nullptr;
+            index = index * 10 + size_t(text[i] - '0');
+        }
+        return !text[5] && index < g.listed.size() ? &g.listed[index] : nullptr;
     }
 
-    void Show(uint32_t group, const Listed* one)
+    constexpr char kWeaponOf[] = "#weapon";   // `<slot>#weapon`: the weapon the class has there
+
+    // What the images of `group` show: the camouflage's picture for it, or
+    // with none the game's own. `slot` is the class's weapon slot the
+    // camouflage is on, for a camouflage with a picture a weapon.
+    void Show(uint32_t group, const Listed* one, const std::string& slot = {})
     {
         static const std::vector<fs::path> none;
-        gpu::replace::Select(group, !one ? none : group == kPreview ? one->camo.swatch : one->camo.frames,
-                             one ? one->camo.fps : 12.0);
+        if (!one)
+        {
+            gpu::replace::Select(group, none, 12.0);
+            return;
+        }
+        const camo::Camo& camo = one->camo;
+        const std::vector<fs::path>* pictures =
+            group == kPreview ? &camo.swatch : group == kBanner ? &camo.banner : &camo.frames;
+        std::vector<fs::path> own;
+        const auto weapon = group == kWeapon && !camo.weapons.empty() ? g.chosen.find(slot + kWeaponOf) : g.chosen.end();
+        if (weapon != g.chosen.end())
+            for (const auto& [name, picture] : camo.weapons)
+                if (!strcasecmp(name.c_str(), weapon->second.c_str()))
+                {
+                    own.assign(1, picture);
+                    pictures = &own;
+                }
+        // A still picture that moves does so on the weapon and in the
+        // preview; the banner, three times a weapon image's texels, stays still.
+        using gpu::replace::Effect;
+        const Effect effect = pictures->size() != 1 || group == kBanner ? Effect::None
+                            : camo.animation == camo::Animation::Scroll ? Effect::Scroll
+                            : camo.animation == camo::Animation::Shimmer ? Effect::Shimmer
+                            : camo.animation == camo::Animation::Hue ? Effect::Hue
+                            : Effect::None;
+        // An effect's loop of gpu::replace::kEffectFrames is three seconds.
+        gpu::replace::Select(group, *pictures, effect == Effect::None ? camo.fps : 16.0, effect);
+        if (group != kWeapon) return;
+        // What the weapons wear, said when it changes: a log's answer to
+        // "which camouflage was that".
+        static std::string said;
+        std::string now = camo.key + (own.empty() ? "" : ", its picture for " + weapon->second) +
+                          (effect == Effect::None ? "" : ", animated");
+        if (now != said)
+        {
+            LOGI("camos: the weapon image shows %s", now.c_str());
+            said = std::move(now);
+        }
     }
 
     // The weapon's image: the camouflage of the class chosen in the match.
@@ -287,12 +337,15 @@ namespace
     {
         const auto active = g.chosen.find(kActive);
         const Listed* one = nullptr;
+        std::string slot;
         if (active != g.chosen.end())
-        {
-            one = ChosenFor(active->second + ".weaponSetups.0");
-            if (!one) one = ChosenFor(active->second + ".weaponSetups.1");
-        }
-        Show(kWeapon, one);
+            for (const char* weapon : { ".weaponSetups.0", ".weaponSetups.1" })
+                if (!one)
+                {
+                    slot = active->second + weapon;
+                    one = ChosenFor(slot);
+                }
+        Show(kWeapon, one, slot);
     }
 
     // Once, when the menus are first added: by then the game folder is known
@@ -309,6 +362,13 @@ namespace
         }
         std::vector<camo::Camo> camos = camo::Read(kernel::GameRoot() / "camos");
         if (camos.empty()) return false;
+        // A copy's name has three digits.
+        constexpr size_t kMost = 1000;
+        if (camos.size() > kMost)
+        {
+            LOGW("camos: only the first %zu of %zu camos are listed", kMost, camos.size());
+            camos.resize(kMost);
+        }
 
         g.gold = g.fixed.String(base, "gold");
         g.empty = g.fixed.String(base, "");
@@ -320,9 +380,9 @@ namespace
             Listed one;
             one.camo = std::move(camos[i]);
             char ref[8];
-            std::snprintf(ref, sizeof ref, "cc%02zu", i);
+            std::snprintf(ref, sizeof ref, "cc%03zu", i);
             one.ref = g.fixed.String(base, ref);
-            std::string name = one.camo.name;
+            std::string name = one.camo.label;
             for (char& c : name) c = char(std::toupper(uint8_t(c)));
             one.name = g.fixed.String(base, name);
             one.description = g.fixed.String(
@@ -548,16 +608,14 @@ namespace
             uint32_t now = data;
             if (type == kScript)
             {
-                // The two scripts the hook on setPlayerData tells a copy by.
-                // Their text stays as it is: "gold" is what the stats hold.
+                // The script the hook on setPlayerData tells a copy by. Its
+                // text stays as it is: "gold" is what the stats hold.
                 const char* text = Text(base, data);
-                const bool chooses = action && std::strstr(text, "\"camo\" , \"gold\"");
-                const bool previews = !action && std::strstr(text, "\"camoNew\"");
-                if (change.custom && (chooses || previews))
+                if (change.custom && action && std::strstr(text, "\"camo\" , \"gold\""))
                 {
                     const uint32_t size = uint32_t(std::strlen(text) + 1);
                     now = arena.Copy(base, data, size);
-                    if (now) g.scripts[change.menu].push_back({ now, size, change.index, chooses });
+                    if (now) g.scripts[change.menu].push_back({ now, size, change.index });
                 }
             }
             else if (type == kIf)
@@ -736,8 +794,7 @@ namespace
 
         const uint32_t added = uint32_t(g.listed.size()) * kRowItems;
         uint32_t first = 0, offsetName = 0;
-        const char* why = count + added > kMostItems ? "it has no room for the items"
-                                                     : Unexpected(base, list, count, first, offsetName);
+        const char* why = Unexpected(base, list, count, first, offsetName);
         if (why)
         {
             if (!g.refused[which])
@@ -893,15 +950,20 @@ namespace
         return nullptr;
     }
 
-    // `<class>.weaponSetups.<n>` when the path names a class's camouflage.
-    bool CamoSlot(const std::string& classes, const std::string& index, const std::string& member,
-                  const std::string& weapon, const std::string& field, std::string& slot)
+    // `<class>.weaponSetups.<n>` when the path names `field` of a class's weapon.
+    bool WeaponSlot(const std::string& classes, const std::string& index, const std::string& member,
+                    const std::string& weapon, const std::string& field, const char* wanted, std::string& slot)
     {
-        if (strcasecmp(member.c_str(), "weaponSetups") || strcasecmp(field.c_str(), "camo") ||
+        if (strcasecmp(member.c_str(), "weaponSetups") || strcasecmp(field.c_str(), wanted) ||
             !IsNumber(index) || !IsNumber(weapon) || classes.empty())
             return false;
         slot = classes + "." + index + ".weaponSetups." + weapon;
         return true;
+    }
+    bool CamoSlot(const std::string& classes, const std::string& index, const std::string& member,
+                  const std::string& weapon, const std::string& field, std::string& slot)
+    {
+        return WeaponSlot(classes, index, member, weapon, field, "camo", slot);
     }
 }
 
@@ -926,8 +988,25 @@ GUEST_HOOK(T_UI_AddMenuList)
 GUEST_HOOK(T_StringTable_Lookup)
 {
     const uint32_t table = ctx.r3.u32, value = ctx.r5.u32;
-    const Listed* one = !g.listed.empty() && table && value ? ByRef(Text(base, value)) : nullptr;
-    if (!one || ctx.r4.u32 != 1 || strcasecmp(Text(base, Load(base, table)), "mp/camoTable.csv"))
+    const bool camos = !g.listed.empty() && table && value && ctx.r4.u32 == 1 &&
+                       !strcasecmp(Text(base, Load(base, table)), "mp/camoTable.csv");
+    const Listed* one = camos ? ByRef(Text(base, value)) : nullptr;
+    // The preview pane looks up, every frame, for the row that has focus:
+    // what unlocks it (column 6), then its material (column 4). The second
+    // straight after the first for one camouflage is so the preview: its
+    // image shows that row's camouflage, or the game's own for a row of the
+    // game's. A banner's material is looked up alone, and a locked row's
+    // unlock alone.
+    if (camos && ctx.r6.u32 == 6)
+    {
+        g.lastUnlockOf = Text(base, value);
+    }
+    else if (camos)
+    {
+        if (ctx.r6.u32 == 4 && g.lastUnlockOf == Text(base, value)) Show(kPreview, one);
+        g.lastUnlockOf.clear();
+    }
+    if (!one)
     {
         GUEST_ORIG(T_StringTable_Lookup)(ctx, base);
         return;
@@ -959,11 +1038,6 @@ GUEST_HOOK(T_UI_SetPlayerData)
     }
     const Script* copy = CopyRunning(text);
 
-    // camoNew.<weapon>.<camo> = false is what a row's onFocus does: the row
-    // with focus is the one the preview shows.
-    if (path.size() == 4 && !strcasecmp(path[0].text.c_str(), "camoNew"))
-        Show(kPreview, copy && !copy->action ? &g.listed[copy->index] : nullptr);
-
     std::string slot;
     if (path.size() != 6 || !CamoSlot(path[0].text, path[1].text, path[2].text, path[3].text, path[4].text, slot))
     {
@@ -971,10 +1045,10 @@ GUEST_HOOK(T_UI_SetPlayerData)
         return;
     }
     // A copy's action, or a value read back from a class that has a custom
-    // camouflage (the menu's getPlayerData answers cc<nn> for it), which
+    // camouflage (the menu's getPlayerData answers cc<nnn> for it), which
     // the stats are given as the Gold it is stored as.
-    const Listed* custom = copy && copy->action ? &g.listed[copy->index] : ByRef(path[5].text.c_str());
-    const uint32_t variable = custom && !(copy && copy->action) ? path[5].variable : 0;
+    const Listed* custom = copy ? &g.listed[copy->index] : ByRef(path[5].text.c_str());
+    const uint32_t variable = custom && !copy ? path[5].variable : 0;
     const uint32_t held = variable ? Load(base, variable + 8) : 0;
     if (variable) Store(base, variable + 8, g.gold);
     GUEST_ORIG(T_UI_SetPlayerData)(ctx, base);
@@ -1022,6 +1096,20 @@ void mw3camo::PlayerDataRead(uint8_t* base, uint32_t operands, uint32_t first, u
         return type == 2 ? std::string(Text(base, value)) : type == 0 ? std::to_string(int32_t(value)) : std::string();
     };
     std::string slot;
+    // The weapon a class has in a slot, noted as the menus read it: a
+    // camouflage with a picture a weapon is drawn by it.
+    if (WeaponSlot(text(0), text(1), text(2), text(3), text(4), "weapon", slot))
+    {
+        const std::string weapon = Text(base, Load(base, result + 4));
+        std::string& noted = g.chosen[slot + kWeaponOf];
+        if (noted != weapon)
+        {
+            noted = weapon;
+            SaveChoices();
+            ShowWeapon();
+        }
+        return;
+    }
     if (!CamoSlot(text(0), text(1), text(2), text(3), text(4), slot)) return;
     const bool gold = !strcasecmp(Text(base, Load(base, result + 4)), "gold");
     const Listed* custom = gold ? ChosenFor(slot) : nullptr;

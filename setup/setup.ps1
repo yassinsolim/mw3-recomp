@@ -74,6 +74,11 @@ The phone to install on, by its adb serial (`adb devices`), when more than
 one is connected.
 .PARAMETER Toolchain
 Where the tools go (default: .toolchain\ in the repository).
+.PARAMETER CamoPacks
+A folder of PC camouflage mods you downloaded (zip, rar, 7z, iwd, or loose
+.iwi pictures, in any layout): each becomes a camouflage pack of the
+multiplayer, listed below Gold beside the game's own (docs/textures.md).
+Without it, the folder setup\camo-packs is used when it is there.
 
 .EXAMPLE
 setup\setup.cmd
@@ -102,7 +107,8 @@ param(
     [switch]$Check,
     [switch]$Yes,
     [string]$Device,
-    [string]$Toolchain
+    [string]$Toolchain,
+    [string]$CamoPacks
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -402,13 +408,18 @@ function Install-Package($serial, $item) {
 }
 
 # The multiplayer's camouflage packs (docs/textures.md, "Camouflage packs"),
-# into $dest -- the game folder's `camos`, or the app's assets: the project's
-# own, drawn by tools/camo_gen.py, and those listed in setup\camo-packs.json,
-# each downloaded from where its author published it, checked against the
-# SHA-256 noted when permission was given, and converted by
-# tools/import_pack.py. None is committed or rehosted. A failure leaves the
-# list without that pack rather than stopping the build.
+# into $dest -- the game folder's `camos`, or the app's assets:
+#  - the project's own, drawn by tools/camo_gen.py;
+#  - those of setup\camo-packs.json that have an `asset`: packs whose art is
+#    their author's own, converted once and kept as assets of a release of
+#    the project, checked against the SHA-256 noted there;
+#  - the PC mods the player downloaded, in -CamoPacks or setup\camo-packs,
+#    converted here by tools/import_pack.py. That is the only way in for a
+#    pack the project may not pass on (a port of another game's camouflage).
+# None is committed. A failure leaves the list without that pack rather than
+# stopping the build.
 $CamoPackList = Join-Path $PSScriptRoot 'camo-packs.json'
+$CamoPackMods = if ($CamoPacks) { $CamoPacks } else { Join-Path $PSScriptRoot 'camo-packs' }
 $PyLibs    = Join-Path $Tc 'pylibs'
 $PyImaging = 'pillow==12.3.0', 'numpy==2.4.4'
 function Install-CamoPacks($dest) {
@@ -435,26 +446,46 @@ function Install-CamoPacks($dest) {
         Warn "no camouflage packs: $($_.Exception.Message)"
         return
     }
-    # Not @(...): PowerShell 5.1 hands the list over as one object, which that would wrap.
-    foreach ($pack in (Get-Content -Raw $CamoPackList | ConvertFrom-Json)) {
+    $list = Get-Content -Raw $CamoPackList | ConvertFrom-Json
+    $gh = Get-Command gh -ErrorAction SilentlyContinue
+    foreach ($pack in $list.packs) {
+        if (-not $pack.asset) { continue }
         try {
-            foreach ($field in 'id', 'name', 'author', 'url', 'download', 'sha256', 'permission') {
-                if (-not $pack.$field) { throw "its entry in setup\camo-packs.json has no $field" }
-            }
-            $archive = Join-Path $Dl "camo-$($pack.id)$([IO.Path]::GetExtension(([Uri]$pack.download).AbsolutePath))"
+            $archive = Join-Path $Dl "camo-$($pack.asset)"
             if (-not ((Test-Path $archive) -and (Sha256Of $archive) -eq $pack.sha256.ToLowerInvariant())) {
-                Step "download the camouflage pack $($pack.name) from $($pack.download)"
-                Exec 'curl.exe' @('-fsSL', '--retry', '3', '-o', "$archive.part", $pack.download)
-                if ((Sha256Of "$archive.part") -ne $pack.sha256.ToLowerInvariant()) { throw 'SHA-256 of the download does not match the one permission was given for' }
+                Step "the camouflage pack $($pack.name) by $($pack.author)"
+                Remove-Item -Force -ErrorAction SilentlyContinue "$archive.part"
+                $got = $false
+                # A release that is not public yet is read with the GitHub CLI's sign-in.
+                if ($gh) {
+                    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+                    & $gh.Source release download $list.release.tag -R $list.release.repo -p $pack.asset -O "$archive.part" 2>$null | Out-Null
+                    $got = $LASTEXITCODE -eq 0
+                    $ErrorActionPreference = $old
+                }
+                if (-not $got) {
+                    Exec 'curl.exe' @('-fsSL', '--retry', '3', '-o', "$archive.part",
+                                      "https://github.com/$($list.release.repo)/releases/download/$($list.release.tag)/$($pack.asset)")
+                }
+                if ((Sha256Of "$archive.part") -ne $pack.sha256.ToLowerInvariant()) { throw 'SHA-256 of the download does not match setup\camo-packs.json' }
                 Move-Item -Force "$archive.part" $archive
             }
-            $arguments = @('tools/import_pack.py', $archive, '--out', (Join-Path $dest $pack.id), '--name', $pack.name, '--author', $pack.author,
-                           '--url', $pack.url, '--permission', $pack.permission)
-            foreach ($pattern in @($pack.only)) { if ($pattern) { $arguments += '--only', $pattern } }
-            Exec $Python $arguments -Cwd $Repo -Log "camo_pack_$($pack.id).log" -Quiet
+            $folder = Join-Path $dest $pack.id
+            if (Test-Path $folder) { Remove-Item -Recurse -Force $folder }
+            Expand-Archive -Path $archive -DestinationPath $dest -Force
         } catch {
             Warn "camouflage pack $($pack.id) is left out: $($_.Exception.Message)"
         }
+    }
+    if (Test-Path $CamoPackMods) {
+        try {
+            Step "your camouflage mods in $CamoPackMods"
+            Exec $Python @('tools/import_pack.py', '--folder', (Resolve-Path $CamoPackMods).Path, '--camos', $dest) -Cwd $Repo -Log 'camo_import.log' -Quiet
+        } catch {
+            Warn "the camouflage mods in $CamoPackMods were not all imported (see camo_import.log): $($_.Exception.Message)"
+        }
+    } elseif ($CamoPacks) {
+        Warn "-CamoPacks: there is no folder $CamoPacks"
     }
 }
 
@@ -854,8 +885,14 @@ if ($ForAndroid) {
             }
         }
         # Modern Warfare 3's app carries the multiplayer's camouflage packs as
-        # assets and copies them into the game folder when it starts (CamoPacks.kt).
-        if (-not $Mw2 -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $Repo 'android\app\src\mw3\assets\camos') }
+        # assets and copies them into the game folder when it starts
+        # (CamoPacks.kt), and the list of known packs, by which it credits a
+        # mod the player adds and fetches the ones the project hosts.
+        if (-not $Mw2 -and @($Keys) -contains 'mp') {
+            $assets = Join-Path $Repo 'android\app\src\mw3\assets'
+            Install-CamoPacks (Join-Path $assets 'camos')
+            Copy-Item -Force $CamoPackList (Join-Path $assets 'camo-packs.json')
+        }
         # One app with both titles: the campaign's build makes the
         # multiplayer's library as well (cmake/android.cmake, MW2_BOTH_TITLES).
         $apps = if ($TestCopy) {
@@ -935,10 +972,10 @@ if ($ForAndroid -and $Apks.Count) {
         if ($ready.Count -gt 1 -and -not $chosen.Count) { Warn "more than one phone connected; using $serial (-Device <serial> chooses)" }
         if ($Install -or (Ask "Install on $serial now?" $true)) {
             foreach ($item in $Apks) { Install-Package $serial $item }
-            # The camouflage packs of other authors (setup\camo-packs.json)
-            # are not in the published app, which carries the project's own
-            # alone: they go into the game folder, where the app leaves a
-            # pack it did not put there as it is (CamoPacks.kt).
+            # The camouflage packs that are not in the published app, which
+            # carries the project's own alone -- the ones fetched and the
+            # player's own mods -- go into the game folder, where the app
+            # leaves a pack it did not put there as it is (CamoPacks.kt).
             if ($Split -and -not $Mw2 -and -not $GameOnly -and -not $BuildApp) {
                 $packs = Join-Path $Out 'camos'
                 Install-CamoPacks $packs

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The camouflage packs screen (CamoPacksActivity). -->
+<resources>
+    <string name="camo_packs_screen_hint">Extra camouflages, listed below Gold in Create a Class beside the game\'s own: no pack replaces a camouflage of the game\'s or of another pack. Switch a pack off to leave it out of the list; hold one to remove it. Changes take effect the next time the game starts.</string>
+    <string name="camo_packs_none">No camo pack is installed yet.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d pack, %2$d camos listed in the game</item>
+        <item quantity="other">%1$d packs, %2$d camos listed in the game</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d camo, by %2$s</item>
+        <item quantity="other">%1$d camos, by %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">an unnamed author</string>
+    <string name="camo_pack_add">Add a pack from a file</string>
+    <string name="camo_pack_fetch">Get the project\'s packs</string>
+    <string name="camo_pack_fetching">Downloading…</string>
+    <string name="camo_pack_fetched">%1$s by %2$s: installed</string>
+    <string name="camo_pack_checksum">the download is not the file the app expects</string>
+    <string name="camo_pack_converting">Converting…</string>
+    <string name="camo_pack_name">Name of the pack</string>
+    <string name="camo_pack_default_name">My camos</string>
+    <string name="camo_pack_rar">%1$s: a .rar or .7z is not opened on the phone. Unpack it and pick its .iwi files, zip it again, or let setup on a PC import it (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Pick a PC camouflage mod: a .zip or .iwd, or its .iwi pictures (several at once).</string>
+    <string name="camo_pack_nothing">%1$s: no camouflage found in it</string>
+    <string name="camo_pack_failed">%1$s: not added (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s: %2$d camo added</item>
+        <item quantity="other">%1$s: %2$d camos added</item>
+    </plurals>
+    <string name="camo_pack_animate">Animate</string>
+    <string name="camo_pack_listed">Listed in the game</string>
+    <string name="camo_pack_remove">Remove</string>
+    <string name="camo_pack_remove_hint">Remove this pack from the phone? A class that uses one of its camos shows Gold until the pack is added again.</string>
+    <string name="camo_pack_bundled">This pack comes with the app, so it would be back at the next start. Switch it off to leave it out of the game\'s list.</string>
+    <string name="camo_animate_gold">Animate Gold-type camos (Sloth\'s style)</string>
+    <string name="camo_animate_gold_hint">Camos a PC mod made for Gold scroll across the weapon, the look of Sloth\'s Animated Camos Mod for PC, drawn here by the port itself. \"Animate\" on a pack does the same for every still camo of that pack.</string>
+</resources>

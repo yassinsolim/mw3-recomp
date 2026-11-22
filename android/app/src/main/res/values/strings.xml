@@ -199,10 +199,7 @@
     <string name="unlock_all_items">Unlock all camos and items</string>
     <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, piece of equipment, death streak, strike package streak, title and emblem can be chosen whatever the rank, and there are fifteen custom classes. Only this device reads them so: nothing is written to the stats, and off shows what was really earned again. Takes effect the next time the game starts.</string>
     <string name="camo_packs">Camo packs</string>
-    <string name="camo_packs_hint">Extra camouflages, listed below Gold in Create a Class. A pack is a folder in the game folder\'s camos folder; this shows who made each one and by what permission it is here.</string>
-    <string name="camo_packs_none">No camo pack is installed. Packs go in the camos folder of the game folder (%1$s).</string>
-    <string name="camo_pack_entry">%1$s\n%2$d camos, by %3$s\n%4$s\n%5$s</string>
-    <string name="camo_pack_unnamed">an unnamed author</string>
+    <string name="camo_packs_hint">Extra camouflages, listed below Gold in Create a Class beside the game\'s own. See the packs and who made them, switch one off, or add a PC camouflage mod you downloaded.</string>
     <string name="bot_count">Bots in my matches: %1$d</string>
     <string name="bot_count_none">Bots in my matches: none</string>
     <string name="bot_count_hint">Computer players that join every match this device hosts (System Link, Create Game, or a private match), and leave to make room when a player joins. They do nothing in a match somebody else hosts. Each one costs the host some speed, so start with a few. Takes effect the next time the game starts; the launcher\'s Bots entry sets the same.</string>

@@ -616,10 +616,9 @@ def write_pack(out):
         camos.append(entry)
     pack = {
         "name": "MW3 Recomp Originals",
+        "label": "Originals",
         "author": "the MW3 Recomp contributors",
         "url": "https://github.com/yassinsolim/mw3-android",
-        "permission": "Original procedural art drawn by tools/camo_gen.py of this project (GPL-3.0-only); "
-                      "no picture of the game's or of anyone else's is read or copied.",
         "camos": camos,
     }
     with open(os.path.join(out, "pack.json"), "w", encoding="utf-8", newline="\n") as f:

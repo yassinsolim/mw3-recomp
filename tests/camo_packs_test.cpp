@@ -45,17 +45,21 @@ int main()
         "name": "Second \"quoted\" \u00e9",
         "author": "Somebody",
         "url": "https://example.org/pack",
-        "permission": "with permission",
+        "label": "Sec",
         "ignored": [1, 2.5, true, null, {"deep": []}],
         "camos": [
             { "id": "still", "name": "Still", "image": "still.png", "swatch": "still_swatch.png" },
             { "id": "moving", "name": "Moving", "frames": ["moving/0.png", "missing.png", "moving/1.png"], "fps": 500 },
             { "id": "gone", "name": "Gone", "image": "not-there.png" },
             { "id": "escapes", "name": "Escapes", "image": "../outside.png" },
-            { "name": "No id", "image": "still.png" }
+            { "name": "No id", "image": "still.png" },
+            { "id": "gold", "name": "Mod Gold", "target": "gold", "specular": "spc.png", "colour": "col.png",
+              "banner": "banner.png", "weapons": { "iw5_ak47": "ak.png", "iw5_gone": "none.png" } },
+            { "id": "hue", "name": "Hue", "image": "still.png", "animation": "hue" }
         ]
     })");
-    for (const char* picture : { "still.png", "still_swatch.png", "moving/0.png", "moving/1.png" })
+    for (const char* picture : { "still.png", "still_swatch.png", "moving/0.png", "moving/1.png", "spc.png",
+                                 "col.png", "banner.png", "ak.png" })
         Write(root / "b-pack" / picture, "x");
     Write(root / "outside.png", "x");
     Write(root / "a-pack" / "pack.json", R"({ "camos": [ { "id": "one", "image": "one.pnm" } ] })");
@@ -63,11 +67,32 @@ int main()
     Write(root / "c-broken" / "pack.json", R"({ "camos": [ { "id": "one", )");
     Write(root / "d-empty" / "pack.json", R"({ "name": "No list" })");
     Write(root / "not-a-folder.json", "{}");
+    Write(root / "e-off" / "pack.json", R"({ "camos": [ { "id": "one", "image": "one.pnm" } ] })");
+    Write(root / "e-off" / "one.pnm", "x");
+    Write(root / "f-single" / "pack.json",
+          R"({ "name": "Nebula", "author": "Star", "camos": [ { "id": "gold", "name": "Nebula", "target": "gold", "colour": "c.png" } ] })");
+    Write(root / "f-single" / "c.png", "x");
+    Write(root / "options.txt", "off=e-off\nanimate-gold=1\nanimate=a-pack/one\n");
 
     const std::vector<camo::Camo> camos = camo::Read(root);
-    Check(camos.size() == 3, "three camos are read, got " + std::to_string(camos.size()));
-    if (camos.size() == 3)
+    Check(camos.size() == 6, "six camos are read, got " + std::to_string(camos.size()));
+    if (camos.size() == 6)
     {
+        Check(camos[0].label == "one" && camos[1].label == "Sec - Still" && camos[5].label == "Nebula - Star",
+              "the list's label: the pack's short name with the camo, or a pack of one's camo with its author");
+        Check(camos[3].key == "b-pack/gold" && camos[3].frames.size() == 1 &&
+                  camos[3].frames[0].filename() == "spc.png",
+              "a mod's Gold is drawn from its specular map");
+        Check(camos[3].banner.size() == 1 && camos[3].banner[0].filename() == "banner.png" &&
+                  camos[1].banner == camos[1].frames,
+              "a banner that is named is used, and defaults to the camouflage");
+        Check(camos[3].weapons.size() == 1 && camos[3].weapons[0].first == "iw5_ak47",
+              "a weapon's own picture, when it is a file");
+        Check(camos[3].animation == camo::Animation::Scroll && camos[5].frames[0].filename() == "c.png" &&
+                  camos[5].animation == camo::Animation::Scroll && camos[1].animation == camo::Animation::None,
+              "animate-gold scrolls the camos made for Gold and no other");
+        Check(camos[4].animation == camo::Animation::Hue && camos[0].animation == camo::Animation::Scroll,
+              "a pack's own animation, and one the options name");
         Check(camos[0].key == "a-pack/one" && camos[0].name == "one" && camos[0].pack == "a-pack",
               "a pack with no name is named by its folder, a camo with none by its id");
         Check(camos[0].frames.size() == 1 && camos[0].swatch == camos[0].frames && camos[0].fps == 12.0,

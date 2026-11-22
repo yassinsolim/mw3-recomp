@@ -20,6 +20,32 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   builds) logs what the title asks and would have answered.
 - **The camo packs' credits list the pack the app carries** before the
   multiplayer has first copied it into the game folder.
+- **Any PC camo pack, without clashes** (Modern Warfare 3 multiplayer). Every
+  camouflage of every pack is an entry of its own below Gold, named with its
+  pack (`SOLID - RED`, `INTERSTELLAR - SLOTH`): a PC mod's replacement of
+  Gold or of one of the game's camouflages becomes a new camouflage, so the
+  game's thirteen stay as they are and two packs made for the same slot are
+  two entries. The list is no longer held to forty.
+- **Adding a pack**: the app's Camo packs screen (Settings, Multiplayer) adds
+  one from a `.zip`, `.iwd` or loose `.iwi` files and converts it on the
+  phone, lists each pack with previews, author and link, and switches packs
+  off; `setup -CamoPacks <folder>` (or `setup\camo-packs\`) converts zip, rar,
+  7z, iwd and loose files in any layout. `tools/import_pack.py` works out
+  what each image was made for by its name.
+- **Packs by Sloth and jdhruv**, credited with their threads: Solid Colours
+  and Bubble Gum are fetched by setup and the app; Interstellar, Exclusion
+  Zone, Classic Camos and Diamond, which follow other Call of Duty games'
+  camouflages or the game's own textures, are imported from the player's own
+  download. Diamond's whole-weapon skins become one camouflage with a tile a
+  weapon.
+- **Animated camos**: a still camouflage can scroll, shimmer or cycle its
+  hue (`"animation"` in pack.json), drawn by the port's renderer. *Animate
+  Gold-type camos (Sloth's style)* gives every camouflage made for Gold the
+  scrolling look of Sloth's Animated Camos Mod; *Animate* on a pack does it
+  for that pack.
+- A camouflage's preview follows the focused row in the same frame.
+- `pack.json` has no `permission` line; `camos/options.txt` holds the
+  player's choices about packs.
 
 ## [v0.1.1] - 2026-11-21
 

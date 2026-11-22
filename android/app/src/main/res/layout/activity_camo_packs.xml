@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The packs, under a header (camo_packs_header) that scrolls with them: a
+     phone held sideways has no room for both to stand still. -->
+<ListView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/camo_pack_list"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0B1220"
+    android:padding="20dp"
+    android:clipToPadding="false"
+    android:divider="@android:color/transparent"
+    android:dividerHeight="8dp" />

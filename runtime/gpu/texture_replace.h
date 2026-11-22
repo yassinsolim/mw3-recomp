@@ -43,12 +43,23 @@ namespace gpu::replace
     // Makes the texture of `key` switchable, as one of `group`. Before the
     // texture is first read: an image already made stays as it was made.
     void Switchable(uint32_t group, uint64_t key);
+    // How one still picture of a switchable texture moves: frames made from
+    // it when it is chosen, shown in turn as a file animation's are. Scroll
+    // slides it across itself diagonally (the look of a scrolling camouflage
+    // material, as Sloth's Animated Camos Mod gives Gold on PC), Shimmer runs
+    // a band of light over it, and Hue turns its colours round the wheel.
+    // Each loops without a jump over kEffectFrames frames.
+    enum class Effect : uint8_t { None, Scroll, Shimmer, Hue };
+    constexpr uint32_t kEffectFrames = 48;
+
     // What the textures of `group` show from now on: the frames in order, at
     // `fps` when there are several, each made the size of the title's own
     // picture; or with no frames, the folder's replacement where there is one
-    // and the title's own picture where there is not. Decodes on the calling
+    // and the title's own picture where there is not. One frame with an
+    // effect is kEffectFrames of them at `fps`. Decodes on the calling
     // thread. Callable from any thread.
-    void Select(uint32_t group, const std::vector<std::filesystem::path>& frames, double fps);
+    void Select(uint32_t group, const std::vector<std::filesystem::path>& frames, double fps,
+                Effect effect = Effect::None);
 
     // The level the key is taken over: the lowest the sampler may use, which
     // is the base unless the title has yet to stream the base in. A streamed

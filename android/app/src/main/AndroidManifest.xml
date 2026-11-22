@@ -135,6 +135,14 @@
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
         <activity
+            android:name=".CamoPacksActivity"
+            android:exported="false"
+            android:parentActivityName=".SettingsActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <activity
             android:name=".InstallActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"

@@ -83,16 +83,19 @@ fi
 # The camouflage pack the multiplayer app carries (docs/textures.md,
 # "Camouflage packs"): the project's own, drawn here by tools/camo_gen.py and
 # never committed. It needs Python with Pillow and numpy; without them the
-# app is built without the pack and lists the game's camouflages alone. The
-# packs of other authors (setup/camo-packs.json) are fetched by
-# setup/setup.ps1 only.
-CAMO_PACK="${REPOSITORY_ROOT}/android/app/src/mw3/assets/camos/mw3-recomp-originals"
+# app is built without the pack and lists the game's camouflages alone. Other
+# authors' packs are not in the app: it fetches or converts them itself
+# (CamoPacksActivity.kt), by the list of known packs copied beside.
+CAMO_ASSETS="${REPOSITORY_ROOT}/android/app/src/mw3/assets"
+CAMO_PACK="${CAMO_ASSETS}/camos/mw3-recomp-originals"
 if python3 -c 'import PIL, numpy' >/dev/null 2>&1; then
     echo "Drawing the bundled camouflage pack"
     python3 "${REPOSITORY_ROOT}/tools/camo_gen.py" --pack "${CAMO_PACK}"
 else
     echo "No Python with Pillow and numpy: the multiplayer app is built without its camouflage pack." >&2
 fi
+mkdir -p "${CAMO_ASSETS}"
+cp "${REPOSITORY_ROOT}/setup/camo-packs.json" "${CAMO_ASSETS}/camo-packs.json"
 
 echo
 echo "Done. The next Gradle build will find libadrenotools (cmake/android.cmake)"

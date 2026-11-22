@@ -30,7 +30,7 @@ Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
 | Bots in your matches (the launcher's **Bots** entry, 0 to 17) | join, fight and score | same (`MW2_BOTS`) |
 | Voice chat (off by default; push-to-talk) | built, not yet tested | built, not yet tested |
 | Everything unlocked in multiplayer, with fifteen custom classes | yes, chosen camos show in matches | yes |
-| Extra camouflages below Gold in multiplayer ([packs](docs/textures.md#camouflage-packs)) | works | works |
+| Extra camouflages below Gold in multiplayer ([camo packs](#camo-packs)) | works | works |
 | Custom skins (texture replacement, animated) | works | should work, not tested |
 | Audio | works | not checked |
 | Controls | touch overlay, Bluetooth/USB controllers | controller, keyboard and mouse |
@@ -161,6 +161,36 @@ Start `out\pc\Multiplayer.cmd` or `out\pc\Campaign.cmd`. Settings live in
 [docs/switches.md](docs/switches.md)); setup writes one with your player name,
 the public relay and a 1280×720 window (`MW2_FULLSCREEN=1` for full screen,
 F8 toggles it). The log is `out\pc\mw3.log`.
+
+## Camo packs
+
+The multiplayer lists extra camouflages below Gold in Create a Class, each
+under its own name, beside the game's own: no pack replaces a camouflage of
+the game's or of another pack. Pick one like any other; it shows on your
+weapon in a match (other players see Gold).
+
+| pack | by | how you get it |
+|---|---|---|
+| MW3 Recomp Originals (13 animated) | this project | comes with the game |
+| [Solid Colours](https://forum.plutonium.pw/topic/27407/release-solid-colours-camo-pack) (13) | Sloth | fetched by setup, or the app's *Get the project's packs* |
+| [Bubble Gum](https://forum.plutonium.pw/topic/28668/release-bubble-gum-camo) | Sloth | fetched the same way |
+| [Interstellar](https://forum.plutonium.pw/topic/34225/release-mwiii-interstellar-camo), [Exclusion Zone](https://forum.plutonium.pw/topic/27811/release-mwr-exclusion-zone-camo), [Classic Camos](https://forum.plutonium.pw/topic/27905/release-classic-camos-pack) (12) | Sloth | download it from his thread, then add it yourself |
+| [Diamond](https://forum.plutonium.pw/topic/19998/release-diamond-camo-for-all-weapons-mw3) | jdhruv | download it from his thread, then add it yourself |
+
+**Add any PC camo pack** (a Plutonium MW3 camouflage mod):
+
+- *On the phone*: Settings → Multiplayer → Camo packs → **Add a pack from a
+  file**, and pick the `.zip` you downloaded (or its `.iwi` files). The same
+  screen shows every pack with its previews, author and link, switches a
+  pack off, and has **Animate Gold-type camos (Sloth's style)**, the moving
+  look of Sloth's
+  [Animated Camos Mod](https://forum.plutonium.pw/topic/32870/release-client-side-animated-camos-mod).
+- *With setup*: put the downloads (`.zip`, `.rar`, `.7z`, `.iwd` or loose
+  `.iwi`, as they are) in `setup\camo-packs\`, or run
+  `setup\setup.cmd -CamoPacks <folder>`.
+
+How it works, the pack format and whose each pack's artwork is:
+[docs/textures.md](docs/textures.md#camouflage-packs).
 
 ## Online play
 
@@ -296,6 +326,11 @@ This port stands on the work of others:
   and Michroma fonts
 - [LibertyRecomp](https://github.com/OZORDI/LibertyRecomp) and
   [gta4-ps4](https://github.com/plastikman/gta4-ps4): related recompilation work
+- Camouflage packs: [Sloth](https://forum.plutonium.pw/user/sloth)
+  (SadSlothXL) for Solid Colours, Bubble Gum, Interstellar, Exclusion Zone,
+  Classic Camos and the Animated Camos Mod whose look the Animate option
+  follows, and [jdhruv](https://forum.plutonium.pw/user/jdhruv) for Diamond
+  ([Camo packs](#camo-packs))
 
 Their licences: [THIRD_PARTY.md](THIRD_PARTY.md).
 

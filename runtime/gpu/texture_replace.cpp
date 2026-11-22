@@ -75,6 +75,12 @@ namespace
         bool switchable = false;
         std::vector<fs::path> chosen;
         double chosenFps = 12.0;
+        gpu::replace::Effect chosenEffect = gpu::replace::Effect::None;
+        // `request` counts what was asked for (Select) and `choice` what the
+        // pictures in hand are of: the second moves only as `pictures` does,
+        // so an image never marks a choice shown while it still holds the
+        // last one's pictures and then keeps them.
+        uint32_t request = 0;
         uint32_t choice = 0;
         // The original's format and the size of its keyed level, known from
         // its first Load on; every picture of a switchable texture is made
@@ -460,14 +466,84 @@ namespace
         return true;
     }
 
+    // Frame `frame` of kEffectFrames of the still picture `rgba` under
+    // `effect`. Every effect is periodic over the picture, which is drawn
+    // tiled, and over the frames.
+    std::vector<uint8_t> Moved(const std::vector<uint8_t>& rgba, uint32_t width, uint32_t height,
+                               gpu::replace::Effect effect, uint32_t frame)
+    {
+        using gpu::replace::Effect;
+        constexpr float kTurn = 6.2831853f;
+        const float phase = float(frame) / float(gpu::replace::kEffectFrames);
+        std::vector<uint8_t> out(rgba.size());
+        const auto texel = [&](uint32_t x, uint32_t y) { return rgba.data() + (size_t(y % height) * width + x % width) * 4; };
+        // Hue: a rotation about the grey axis, which keeps a colour's lightness.
+        const float c = std::cos(phase * kTurn), s = std::sin(phase * kTurn);
+        const float diagonal = (1.0f + 2.0f * c) / 3.0f, plus = (1.0f - c) / 3.0f + s * 0.57735f,
+                    minus = (1.0f - c) / 3.0f - s * 0.57735f;
+        for (uint32_t y = 0; y < height; y++)
+            for (uint32_t x = 0; x < width; x++)
+            {
+                uint8_t* to = out.data() + (size_t(y) * width + x) * 4;
+                const uint8_t* from = texel(x, y);
+                if (effect == Effect::Scroll)
+                {
+                    // A whole width and height a loop, between texels by weight.
+                    const float u = float(x) + phase * float(width), v = float(y) + phase * float(height);
+                    const uint32_t x0 = uint32_t(u), y0 = uint32_t(v);
+                    const float fx = u - float(x0), fy = v - float(y0);
+                    const uint8_t *a = texel(x0, y0), *b = texel(x0 + 1, y0), *d = texel(x0, y0 + 1),
+                                  *e = texel(x0 + 1, y0 + 1);
+                    for (int channel = 0; channel < 4; channel++)
+                        to[channel] = uint8_t((a[channel] * (1 - fx) + b[channel] * fx) * (1 - fy) +
+                                              (d[channel] * (1 - fx) + e[channel] * fx) * fy + 0.5f);
+                }
+                else if (effect == Effect::Shimmer)
+                {
+                    const float wave = 0.5f + 0.5f * std::cos((float(x) / float(width) + float(y) / float(height) - phase) * kTurn);
+                    const float light = 1.0f + 0.9f * std::pow(wave, 8.0f);
+                    for (int channel = 0; channel < 3; channel++)
+                        to[channel] = uint8_t(std::min(255.0f, from[channel] * light));
+                    to[3] = from[3];
+                }
+                else
+                {
+                    const float r = from[0], g = from[1], b = from[2];
+                    to[0] = uint8_t(std::clamp(r * diagonal + g * minus + b * plus, 0.0f, 255.0f));
+                    to[1] = uint8_t(std::clamp(r * plus + g * diagonal + b * minus, 0.0f, 255.0f));
+                    to[2] = uint8_t(std::clamp(r * minus + g * plus + b * diagonal, 0.0f, 255.0f));
+                    to[3] = from[3];
+                }
+            }
+        return out;
+    }
+
     // The pictures of a switchable texture as things stand: what was chosen,
     // else the folder's replacement, else the title's own. Called without the
     // lock, with what it reads of the entry copied out under it.
     std::vector<std::shared_ptr<const gpu::TextureData>> Chosen(
         const std::vector<fs::path>& files, const std::shared_ptr<const gpu::TextureData>& own,
-        uint32_t format, bool gamma, uint32_t width, uint32_t height)
+        uint32_t format, bool gamma, uint32_t width, uint32_t height, gpu::replace::Effect effect)
     {
         std::vector<std::shared_ptr<const gpu::TextureData>> pictures;
+        if (files.size() == 1 && effect != gpu::replace::Effect::None)
+        {
+            std::vector<uint8_t> still;
+            uint32_t w = 0, h = 0;
+            const char* error = nullptr;
+            if (ReadPicture(files[0], still, w, h, error))
+            {
+                Resize(still, w, h, width, height);
+                for (uint32_t frame = 0; frame < gpu::replace::kEffectFrames; frame++)
+                {
+                    const auto made = std::make_shared<gpu::TextureData>();
+                    made->bytes = Moved(still, w, h, effect, frame);
+                    Shape(w, h, format, gamma, *made);
+                    pictures.push_back(made);
+                }
+                return pictures;
+            }
+        }
         // An image's frame is a byte of what it says it shows (Showing).
         for (size_t i = 0; i < files.size() && i < 255; i++)
         {
@@ -554,7 +630,7 @@ void gpu::replace::Switchable(uint32_t group, uint64_t key)
 }
 
 void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::path>& frames,
-                          double fps)
+                          double fps, Effect effect)
 {
     // Decoded here, on the caller's thread, for the textures whose shape is
     // known: the renderer then only copies (Due). The rest decode when they
@@ -562,8 +638,9 @@ void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::pat
     struct Shaped
     {
         Entry* entry;
-        uint32_t choice, format, width, height;
+        uint32_t request, format, width, height;
         bool gamma;
+        Effect effect;
         std::vector<fs::path> files;
         std::shared_ptr<const gpu::TextureData> own;
     };
@@ -573,22 +650,25 @@ void gpu::replace::Select(uint32_t group, const std::vector<std::filesystem::pat
         for (auto& [key, entry] : s.index)
         {
             if (!entry.switchable || entry.group != group) continue;
-            if (entry.chosen == frames && entry.chosenFps == fps) continue;
+            if (entry.chosen == frames && entry.chosenFps == fps && entry.chosenEffect == effect) continue;
             entry.chosen = frames;
             entry.chosenFps = fps;
-            entry.choice++;
+            entry.chosenEffect = effect;
+            entry.request++;
             if (entry.shaped)
-                shaped.push_back({ &entry, entry.choice, entry.format, entry.width, entry.height,
-                                   entry.gamma, FilesOf(entry), entry.own });
+                shaped.push_back({ &entry, entry.request, entry.format, entry.width, entry.height,
+                                   entry.gamma, frames.empty() ? Effect::None : effect, FilesOf(entry),
+                                   entry.own });
         }
     }
     for (Shaped& one : shaped)
     {
-        auto pictures = Chosen(one.files, one.own, one.format, one.gamma, one.width, one.height);
+        auto pictures = Chosen(one.files, one.own, one.format, one.gamma, one.width, one.height, one.effect);
         std::lock_guard lock(s.lock);
         // Chosen again meanwhile: that call's pictures are the ones to keep.
-        if (one.entry->choice != one.choice) continue;
+        if (one.entry->request != one.request) continue;
         one.entry->pictures = std::move(pictures);
+        one.entry->choice++;
     }
 }
 
@@ -685,7 +765,8 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
         Shape(width, height, fetch.Format(), gamma, *own);
 
         std::vector<fs::path> files;
-        uint32_t choice = 0;
+        uint32_t request = 0;
+        Effect effect = Effect::None;
         {
             std::lock_guard lock(s.lock);
             entry->shaped = true;
@@ -695,12 +776,18 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
             entry->gamma = gamma;
             entry->own = own;
             files = FilesOf(*entry);
-            choice = entry->choice;
+            request = entry->request;
+            // The effect belongs to what was chosen, not to the folder's or the title's picture.
+            if (!entry->chosen.empty()) effect = entry->chosenEffect;
         }
-        auto pictures = Chosen(files, own, fetch.Format(), gamma, width, height);
+        auto pictures = Chosen(files, own, fetch.Format(), gamma, width, height, effect);
         std::lock_guard lock(s.lock);
         // Chosen again meanwhile, and decoded there now that the shape is known.
-        if (entry->choice == choice || entry->pictures.empty()) entry->pictures = std::move(pictures);
+        if (entry->request == request || entry->pictures.empty())
+        {
+            entry->pictures = std::move(pictures);
+            entry->choice++;
+        }
         if (frame) *frame = Showing(*entry);
         return entry->pictures[FrameNow(*entry)];
     }

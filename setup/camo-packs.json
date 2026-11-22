@@ -1,1 +1,93 @@
-[]
+{
+  "release": {
+    "repo": "yassinsolim/mw3-android",
+    "tag": "camo-packs"
+  },
+  "packs": [
+    {
+      "id": "solid-colours",
+      "name": "Solid Colours",
+      "label": "Solid",
+      "author": "Sloth",
+      "url": "https://forum.plutonium.pw/topic/27407/release-solid-colours-camo-pack",
+      "match": [
+        "solid colo*"
+      ],
+      "art": "original",
+      "asset": "solid-colours.zip",
+      "sha256": "bbdf8b95abdf7f2adbfc625797e09efa1e484972098abe60896ef56bb97c969a",
+      "names": {
+        "snow": "White"
+      }
+    },
+    {
+      "id": "bubble-gum",
+      "name": "Bubble Gum",
+      "author": "Sloth",
+      "url": "https://forum.plutonium.pw/topic/28668/release-bubble-gum-camo",
+      "match": [
+        "bubble gum*",
+        "bubblegum*"
+      ],
+      "art": "original",
+      "asset": "bubble-gum.zip",
+      "sha256": "e22cfba2eb48078f16f1efbbf7e03eff9b1743bcb1435c5727502880b15d1751"
+    },
+    {
+      "id": "interstellar",
+      "name": "Interstellar",
+      "author": "Sloth",
+      "url": "https://forum.plutonium.pw/topic/34225/release-mwiii-interstellar-camo",
+      "match": [
+        "interstellar*"
+      ],
+      "art": "port"
+    },
+    {
+      "id": "exclusion-zone",
+      "name": "Exclusion Zone",
+      "author": "Sloth",
+      "url": "https://forum.plutonium.pw/topic/27811/release-mwr-exclusion-zone-camo",
+      "match": [
+        "exclusion zone*"
+      ],
+      "art": "port"
+    },
+    {
+      "id": "classic-camos",
+      "name": "Classic Camos",
+      "label": "Classic",
+      "author": "Sloth",
+      "url": "https://forum.plutonium.pw/topic/27905/release-classic-camos-pack",
+      "match": [
+        "classic camo*"
+      ],
+      "art": "port",
+      "names": {
+        "classic": "COD4 Blue Tiger",
+        "snow": "COD4 Red Tiger",
+        "multi": "MW2 Red Urban",
+        "d_urban": "MW2 Fall",
+        "hex": "BO1 Tiger",
+        "choco": "BO1 Red",
+        "snake": "BO2 Art of War",
+        "blue": "BO2 Cherry Blossom",
+        "red": "Ghosts Kiss of Death",
+        "autumn": "Ghosts Space Cats",
+        "marine": "BO3 Bliss",
+        "winter": "BO3 Intergalactic"
+      }
+    },
+    {
+      "id": "diamond",
+      "name": "Diamond",
+      "author": "jdhruv",
+      "url": "https://forum.plutonium.pw/topic/19998/release-diamond-camo-for-all-weapons-mw3",
+      "match": [
+        "diamond camo*",
+        "diamond"
+      ],
+      "art": "port"
+    }
+  ]
+}
