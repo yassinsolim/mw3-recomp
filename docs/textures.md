@@ -657,8 +657,10 @@ committed to this repository.
 | [Diamond](https://forum.plutonium.pw/topic/19998/release-diamond-camo-for-all-weapons-mw3) | jdhruv | the game's own weapon textures with a diamond pattern laid over them | 1 (33 weapons) | import your own download |
 
 A pack whose art is its author's own is converted once and kept as an asset
-of a release of the project (`release` and `asset` in `setup/camo-packs.json`,
-with its SHA-256), from where setup and the app fetch it. A port of another
+of the `camo-packs` release of the public repository (`release` and `asset`
+in `setup/camo-packs.json`, with its SHA-256;
+[android-releases.md](android-releases.md#the-camo-packs-release)), from
+where setup and the app fetch it. A port of another
 Call of Duty's camouflage, or a pack built on the game's own textures, is
 Activision's design: the project does not pass it on, and it gets in only as
 the file a player downloaded themselves and imported.

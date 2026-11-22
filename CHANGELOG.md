@@ -4,6 +4,51 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.2] - 2026-11-22
+
+### Highlights
+- **Far fewer stutters, and none of the long ones.** Shaders compile in the
+  background and what is compiled is saved as you play; a network thread
+  that took a whole processor core in every multiplayer match now sleeps.
+  A first Seatown match on an AYN Thor: 550 hitches to 91, the longest
+  463 ms to 68.
+- **Unlock all covers everything in Modern Warfare 3's multiplayer**: every
+  strike package, fifteen custom classes, all camouflages (Settings,
+  Multiplayer; on unless you switch it off). Your stats are not changed.
+- **Bots are easy to find**: a Bots entry under Multiplayer on the start
+  screen, a Multiplayer tab in Settings, and the pause menu changes their
+  number in a match.
+- **Camo packs**: every camouflage of every pack is an entry of its own
+  below Gold, and nothing of the game's is replaced. Camo packs (Settings,
+  Multiplayer) adds any PC pack from a .zip, .iwd or .iwi files, and
+  fetches Solid Colours and Bubble Gum by Sloth, credited with his threads.
+- **Animated camos**: a still camouflage can scroll, shimmer or cycle its
+  hue.
+- **Less texture memory** on Turnip: compressed textures stay compressed.
+
+The game package built for v0.1.0 or v0.1.1 still fits: nothing to build
+again.
+
+### Changed
+- **Unlock all covers the strike packages**: every Assault, Support and
+  Specialist streak can be ticked and is given in a match (they needed the
+  rank's unlock tokens: only each package's first three could be chosen).
+  Also **fifteen custom classes** instead of five, and the **Marine and
+  Winter camouflages**. As before nothing is written to the stats. Prestige
+  Mode and its shop are left as earned. `MW2_TRACE_UNLOCKS=1` (diagnostics
+  builds) logs what the title asks and would have answered.
+- **The camo packs' credits list the pack the app carries** before the
+  multiplayer has first copied it into the game folder.
+- A camouflage's preview follows the focused row in the same frame.
+- `pack.json` has no `permission` line; `camos/options.txt` holds the
+  player's choices about packs.
+- **The hosted camo packs are in the public repository's `camo-packs`
+  release** (`yassinsolim/mw3-recomp`; `release` in `setup/camo-packs.json`):
+  setup and the app's *Get the project's packs* fetch them from there, and
+  the project's own pack links to that repository
+  ([docs/android-releases.md](docs/android-releases.md#the-camo-packs-release)).
+
+### Fixed
 - **Far fewer stutters, and none of the long ones** (both games, most of all
   multiplayer on a Snapdragon with Turnip). On an AYN Thor a first Seatown
   match went from 550 late frames in four and a half minutes, the longest
@@ -22,6 +67,7 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   - New switches: `MW2_COMPILE_THREADS`, `MW2_ONE_PIPELINE_CREATION`,
     `MW2_ADRENO_BC=sw` (docs/switches.md).
 
+### Added
 - **Bots are on the start screen** (Modern Warfare 3 multiplayer): a
   **Bots** entry under **Multiplayer** sets how many, how good and whether
   they all play against the players, and shows what is set. They were at the
@@ -29,15 +75,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   **Multiplayer** tab now (Bots, Unlocks, Matches, Match options), and the
   pause menu changes the number of bots in a match. Bots join the matches
   this device hosts: System Link, Create Game, or a private match.
-- **Unlock all covers the strike packages**: every Assault, Support and
-  Specialist streak can be ticked and is given in a match (they needed the
-  rank's unlock tokens: only each package's first three could be chosen).
-  Also **fifteen custom classes** instead of five, and the **Marine and
-  Winter camouflages**. As before nothing is written to the stats. Prestige
-  Mode and its shop are left as earned. `MW2_TRACE_UNLOCKS=1` (diagnostics
-  builds) logs what the title asks and would have answered.
-- **The camo packs' credits list the pack the app carries** before the
-  multiplayer has first copied it into the game folder.
 - **Any PC camo pack, without clashes** (Modern Warfare 3 multiplayer). Every
   camouflage of every pack is an entry of its own below Gold, named with its
   pack (`SOLID - RED`, `INTERSTELLAR - SLOTH`): a PC mod's replacement of
@@ -61,9 +98,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Gold-type camos (Sloth's style)* gives every camouflage made for Gold the
   scrolling look of Sloth's Animated Camos Mod; *Animate* on a pack does it
   for that pack.
-- A camouflage's preview follows the focused row in the same frame.
-- `pack.json` has no `permission` line; `camos/options.txt` holds the
-  player's choices about packs.
 
 ## [v0.1.1] - 2026-11-21
 

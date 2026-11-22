@@ -618,7 +618,7 @@ def write_pack(out):
         "name": "MW3 Recomp Originals",
         "label": "Originals",
         "author": "the MW3 Recomp contributors",
-        "url": "https://github.com/yassinsolim/mw3-android",
+        "url": "https://github.com/yassinsolim/mw3-recomp",
         "camos": camos,
     }
     with open(os.path.join(out, "pack.json"), "w", encoding="utf-8", newline="\n") as f:

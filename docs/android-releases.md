@@ -46,6 +46,24 @@ signed with another, and a lost key means every player uninstalling.
    as the changelog; say so when the game code has to be rebuilt) and
    publish. Drafts are invisible to the apps.
 
+## The camo packs release
+
+Modern Warfare 3's public repository has one more release, `camo-packs`,
+which is no version of the app: its assets are the camouflage packs the
+project may pass on ([textures.md](textures.md), Camouflage packs), each a
+zip of the pack's folder with its `pack.json` naming the author and the
+thread. `setup/camo-packs.json` names the repository, the tag, each asset
+and its SHA-256; setup and the app's **Get the project's packs** download
+from there, so the release has to be published for either to find it.
+
+It is marked a pre-release and has to stay one: setup takes the app from the
+repository's *latest* release, which a pre-release never is. The app's own
+update check passes it over, as it has no APK.
+
+A pack that is replaced gets its new SHA-256 in `setup/camo-packs.json`
+before the app is released: an app carries the list it was built with, and
+refuses a download that does not match it.
+
 ## Trying the update without publishing
 
 A debug build can be pointed at a list of releases served from the PC:
