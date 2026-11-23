@@ -1,21 +1,22 @@
-// Bots for the multiplayer of Modern Warfare 3 and of Modern Warfare 2 (the
-// disc's executable): MW2_BOTS=<n> keeps n of them in every match this copy
-// hosts.
+// Bots for the multiplayer of Modern Warfare 3, of Modern Warfare 2 (the
+// disc's executable) and of Call of Duty 4: MW2_BOTS=<n> keeps n of them in
+// every match this copy hosts.
 //
-// Both executables have the server half of IW's test clients (title.h, "Bots"):
-// a client whose address type is 0 is exempt from the challenge and the
-// registration check in SV_DirectConnect, nothing addressed to it reaches a
-// socket, and SV_BotUserMoves thinks for it every server frame. Modern Warfare
-// 2 still has the function that puts one there, SV_AddTestClient, and the
-// test-client flag the server spares one by; Modern Warfare 3 lost both. This
-// file makes that function's calls itself in either, with a name and a slot of
-// its own choosing, and replaces the stock think, which spins on the spot and
-// fires at random.
+// All three executables have the server half of IW's test clients (title.h,
+// "Bots"): a client whose address type is 0 is exempt from the challenge and
+// the registration check in SV_DirectConnect, nothing addressed to it reaches
+// a socket, and SV_BotUserMoves thinks for it every server frame. Call of
+// Duty 4 and Modern Warfare 2 still have the function that puts one there,
+// SV_AddTestClient, and the test-client flag the server spares one by; Modern
+// Warfare 3 lost both. This file makes that function's calls itself in each,
+// with a name and a slot of its own choosing, and replaces the stock think,
+// which spins on the spot and fires at random.
 //
 // Adding a bot:
-//   1. `connect bot<n> "<userinfo>"` goes into the server's argv and
-//      SV_DirectConnect is called with {type 0, IP 0, port n}. The userinfo
-//      carries the protocol, fastfile checksum and stats version read from the
+//   1. `connect bot<n> "<userinfo>"` (Call of Duty 4: `connect "<userinfo>"`)
+//      goes into the server's argv and SV_DirectConnect is called with
+//      {type 0, IP 0, port n}. The userinfo carries the protocol, and in the
+//      later games the fastfile checksum and stats version read from the
 //      title's own functions, so the checks a player's connect passes are
 //      passed and not skipped. The port is different for every bot: the
 //      function's first loop takes an equal address and port for a reconnect
@@ -24,9 +25,9 @@
 //      dvar's value. The value is replaced for the call so the bot lands in the
 //      highest free slot: a party member's slot is its index in the party,
 //      counted from 0, and SV_DirectConnect throws out whoever sits in it.
-//   3. The slot is at state 3, waiting for the client to ask for the gamestate
-//      and send "begin". Modern Warfare 2: the flag is set and
-//      SV_SendClientGameState and SV_ClientEnterWorld are called, as
+//   3. The slot is connected, waiting for the client to ask for the gamestate
+//      and send "begin". Call of Duty 4 and Modern Warfare 2: the flag is set
+//      and SV_SendClientGameState and SV_ClientEnterWorld are called, as
 //      SV_AddTestClient does. Modern Warfare 3: SV_SendClientGameState would
 //      drop a client that sent no stats (EXE_NEEDSTATS), so its three stores
 //      are made here before SV_ClientEnterWorld, and every frame the bot is
@@ -62,6 +63,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <random>
 #include <strings.h>
 
@@ -69,14 +71,21 @@
 
 namespace
 {
-    constexpr int kSlots = 18;                 // the most clients a server has
+    constexpr int kSlots = T_SV_MAX_CLIENTS;   // the most clients a server has
     constexpr int kMostBots = kSlots - 1;      // the host keeps a slot
     constexpr int32_t kSettle = 2000;          // ms of a new level before a bot joins: its scripts must be running
     constexpr int32_t kFrame = 50;             // ms, the server's frame
 
+    // A server client's states: free 0, a zombie 1, then connected, primed
+    // and active, which are 3 to 5 in the later games and 2 to 4 in Call of
+    // Duty 4.
+    constexpr uint32_t kActive = T_SVCLIENT_ACTIVE;
+    constexpr uint32_t kPrimed = kActive - 1;
+    constexpr uint32_t kConnected = kActive - 2;
+
     // The usercmd's layout is the title's (title.h, T_USERCMD_); its angles are
     // 16-bit and added to the player state's delta_angles. The first three
-    // buttons are the ones the stock think presses in both titles; the jump was
+    // buttons are the ones the stock think presses in every title; the jump was
     // found by pressing it (a bot leaves the ground at 209 units/s).
     constexpr uint32_t kButtonAttack = 0x1;
     constexpr uint32_t kButtonUseReload = 0x20;
@@ -85,7 +94,7 @@ namespace
 
     // What the script's sighttracepassed passes when characters do not block.
     constexpr uint32_t kSightMask = 0x00801803;
-    constexpr uint32_t kNoEntity = 0x7FF;
+    constexpr uint32_t kNoEntity = T_ENTITYNUM_NONE;
 
     constexpr uint32_t kSessionPlaying = 0;    // the gclient's session state
     constexpr uint32_t kTeamAxis = 1, kTeamAllies = 2;
@@ -110,11 +119,19 @@ namespace
         { "Veteran",  120, 0.5f, 700.0f, 180.0f, 4000, 150, true,  true  },
     };
 
-    const char* const kNames[kSlots] = {
+#ifdef COD4_TITLE
+    // The class menu's answers for the five default classes, as the title's
+    // own menu sends them.
+    constexpr const char* kClasses[5] = { "assault_mp", "specops_mp", "heavygunner_mp", "demolitions_mp", "sniper_mp" };
+#endif
+
+    const char* const kNames[] = {
         "Bot Atlas", "Bot Birch", "Bot Cobalt", "Bot Dune", "Bot Ember", "Bot Flint",
         "Bot Gale", "Bot Harbor", "Bot Indigo", "Bot Juniper", "Bot Kestrel", "Bot Lumen",
         "Bot Marrow", "Bot Nettle", "Bot Onyx", "Bot Pike", "Bot Quartz", "Bot Rook",
+        "Bot Sable", "Bot Tundra", "Bot Umber", "Bot Vesper", "Bot Wren", "Bot Yarrow",
     };
+    static_assert(kSlots <= int(std::size(kNames)), "a name for every slot");
 
     struct Settings
     {
@@ -279,7 +296,7 @@ namespace
         // In the match and on its feet: not a spectator, dead, or watching a killcam.
         bool Alive(int slot) const
         {
-            if (State(slot) != 5) return false;
+            if (State(slot) != kActive) return false;
             const uint32_t entity = Entity(slot);
             const uint32_t client = GameClient(slot);
             return client && int32_t(U32(entity + T_GENTITY_HEALTH)) > 0
@@ -290,9 +307,24 @@ namespace
         bool Read()
         {
             time = int32_t(U32(T_DATA_Svs + T_SVS_TIME));
-            count = std::min(int(U32(T_DATA_Svs + T_SVS_CLIENT_COUNT)), kSlots);
+#ifdef T_DATA_MaxClientsDvar
+            const uint32_t most = U32(U32(T_DATA_MaxClientsDvar) + T_DVAR_CURRENT);
+#else
+            const uint32_t most = U32(T_DATA_Svs + T_SVS_CLIENT_COUNT);
+#endif
+            count = int(std::min<uint32_t>(most, kSlots));
             clients = U32(T_DATA_Svs + T_SVS_CLIENTS);
             return clients && count > 0;
+        }
+
+        // What a client's `mr` must name: the level's number.
+        uint32_t ServerId() const
+        {
+#ifdef T_DATA_ServerIdDvar
+            return U32(U32(T_DATA_ServerIdDvar) + T_DVAR_CURRENT);
+#else
+            return U32(T_DATA_ServerId);
+#endif
         }
 
         uint32_t Call0(PPCFunc* function)
@@ -308,11 +340,20 @@ namespace
             Put32(hit, 0);
             ctx.r3.u64 = hit;
             ctx.r4.u64 = start;
+#ifdef T_SV_SIGHT_TRACE_END_AFTER_BOUNDS
+            ctx.r5.u64 = T_DATA_ZeroBounds;
+            ctx.r6.u64 = T_DATA_ZeroBounds;
+            ctx.r7.u64 = end;
+            ctx.r8.u64 = pass0;
+            ctx.r9.u64 = pass1;
+            ctx.r10.u64 = kSightMask;
+#else
             ctx.r5.u64 = end;
             ctx.r6.u64 = T_DATA_ZeroBounds;
             ctx.r7.u64 = pass0;
             ctx.r8.u64 = pass1;
             ctx.r9.u64 = kSightMask;
+#endif
             GUEST_FUNC(T_SV_SightTrace)(ctx, base);
             return U32(hit) == 0;
         }
@@ -381,10 +422,19 @@ namespace
                 function(ctx, base);
                 return ctx.r3.u32;
             };
+#ifdef T_BG_AmmoReserve
             if (int32_t(ask(GUEST_FUNC(T_BG_AmmoReserve), 0)) > 0) return;
+#else
+            const uint32_t type = U32(U32(T_DATA_WeaponDefs + weapon * 4) + T_WEAPONDEF_AMMO_TYPE);
+            if (int32_t(U32(state + T_PS_AMMO + type * 4)) > 0) return;
+#endif
             const int32_t most = int32_t(ask(GUEST_FUNC(T_BG_AmmoMax), 0));
             if (most <= 0) return;      // a weapon that takes none: the riot shield
+#ifdef T_BG_WeaponModel
             const uint32_t model = ask(GUEST_FUNC(T_BG_WeaponModel), 0);
+#else
+            const uint32_t model = PPC_LOAD_U8(state + T_PS_WEAPON_MODELS + weapon);
+#endif
             ctx.r3.u64 = Entity(slot);
             ctx.r4.u64 = weapon;
             ctx.r5.u64 = model;
@@ -407,10 +457,12 @@ namespace
 
     void Server::Join(int slot)
     {
+#ifndef T_SV_PROTOCOL
         const uint32_t protocol = Call0(GUEST_FUNC(T_ProtocolVersion));
         const uint32_t checksum = Call0(GUEST_FUNC(T_FF_Checksum));
         const int32_t statVersion = int32_t(Call0(GUEST_FUNC(T_Stats_Version)));
         const uint32_t statChecksum = Call0(GUEST_FUNC(T_Stats_FormatChecksum));
+#endif
 
         const uint16_t port = g_nextPort;
         g_nextPort = uint16_t(g_nextPort == 0xFFFF ? 1 : g_nextPort + 1);
@@ -422,20 +474,35 @@ namespace
         // bots share it.
         char address[73];
         for (int i = 0; i < 9; ++i) std::snprintf(address + i * 8, 9, "%08x", unsigned(g_random()));
+#ifdef T_SV_PROTOCOL
+        std::snprintf(line, sizeof line,
+                      "connect \"\\cg_predictItems\\1\\cl_anonymous\\0\\color\\4\\head\\default\\model\\multi"
+                      "\\snaps\\20\\rate\\5000\\name\\%s\\xuid\\%08x%08x\\xnaddr\\%s\\natType\\2\\protocol\\%u\"",
+                      kNames[slot], 0u, unsigned(port), address, T_SV_PROTOCOL);
+#else
         std::snprintf(line, sizeof line,
                       "connect bot%u \"\\cg_predictItems\\1\\cl_anonymous\\0\\color\\4\\head\\default\\model\\multi"
                       "\\snaps\\20\\rate\\5000\\name\\%s\\xuid\\%08x%08x\\xnaddr\\%s\\natType\\2"
                       "\\protocol\\%d\\checksum\\%d\\statver\\%d %u\"",
                       unsigned(port), kNames[slot], 0u, unsigned(port), address, int32_t(protocol), int32_t(checksum),
                       statVersion, statChecksum);
+#endif
 #else
         std::snprintf(line, sizeof line,
                       "connect bot%u \"\\name\\%s\\protocol\\%u\\checksum\\%u\\statver\\%d %u"
                       "\\challenge\\0\\xuid\\0\\invited\\0\\onlineStats\\0\\migrating\\0\"",
                       unsigned(port), kNames[slot], protocol, checksum, statVersion, statChecksum);
 #endif
+#ifdef T_Cmd_TokenizeStringKernel
+        ctx.r3.u64 = PutText(line);
+        ctx.r4.u64 = 512 - U32(T_DATA_SvCmdPool + 0x2820);
+        ctx.r5.u64 = T_DATA_SvCmdArgs;
+        ctx.r6.u64 = T_DATA_SvCmdPool;
+        GUEST_FUNC(T_Cmd_TokenizeStringKernel)(ctx, base);
+#else
         ctx.r3.u64 = PutText(line);
         GUEST_FUNC(T_SV_Cmd_TokenizeString)(ctx, base);
+#endif
 
         const uint32_t dvar = U32(T_DATA_FirstPublicSlotDvar);
         const uint32_t first = dvar ? U32(dvar + T_DVAR_CURRENT) : 0;
@@ -445,9 +512,16 @@ namespace
         GUEST_FUNC(T_SV_DirectConnect)(ctx, base);
         if (dvar) Put32(dvar + T_DVAR_CURRENT, first);
 
+#ifdef T_Cmd_TokenizeStringKernel
+        const uint32_t nesting = U32(T_DATA_SvCmdArgs);
+        Put32(T_DATA_SvCmdArgs, nesting - 1);
+        Put32(T_DATA_SvCmdPool + 0x2820, U32(T_DATA_SvCmdPool + 0x2820) - U32(T_DATA_SvCmdArgs + 0x44 + nesting * 4));
+        Put32(T_DATA_SvCmdPool + 0x2824, U32(T_DATA_SvCmdPool + 0x2824) - U32(T_DATA_SvCmdPool + 0x2800 + nesting * 4));
+#else
         GUEST_FUNC(T_SV_Cmd_EndTokenizedString)(ctx, base);
+#endif
 
-        if (State(slot) == 3 && IsBot(slot) && Port(slot) == port) {
+        if (State(slot) == kConnected && IsBot(slot) && Port(slot) == port) {
             g_bots[slot] = {};
             g_bots[slot].port = port;
 #ifdef T_SVCLIENT_TEST_CLIENT
@@ -467,12 +541,12 @@ namespace
 #ifdef T_SV_SendClientGameState
         ctx.r3.u64 = client;
         GUEST_FUNC(T_SV_SendClientGameState)(ctx, base);
-        if (State(slot) != 4) {
+        if (State(slot) != kPrimed) {
             LOGW("bots: %s was not sent the level (slot %d is at state %u)", kNames[slot], slot, State(slot));
             return;
         }
 #else
-        Put32(client, 4);
+        Put32(client, kPrimed);
         Put32(client + T_SVCLIENT_GAMESTATE_ACK, 0);
         Put32(client + T_SVCLIENT_GAMESTATE_MSG, U32(client + T_SVCLIENT_NETCHAN));
 #endif
@@ -498,7 +572,7 @@ namespace
         if (!g_menusRead) ReadMenus();
         if (g_teamMenu < 0 || g_classMenu < 0) return;
 
-        const uint32_t serverId = U32(T_DATA_ServerId);
+        const uint32_t serverId = ServerId();
         char line[96];
         if (bot.menuStep == 0) {
             const char* team = "autoassign";
@@ -506,7 +580,7 @@ namespace
                 // The side of the first player who has one; until then the bot waits.
                 uint32_t players = 0;
                 for (int i = 0; i < count && !players; ++i) {
-                    if (State(i) != 5 || IsBot(i) || !GameClient(i)) continue;
+                    if (State(i) != kActive || IsBot(i) || !GameClient(i)) continue;
                     const uint32_t side = U32(GameClient(i) + T_GCLIENT_TEAM);
                     if (side == kTeamAxis || side == kTeamAllies) players = side;
                 }
@@ -515,7 +589,11 @@ namespace
             }
             std::snprintf(line, sizeof line, "mr %u %d %s", serverId, g_teamMenu, team);
         } else {
+#ifdef COD4_TITLE
+            std::snprintf(line, sizeof line, "mr %u %d %s", serverId, g_classMenu, kClasses[Random(0, 4)]);
+#else
             std::snprintf(line, sizeof line, "mr %u %d class%d", serverId, g_classMenu, Random(0, 4));
+#endif
         }
         if (Traced()) LOGI("bots: %s answers \"%s\" (team %u, session %u)", Name(slot), line,
                            U32(GameClient(slot) + T_GCLIENT_TEAM), U32(GameClient(slot) + T_GCLIENT_SESSION_STATE));
@@ -807,7 +885,7 @@ namespace
 
         // A new level: the bots that came through it start again, and none joins
         // until its scripts have run for a moment.
-        const uint32_t serverId = U32(T_DATA_ServerId);
+        const uint32_t serverId = ServerId();
         if (serverId != g_serverId || time < g_lastTime) {
             g_serverId = serverId;
             g_levelStart = time;
@@ -837,7 +915,7 @@ namespace
 
         for (int i = 0; i < count; ++i) {
             const uint32_t state = State(i);
-            if (state < 3 || !IsBot(i)) continue;
+            if (state < kConnected || !IsBot(i)) continue;
             Bot& bot = g_bots[i];
             if (bot.port != Port(i)) { bot = {}; bot.port = Port(i); }
 #ifndef T_SVCLIENT_TEST_CLIENT
@@ -848,7 +926,7 @@ namespace
             // pile up until the server drops it ("Server command overflow").
             Put32(Client(i) + T_SVCLIENT_RELIABLE_ACKNOWLEDGE, U32(Client(i) + T_SVCLIENT_RELIABLE_SEQUENCE));
 #endif
-            if (state != 5) { if (settled) Enter(i); continue; }
+            if (state != kActive) { if (settled) Enter(i); continue; }
             Think(i, bot);
         }
     }

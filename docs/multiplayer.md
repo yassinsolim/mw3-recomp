@@ -579,8 +579,9 @@ private match, End Game.
 
 ## Bots and unlocks
 
-Bots are in Modern Warfare 3's multiplayer and in Modern Warfare 2's disc
-version (not its title update 6); the unlocks are Modern Warfare 3's only.
+Bots are in Modern Warfare 3's multiplayer, in Modern Warfare 2's disc
+version (not its title update 6) and in Call of Duty 4's; the unlocks are
+Modern Warfare 3's only.
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a
@@ -590,7 +591,7 @@ app:
 | where | what |
 |---|---|
 | the launcher, **Bots** under **Multiplayer** | how many (0 to 17), how good, and whether all of them play against the players; the entry shows what is set (`BOTS · 6 · REGULAR`) |
-| Settings → **Multiplayer** (a tab of its own; it was the end of the Graphics page, below Sound, which is why it was not found) | the same under the heading Bots, then, in Modern Warfare 3, Unlocks, Matches (map vote) and Match options |
+| Settings → **Multiplayer** (a tab of its own; it was the end of the Graphics page, below Sound, which is why it was not found) | the same under the heading Bots, then, in Modern Warfare 3 only, Unlocks, Matches (map vote) and Match options |
 | in a match, the app's pause menu → **Bots in my matches** | the number, at once: it sends the host's console `bots <n>` and keeps it as the setting |
 
 The launcher's and the Settings' take effect the next time the game starts.
@@ -668,6 +669,76 @@ circle on the wrong floor (Terminal's bots met less often than Rust's); no
 aiming down the sight, grenades, killstreaks or objectives; the bots are not
 in the party, and are added again after a map load. Title update 6 has no
 bots: its block has none of these addresses.
+
+### Call of Duty 4's bots
+
+The same file again, and the same shape as Modern Warfare 2's: the IW3
+executable has the whole of the test clients too.
+
+- **Joining.** `SV_AddTestClient` is `sub_82205A08`, the one user of the
+  format `connect "\cg_predictItems\1...\name\bot%d\xuid\%s\xnaddr\%s
+  \natType\2\protocol\%d"`; the script's `addtestclient` calls it. The line
+  has no client id before the userinfo, and the userinfo needs the protocol
+  (84) and nothing else: no fastfile checksum, no stats version. This engine
+  has no `SV_Cmd_TokenizeString` either, so `bots.cpp` calls
+  `Cmd_TokenizeStringKernel` with the server's argument block and takes the
+  line off again as the title's own callers do. The test-client flag spares
+  the bot the timeout and the stats, as in Modern Warfare 2.
+- **States and slots.** A client's states are one lower (connected 2, primed
+  3, active 4), and a server has 24 slots, not 18: the client count is the
+  dvar `sv_maxclients`, and `bots <n>` goes up to 23 on the PC (the app's
+  slider stops at 17).
+- **Team and class.** The menus are `team_marinesopfor` and `changeclass`;
+  the class answers are the default classes' names, `assault_mp`,
+  `specops_mp`, `heavygunner_mp`, `demolitions_mp` and `sniper_mp`. `mr`
+  compares the server id with the dvar `sv_serverid`.
+- **The usercmd** is 0x20 bytes: the weapon is a byte, forward and right are
+  at +0x16 and +0x17. No entity is 0x3FF.
+- **Sight.** The script's `sightTracePassed` calls a function that takes the
+  end point after the two bounds; `bots.cpp` calls that.
+- **Ammunition.** The script's `giveMaxAmmo` reads the rounds outside the
+  clip and the weapon's model out of the player state itself, so the top-up
+  does too.
+
+How each address was found is beside it in `runtime/title.h` ("Bots", in
+Call of Duty 4's multiplayer block).
+
+Run on the PC build (23 November 2026), six bots, Team Deathmatch from
+System Link, 400 s each on Crash and Backlot: every bot joined, chose a
+class and spawned, none was dropped, no "Server command overflow"; 51 and 53
+targets went down, and at 5:43 of the match the scoreboards read 210 to 140
+and 140 to 200 with every bot's kills and deaths but one bot's on Crash (no
+kill, eight deaths). 59.4 and 59.6 frames a second in play at the 60 limit,
+58.9 on Crash with no bot.
+
+Run on a Retroid Pocket Flip 2 (the app built `.dev`, six bots set from the
+launcher's Bots entry, Crash from System Link): the bots joined and fought
+for the whole ten-minute match, 136 targets went down, the scoreboard read
+450 to 420 near the end, and the app's counter read 60 to 61 FPS. The host
+watched as a spectator: its second press in the class menu was lost, as taps
+sent over adb often are.
+That run's build still counted 18 slots; six bots do not reach the
+difference.
+
+The leave rule, on the PC: a host with twenty-three bots (a full server of
+24) and a second copy on the same machine (`MW2_NETWORK=lan`), which joined
+with the `connect` line the host logs. The host logged `Bot Yarrow leaves
+slot 23 (a player needs the slot)` as the connect arrived; the player chose
+a team and a class, spawned, was killed by a bot, and was on the scoreboard
+of twelve against twelve. When it left, a bot took the slot again. Not run:
+a join from System Link's list, the party path, and a device joining an
+Android host.
+
+The other two games' bots after the change, PC builds, six bots in a System
+Link match, 200 s each: all six joined and spawned in both, 18 targets went
+down in Modern Warfare 3 and 35 in Modern Warfare 2, none was dropped.
+
+Limits, as the other two games': no path data, so a bot feels its way; no
+aiming down the sight, grenades, killstreaks or objectives; the bots are not
+in the party, and are added again after a map load. A System Link match
+gives a player ten ready-made classes and no Create a Class, so there is
+nothing to unlock there
+([COD4-BRINGUP.md](COD4-BRINGUP.md#open)).
 
 ## Voice chat
 

@@ -62,11 +62,11 @@ enum class Title(val library: String, val executable: String) {
         val isCod4: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.cod4.")
 
         /**
-         * Whether this app's multiplayer has bots (runtime/bots.cpp): both
-         * Modern Warfare games' disc executables have, Modern Warfare 2's
-         * title update 6 has not, and Call of Duty 4's have not been given any.
+         * Whether this app's multiplayer has bots (runtime/bots.cpp): the
+         * disc executables of both Modern Warfare games and of Call of Duty 4
+         * have, Modern Warfare 2's title update 6 has not.
          */
-        val hasBots: Boolean = MULTIPLAYER.carried && BuildConfig.MW2_TU == "tu0" && !isCod4
+        val hasBots: Boolean = MULTIPLAYER.carried && BuildConfig.MW2_TU == "tu0"
 
         /** The title an executable's name on the disc belongs to, if this app carries it. */
         fun forExecutable(name: String): Title? = carried.firstOrNull { it.executable == name }

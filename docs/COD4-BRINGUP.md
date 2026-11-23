@@ -198,6 +198,8 @@ those executables, started as the two files start them.
 | The same with no `highmip\` folder: plays, with the lower mips | **verified** | 256 `.hi` files asked for and not found |
 | Multiplayer reaches its main menu | **verified** | `pc-mp-main-menu.png` |
 | Multiplayer, a System Link match hosted on this machine: Shipment loads, team and class are chosen, the player spawns, walks, turns and fires, 60 frames a second | **verified** (`MW2_CONSOLE="30:set onlinegame 0;30.5:set systemlink 1;33:map mp_shipment"`) | `pc-mp-shipment-systemlink-sheet.png`, `pc-mp-shipment-systemlink.log` |
+| Multiplayer with six bots (`MW2_BOTS=6`), Crash and Backlot, 400 s each: they join, spawn, fight and score; 59.4 and 59.6 frames a second in play | **verified** | `..\cod4bots\crash_scoreboard.png`, `backlot_scoreboard.png`, `crash_sheet.png`, `backlot_sheet.png` |
+| A second copy joins a host full of bots (23) over `MW2_NETWORK=lan` by the host's `connect` line: a bot leaves, the player spawns | **verified** | `..\cod4bots\leaveguest_sheet.png` |
 | A second player joining that match; Xbox LIVE; split screen | **open**: not tried | |
 
 No unimplemented import was reached, no unknown GPU opcode, no guest fault in
@@ -219,6 +221,7 @@ controls, the app's defaults. The launcher finds
 | New Game: F.N.G. loads and draws; the left stick walks and the right turns | **verified** from that install, 119 FPS on the overlay (`thor-killhouse-ingame.png`, `thor-install-and-play.log`) | **verified** with the same build on files pushed by adb, which are the installer's byte for byte in count and size (`flip2-killhouse-moved.png`); not repeated after the install, the Flip 2 being shut and dozing between taps |
 | Multiplayer: a System Link match hosted on the device (Crash, from the console; Backlot, from the menus) | **verified**, 119.1 FPS | **verified**, 60.0 FPS |
 | Multiplayer: the Flip 2 joins the Thor's System Link match (Backlot) through a relay on the local network; both spawn, on opposite teams | **verified** (`perf-cod4\caps\sl_scoreboard_thor.jpg`, `sl_play_sheet.jpg`) | **verified** |
+| Multiplayer: six bots set from the launcher's Bots entry, Crash from System Link, a ten-minute match | not run | **verified**, 60 FPS (`..\cod4bots\flip\bots_in_view.png`, `scoreboard.png`, `launcher_bots_6.png`, `game.log`) |
 
 No guest fault, no `Com_Error`, no unimplemented import in either log.
 
@@ -387,7 +390,19 @@ against `android`:
   the system picks ([multiplayer.md](multiplayer.md#lan-and-server)); the
   draft `3c10903` has that. A copy still asks once, at start: after such a
   start the multiplayer is offline until it is started again.
-- Bots: this title has none (`Title.hasBots`).
+- Bots: the multiplayer has them, as the two later games do
+  ([multiplayer.md](multiplayer.md#call-of-duty-4s-bots)). Not run: the AYN
+  Thor, and a device joining an Android host that is full of bots.
+- Unlocks: none, and none needed where it was looked. A System Link match
+  offers ten ready-made classes (Grenadier to Sharpshooter) and no Create a
+  Class, so nothing is locked there. What a rank locks is Create a Class on
+  Xbox LIVE: the menus ask the stats through two expression operators,
+  `stat` (`sub_821F4968`) and `statRangeAnyBitsSet` (`sub_821F4830`), both
+  over `sub_821A1CC8(controller, index)`; a weapon's stat is 3000 and up, its
+  low sixteen bits the weapon, its attachments and its camouflages (derived
+  from the stock scripts' unlock functions, not run). Answering those two
+  with everything set would be the client-side switch; not done, there being
+  no ranked menu reached to check it against.
 - The published app played by hand: the levels, the multiplayer, the two
   devices in one match (above), and a way to give a release build
   `MW2_REPORT`.

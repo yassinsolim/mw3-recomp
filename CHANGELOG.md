@@ -4,6 +4,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Bots in Call of Duty 4's multiplayer.** The launcher's **Bots** entry,
+  Settings → Multiplayer and the pause menu's **Bots in my matches** are in
+  Call of Duty 4's app as well: choose how many (up to 17) and how good,
+  host a System Link game, and the bots join it, pick a team and a class,
+  fight, score and leave to make room when a player joins. On the PC:
+  `MW2_BOTS` (up to 23: this game's server has 24 slots), `MW2_BOT_SKILL`,
+  `MW2_BOT_TEAMS`. `runtime/bots.cpp` plays all three games' bots now; Call
+  of Duty 4's addresses are in `runtime/title.h` with how each was found
+  ([docs/multiplayer.md](docs/multiplayer.md#call-of-duty-4s-bots)). The game
+  package built for v0.1.0 still fits: nothing to build again.
+
 ## [v0.1.5] - 2026-11-23
 
 Modern Warfare 3's and Modern Warfare 2's v0.1.5, and Call of Duty 4's first

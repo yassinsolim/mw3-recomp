@@ -86,6 +86,134 @@
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
 
+// Bots (bots.cpp, MW2_BOTS), as the two later games' blocks have them. The
+// whole of IW's test clients is here: SV_AddTestClient is sub_82205A08, the
+// one user of the format `connect "\cg_predictItems\1...\name\bot%d\xuid\%s
+// \xnaddr\%s\natType\2\protocol\%d"` (8206F058), and the script's
+// addtestclient (sub_82263110, from the function table at 823A3264) calls it.
+// It tokenises that line into the server's argv, calls SV_DirectConnect with
+// {type 0, IP 0, the port from a counter at 852EA810}, finds the client by
+// that address, sets its test-client flag, and calls SV_SendClientGameState
+// and SV_ClientEnterWorld with an empty usercmd. The flag (client+0xA0BF8) is
+// what the server spares a test client by: the timeout check (sub_821FDE38)
+// skips it and SV_SendClientGameState gives it the stats it would be dropped
+// for not sending (EXE_NEEDSTATS). SV_BotUserMove (sub_821FE3F8, the one
+// caller of SV_ClientThink besides SV_UserMove) is the stock think for one
+// client, and SV_BotUserMoves the loop over those of address type 0, called
+// first thing every server frame (sub_821FE7D0).
+#define T_SV_BotUserMoves       821FE6D8
+#define T_SV_BotFrameBegin      82201B90   // what SV_BotUserMoves calls first
+// (the address by value in r3:r4), `connect "<userinfo>"` in the server's
+// argv. The userinfo's protocol must be 84 (cmpwi at 8220474C, and the
+// literal SV_AddTestClient formats); no checksum and no stats version here.
+#define T_SV_DirectConnect      822046C0
+#define T_SV_PROTOCOL             84u
+#define T_SV_SendClientGameState 822052B0  // (client): state 3
+#define T_SV_ClientThink        82206078   // (client, usercmd*)
+#define T_SV_ClientEnterWorld   822042E0   // (client, usercmd*): state 4 and ClientBegin
+#define T_SV_DropClient         822044A0   // (client, reason, tell); "EXE_DISCONNECTED" at 822045A4
+// (client, text, clientOK): the one caller of ClientCommand (sub_8227C2A0,
+// which compares argv[0] with "mr", "give", "take", ...).
+#define T_SV_ExecuteClientCommand 82205CB8
+// This engine has no SV_Cmd_TokenizeString of its own: SV_AddTestClient and
+// SV_ExecuteClientCommand call Cmd_TokenizeStringKernel(text, 512 less the
+// argv pool in use, the server's arguments, their pool) and take the line
+// off again by hand: nesting (args+0) down by one, and the pool's two totals
+// (+0x2820, +0x2824) less what that nesting used (args+0x44 and pool+0x2800,
+// a word for each nesting).
+#define T_Cmd_TokenizeStringKernel 822380C8
+#define T_DATA_SvCmdArgs          0x82A7B710u
+#define T_DATA_SvCmdPool          0x82A28EE0u
+// Cmd_MenuResponse_f (sub_8227AE30, ClientCommand's "mr") reads a menu's name
+// with it: configstring 1983 + the index, 32 of them. It compares the server
+// id with the dvar sv_serverid, registered at 822015F4 into 849AF4FC.
+#define T_SV_GetConfigstring    821FF938   // (index, buffer, size)
+#define T_CS_MENUS                0x7BFu
+#define T_DATA_ServerIdDvar       0x849AF4FCu
+// What the script's sightTracePassed (sub_82259F88, the function table at
+// 823A2D30) calls: (int* hit, start, mins, maxs, end, pass0, pass1, mask). It
+// traces the world with zero bounds whatever r5 and r6 hold, then the
+// entities but for the two to pass; 0x3FF is no entity, and the mask is the
+// script's when characters do not block (00801803, as in the later games).
+#define T_SV_SightTrace         8234CB98
+#define T_SV_SIGHT_TRACE_END_AFTER_BOUNDS 1
+#define T_DATA_ZeroBounds         0x82031810u   // what the script passes for both bounds
+#define T_ENTITYNUM_NONE          0x3FFu
+// svs (82EE1D80, SV_AddTestClient's lis/addi): +0xA1004 time (the timeout
+// check subtracts the dvars' seconds from it), +0xA100C the clients. The
+// count is the dvar sv_maxclients (the pointer at 82EE1D78), which every loop
+// over the clients reads.
+#define T_DATA_Svs                0x82EE1D80u
+#define T_SVS_TIME                0xA1004u
+#define T_SVS_CLIENTS             0xA100Cu
+#define T_DATA_MaxClientsDvar     0x82EE1D78u
+// A server client (0xA2C08 bytes): +0 state (0 free, 1 zombie, 2 connected,
+// 3 primed, 4 active: the names are in the server's own prints, "Going from
+// CS_FREE to CS_CONNECTED"), +8 the delta message, +0x10 the netchan (its
+// outgoing sequence first), +0x20 the address (type, IP, port at +8),
+// +0x21280 the gentity, +0xA0BF8 the test-client flag.
+#define T_SVCLIENT_SIZE           0xA2C08u
+#define T_SVCLIENT_ACTIVE         4u
+// The most clients a server has: a System Link game this copy hosts has 24
+// slots (the session is created with 23 public and one private), and the
+// script's team setter (sub_8235E170) refuses a client number above 24.
+#define T_SV_MAX_CLIENTS          24
+#define T_SVCLIENT_DELTA_MESSAGE  0x8u
+#define T_SVCLIENT_NETCHAN        0x10u
+#define T_SVCLIENT_ADDRESS        0x20u
+#define T_SVCLIENT_GENTITY        0x21280u
+#define T_SVCLIENT_TEST_CLIENT    0xA0BF8u
+// The first slot SV_DirectConnect offers a player who is not in the party and
+// not invited (82204D4C; a dvar pointer, the integer at +12).
+#define T_DATA_FirstPublicSlotDvar 0x82EE1D74u
+#define T_DVAR_CURRENT            12u
+// A gentity (0x274 bytes, the array at 8287C660): +0x15C the gclient, +0x1A0
+// health (the script's entity field table, 82046D88). A gclient (0x31B0
+// bytes): the player state first, then what the script's client fields read
+// (the table at 82047920 and its getters): +0x2F64 the session state (0
+// playing), +0x2F74 the killcam's archive time, +0x2F78 score, +0x2F7C
+// deaths, +0x2F80 kills, +0x3020 the team (0 free, 1 axis, 2 allies, 3
+// spectator), +0x3058 the name. The player state's offsets are the ones the
+// code reads: +0xE8 the weapon SV_BotUserMove copies into its usercmd, +0xB0
+// the flags the session state's setter toggles; origin, delta angles, view
+// angles and view height lie around them as in the engine's later versions,
+// and a traced bot's position, heading and aim confirmed them.
+#define T_GENTITY_CLIENT          0x15Cu
+#define T_GENTITY_HEALTH          0x1A0u
+#define T_GCLIENT_SESSION_STATE   0x2F64u
+#define T_GCLIENT_ARCHIVE_TIME    0x2F74u
+#define T_GCLIENT_TEAM            0x3020u
+#define T_GCLIENT_NAME            0x3058u
+#define T_PS_ORIGIN               0x1Cu
+#define T_PS_DELTA_ANGLES         0x64u
+#define T_PS_VIEW_ANGLES          0x108u
+#define T_PS_VIEW_HEIGHT          0x118u
+#define T_PS_WEAPON               0xE8u
+// What the script's giveMaxAmmo (sub_82282548, from the player method table
+// at 8204757C) does, in its order: the most rounds a player carries for a
+// weapon; the rounds he has outside the clip, which it reads itself (the
+// player state's ammunition, a word for each ammunition type from +0x15C,
+// the type being the word at +0x328 of the weapon's definition, whose
+// pointers are the table at 823B9CD8); the weapon's model, a byte for each
+// weapon from +0x81C; and Add_Ammo.
+#define T_BG_AmmoMax            82325428   // (player state, weapon, 0)
+#define T_G_AddAmmo             822726E0   // (gentity, weapon, model, rounds, fill the clip)
+#define T_DATA_WeaponDefs         0x823B9CD8u
+#define T_WEAPONDEF_AMMO_TYPE     0x328u
+#define T_PS_AMMO                 0x15Cu
+#define T_PS_WEAPON_MODELS        0x81Cu
+// The usercmd SV_BotUserMove fills (0x20 bytes, the eight words
+// SV_ClientEnterWorld copies): +0 the server time, +4 the buttons (it presses
+// 1 and 0x28), +8 the pitch and +0xC the yaw as 16-bit angles in a word each,
+// +0x14 the weapon as a byte (so the top of that word), +0x16 forward and
+// +0x17 right as signed bytes.
+#define T_USERCMD_SIZE            0x20u
+#define T_USERCMD_BUTTONS         0x4u
+#define T_USERCMD_ANGLES          0x8u
+#define T_USERCMD_WEAPON          0x14u
+#define T_USERCMD_WEAPON_SHIFT    24u
+#define T_USERCMD_MOVE            0x16u
+
 #elif defined(COD4_TITLE)
 
 #define MW2_TITLE_NAME  "CoD4 campaign"
@@ -503,6 +631,7 @@
 // (sub_822404D8) that passes one zero vector as the bounds.
 #define T_SV_SightTrace         822D0ED8   // (int* hit, start, end, bounds, pass0, pass1, mask)
 #define T_DATA_ZeroBounds         0x820333BCu
+#define T_ENTITYNUM_NONE          0x7FFu      // no entity to pass
 #define T_FF_Checksum           820E0258   // the userinfo's "checksum"
 #define T_Stats_Version         82289AC8   // "statver", the "%i"
 #define T_Stats_FormatChecksum  82289AF8   // "statver", the "%u"
@@ -518,6 +647,8 @@
 // (the timeout check, sub_822C7EE8, exempts address type 2 only), +0x214AC what
 // SV_SendClientGameState zeroes beside the message number.
 #define T_SVCLIENT_SIZE           0x9C300u
+#define T_SVCLIENT_ACTIVE         5u
+#define T_SV_MAX_CLIENTS          18
 #define T_SVCLIENT_DELTA_MESSAGE  0x8u
 #define T_SVCLIENT_NETCHAN        0x18u
 #define T_SVCLIENT_ADDRESS        0x28u
@@ -1363,6 +1494,7 @@
 // no second entity to pass.
 #define T_SV_SightTrace         822CAE48   // (int* hit, start, end, bounds, pass0, pass1, mask)
 #define T_DATA_ZeroBounds         0x82053540u
+#define T_ENTITYNUM_NONE          0x7FFu      // no entity to pass
 // What SV_AddTestClient puts in the userinfo and SV_DirectConnect compares.
 #define T_FF_Checksum           82102A10   // "checksum"
 #define T_Stats_Version         8227B620   // "statver", the "%i"
@@ -1378,6 +1510,8 @@
 // sequence first), +0x28 the address (type, IP, port at +8), +0x21294 the
 // gentity, +0x31AFC the test-client flag.
 #define T_SVCLIENT_SIZE           0x97F80u
+#define T_SVCLIENT_ACTIVE         5u
+#define T_SV_MAX_CLIENTS          18
 #define T_SVCLIENT_DELTA_MESSAGE  0x8u
 #define T_SVCLIENT_NETCHAN        0x18u
 #define T_SVCLIENT_ADDRESS        0x28u

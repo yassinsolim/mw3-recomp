@@ -87,7 +87,7 @@ class SettingsActivity : AppCompatActivity() {
         tabPages.add(findViewById(R.id.page_files))
         // What only a multiplayer with bots reads, in a tab of its own: the
         // bots, and below them Modern Warfare 3's unlock switch, map vote and
-        // match options, which Modern Warfare 2 has not got.
+        // match options, which the other two games have not got.
         val hasMultiplayerTab = Title.hasBots
         if (hasMultiplayerTab) {
             val tab: Button = findViewById(R.id.tab_multiplayer)

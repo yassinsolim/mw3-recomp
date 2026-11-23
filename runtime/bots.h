@@ -1,7 +1,7 @@
 #pragma once
 
-// Bots for the multiplayer of both games (bots.cpp): players the host's own
-// server adds and plays, so a match can be played alone or filled up.
+// Bots for the multiplayer of all three games (bots.cpp): players the host's
+// own server adds and plays, so a match can be played alone or filled up.
 namespace bots
 {
     // A console line the runtime answers itself instead of the title: `bots <n>`,

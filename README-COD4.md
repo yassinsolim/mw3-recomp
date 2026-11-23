@@ -42,7 +42,7 @@ untested.
 | Multiplayer: the two devices in one System Link match (Backlot), through the project's relay | both spawn and play, ten minutes to the time limit | both spawn and play |
 | Multiplayer: Xbox LIVE Find Match (Team Deathmatch), the two devices through the project's relay | 119, six and a half minutes in the match | 60 |
 | Checkpoints: saved, and loaded by Resume Game | works on Windows; not checked on Android | not checked |
-| Bots | none: this game has none | none |
+| Bots in the matches the device hosts (the launcher's **Bots** entry) | not run | join, fight and score: six on Crash for a ten-minute match, 60 |
 | Split screen; Free-for-all, a private match and invitations on Xbox LIVE | not tested | not tested |
 
 What to expect:
@@ -132,7 +132,14 @@ or off.
   game, the others find it in the list.
 
 Everyone needs this same version of the game; it does not play with consoles
-on Xbox LIVE. There are no bots.
+on Xbox LIVE.
+
+**Bots.** On the start screen, tap **Bots** (under **Multiplayer**) and
+choose how many and how good; the entry then reads `BOTS · 6 · REGULAR`.
+Then start Multiplayer and host a System Link game: the bots join the
+matches *your* device hosts, pick a team and a class, fight and score, and
+leave to make room when a player joins. The app's pause menu changes their
+number in a match.
 
 ## Credits
 
