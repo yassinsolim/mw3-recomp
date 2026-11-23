@@ -298,6 +298,24 @@ longest frame 32 ms. A release build takes no switches (no `options.txt`, and
 `.env` is not read under Android), so no report, no console and no script:
 the heavier levels, the multiplayer and the Flip 2 were **not** run on it.
 
+The first published build, v0.1.0 (`yassinsolim/cod4-recomp`, a draft on 23
+November: `cod4-recomp-v0.1.0.apk`, version code 100, the release
+certificate, no recompiled code in it), states the same game code as the
+package built here (`cod4 94ec5f58a992`, `cod4mp a4c71519c558`). It was put
+over the app on the Flip 2 with the game files kept: it starts, loads
+`libcod4game.so` from `com.cod4.recomp.game`, loads the executable and brings
+up Turnip (**verified**, from its log; the lid was shut, so it waited for the
+screen there). Playing it by hand on either device, the two devices in one
+match with it, and installing it on the Thor are **open**: the Thor was not
+connected that evening.
+
+Going from the app built here (code 104) to the published one (100) is a
+downgrade to Android, so the app's folder was moved aside for the uninstall,
+as setup does. On the Flip 2 (Android 13) setup's own place for it,
+`/sdcard/mw3-recomp-keep-<package>`, is not a rename but a copy of all 6.4 GB
+at about 8 MB a second; a folder beside the app's own under
+`/sdcard/Android/data/` is a rename and instant. Setup still uses the first.
+
 ### Modern Warfare 2 and 3 are as they were
 
 The shared files this title changed (`CMakeLists.txt`, `cmake/`,
@@ -337,8 +355,9 @@ against `android`:
   nothing of this title's. A copy asks once, at start: after such a start
   the multiplayer is offline until it is started again.
 - Bots: this title has none (`Title.hasBots`).
-- The release-signed app beyond F.N.G. on the Thor (above), and a way to
-  give a release build `MW2_REPORT`.
+- The published app played by hand: the levels, the multiplayer, the two
+  devices in one match (above), and a way to give a release build
+  `MW2_REPORT`.
 - Charlie Don't Surf's landing, bound by the ring consumer on both devices.
 - The Live lobby's Invite and Join entries of the app's pause menu, which
   this title has as Modern Warfare 2's multiplayer does; not tried. (The
