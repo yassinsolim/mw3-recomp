@@ -311,10 +311,14 @@ connected that evening.
 
 Going from the app built here (code 104) to the published one (100) is a
 downgrade to Android, so the app's folder was moved aside for the uninstall,
-as setup does. On the Flip 2 (Android 13) setup's own place for it,
-`/sdcard/mw3-recomp-keep-<package>`, is not a rename but a copy of all 6.4 GB
-at about 8 MB a second; a folder beside the app's own under
-`/sdcard/Android/data/` is a rename and instant. Setup still uses the first.
+as setup does. On the Flip 2 (Android 13) the place setup had for it,
+`/sdcard/mw3-recomp-keep-<package>`, was not a rename but a copy of all 6.4 GB
+at about 8 MB a second. Setup now moves it beside the app's own folder,
+`/sdcard/Android/data/mw3-recomp-keep-<package>`, which is a rename
+(**verified** with setup's own `Install-Package` and an app signed with
+another key over `com.cod4.recomp.dev`: 1.4 s on the Flip 2, 0.8 s on the
+Thor, the 2,607 files and every save's checksum the same afterwards, and the
+new app, under another user id, reads the game files and writes its logs).
 
 ### Modern Warfare 2 and 3 are as they were
 

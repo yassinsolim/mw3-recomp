@@ -402,7 +402,12 @@ function Install-Package($serial, $item) {
             return
         }
         $data = "/sdcard/Android/data/$($item.Package)"
-        $keep = "/sdcard/mw3-recomp-keep-$($item.Package)"
+        # Beside the app's own folder, not in /sdcard itself: Android keeps
+        # Android/data apart from the rest of the shared storage (a mount or
+        # a quota of its own), so a move out of it is a copy of every game
+        # file (6 to 8 GB, minutes), and one within it a rename. Uninstalling
+        # takes the package's own folder alone.
+        $keep = "/sdcard/Android/data/mw3-recomp-keep-$($item.Package)"
         $moved = "$(Exec $Adb @('-s', $serial, 'shell', "if [ -e $keep ]; then echo busy; elif [ -d $data/files ]; then mv $data/files $keep && echo moved; else echo none; fi"))"
         if ($moved -notmatch 'moved|none') {
             Warn "$keep is on the phone from a replacement that did not finish. Move it back to $data/files (or delete it), then run setup again."

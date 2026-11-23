@@ -23,6 +23,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - Call of Duty 4's multiplayer: the app's pause menu no longer offers Modern
   Warfare 2's Max rank, Unlock all and Prestige entries, which write that
   game's stats file.
+- Setup, replacing an app signed with another key (all three games): the
+  game files and saves are moved aside beside the app's folder, a rename
+  that takes a second, where the place it used before made Android copy all
+  6 to 8 GB out and back (minutes, and long enough to time out).
 
 ## [v0.1.4] - 2026-11-23
 
