@@ -37,7 +37,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Team Deathmatch lobby stayed at "Match beginning in: 0" because the host's
   read of the players' skill was never answered in a form it takes. It has
   its own playlists (Team Deathmatch and Free-for-all on the disc's sixteen
-  maps) and the read is answered with no rows.
+  maps) and the read is answered with no rows. Two players who search in the
+  same second no longer end in a lobby each.
 - **Call of Duty 4's multiplayer ended every match after about five
   minutes** on a 120 Hz device (ten on a 60 Hz one) with "Xbox 360 Error 6
   while trying to enumerate lsp title servers", and the host's screen stayed

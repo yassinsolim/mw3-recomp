@@ -731,6 +731,67 @@ Run that way on two Windows copies through a local relay. Not yet run: a
 real microphone, the Android capture path, push-to-talk, the talker icon and
 the title's scoreboard mute.
 
+## Verified through the public relay
+
+23 November 2026, `mw3.yassin.app:3074`, an AYN Thor (120 Hz) and a Retroid
+Pocket Flip 2 (60 Hz) with nothing between them but the relay. Modern Warfare
+3 and 2 are the published v0.1.4 apps, put over the installed ones (0.1.1 and
+0.1.2, which do not meet each other or v0.1.4) with the game packages and
+saves as they were; Call of Duty 4 is the v0.1.0 draft `3c10903`. Release
+builds take no switches, so every match was driven by taps on the on-screen
+pad, and the frame rates are the app's own counter in the screenshots. Both
+players are named "Player 1", the profiles' name. A pass is: both spawn, the
+clocks agree, the two scoreboards show the same two players and scores at the
+same moment, and neither log has a `Com_Error`, a time-out or a relay that
+forgot the copy. Every match below passed; nobody scored (the pad was walked
+and fired, not aimed).
+
+| Game | Mode | Host | Joiner | In the match | FPS Thor / Flip 2 | Evidence |
+|---|---|---|---|---|---|---|
+| Modern Warfare 3 | System Link | Thor | Flip 2 | 3.0 min | 119 / 60 | `a1_*` |
+| Modern Warfare 3 | System Link | Flip 2 | Thor | 9.2 min, to the time limit; the app up 12.8 min | 119 / 60 | `a2_*` |
+| Modern Warfare 3 | Find Match, Free-for-all, both searching at once | Flip 2 (the lobby moved to it) | Thor | 3.3 min; one lobby 39 s after searching | 119 / 60 | `a3_*` |
+| Modern Warfare 2 | System Link | Thor | Flip 2 | 2.9 min | 119 / 60 | `b1_*` |
+| Modern Warfare 2 | System Link | Flip 2 | Thor | 9.2 min, to the time limit; the app up 11.5 min | 119 / 60 | `b2_*` |
+| Modern Warfare 2 | Find Match, Team Deathmatch, both searching at once | Flip 2 (the lobby moved to it) | Thor | 3.1 min; one lobby 15 s after searching | 119 / 60 | `b3_*` |
+| Modern Warfare 2 | Private match, joined from the app's pause menu (Join network game) | Thor | Flip 2 | 2.4 min | 119 / 60 | `b4_*` |
+| Call of Duty 4 | System Link (run with the release checks) | Thor | Flip 2 | 10 min, to the time limit | 119 / 60 | `perf-cod4\caps\m2_boards.jpg`, `logs_final_match3_*.log` |
+| Call of Duty 4 | Find Match, Team Deathmatch, the Flip 2 searching 6 s after the Thor | Thor | Flip 2 | 6.5 min; the app up 9.3 min | 119 / 60 | `c2_*` |
+
+Screenshots of both screens at the same moment are in
+`C:\Users\solim\mw3-android-work\private-captures\relayall\` (`*_spawn`,
+`*_p<n>`, `*_score`, each `_thor` and `_flip`), and each device's `game.log`
+for the match in `private-logs\relayall\`.
+
+- **Seeing each other.** In Modern Warfare 2's second System Link match the
+  two stood side by side and each has the other on screen
+  (`b2_see2_thor.png`, `b2_see2_flip.png`). In the other matches they were
+  not steered into each other's view; what shows them together there is the
+  minimap, where team-mates are, and the scoreboard.
+- **The long matches** were run for the leak that ended Call of Duty 4's
+  matches after five minutes ([COD4-BRINGUP.md](COD4-BRINGUP.md)): Modern
+  Warfare 3 and 2 at v0.1.4 played ten minutes to the time limit with the
+  app's memory as it was at the start (821 and 813 MB, 366 and 347 MB on the
+  Thor) and no such error in either log: no sign of that leak in them.
+- **Call of Duty 4 with both searching in the same second** ended, on the
+  draft, with each device alone in a lobby of its own: the title searches
+  once and never leaves the lobby it then opens (`c1_lobby_*`). The tie is
+  broken in `kernel/xam.cpp` since (the search is asked again for two seconds
+  for each copy heard that comes before this one), which two Windows copies
+  started together showed; an app built after `dd65b10` has it, the draft
+  `3c10903` has not.
+- **Not run on the devices:** Modern Warfare 3's private match, and an
+  invitation sent from the lobby (INVITE, or the pause menu's Invite network
+  players); the PC as a third player, whose build is of another release than
+  the published apps and so never meets them.
+
+On Windows, two copies of the current source on one PC through the same
+relay (`m3_pc_*` and `c4_pc_*` logs, `m3_pc_*` and `c4_fm*` screenshots): Modern Warfare 3's
+System Link and Find Match (Team Deathmatch) with the same scoreboard on
+both, and Call of Duty 4's Find Match for eight minutes of a match. One
+Modern Warfare 3 join ended in "Server connection timed out" while a third
+game was compiling shaders on the same PC, and passed when run again.
+
 ## Switches
 
 | switch | effect |

@@ -367,19 +367,26 @@ against `android`:
 
 ## Open
 
-- Split screen; the local-network backend; Xbox LIVE.
+- Split screen; the local-network backend.
+- Xbox LIVE through a relay: Find Match (Team Deathmatch) plays, between the
+  two devices on the draft `3c10903` and between two Windows copies
+  ([multiplayer.md](multiplayer.md#verified-through-the-public-relay)). It
+  needed playlists of this title's own maps (`relay/playlists_cod4.info`),
+  an answer to `XUserReadStats` the title takes (the host of a team lobby
+  reads everyone's skill, and without one view in the answer stays at "Match
+  beginning in: 0"; the errors go through a print the log does not show),
+  and a tie broken between two players who search in the same second, which
+  the draft does not have yet. Free-for-all, a private match, invitations and
+  a party of two searching are **not** run.
 - The public relay (`mw3.yassin.app:3074`) from the Flip 2: on 23 November
   one run's Hellos went unanswered for the five seconds a copy asks
-  (`logs_mp_crash_cold_flip.log`), so that day's two-device match ran through
-  a relay on the PC. Looked into the same evening and not seen again:
-  the name resolves on the Flip 2 (129.146.70.100), a Hello sent from its
-  shell over its Wi-Fi is answered with a Challenge awake and asleep, and
-  this title's `.dev` multiplayer is welcomed by the relay (title id
-  `415607E6`, the same server name and code as Modern Warfare 3's). The
-  relay refuses in words when it refuses, and does not answer a ping from
-  anywhere, so the earlier "unreachable" was a few seconds of lost UDP and
-  nothing of this title's. A copy asks once, at start: after such a start
-  the multiplayer is offline until it is started again.
+  (`logs_mp_crash_cold_flip.log`). The likely cause, found later the same
+  day: every first copy came to the relay from port 3075, and a second
+  machine behind the same router got no answer from it (reproduced from the
+  PC, port by port, while the Thor was in a match). A copy now uses a port
+  the system picks ([multiplayer.md](multiplayer.md#lan-and-server)); the
+  draft `3c10903` has that. A copy still asks once, at start: after such a
+  start the multiplayer is offline until it is started again.
 - Bots: this title has none (`Title.hasBots`).
 - The published app played by hand: the levels, the multiplayer, the two
   devices in one match (above), and a way to give a release build
