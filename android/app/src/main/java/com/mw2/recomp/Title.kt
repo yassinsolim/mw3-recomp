@@ -54,6 +54,13 @@ enum class Title(val library: String, val executable: String) {
         /** com.mw3.recomp* is Modern Warfare 3; everything else here is MW2. */
         val isMw3: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.mw3.")
 
+        /**
+         * Whether this app's multiplayer has bots (runtime/bots.cpp): both
+         * games' disc executables have, and Modern Warfare 2's title update 6
+         * has not.
+         */
+        val hasBots: Boolean = MULTIPLAYER.carried && BuildConfig.MW2_TU == "tu0"
+
         /** The title an executable's name on the disc belongs to, if this app carries it. */
         fun forExecutable(name: String): Title? = carried.firstOrNull { it.executable == name }
     }

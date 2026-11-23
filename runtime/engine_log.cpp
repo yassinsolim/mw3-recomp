@@ -129,13 +129,16 @@ GUEST_HOOK(T_Com_PrintWarning)
 
 // Cbuf_AddText(localClientNum, text): what the menus and the title's own code
 // queue for the console. MW2_TRACE_CBUF shows the commands a menu runs, so a
-// flow the player clicks through can be typed instead.
+// flow the player clicks through can be typed instead. A title with bots has
+// console lines of the runtime's own, and console.cpp's hook traces there.
+#ifndef T_SV_BotUserMoves
 GUEST_HOOK(T_Cbuf_AddText)
 {
     static const bool traced = diag::Flag("MW2_TRACE_CBUF");
     if (traced) LOGI("cbuf(%u): %s", ctx.r3.u32, GuestAnsi(ctx.r4.u32).c_str());
     GUEST_ORIG(T_Cbuf_AddText)(ctx, base);
 }
+#endif
 #endif
 
 #endif

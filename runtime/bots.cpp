@@ -1,13 +1,16 @@
-// Bots for Modern Warfare 3's multiplayer: MW2_BOTS=<n> keeps n of them in
-// every match this copy hosts.
+// Bots for the multiplayer of Modern Warfare 3 and of Modern Warfare 2 (the
+// disc's executable): MW2_BOTS=<n> keeps n of them in every match this copy
+// hosts.
 //
-// The executable still has the server half of IW's test clients (title.h, "Bots"):
+// Both executables have the server half of IW's test clients (title.h, "Bots"):
 // a client whose address type is 0 is exempt from the challenge and the
 // registration check in SV_DirectConnect, nothing addressed to it reaches a
-// socket, and SV_BotUserMoves thinks for it every server frame. The function
-// that put one there, SV_AddTestClient, was compiled out. This file is that
-// function again, and a replacement for the stock think, which spins on the
-// spot and fires at random.
+// socket, and SV_BotUserMoves thinks for it every server frame. Modern Warfare
+// 2 still has the function that puts one there, SV_AddTestClient, and the
+// test-client flag the server spares one by; Modern Warfare 3 lost both. This
+// file makes that function's calls itself in either, with a name and a slot of
+// its own choosing, and replaces the stock think, which spins on the spot and
+// fires at random.
 //
 // Adding a bot:
 //   1. `connect bot<n> "<userinfo>"` goes into the server's argv and
@@ -22,16 +25,19 @@
 //      highest free slot: a party member's slot is its index in the party,
 //      counted from 0, and SV_DirectConnect throws out whoever sits in it.
 //   3. The slot is at state 3, waiting for the client to ask for the gamestate
-//      and send "begin". SV_SendClientGameState would drop a client that sent
-//      no stats (EXE_NEEDSTATS), so its three stores are made here and
-//      SV_ClientEnterWorld is called directly.
+//      and send "begin". Modern Warfare 2: the flag is set and
+//      SV_SendClientGameState and SV_ClientEnterWorld are called, as
+//      SV_AddTestClient does. Modern Warfare 3: SV_SendClientGameState would
+//      drop a client that sent no stats (EXE_NEEDSTATS), so its three stores
+//      are made here before SV_ClientEnterWorld, and every frame the bot is
+//      given what the flag gave it: a packet time and an acknowledgement.
 //   4. The stock scripts leave a new player in front of the team menu. The bot
 //      answers it and the class menu as a client does, with the `mr <server id>
 //      <menu> <response>` client command; the menu's number is its place in the
 //      configstrings, read at run time.
 //
 // The think (every server frame, 50 ms): the nearest enemy inside the view cone
-// that G_SightTrace reaches becomes the target; the bot turns to it at a capped
+// that SV_SightTrace reaches becomes the target; the bot turns to it at a capped
 // rate with an error that shrinks while it tracks, fires in bursts once its
 // reaction time has passed and the aim is close, strafes and keeps its
 // distance. With no target it walks towards the nearest enemy, feeling out eight
@@ -68,11 +74,10 @@ namespace
     constexpr int32_t kSettle = 2000;          // ms of a new level before a bot joins: its scripts must be running
     constexpr int32_t kFrame = 50;             // ms, the server's frame
 
-    // usercmd: +0 server time, +4 buttons, +8 pitch, +0xC yaw (16-bit angles,
-    // added to the player state's delta_angles), +0x14 weapon, +0x1C forward,
-    // +0x1D right. The first three buttons are the ones the stock think presses;
-    // the jump was found by pressing it (a bot leaves the ground at 209 units/s).
-    constexpr uint32_t kCmdSize = 0x2C;
+    // The usercmd's layout is the title's (title.h, T_USERCMD_); its angles are
+    // 16-bit and added to the player state's delta_angles. The first three
+    // buttons are the ones the stock think presses in both titles; the jump was
+    // found by pressing it (a bot leaves the ground at 209 units/s).
     constexpr uint32_t kButtonAttack = 0x1;
     constexpr uint32_t kButtonUseReload = 0x20;
     constexpr uint32_t kButtonCrouch = 0x200;
@@ -82,7 +87,7 @@ namespace
     constexpr uint32_t kSightMask = 0x00801803;
     constexpr uint32_t kNoEntity = 0x7FF;
 
-    constexpr uint32_t kSessionPlaying = 0;    // gclient +0x3300, the session state
+    constexpr uint32_t kSessionPlaying = 0;    // the gclient's session state
     constexpr uint32_t kTeamAxis = 1, kTeamAllies = 2;
 
     constexpr float kPi = 3.14159265f;
@@ -173,6 +178,7 @@ namespace
         int strafe = 1;
         int32_t nextStrafe = 0, crouchUntil = 0;
         bool reload = false;
+        int32_t nextAmmo = 0;
 
         float heading = 0;          // where it wants to go with no target
         float course = 0;           // where it walks: the heading, as far as the walls allow
@@ -303,10 +309,11 @@ namespace
             ctx.r3.u64 = hit;
             ctx.r4.u64 = start;
             ctx.r5.u64 = end;
-            ctx.r6.u64 = pass0;
-            ctx.r7.u64 = pass1;
-            ctx.r8.u64 = kSightMask;
-            GUEST_FUNC(T_G_SightTrace)(ctx, base);
+            ctx.r6.u64 = T_DATA_ZeroBounds;
+            ctx.r7.u64 = pass0;
+            ctx.r8.u64 = pass1;
+            ctx.r9.u64 = kSightMask;
+            GUEST_FUNC(T_SV_SightTrace)(ctx, base);
             return U32(hit) == 0;
         }
 
@@ -356,6 +363,38 @@ namespace
                      g_teamMenu < 0 ? "team" : "class");
         }
 
+#ifdef T_G_AddAmmo
+        // A bot that has fired its last round would stand in front of its
+        // target for the rest of its life: a player changes weapon then, and
+        // the think has no notion of a second one. So a bot whose weapon has
+        // nothing left outside the clip is given the full load again, with the
+        // calls of the script's giveMaxAmmo.
+        void Resupply(int slot)
+        {
+            const uint32_t state = GameClient(slot);
+            const uint32_t weapon = U32(state + T_PS_WEAPON);
+            if (!weapon) return;
+            const auto ask = [&](PPCFunc* function, uint32_t last) {
+                ctx.r3.u64 = state;
+                ctx.r4.u64 = weapon;
+                ctx.r5.u64 = last;
+                function(ctx, base);
+                return ctx.r3.u32;
+            };
+            if (int32_t(ask(GUEST_FUNC(T_BG_AmmoReserve), 0)) > 0) return;
+            const int32_t most = int32_t(ask(GUEST_FUNC(T_BG_AmmoMax), 0));
+            if (most <= 0) return;      // a weapon that takes none: the riot shield
+            const uint32_t model = ask(GUEST_FUNC(T_BG_WeaponModel), 0);
+            ctx.r3.u64 = Entity(slot);
+            ctx.r4.u64 = weapon;
+            ctx.r5.u64 = model;
+            ctx.r6.u64 = uint32_t(most);
+            ctx.r7.u64 = 0;
+            GUEST_FUNC(T_G_AddAmmo)(ctx, base);
+            if (Traced()) LOGI("bots: %s had no rounds left to load and is given %d", Name(slot), most);
+        }
+#endif
+
         void Join(int slot);
         void Enter(int slot);
         void Menus(int slot, Bot& bot);
@@ -376,27 +415,44 @@ namespace
         const uint16_t port = g_nextPort;
         g_nextPort = uint16_t(g_nextPort == 0xFFFF ? 1 : g_nextPort + 1);
 
-        char line[512];
+        char line[640];
+#ifdef T_SVCLIENT_TEST_CLIENT
+        // SV_AddTestClient's own line but for the name. It gives a test client
+        // a random xuid and network address; the port is as good, and no two
+        // bots share it.
+        char address[73];
+        for (int i = 0; i < 9; ++i) std::snprintf(address + i * 8, 9, "%08x", unsigned(g_random()));
+        std::snprintf(line, sizeof line,
+                      "connect bot%u \"\\cg_predictItems\\1\\cl_anonymous\\0\\color\\4\\head\\default\\model\\multi"
+                      "\\snaps\\20\\rate\\5000\\name\\%s\\xuid\\%08x%08x\\xnaddr\\%s\\natType\\2"
+                      "\\protocol\\%d\\checksum\\%d\\statver\\%d %u\"",
+                      unsigned(port), kNames[slot], 0u, unsigned(port), address, int32_t(protocol), int32_t(checksum),
+                      statVersion, statChecksum);
+#else
         std::snprintf(line, sizeof line,
                       "connect bot%u \"\\name\\%s\\protocol\\%u\\checksum\\%u\\statver\\%d %u"
                       "\\challenge\\0\\xuid\\0\\invited\\0\\onlineStats\\0\\migrating\\0\"",
                       unsigned(port), kNames[slot], protocol, checksum, statVersion, statChecksum);
+#endif
         ctx.r3.u64 = PutText(line);
         GUEST_FUNC(T_SV_Cmd_TokenizeString)(ctx, base);
 
         const uint32_t dvar = U32(T_DATA_FirstPublicSlotDvar);
-        const uint32_t first = dvar ? U32(dvar + 8) : 0;
-        if (dvar) Put32(dvar + 8, uint32_t(slot));
+        const uint32_t first = dvar ? U32(dvar + T_DVAR_CURRENT) : 0;
+        if (dvar) Put32(dvar + T_DVAR_CURRENT, uint32_t(slot));
         ctx.r3.u64 = 0;                         // type 0, IP 0
         ctx.r4.u64 = uint64_t(port) << 48;      // the port, then the local network id
         GUEST_FUNC(T_SV_DirectConnect)(ctx, base);
-        if (dvar) Put32(dvar + 8, first);
+        if (dvar) Put32(dvar + T_DVAR_CURRENT, first);
 
         GUEST_FUNC(T_SV_Cmd_EndTokenizedString)(ctx, base);
 
         if (State(slot) == 3 && IsBot(slot) && Port(slot) == port) {
             g_bots[slot] = {};
             g_bots[slot].port = port;
+#ifdef T_SVCLIENT_TEST_CLIENT
+            Put32(Client(slot) + T_SVCLIENT_TEST_CLIENT, 1);
+#endif
             LOGI("bots: %s joined in slot %d", kNames[slot], slot);
             g_nextAdd = time + 250;
         } else {
@@ -408,11 +464,20 @@ namespace
     void Server::Enter(int slot)
     {
         const uint32_t client = Client(slot);
+#ifdef T_SV_SendClientGameState
+        ctx.r3.u64 = client;
+        GUEST_FUNC(T_SV_SendClientGameState)(ctx, base);
+        if (State(slot) != 4) {
+            LOGW("bots: %s was not sent the level (slot %d is at state %u)", kNames[slot], slot, State(slot));
+            return;
+        }
+#else
         Put32(client, 4);
         Put32(client + T_SVCLIENT_GAMESTATE_ACK, 0);
         Put32(client + T_SVCLIENT_GAMESTATE_MSG, U32(client + T_SVCLIENT_NETCHAN));
+#endif
 
-        std::memset(base + cmd, 0, kCmdSize);
+        std::memset(base + cmd, 0, T_USERCMD_SIZE);
         ctx.r3.u64 = client;
         ctx.r4.u64 = cmd;
         GUEST_FUNC(T_SV_ClientEnterWorld)(ctx, base);
@@ -682,6 +747,12 @@ namespace
                 bot.yaw = bot.heading = bot.course = Real(game + T_PS_VIEW_ANGLES + 4);
             }
             const Skill& skill = kSkills[Wanted().skill.load()];
+#ifdef T_G_AddAmmo
+            if (time >= bot.nextAmmo) {
+                bot.nextAmmo = time + 1000;
+                Resupply(slot);
+            }
+#endif
 
             if (bot.target >= 0 && !Alive(bot.target)) {
                 if (Traced() && time - bot.lastShot < 1000)
@@ -712,15 +783,15 @@ namespace
         }
 
         const auto angle = [](float degrees) { return uint32_t(int32_t(std::lround(degrees * (65536.0f / 360.0f)))) & 0xFFFFu; };
-        std::memset(base + cmd, 0, kCmdSize);
+        std::memset(base + cmd, 0, T_USERCMD_SIZE);
         // The stock think's time base: four frames behind the server.
         Put32(cmd + 0x0, uint32_t(time - 200));
-        Put32(cmd + 0x4, buttons);
-        Put32(cmd + 0x8, angle(bot.pitch - Real(game + T_PS_DELTA_ANGLES)));
-        Put32(cmd + 0xC, angle(bot.yaw - Real(game + T_PS_DELTA_ANGLES + 4)));
-        Put32(cmd + 0x14, U32(game + T_PS_WEAPON));
-        PPC_STORE_U8(cmd + 0x1C, uint8_t(int8_t(forward)));
-        PPC_STORE_U8(cmd + 0x1D, uint8_t(int8_t(right)));
+        Put32(cmd + T_USERCMD_BUTTONS, buttons);
+        Put32(cmd + T_USERCMD_ANGLES, angle(bot.pitch - Real(game + T_PS_DELTA_ANGLES)));
+        Put32(cmd + T_USERCMD_ANGLES + 4, angle(bot.yaw - Real(game + T_PS_DELTA_ANGLES + 4)));
+        Put32(cmd + T_USERCMD_WEAPON, U32(game + T_PS_WEAPON) << T_USERCMD_WEAPON_SHIFT);
+        PPC_STORE_U8(cmd + T_USERCMD_MOVE, uint8_t(int8_t(forward)));
+        PPC_STORE_U8(cmd + T_USERCMD_MOVE + 1, uint8_t(int8_t(right)));
 
         // As the stock think: every snapshot counts as acknowledged.
         Put32(client + T_SVCLIENT_DELTA_MESSAGE, U32(client + T_SVCLIENT_NETCHAN) - 1);
@@ -769,12 +840,14 @@ namespace
             if (state < 3 || !IsBot(i)) continue;
             Bot& bot = g_bots[i];
             if (bot.port != Port(i)) { bot = {}; bot.port = Port(i); }
+#ifndef T_SVCLIENT_TEST_CLIENT
             // No packet ever comes from a bot, and the timeout check spares only
             // the host's own loopback client.
             Put32(Client(i) + T_SVCLIENT_LAST_PACKET, uint32_t(time));
             // Nor an acknowledgement: the reliable commands sent to it would
             // pile up until the server drops it ("Server command overflow").
             Put32(Client(i) + T_SVCLIENT_RELIABLE_ACKNOWLEDGE, U32(Client(i) + T_SVCLIENT_RELIABLE_SEQUENCE));
+#endif
             if (state != 5) { if (settled) Enter(i); continue; }
             Think(i, bot);
         }
@@ -805,9 +878,11 @@ bool bots::ConsoleLine(const char* text)
 
 GUEST_HOOK(T_SV_BotUserMoves)
 {
+#ifdef T_Scr_ExitLevel
     // The one call the server makes every frame, so the vote between two
     // matches (map_vote.cpp) is run from here as well, bots or none.
     mapvote::ServerFrame(ctx, base);
+#endif
     if (!g_engaged) {
         // Untouched until a bot is asked for: the stock think has nobody to move.
         if (Wanted().count.load() <= 0) { GUEST_ORIG(T_SV_BotUserMoves)(ctx, base); return; }

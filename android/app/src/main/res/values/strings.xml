@@ -38,7 +38,8 @@
     <string name="title_multiplayer_install">MULTIPLAYER · INSTALL</string>
     <string name="multiplayer_detail">Online through a relay, on the local network, or split screen. Network and voice chat are in Settings.</string>
     <string name="multiplayer_detail_bots">Online through a relay, on the local network, or split screen. Bots are the entry below; unlocks, match options, network and voice chat are in Settings.</string>
-    <!-- the launcher's bots entry (Modern Warfare 3's multiplayer) -->
+    <string name="multiplayer_detail_bots_only">Online through a relay, on the local network, or split screen. Bots are the entry below; the network is in Settings.</string>
+    <!-- the launcher's bots entry -->
     <string name="entry_bots_off">BOTS · OFF</string>
     <string name="entry_bots">BOTS · %1$d · %2$s</string>
     <string name="bots_title">Bots</string>

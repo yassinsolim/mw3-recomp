@@ -78,7 +78,7 @@
             android:letterSpacing="0.1"
             android:stateListAnimator="@null" />
 
-        <!-- Modern Warfare 3's multiplayer only (SettingsActivity shows it). -->
+        <!-- A multiplayer with bots only (SettingsActivity shows it). -->
         <Button
             android:id="@+id/tab_multiplayer"
             android:layout_width="0dp"
@@ -691,6 +691,14 @@
                     android:layout_height="wrap_content"
                     android:text="@string/bots_against_players" />
 
+                <!-- Modern Warfare 3 only (SettingsActivity shows it). -->
+                <LinearLayout
+                    android:id="@+id/mw3_multiplayer_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
                 <TextView
                     style="@style/SectionHeading"
                     android:layout_width="match_parent"
@@ -805,6 +813,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/match_fall_damage" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- FILES + STORAGE -->

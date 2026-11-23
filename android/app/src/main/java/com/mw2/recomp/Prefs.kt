@@ -295,7 +295,7 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_UNLOCK_ALL_ITEMS, value).apply()
 
     /**
-     * Modern Warfare 3's multiplayer: how many bots join the matches this
+     * The multiplayer: how many bots join the matches this
      * device hosts (MW2_BOTS, runtime/bots.cpp), 0 for none; how well they
      * shoot, 0 Recruit to 3 Veteran (MW2_BOT_SKILL); and whether they all
      * take the side the players are not on (MW2_BOT_TEAMS).

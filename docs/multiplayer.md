@@ -574,7 +574,8 @@ private match, End Game.
 
 ## Bots and unlocks
 
-Modern Warfare 3's multiplayer only; Modern Warfare 2's has neither.
+Bots are in Modern Warfare 3's multiplayer and in Modern Warfare 2's disc
+version (not its title update 6); the unlocks are Modern Warfare 3's only.
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a
@@ -584,7 +585,7 @@ app:
 | where | what |
 |---|---|
 | the launcher, **Bots** under **Multiplayer** | how many (0 to 17), how good, and whether all of them play against the players; the entry shows what is set (`BOTS · 6 · REGULAR`) |
-| Settings → **Multiplayer** (a tab of its own; it was the end of the Graphics page, below Sound, which is why it was not found) | the same under the heading Bots, then Unlocks, Matches (map vote) and Match options |
+| Settings → **Multiplayer** (a tab of its own; it was the end of the Graphics page, below Sound, which is why it was not found) | the same under the heading Bots, then, in Modern Warfare 3, Unlocks, Matches (map vote) and Match options |
 | in a match, the app's pause menu → **Bots in my matches** | the number, at once: it sends the host's console `bots <n>` and keeps it as the setting |
 
 The launcher's and the Settings' take effect the next time the game starts.
@@ -597,15 +598,63 @@ written to the stats. What other players see, and what a host without the
 switch gives, is in
 [MW3-MP-BRINGUP.md](MW3-MP-BRINGUP.md#what-other-players-see).
 
-Modern Warfare 2's bots, were they wanted: its multiplayer executable still
-has the strings of the test-client command MW3's lost (`connect bot%d`,
-`addtestclient`), so the join that `bots.cpp` rebuilds by hand is there to
-call. What would carry over is the half of the file that is not the
-title's: the think (targets, aim, bursts, the feelers), the top-up, the
-settings and the console line. What would not is every address and offset
-of its block in `runtime/title.h` (about fifty: the server's clients, the
-usercmd, the player state, `G_SightTrace`), the team and class menu answers
-of MW2's scripts, and the same again for title update 6. Not started.
+### Modern Warfare 2's bots
+
+The same file plays them: the think (targets, aim, bursts, the feelers), the
+top-up, the leave rule, the settings and the console line are shared, and
+what differs is the title's block in `runtime/title.h` and three places in
+`bots.cpp`.
+
+- **Joining.** The disc's multiplayer still has all of IW's test clients:
+  `SV_AddTestClient` (`sub_822BD470`, found by its format `connect bot%d
+  "..."`; the script's `addTestClient` calls it) and the flag it sets on the
+  client. `bots.cpp` makes that function's calls with a name and a slot of
+  its own: the same connect line into the server's argv, `SV_DirectConnect`
+  with an address of type 0, the flag, `SV_SendClientGameState` and
+  `SV_ClientEnterWorld`. With the flag the server itself spares the bot the
+  timeout, the stats a client must send and the pile-up of unacknowledged
+  commands, which Modern Warfare 3's bots are given by hand every frame.
+- **Team and class.** The menus are `team_marinesopfor` and `changeclass`
+  whatever the factions; the answers are `autoassign` (or the side the
+  players are not on) and `class0` to `class4`, the five default classes.
+- **The usercmd** is 0x28 bytes where Modern Warfare 3's is 0x2C: the weapon
+  is a half word and the movement two bytes earlier. The buttons are the
+  same.
+- **Ammunition.** A bot has one weapon as far as the think knows, so one
+  that has nothing left outside the clip is given the full load again with
+  the calls of the script's `giveMaxAmmo`. Before that, a match on Terminal
+  stopped scoring after three minutes with every bot facing an enemy.
+- **Sight.** Both titles' `SV_SightTrace` takes two entities to pass; the
+  script's thunk in Modern Warfare 2 passes one, so `bots.cpp` calls the
+  function itself in both.
+
+How each address was found is beside it in `runtime/title.h` ("Bots", in the
+block of the multiplayer's disc version): the strings and dvars the functions
+use, the field tables the scripts read a client and a player state by, and
+the instructions that load the server's globals.
+
+Run on the PC build, six bots, Team Deathmatch from System Link, about six
+minutes each on Terminal and Rust: every bot joined, chose a class and
+spawned once (none was dropped; no "Server command overflow"), the
+scoreboards showed their kills and deaths (Rust 1300 to 1800 with 29 kills
+between them, Terminal 1000 to 1200 with 22), and the frame rate with six
+bots was that with none (Rust, 130 s each: 4193 frames against 4183). The
+console lines `bots 2`, `bots +` and `bots skill 0` and `MW2_BOT_TEAMS=against`
+were run on Afghan. Those two matches were played before the ammunition was
+handed out; with it, Terminal's bots were still scoring in the fifth minute.
+
+Run on an AYN Thor (the app built with `-Dev -Suffix .dev`, six bots set from
+the launcher's Bots entry, Terminal from System Link): the bots joined,
+spawned and fought, 56 targets went down in four and a half minutes, no bot
+was dropped, and the app's counter read 119 to 120 FPS on the 120 Hz screen
+throughout. A second player joining a match with bots (the leave rule's two
+paths) has not been run in Modern Warfare 2, nor has a Retroid Pocket Flip 2.
+
+Limits, as Modern Warfare 3's: no path data, so a bot feels its way and can
+circle on the wrong floor (Terminal's bots met less often than Rust's); no
+aiming down the sight, grenades, killstreaks or objectives; the bots are not
+in the party, and are added again after a map load. Title update 6 has no
+bots: its block has none of these addresses.
 
 ## Voice chat
 

@@ -75,6 +75,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private val isMultiplayer: Boolean
         get() = title == Title.MULTIPLAYER
 
+    /** A multiplayer run of an app whose multiplayer has bots. */
+    private val hasBots: Boolean
+        get() = isMultiplayer && Title.hasBots
+
     /**
      * MW2's multiplayer: the link the app forces up, the Live lobby entries
      * and the stat cheats are for that title only.
@@ -854,14 +858,17 @@ val mode60 = modes
         // Settings; otherwise the tiered instant-boot budget + background warmup.
         NativeBridge.nativeSetOption("MW2_SHADER_PREWARM_ALL", if (prefs.prewarmAllShaders) "1" else "")
         NativeBridge.nativeSetOption("MW2_ASYNC_PIPELINES", if (prefs.asyncPipelines) "1" else "0")
-        // Modern Warfare 3's multiplayer: every item unlocked, bots, the
-        // host's match options, the field of view and voice chat (the other
-        // titles read none of them here).
-        if (isMw3Multiplayer) {
-            NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
+        // The bots of the matches this device hosts (runtime/bots.cpp).
+        if (hasBots) {
             NativeBridge.nativeSetOption("MW2_BOTS", if (prefs.botCount > 0) prefs.botCount.toString() else "")
             NativeBridge.nativeSetOption("MW2_BOT_SKILL", prefs.botSkill.toString())
             NativeBridge.nativeSetOption("MW2_BOT_TEAMS", if (prefs.botsAgainstPlayers) "against" else "")
+        }
+        // Modern Warfare 3's multiplayer: every item unlocked, the host's match
+        // options, the field of view and voice chat (the other titles read
+        // none of them here).
+        if (isMw3Multiplayer) {
+            NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
             NativeBridge.nativeSetOption("MW2_MATCH_GRAVITY", prefs.matchGravity.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_SPEED", prefs.matchSpeed.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_JUMP", prefs.matchJump.toString())
@@ -1032,7 +1039,7 @@ val mode60 = modes
             labels.add(getString(R.string.unlock_all) to { _: android.content.DialogInterface -> runCheat(R.string.unlock_all, Cheats::unlockEverything) })
             labels.add(getString(R.string.prestige_up) to { _: android.content.DialogInterface -> runCheat(R.string.prestige_up, Cheats::prestigeUp) })
         }
-        if (isMw3Multiplayer) {
+        if (hasBots) {
             val bots = if (prefs.botCount == 0) getString(R.string.bot_count_none) else getString(R.string.bot_count, prefs.botCount)
             labels.add(bots to { _: android.content.DialogInterface -> pickBotCount() })
         }

@@ -68,11 +68,6 @@ class MainActivity : AppCompatActivity() {
     /** The multiplayer, in the app that carries the whole game. */
     private val secondTitle = Title.carried.getOrNull(1)
 
-    /**
-     * Whether the launcher has the Bots entry: Modern Warfare 3's multiplayer,
-     * the only title with bots (runtime/bots.cpp).
-     */
-    private val hasBots = Title.isMw3 && Title.MULTIPLAYER.carried
     private var nativeReady = false
     private var hasAutoLaunched = false
     private var pendingInstallId: Long = -1
@@ -153,7 +148,13 @@ class MainActivity : AppCompatActivity() {
             if (second != null) {
                 showDetail(
                     getString(R.string.title_multiplayer),
-                    getString(if (hasBots) R.string.multiplayer_detail_bots else R.string.multiplayer_detail),
+                    getString(
+                        when {
+                            !Title.hasBots -> R.string.multiplayer_detail
+                            Title.isMw3 -> R.string.multiplayer_detail_bots
+                            else -> R.string.multiplayer_detail_bots_only
+                        },
+                    ),
                 )
                 launch(second)
             } else {
@@ -590,7 +591,7 @@ class MainActivity : AppCompatActivity() {
 
     /** The Bots entry says what is set, so it is read without opening anything. */
     private fun refreshBotsEntry() {
-        if (!hasBots) return
+        if (!Title.hasBots) return
         botsButton.visibility = android.view.View.VISIBLE
         val count = prefs.botCount
         botsButton.text = if (count == 0) getString(R.string.entry_bots_off)
