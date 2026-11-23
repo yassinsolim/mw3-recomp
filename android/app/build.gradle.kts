@@ -87,8 +87,10 @@ android {
         // whose versionCode is at or below the installed one. The release
         // workflows set MW2_VERSION_CODE from the tag (v1.2.3 is 10203,
         // docs/android-releases.md); this is what a build without one carries.
-        // 104: v0.1.4, over 103 (v0.1.3), 102, 101, 100 and 16 (v0.0.2-alpha).
-        versionCode = setting("MW2_VERSION_CODE")?.toIntOrNull() ?: 104
+        // 105: v0.1.5, over 104 (v0.1.4), 103, 102, 101, 100 and 16
+        // (v0.0.2-alpha). Call of Duty 4's releases count from v0.1.0 (100)
+        // in a repository of their own.
+        versionCode = setting("MW2_VERSION_CODE")?.toIntOrNull() ?: 105
         // Which build this is, carried inside the apk. "The wrong apk" has
         // cost more than one evening, and every time the only way to settle
         // it was to guess. The launcher shows this and Android's app info
@@ -96,7 +98,7 @@ android {
         // that made it without downloading anything twice.
         // The release the build is from, which is what a report has to say to
         // be acted on. It was "1.0" -- a number no release ever had.
-        versionName = "${setting("MW2_VERSION_NAME") ?: "0.1.4"} " +
+        versionName = "${setting("MW2_VERSION_NAME") ?: "0.1.5"} " +
             "(${setting("MW2_BUILD_SHA") ?: "local"})"
         buildConfigField("String", "BUILD_SHA", "\"${setting("MW2_BUILD_SHA") ?: "local"}\"")
         buildConfigField("String", "BUILD_STAMP", "\"${setting("MW2_BUILD_STAMP") ?: "unstamped"}\"")

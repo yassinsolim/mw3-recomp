@@ -4,6 +4,27 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.5] - 2026-11-23
+
+Modern Warfare 3's and Modern Warfare 2's v0.1.5, and Call of Duty 4's first
+release, v0.1.0, from the same commit.
+
+### Highlights
+Modern Warfare 3 and Modern Warfare 2 (plain text: the app's update dialog
+shows a release's notes as they are written).
+
+- Online: each copy now uses a network port of its own, so two devices on
+  the same Wi-Fi can both reach the server. Before, the second one timed
+  out ("did not answer within 5 seconds") and stayed offline.
+- A memory leak in the shared online code is fixed. It ended long Call of
+  Duty 4 matches; ten-minute Modern Warfare 3 and 2 matches showed no sign
+  of it.
+- Setup moves the game files aside in a second when it replaces an app
+  signed with another key, instead of copying 6 to 8 GB out and back.
+
+The game package built for v0.1.0 to v0.1.4 still fits: nothing to build
+again.
+
 ### Added
 - **Call of Duty 4: Modern Warfare, a third game**, with a public repository
   of its own, `yassinsolim/cod4-recomp`, whose releases carry its app
@@ -48,6 +69,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   which this game does not have.
 - The launcher (all three games) no longer starts the game a second time
   when you quit the run that INSTALL & PLAY started.
+- The repository's "MW3 validation" checks build and run again: the fakes
+  of two unit tests had fallen behind the runtime (`kernel_xam_test` had no
+  stand-in for the voice chat, the network trace and the lobby server;
+  `gpu_command_processor_test`'s `Swap` had the old signature).
 
 ## [v0.1.4] - 2026-11-23
 

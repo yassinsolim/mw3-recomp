@@ -39,10 +39,11 @@ untested.
 | Campaign: Crew Expendable | 119.0 | 59.9 |
 | Campaign: Charlie Don't Surf | 117.4 (117.7 on the first visit) | 59.5 (59.1 on the first visit) |
 | Multiplayer: Crash, a System Link match the device hosts | 119.1 | 60.0 |
-| Multiplayer: the two devices in one System Link match (Backlot) | both spawn and play, through a relay | both spawn and play |
+| Multiplayer: the two devices in one System Link match (Backlot), through the project's relay | both spawn and play, ten minutes to the time limit | both spawn and play |
+| Multiplayer: Xbox LIVE Find Match (Team Deathmatch), the two devices through the project's relay | 119, six and a half minutes in the match | 60 |
 | Checkpoints: saved, and loaded by Resume Game | works on Windows; not checked on Android | not checked |
 | Bots | none: this game has none | none |
-| Split screen, Xbox LIVE | not tested | not tested |
+| Split screen; Free-for-all, a private match and invitations on Xbox LIVE | not tested | not tested |
 
 What to expect:
 
@@ -120,11 +121,18 @@ minutes; game files and saves are kept
 
 ## Multiplayer
 
-**MULTIPLAYER → SYSTEM LINK** in the game: one player creates a game, the
-others find it in the list. The app's Settings → Network chooses how players
-reach each other: **Online** (through the project's relay), **LAN** (your own
-network only) or off. Everyone needs this same version of the game; it does
-not play with consoles on Xbox LIVE. There are no bots.
+The app's Settings → Network chooses how players reach each other: **Online**
+(through the project's relay, the default), **LAN** (your own network only)
+or off.
+
+- **MULTIPLAYER → XBOX LIVE → FIND MATCH**, with Online: the relay puts the
+  players who search together. Team Deathmatch and Free-for-all on the
+  disc's sixteen maps.
+- **MULTIPLAYER → SYSTEM LINK**, with Online or LAN: one player creates a
+  game, the others find it in the list.
+
+Everyone needs this same version of the game; it does not play with consoles
+on Xbox LIVE. There are no bots.
 
 ## Credits
 

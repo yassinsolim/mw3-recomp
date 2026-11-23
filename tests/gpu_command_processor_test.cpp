@@ -48,7 +48,7 @@ namespace vk::renderer
         g_draws.push_back({ call, std::make_unique<gpu::RegisterFile>(registers) });
     }
     void Resolve(const gpu::RegisterFile&) { g_resolves++; }
-    void Swap(uint32_t frontBuffer) { g_swaps.push_back(frontBuffer); }
+    void Swap(uint32_t frontBuffer, void (*)(uint32_t, uint64_t)) { g_swaps.push_back(frontBuffer); }
     void BeforeCompletion() { g_completions++; }
     void Idle() { g_idles++; }
     void BeginOcclusionQuery() {}

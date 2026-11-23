@@ -70,6 +70,9 @@ namespace online
 {
     Service* Get() { return g_haveService ? &g_service : nullptr; }
     bool Live() { return g_live; }
+    bool Trace() { return false; }
+    // No lobby server here: the title-server enumerator lists nothing.
+    namespace demonware { bool Served() { return false; } }
 }
 namespace signin
 {
@@ -93,6 +96,8 @@ namespace kernel
     void ForgetSessionLags() {}
     void NoteSessionLag(const void*, uint32_t) {}
     void SetXnAddrPeer(void*, uint64_t) {}
+    // Voice chat off: no headset is reported at any controller.
+    namespace voice { bool On() { return false; } }
 }
 
 using namespace kernel;
