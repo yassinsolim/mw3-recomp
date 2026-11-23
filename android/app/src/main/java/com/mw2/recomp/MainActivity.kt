@@ -376,6 +376,11 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         } else {
+            // Direct launch is for the app's start. A launcher that started
+            // without the game sends the player through the install, which
+            // starts the game itself: coming back here from that run is a
+            // Quit, and must not start the game a second time.
+            hasAutoLaunched = true
             if (detectedIsoFile != null) {
                 play.isEnabled = true
                 play.text = "⚡ INSTALL & PLAY"

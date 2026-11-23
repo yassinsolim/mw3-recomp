@@ -72,7 +72,10 @@ A debug build can be pointed at a list of releases served from the PC:
     set MW2_UPDATE_API=http://127.0.0.1:8765/releases.json
     set MW2_VERSION_CODE=10000        (and 10001 for the newer one)
     gradlew :app:assembleMw3Tu0Debug  (or :app:assembleMw2Tu0Debug, :app:assembleCod4Tu0Debug)
-    python tools/serve_test_release.py newer.apk --tag v1.0.1
+    python tools/serve_test_release.py newer.apk --tag v1.0.1  (--game mw2 or cod4 for those apps)
     adb reverse tcp:8765 tcp:8765
 
-Install the older build, start it, and it offers the newer one.
+Install the older build, start it, and it offers the newer one. Only a debug
+build may ask a server without TLS; signed again with the release key
+(`apksigner sign`), it stands in for the published app, and the newer one
+can then be a release's own APK.
