@@ -647,8 +647,16 @@ Run on an AYN Thor (the app built with `-Dev -Suffix .dev`, six bots set from
 the launcher's Bots entry, Terminal from System Link): the bots joined,
 spawned and fought, 56 targets went down in four and a half minutes, no bot
 was dropped, and the app's counter read 119 to 120 FPS on the 120 Hz screen
-throughout. A second player joining a match with bots (the leave rule's two
-paths) has not been run in Modern Warfare 2, nor has a Retroid Pocket Flip 2.
+throughout.
+
+The leave rule, on the PC: a host with seventeen bots (a full server) and a
+second copy on the same network (`MW2_NETWORK=lan`). The second copy found the
+game in System Link's list as 18 of 18, joined, and the host logged `Bot Rook
+leaves slot 17 (a player needs the slot)` as its connect arrived; the player
+chose a team and a class with the bots present, spawned, and was on the
+scoreboard beside the host and sixteen bots. Not run: the other path (a party
+member whose slot a bot sits in), a Retroid Pocket Flip 2, and a second
+device joining an Android host.
 
 Limits, as Modern Warfare 3's: no path data, so a bot feels its way and can
 circle on the wrong floor (Terminal's bots met less often than Rust's); no
