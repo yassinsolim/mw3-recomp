@@ -18,7 +18,8 @@ FORBIDDEN_SUFFIXES = {
     ".ff", ".ffm", ".pak", ".bik", ".xma", ".xwb", ".xsb", ".xpr",
     ".ppc_dump",
 }
-FORBIDDEN_DIRS = {"mw2", "mw3", "ppc", "ppc_mw3", "ppc_mw3_mp", "ppc_mp", "ppc_tu0", "ppc_mp_tu0"}
+FORBIDDEN_DIRS = {"mw2", "mw3", "cod4", "ppc", "ppc_mw3", "ppc_mw3_mp", "ppc_mp", "ppc_tu0", "ppc_mp_tu0",
+                  "ppc_cod4", "ppc_cod4_mp"}
 LFS_MAGIC = b"version https://git-lfs.github.com/spec/"
 # Directories where a name like "mw3" is a legitimate source directory.
 ALLOWED_PREFIXES = ("docs/", "tools/", "tests/", "config/", "runtime/", ".github/")
@@ -89,6 +90,8 @@ def self_test():
     assert violations(["x/lfs.bin"], rh)
     assert violations(["mw3/anything.txt"], rh)
     assert violations(["ppc_mw3/ppc_recomp.0.cpp"], rh)
+    assert violations(["cod4/notes.txt"], rh)
+    assert violations(["ppc_cod4_mp/ppc_recomp.0.cpp"], rh)
     assert not violations(["docs/MW3-BUILD.md", "tools/title.py", "runtime/main.cpp",
                            "tests/xex_header_test.cpp", "config/MW3.toml.in"], rh)
     assert lfs_attributes(lambda f: "*.ff filter=lfs diff=lfs merge=lfs -text\n")

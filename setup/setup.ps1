@@ -34,8 +34,7 @@ mw3 (default), mw2 or cod4. Modern Warfare 2 is built for Android only, as
 Modern Warfare 3 is: the game code from the disc's own executables (no title
 update), and the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
 Call of Duty 4 (docs/COD4-BRINGUP.md) is built for Android and Windows as
-Modern Warfare 3 is, but has no published app: the app (com.cod4.recomp) is
-built here every time, signed with this PC's key.
+Modern Warfare 3 is, with the published app (com.cod4.recomp).
 .PARAMETER Iso
 The disc image. Asked for when not given.
 .PARAMETER Title
@@ -810,9 +809,8 @@ if ($ForAndroid) {
     if ($Suffix) { $gradleArgs += "-PappSuffix=$Suffix" }
     $fwd = { param($p) $p -replace '\\', '/' }
     # Whether the app is built here: always, but for the app with the whole
-    # game, which is the published one unless -Dev asks, or none has been
-    # published (Call of Duty 4's never is).
-    $BuildApp = -not $Split -or $Dev -or ($Cod4 -and -not $GameOnly)
+    # game, which is the published one unless -Dev asks.
+    $BuildApp = -not $Split -or $Dev
 
     if ($Split) {
         # ---- the game code: a library for each title, in a package ----------
@@ -868,7 +866,7 @@ if ($ForAndroid) {
                 if ($abi) {
                     $wanted = @((Exec 'curl.exe' @('-fsSL', '--retry', '3', $abi.browser_download_url)) | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
                     if (@($built | Where-Object { $_ -notin $wanted }).Count) {
-                        Warn "the game code just built is not what the published app $($release.tag_name) was built for (this folder is newer or older than that release). The app will say so and not start the game. Either wait for the next release, or build the game code of that one: git checkout $($release.tag_name), then setup\setup.cmd$(if ($Mw2) { ' -Game mw2' }) -GameOnly."
+                        Warn "the game code just built is not what the published app $($release.tag_name) was built for (this folder is newer or older than that release). The app will say so and not start the game. Either wait for the next release, or build the game code of that one: git checkout $($release.tag_name), then setup\setup.cmd$(if ($Game -ne 'mw3') { " -Game $Game" }) -GameOnly."
                     }
                 }
             } else {

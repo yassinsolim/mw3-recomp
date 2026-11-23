@@ -268,8 +268,7 @@ android {
         // two above: the campaign's library (libcod4.so) and the
         // multiplayer's (libcod4mp.so), without the recompiled code, which is
         // in the player's own game package (com.cod4.recomp.game). The disc's
-        // version only (docs/COD4-BRINGUP.md). Not published: no release
-        // repository, so it does not look for updates.
+        // version only (docs/COD4-BRINGUP.md).
         create("cod4") {
             dimension = "title"
             applicationId = cod4ApplicationId
@@ -277,7 +276,9 @@ android {
             // Teal, and one bar (src/cod4/res/drawable), so the three games
             // tell apart on one home screen.
             resValue("color", "icon_accent", "#35C7C0")
-            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            // The public repository's releases carry this app, without the
+            // recompiled code (.github/workflows/android-release-cod4.yml).
+            buildConfigField("String", "UPDATE_REPO", "\"yassinsolim/cod4-recomp\"")
             if (gameSplit) buildConfigField("String", "GAME_PACKAGE", "\"$cod4ApplicationId.game\"")
             manifestPlaceholders["gamePackage"] = "$cod4ApplicationId.game"
             buildConfigField("String", "LIBRARY_SP", "\"cod4\"")

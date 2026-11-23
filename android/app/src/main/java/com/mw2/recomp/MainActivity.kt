@@ -757,6 +757,7 @@ class MainActivity : AppCompatActivity() {
                     // each game is <game>-recomp-<tag>.apk.
                     val wantTitle = when {
                         Title.isMw3 -> "mw3"
+                        Title.isCod4 -> "cod4-recomp"
                         Title.both -> "mw2-recomp"
                         isMp() -> "multiplayer"
                         else -> "campaign"
