@@ -10,6 +10,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Android and Windows). The campaign's first level and a System Link match
   play; `docs/COD4-BRINGUP.md` says what has been checked and what has not.
 
+### Fixed
+- **Call of Duty 4 (in development)**: the larger campaign levels load
+  instead of ending in "Out of memory"; the multiplayer starts on Android,
+  and a System Link search finds a host on another device; a core no longer
+  spins waiting for the sun's occlusion count at 120 frames a second.
+  Measured on the AYN Thor and the Retroid Pocket Flip 2
+  (`docs/COD4-BRINGUP.md`). Modern Warfare 2 and 3 are unchanged.
+
 ## [v0.1.4] - 2026-11-23
 
 ### Highlights

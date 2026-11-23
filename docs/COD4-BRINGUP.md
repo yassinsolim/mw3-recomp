@@ -217,15 +217,86 @@ controls, the app's defaults. The launcher finds
 | INSTALL & PLAY from the disc image: the root's files, the two `.bikbe` and all 2,480 of `highmip/` (6.4 GB, 116 entries), then the game starts | **verified** (`thor-launcher-disc-detected.png`) | **verified** (`flip2-installer-highmip.png`) |
 | Logos and introduction movie, title screen, main menu | **verified**, 119 FPS (`thor-main-menu-after-install.png`) | **verified**, 60 FPS (`flip2-after-install-main-menu.png`) |
 | New Game: F.N.G. loads and draws; the left stick walks and the right turns | **verified** from that install, 119 FPS on the overlay (`thor-killhouse-ingame.png`, `thor-install-and-play.log`) | **verified** with the same build on files pushed by adb, which are the installer's byte for byte in count and size (`flip2-killhouse-moved.png`); not repeated after the install, the Flip 2 being shut and dozing between taps |
-| Multiplayer | **open**: not started | **open** |
+| Multiplayer: a System Link match hosted on the device (Crash, from the console; Backlot, from the menus) | **verified**, 119.1 FPS | **verified**, 60.0 FPS |
+| Multiplayer: the Flip 2 joins the Thor's System Link match (Backlot) through a relay on the local network; both spawn, on opposite teams | **verified** (`perf-cod4\caps\sl_scoreboard_thor.jpg`, `sl_play_sheet.jpg`) | **verified** |
 
-No guest fault, no `Com_Error`, no unimplemented import in either log. No
-frame-rate measurement was made beyond the overlay's number.
+No guest fault, no `Com_Error`, no unimplemented import in either log.
 
-Seen on both and **open**: the on-screen Start does not skip the logos and the
-introduction as the pad's does on Windows, so a first start takes about two
-minutes to reach the title screen; and `MW2_INPUT_SCRIPT` in `options.txt` was
-read and its presses took no effect, so the runs above were driven by taps.
+### Android: frame rates, and what had to be fixed for them (23 November 2026)
+
+`.dev` builds with `MW2_REPORT=1`, the app's defaults, 150 to 190 s of play
+walked by one `MW2_INPUT_SCRIPT` (the same presses every run), levels started
+from the console (`MW2_CONSOLE="22:devmap <level>"`). Logs and screenshots in
+`C:\Users\solim\mw3-android-work\perf-cod4\`. "On time" is the share of
+frames within 1.05 display periods of the one before; stutters are frames
+half a blank late or more.
+
+| | AYN Thor, 120 Hz: FPS / on time / GPU ms / consumer % of a core / stutters | Flip 2, 60 Hz |
+|---|---|---|
+| F.N.G. | 119.0 / 91.7% / 2.1 / 9 / 4 | 60.0 / 96.0% / 2.8 / 9 / 2 |
+| Crew Expendable, first visit | 119.0 / 92.2% / 3.6 / 22 / 6 (72 pipelines compiled, none on the renderer's thread) | 59.9 / 95.3% / 8.6 / 19 / 8 |
+| Crew Expendable, second visit | not run again | 59.9 / 95.5% / 8.8 / 22 / 10 (0 compiled) |
+| Charlie Don't Surf, first visit | 117.7 / 87.2% / 3.8 / 32 / 48 | 59.1 / 93.8% / 2.2 / 27 / 67 |
+| Charlie Don't Surf, second visit | 117.4 / 86.5% / 3.8 / 34 / 36 (0 to 3 compiled) | 59.5 / 93.1% / 3.3 / 28 / 32 |
+| Crash, System Link host, alone, first visit | 119.1 / 91.9% / 2.8 / 19 / 0 | 60.0 / 96.2% / 7.2 / 19 / 7 |
+
+Charlie Don't Surf's stutters are nearly all in the half minute the
+helicopters land: the ring consumer needs 8 to 12 ms a frame there on the
+Thor (5% of the run's frames) and up to 30 ms on the Flip 2. The script fires
+now and then, and a shot friend ends the mission: the one pause of 1 to 3 s
+in some of these runs is the checkpoint loading again, not the renderer.
+
+What was wrong, and is fixed:
+
+- **"Out of memory" starting the larger levels.** The title's physical
+  memory pool asks the kernel how a page is protected before it hands it out
+  and starts a new 64 KB page where the answer is not what it wants.
+  `MmQueryAddressProtect` said "read-write" whatever had been set, so every
+  write-combined allocation took a page of its own, and Charlie Don't Surf
+  came 3 MB short of the 431 MB pool (the title's own account, read out of
+  its pool at the failure) and restarted the title. The kernel now keeps
+  what `MmSetAddressProtect` set (`runtime/kernel/memory.cpp`, this title
+  only). Crew Expendable and F.N.G. fitted before.
+- **The multiplayer did not start on Android**: the app handed the
+  multiplayer's library the campaign's executable (`runtime/android/jni.cpp`).
+- **A System Link search found nothing.** The host answers from its game
+  socket (port 1000, the console's voice and data protocol, two bytes of
+  length in front) to the searcher's plain UDP socket (port 1001), which is
+  handed the game data alone now (`runtime/kernel/net.cpp`, this title only).
+- **A core spent waiting.** The title's back end waits awake for the sun's
+  occlusion count (`sub_82108830`), which the ring consumer handed over only
+  after its wait for the display: 79% of a core on the Thor in Charlie Don't
+  Surf. The counts are handed over during that wait now
+  (`renderer_resolve.cpp`, this title only): 39%, frame rate and frames on
+  time as before (117.5 / 86.5% both ways, two runs each).
+- **`MW2_INPUT_SCRIPT` on Android** pressed nothing where the on-screen pad
+  answers for the first controller; it presses on top of the pad now.
+- **`MW2_ENGINE_LOG=1`** shows this title's own prints (`T_Com_Printf`).
+
+What was tried and left as it was (second visits, Charlie Don't Surf on the
+Thor and Crew Expendable on the Flip 2 unless said):
+
+| Lever | Result | Kept |
+|---|---|---|
+| Display-paced cap, `com_maxfps 0`, `r_vsync 0` | already applied through the console: 119 on the Thor | yes |
+| Sun shadows above 60 (`MW2_SHADOWS=1`), Thor | 114.0 to 115.4 FPS, 316 to 454 stutters, GPU 4.9 ms, against 117.4, 36 and 3.8 | off, as carried over |
+| Sun shadows on the Flip 2 (Charlie Don't Surf) | 55.5 FPS, 82.5% on time, against 59.5 and 93.1% | off |
+| The console's 1024x600 scene on the Flip 2 (`MW2_SCENE`) | 59.8 FPS, 94.8% on time, 29 stutters, GPU 10.6 ms, against 59.9, 95.5%, 10 and 8.8 | 832x480 |
+| Texel forms off (`MW2_VERTEX_TEXELS=0`, `MW2_PIXEL_TEXELS=0`) | Thor GPU 4.5 ms for 3.8; Flip 2 59.2 FPS, 90.2% on time, GPU 12.7 ms | on |
+| Pipeline workers and saving | a second visit compiles 0 to 3 pipelines, none on the renderer's thread | as they are |
+
+The opening movies: the on-screen Start skips each one (verified on both;
+the main menu is reached in about 20 s with four presses), and New Game is in
+F.N.G. eight seconds later. The earlier note that it did not was a press
+made too late to tell.
+
+The release-signed app (`com.cod4.recomp`, built from `82462c5`, with the
+game package under that name) was installed on both devices with the game
+files copied over. On the Thor it starts, New Game loads F.N.G. and plays at
+119 FPS on the overlay, with 6 stutter lines in 100 s of a first visit, the
+longest frame 32 ms. A release build takes no switches (no `options.txt`, and
+`.env` is not read under Android), so no report, no console and no script:
+the heavier levels, the multiplayer and the Flip 2 were **not** run on it.
 
 ### Modern Warfare 2 and 3 are as they were
 
@@ -252,11 +323,15 @@ against `android`:
 
 ## Open
 
-- A second player in a System Link match, split screen, and the network
-  backends (relay, LAN) for this title; the multiplayer on Android.
-- The on-screen Start during the opening movies and `MW2_INPUT_SCRIPT` on
-  Android (above).
+- Split screen; the local-network backend; Xbox LIVE. The public relay was
+  not reachable from the Flip 2's network on the day, so the two-device match
+  ran through a relay on the PC.
+- Bots: this title has none (`Title.hasBots`).
+- The release-signed app beyond F.N.G. on the Thor (above), and a way to
+  give a release build `MW2_REPORT`.
+- Charlie Don't Surf's landing, bound by the ring consumer on both devices.
+- The app's multiplayer menu offers Modern Warfare 2's rank and unlock
+  entries to this title; not tried.
 - The frame's shape (`MW2_RENDER`), the shader hand-over at load, the field of
   view and the other optional hooks listed under the title blocks.
-- Frame rates measured over a level, on either device; levels after F.N.G.
 - Whether a title update exists and matters.
