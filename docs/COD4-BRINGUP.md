@@ -323,15 +323,27 @@ against `android`:
 
 ## Open
 
-- Split screen; the local-network backend; Xbox LIVE. The public relay was
-  not reachable from the Flip 2's network on the day, so the two-device match
-  ran through a relay on the PC.
+- Split screen; the local-network backend; Xbox LIVE.
+- The public relay (`mw3.yassin.app:3074`) from the Flip 2: on 23 November
+  one run's Hellos went unanswered for the five seconds a copy asks
+  (`logs_mp_crash_cold_flip.log`), so that day's two-device match ran through
+  a relay on the PC. Looked into the same evening and not seen again:
+  the name resolves on the Flip 2 (129.146.70.100), a Hello sent from its
+  shell over its Wi-Fi is answered with a Challenge awake and asleep, and
+  this title's `.dev` multiplayer is welcomed by the relay (title id
+  `415607E6`, the same server name and code as Modern Warfare 3's). The
+  relay refuses in words when it refuses, and does not answer a ping from
+  anywhere, so the earlier "unreachable" was a few seconds of lost UDP and
+  nothing of this title's. A copy asks once, at start: after such a start
+  the multiplayer is offline until it is started again.
 - Bots: this title has none (`Title.hasBots`).
 - The release-signed app beyond F.N.G. on the Thor (above), and a way to
   give a release build `MW2_REPORT`.
 - Charlie Don't Surf's landing, bound by the ring consumer on both devices.
-- The app's multiplayer menu offers Modern Warfare 2's rank and unlock
-  entries to this title; not tried.
+- The Live lobby's Invite and Join entries of the app's pause menu, which
+  this title has as Modern Warfare 2's multiplayer does; not tried. (The
+  rank, unlock and prestige entries, which write Modern Warfare 2's stats
+  file, are no longer offered to it.)
 - The frame's shape (`MW2_RENDER`), the shader hand-over at load, the field of
   view and the other optional hooks listed under the title blocks.
 - Whether a title update exists and matters.

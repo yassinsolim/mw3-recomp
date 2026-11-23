@@ -5,18 +5,24 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
-- **Call of Duty 4: Modern Warfare, a third game, in development** (not
-  published; `setup\setup.cmd -Game cod4` builds it from your own disc for
-  Android and Windows). The campaign's first level and a System Link match
-  play; `docs/COD4-BRINGUP.md` says what has been checked and what has not.
+- **Call of Duty 4: Modern Warfare, a third game**, with a public repository
+  of its own, `yassinsolim/cod4-recomp`, whose releases carry its app
+  (`com.cod4.recomp`, v0.1.0 first; `README-COD4.md` is that repository's
+  README). `setup\setup.cmd -Game cod4` builds the game code from your own
+  disc for Android and Windows and downloads the published app, which
+  updates itself from there. The campaign and a System Link match play;
+  `docs/COD4-BRINGUP.md` says what has been checked and what has not.
 
 ### Fixed
-- **Call of Duty 4 (in development)**: the larger campaign levels load
+- **Call of Duty 4, before its first release**: the larger campaign levels load
   instead of ending in "Out of memory"; the multiplayer starts on Android,
   and a System Link search finds a host on another device; a core no longer
   spins waiting for the sun's occlusion count at 120 frames a second.
   Measured on the AYN Thor and the Retroid Pocket Flip 2
   (`docs/COD4-BRINGUP.md`). Modern Warfare 2 and 3 are unchanged.
+- Call of Duty 4's multiplayer: the app's pause menu no longer offers Modern
+  Warfare 2's Max rank, Unlock all and Prestige entries, which write that
+  game's stats file.
 
 ## [v0.1.4] - 2026-11-23
 
