@@ -799,7 +799,24 @@ namespace
     struct Search
     {
         uint32_t id = 0, overlapped = 0, results = 0, capacity = 0, most = 0;
+#ifdef COD4_TITLE_MP
+        // Call of Duty 4 searches once and, finding nothing, opens a lobby of
+        // its own that it never leaves for another: two players who search
+        // at the same moment each find nothing and wait in a lobby each, for
+        // good (seen with an AYN Thor and a Retroid Pocket Flip 2). So a
+        // search that finds nothing is asked again every kAskAgain until
+        // `until`, which is later the more of the copies heard on the
+        // network come before this one: the first of them opens its lobby at
+        // once, and the others find it.
+        online::SessionSearch asked;
+        std::chrono::steady_clock::time_point sent, until;
+#endif
     };
+#ifdef COD4_TITLE_MP
+    constexpr auto kAskAgain = std::chrono::seconds(1);       // the relay takes one search a second
+    constexpr auto kWaitForEach = std::chrono::seconds(2);    // a lobby is listed and found within it
+    constexpr size_t kMostWaitedFor = 3;
+#endif
     std::mutex g_searchLock;
     std::vector<Search> g_searches;
 
@@ -860,6 +877,12 @@ namespace
         {
             std::lock_guard g(g_searchLock);
             g_searches.push_back({ id, overlapped, words[size + 1], words[size], words[2] });
+#ifdef COD4_TITLE_MP
+            Search& kept = g_searches.back();
+            kept.asked = search;
+            kept.sent = std::chrono::steady_clock::now();
+            kept.until = kept.sent + kWaitForEach * std::min(service->PeersBefore(), kMostWaitedFor);
+#endif
         }
         LOGI("online: searching for sessions, procedure %u, room for %u", uint32_t(words[0]), search.room);
         if (online::Trace())
@@ -1427,7 +1450,29 @@ void kernel::FinishSearches()
     for (auto it = g_searches.begin(); it != g_searches.end();)
     {
         std::vector<online::SessionFound> found;
+#ifdef COD4_TITLE_MP
+        const auto now = std::chrono::steady_clock::now();
+        if (!it->id)
+        {
+            // Found nothing, and waiting to ask again.
+            if (now - it->sent >= kAskAgain)
+            {
+                it->id = service->Search(it->asked);
+                it->sent = now;
+            }
+            ++it;
+            continue;
+        }
         if (!service->SearchResults(it->id, found)) { ++it; continue; }
+        if (found.empty() && now < it->until)
+        {
+            it->id = 0;
+            ++it;
+            continue;
+        }
+#else
+        if (!service->SearchResults(it->id, found)) { ++it; continue; }
+#endif
         AnswerSearch(*it, found);
         it = g_searches.erase(it);
     }

@@ -140,6 +140,10 @@ namespace online
         // the network right now. Zero while hosting alone is expected; zero
         // with a friend hosting beside it means discovery is not arriving.
         virtual size_t PeerCount() { return 0; }
+        // How many of them come before this copy in an order every copy
+        // agrees on (their ids): what breaks a tie between copies that do
+        // the same thing at the same moment.
+        virtual size_t PeersBefore() { return 0; }
         // Joinable peers' names, one per line, for a picker UI.
         virtual std::string PeerNames() { return {}; }
         // Join a heard peer by name (an explicit tap, so no accept flag is

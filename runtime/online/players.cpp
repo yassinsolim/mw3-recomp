@@ -17,6 +17,7 @@
 #include "../signin.h"
 #include "../title.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -203,6 +204,15 @@ namespace
             std::lock_guard g(lock_);
             ForgetGoneLocked();
             return peers_.size();
+        }
+
+        size_t PeersBefore() override
+        {
+            std::lock_guard g(lock_);
+            ForgetGoneLocked();
+            const uint64_t own = transport_->LocalId();
+            return size_t(std::count_if(peers_.begin(), peers_.end(),
+                                        [&](const auto& entry) { return entry.second.id < own; }));
         }
 
         std::string PeerNames() override
