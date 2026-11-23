@@ -39,6 +39,14 @@ MW3 = dict(xex="mw3/tu0/default.xex", image="mw3/tu0/default.pe", ppc="ppc_mw3",
 MW3MP = dict(xex="mw3/tu0/default_mp.xex", image="mw3/tu0/default_mp.pe", ppc="ppc_mw3_mp",
              toml="config/MW3MP.toml", tables="config/mw3mp_switch_tables.toml", build="build-mw3mp",
              syms="config/mw3mp_symbols.txt")
+# Call of Duty 4: Modern Warfare's campaign (CoD3.exe, the IW3 engine) and its
+# multiplayer (CoD3MP.exe), the disc's executables (docs/COD4-BRINGUP.md).
+COD4 = dict(xex="cod4/tu0/default.xex", image="cod4/tu0/default.pe", ppc="ppc_cod4",
+            toml="config/COD4.toml", tables="config/cod4_switch_tables.toml", build="build-cod4",
+            syms="config/cod4_symbols.txt")
+COD4MP = dict(xex="cod4/tu0/default_mp.xex", image="cod4/tu0/default_mp.pe", ppc="ppc_cod4_mp",
+              toml="config/COD4MP.toml", tables="config/cod4mp_switch_tables.toml", build="build-cod4mp",
+              syms="config/cod4mp_symbols.txt")
 
 VERSIONS = ("tu6", "tu0")
 VERSION = os.environ.get("MW2_VERSION", "tu6")
@@ -56,6 +64,8 @@ if VERSION != "tu6":
 
 TITLES["mw3"] = MW3
 TITLES["mw3mp"] = MW3MP
+TITLES["cod4"] = COD4
+TITLES["cod4mp"] = COD4MP
 
 NAME = os.environ.get("MW2_TITLE", "sp")
 if NAME not in TITLES:

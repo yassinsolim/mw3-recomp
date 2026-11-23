@@ -1,0 +1,135 @@
+# Call of Duty 4: Modern Warfare, the campaign (CoD3.exe, IW3 engine), the disc's
+# executable. Every address was found by tools/port_hooks.py --version tu0 from
+# MW2's disc executable: each helper matches once, with MW2's size and bytes
+# but for linker-filled immediates and branch targets (docs/COD4-BRINGUP.md).
+# Executable SHA-256: f6b848ac4ecf2b12881223e4c3cd63c49ae36e1fadc6f2179428033274602739
+
+[main]
+file_path = "../cod4/tu0/default.xex"
+out_directory_path = "../ppc_cod4"
+switch_table_file_path = "cod4_switch_tables.toml"
+
+skip_lr = false
+skip_msr = false
+ctr_as_local = true
+xer_as_local = true
+reserved_as_local = true
+cr_as_local = true
+non_argument_as_local = true
+non_volatile_as_local = true
+
+# The C runtime's register save/restore helpers.
+restgprlr_14_address = 0x820F07C0
+savegprlr_14_address = 0x820F0770
+restfpr_14_address   = 0x820F0A7C
+savefpr_14_address   = 0x820F0A30
+restvmx_14_address   = 0x82333C18
+savevmx_14_address   = 0x82333980
+restvmx_64_address   = 0x82333CAC
+savevmx_64_address   = 0x82333A14
+
+# The C runtime's setjmp and longjmp (Com_Error leaves an error by longjmp).
+setjmp_address  = 0x820F0CC0
+longjmp_address = 0x820EEEC0
+
+# Leaf functions (no stack frame, hence absent from .pdata) that contain jump
+# tables. The analyser ends them early because a table dispatch looks like a
+# tail call. Extents derived by tools/fixbounds.py (MW2_TITLE=cod4) from bl
+# targets, padding runs and the tables' own case labels.
+functions = [
+    { address = 0x82093758, size = 0x284 },
+    { address = 0x821025E8, size = 0x104 },
+    { address = 0x8210A3B8, size = 0xB0 },
+    { address = 0x8214C988, size = 0x8C },
+    { address = 0x821656E0, size = 0x448 },
+    { address = 0x8216CAA8, size = 0x13C },
+    { address = 0x8218C840, size = 0x160 },
+    { address = 0x8218CD00, size = 0x198 },
+    { address = 0x8218CE98, size = 0x1FC },
+    { address = 0x821983F8, size = 0x80 },
+    { address = 0x82198EB0, size = 0x74 },
+    { address = 0x8219D818, size = 0xA8 },
+    { address = 0x821CC598, size = 0x26C },
+    { address = 0x821ED150, size = 0xBC },
+    { address = 0x821EDB88, size = 0x160 },
+    { address = 0x821F01D8, size = 0x178 },
+    { address = 0x821F04C8, size = 0x63C },
+    { address = 0x821F8C20, size = 0xBC },
+    { address = 0x821FA000, size = 0x90 },
+    { address = 0x821FB678, size = 0x20C },
+    { address = 0x82221930, size = 0x100 },
+    { address = 0x822229F0, size = 0x120 },
+    { address = 0x822796B0, size = 0x98 },
+    { address = 0x82284A18, size = 0x78 },
+    { address = 0x82289FB0, size = 0x1FC },
+    { address = 0x822C2B90, size = 0x1F8 },
+    { address = 0x822D8D98, size = 0x1F0 },
+    { address = 0x822EC9A0, size = 0x7C },
+    { address = 0x822F1040, size = 0x84 },
+    { address = 0x822F6A00, size = 0x64 },
+    { address = 0x8230EA68, size = 0x204 },
+    { address = 0x8232C958, size = 0x6C },
+]
+
+# Two AltiVec instructions the pinned recompiler does not know (it has only
+# their VMX128 forms; MW2 and MW3 never use the plain ones): vandc and vctuxs,
+# nine instructions in three functions. Each is replaced by a function of the
+# runtime (runtime/ppc_extra_instructions.h) and stepped over, which leaves the
+# recompiler, and with it the other titles' game-library statements, as it is.
+# The recompiler declares a hook with its registers as the parameters' names,
+# so one whose result goes where an operand came from has a form of its own.
+# The recompiler still reports each as unrecognised; nothing is emitted for it.
+
+[[midasm_hook]]
+name = "PpcVandc"
+address = 0x820A3B10
+registers = ["v12", "v8", "v3"]
+jump_address = 0x820A3B14
+
+[[midasm_hook]]
+name = "PpcVandc"
+address = 0x820A3C28
+registers = ["v11", "v8", "v31"]
+jump_address = 0x820A3C2C
+
+[[midasm_hook]]
+name = "PpcVandc"
+address = 0x820A3C2C
+registers = ["v8", "v9", "v30"]
+jump_address = 0x820A3C30
+
+[[midasm_hook]]
+name = "PpcVctuxsInPlace"
+address = 0x82122130
+registers = ["v8"]
+jump_address = 0x82122134
+
+[[midasm_hook]]
+name = "PpcVctuxsInPlace"
+address = 0x8212213C
+registers = ["v9"]
+jump_address = 0x82122140
+
+[[midasm_hook]]
+name = "PpcVctuxsInPlace"
+address = 0x8212214C
+registers = ["v7"]
+jump_address = 0x82122150
+
+[[midasm_hook]]
+name = "PpcVctuxsInPlace"
+address = 0x82122160
+registers = ["v8"]
+jump_address = 0x82122164
+
+[[midasm_hook]]
+name = "PpcVandc"
+address = 0x82131F38
+registers = ["v0", "v8", "v1"]
+jump_address = 0x82131F3C
+
+[[midasm_hook]]
+name = "PpcVandcInPlace"
+address = 0x82131F3C
+registers = ["v0", "v12"]
+jump_address = 0x82131F40

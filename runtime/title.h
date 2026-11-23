@@ -46,7 +46,78 @@
 // The network hardening entries after them (docs/security.md) were found in
 // this executable by what each function does: MW2's multiplayer executable is
 // not the source of any address here.
-#if defined(MW3_TITLE) && defined(MW3_TITLE_MP)
+//
+// Call of Duty 4: Modern Warfare (CoD3.exe and CoD3MP.exe, the IW3 engine;
+// ppc_cod4/ and ppc_cod4_mp/; docs/COD4-BRINGUP.md) comes before both. Its
+// build defines COD4_TITLE (and COD4_TITLE_MP for the multiplayer) beside
+// MW3_TITLE, which the runtime's sources read as "not Modern Warfare 2: a hook
+// without an entry here is compiled out". Every entry was found in CoD4's own
+// executable, by laying the function beside the one MW2's disc block names.
+#if defined(COD4_TITLE) && defined(COD4_TITLE_MP)
+
+#define MW2_TITLE_NAME  "CoD4 multiplayer"
+#define T_ENTRY_POINT   0x82103AC8u          // the XEX header's ENTRY_POINT
+
+// the kernel's data imports, found as the campaign's below
+#define T_DATA_TimeStampBundlePtr 0x82000764u
+#define T_DATA_DebugMonitorPtr    0x82000820u
+#define T_DATA_ModuleHandlePtr    0x82000798u
+
+// Not derived for this executable yet: the code that reads each checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(COD4_TITLE)
+
+#define MW2_TITLE_NAME  "CoD4 campaign"
+#define T_ENTRY_POINT   0x820E4600u          // the XEX header's ENTRY_POINT
+
+// the engine
+// The one function with a 4096-byte format buffer that leaves by longjmp, with
+// 277 callers; (code, format, ...) as MW2's sub_822830E8.
+#define T_Com_Error            821DB7F0
+// (localClientNum, text): MW2's sub_8227CF18, with the same "p<digit> " client
+// prefix parse (the byte compares against 112, 80, 48 and 32); found from the
+// start-up function that queues "exec default.cfg" through it.
+#define T_Cbuf_AddText         821DE9D8
+// MW2's sub_8238E5D0 statement for statement: the one caller of XGetVideoMode,
+// which stores the hi-def flag at +1, a 1024x600 scene at +8 and a 1280x720
+// frame at +16 of the structure in r3 (render_size.cpp, MW2_SCENE).
+#define T_R_VideoSizes         82135318
+
+// the D3D9 library: an older build of MW2's (XDK 6132), not inlined either.
+// The one caller of VdSwap, with MW2's sub_820C3390's chain of calls and
+// imports around it.
+#define T_D3D_Present          820A0FF0
+// MW2's sub_820B9800: (device, position, sequence), the first load is
+// [device+10896] and the wait is between the same two calls
+// (sub_8209FD60/sub_8209FCA0 here, sub_820BDC78/sub_820BDBB0 there).
+#define T_D3D_ArenaWait        8209A0E0
+// The device structure, from the flip packet writer (sub_820A0AC0, MW2's
+// sub_820C2E60), which reads the same fields in the same order: 10900, the
+// present interval, 11844 (MW2: 11860), 10900, 10941.
+#define T_DEV_PresentInterval  13580u   // D3DRS_PRESENTINTERVAL (MW2: 13596)
+#define T_DEV_ProgressBlock    10896u   // the arena progress block, where MW2 has it
+
+// the kernel's data imports: the image's own import records, found by their
+// (library, ordinal) words 0x000100AD, 0x00010059 and 0x00010193, each present once
+#define T_DATA_TimeStampBundlePtr 0x82000518u   // the KeTimeStampBundle import record
+#define T_DATA_DebugMonitorPtr    0x820005CCu   // the KeDebugMonitorData import record
+#define T_DATA_ModuleHandlePtr    0x82000550u   // the XexExecutableModuleHandle import record
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(MW3_TITLE) && defined(MW3_TITLE_MP)
 
 #define MW2_TITLE_NAME  "MW3 multiplayer"
 #define T_ENTRY_POINT   0x824DBAE0u          // the XEX header's ENTRY_POINT
@@ -1297,7 +1368,11 @@
 // service tells copies apart by; and the four letters that mark what this
 // build's copies send each other, so another title's copies on the same
 // network or relay are not heard.
-#ifdef MW3_TITLE
+#if defined(COD4_TITLE)
+#define T_TITLE_ID             0x415607E6u
+#define T_NET_TAG              "CD4"
+#define T_NET_NAME             "cod4recomp"
+#elif defined(MW3_TITLE)
 #define T_TITLE_ID             0x415608CBu
 #define T_NET_TAG              "MW3"
 #define T_NET_NAME             "mw3recomp"

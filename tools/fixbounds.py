@@ -2,10 +2,15 @@
 """Derive explicit function boundaries for leaf functions whose jump-table cases
 fall outside the analyzer's detected extent.
 
-Function starts are taken from: .pdata entries, every `bl` target in .text, and
-the first instruction after a run of zero padding. A function containing a jump
-table then runs from the greatest such start <= the bctr, to the smallest start
-greater than the highest case label (backing off over trailing padding)."""
+Function starts are taken from: .pdata entries, every `bl` target in .text, the
+first instruction after a run of zero padding, and every word of .rdata and
+.data that is the address of an instruction and not a case label of a jump
+table: a function reached only through a pointer (Call of Duty 4 has leaf
+functions with jump tables right after one another, the second called through
+a table of handlers; without its start the two came out as one function and
+the call found none). A function containing a jump table then runs from the
+greatest such start <= the bctr, to the smallest start greater than the
+highest case label (backing off over trailing padding)."""
 import struct, re, sys, bisect, collections
 import title
 
@@ -25,7 +30,6 @@ for a in range(TVA, TVA+TSZ, 4):
         if TVA<=t<TVA+TSZ: starts.add(t)
     if prev_pad and x!=0: starts.add(a)
     prev_pad = (x==0)
-starts=sorted(starts)
 
 tables={}
 for blk in open(sys.argv[1]).read().split("[[switch]]")[1:]:
@@ -33,6 +37,16 @@ for blk in open(sys.argv[1]).read().split("[[switch]]")[1:]:
     d=int(re.search(r"default = 0x([0-9A-F]+)",blk).group(1),16)
     labs=[int(x,16) for x in re.findall(r"^    0x([0-9A-F]+),$",blk,re.M)]
     tables[b]=(labs,d)
+
+labels = {t for labs, d in tables.values() for t in labs + [d]}
+sections = title.sections(img)
+for name in (".rdata", ".data"):
+    va, size = sections[name]
+    size = min(size, len(img) - (va - BASE))        # .data's tail is not in the file
+    for a in range(va, va + size - 3, 4):
+        t = w(a)
+        if TVA <= t < TVA+TSZ and t % 4 == 0 and t not in labels: starts.add(t)
+starts=sorted(starts)
 
 bad=set()
 for line in open(sys.argv[2]):

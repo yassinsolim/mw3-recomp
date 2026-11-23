@@ -36,7 +36,13 @@ endif()
 # three facts of it the runtime is compiled against, recorded from a tree by
 # -DMW2_ABI_RECORD=ON below. Numbers and the names of system calls; none of
 # the game's code.
-if(MW2_TITLE STREQUAL "mw3mp")
+if(MW2_TITLE STREQUAL "cod4mp")
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/COD4MP.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/cod4mp_switch_tables.toml")
+elseif(MW2_TITLE STREQUAL "cod4")
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/COD4.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/cod4_switch_tables.toml")
+elseif(MW2_TITLE STREQUAL "mw3mp")
     set(abi_toml "${CMAKE_SOURCE_DIR}/config/MW3MP.toml")
     set(abi_tables "${CMAKE_SOURCE_DIR}/config/mw3mp_switch_tables.toml")
 elseif(MW2_TITLE STREQUAL "mw3")

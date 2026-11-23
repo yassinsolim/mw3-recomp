@@ -49,7 +49,7 @@ namespace fs = std::filesystem;
 // version -- has other code at other addresses, so it is not run.
 namespace
 {
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP)
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
     constexpr const char* kXex = "default_mp.xex";
     constexpr const char* kSha256 = MW2_XEX_SHA256_MP;
 #else
@@ -161,8 +161,13 @@ namespace
 #ifdef MW2_ANDROID
     struct Title { const char* xex; const char* sha256; const char* disc; };
 #ifdef MW3_TITLE
+#ifdef COD4_TITLE
+    constexpr uint32_t kTitleId = 0x415607E6;
+    constexpr const char* kTitleName = "Call of Duty 4: Modern Warfare";
+#else
     constexpr uint32_t kTitleId = 0x415608CB;
     constexpr const char* kTitleName = "Modern Warfare 3";
+#endif
 #ifdef MW2_BOTH_TITLES
     // The app that carries both titles: one install puts both of the disc's
     // executables in the one game folder, each checked, so the folder either
@@ -178,7 +183,7 @@ namespace
     // neither checked nor copied.
     constexpr bool kEveryTitleNeeded = false;
     constexpr Title kTitles[] = {
-#ifdef MW3_TITLE_MP
+#if defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
 #else
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
@@ -675,7 +680,7 @@ bool install::CompileShaders(const std::string& device, const std::string& why)
         return false;
     }
     LOGI("shaders: %s The launcher compiles them for device %s, then starts the game.", why.c_str(), device.c_str());
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP)
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
     const char* title = "multiplayer";
 #else
     const char* title = "campaign";
