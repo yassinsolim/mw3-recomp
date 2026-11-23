@@ -37,6 +37,7 @@ val mpInstance = (findProperty("mpInstance") as String?)?.toIntOrNull()?.coerceI
 // MW2_MP_LIBRARY_DIRECTORY), under the ABI's name as jniLibs folders are.
 val mw3mpLibraries = layout.buildDirectory.dir("mw3mp-jni").get().asFile
 val mw2mpLibraries = layout.buildDirectory.dir("mw2mp-jni").get().asFile
+val cod4mpLibraries = layout.buildDirectory.dir("cod4mp-jni").get().asFile
 // The app with the whole game (the mw3 and mw2 flavours) is published without
 // the recompiled code, which each player builds from their own disc into a
 // package of its own (android/game, docs/game-library.md) that this app loads
@@ -50,6 +51,7 @@ val gameSplit = (setting("MW2_SPLIT") ?: "runtime") != "OFF"
 val appSuffix = (findProperty("appSuffix") as String?).orEmpty()
 val mw3ApplicationId = "com.mw3.recomp$appSuffix"
 val mw2ApplicationId = "com.mw2.recomp$appSuffix"
+val cod4ApplicationId = "com.cod4.recomp$appSuffix"
 
 // Where the MW2 flavours' copy of the bundled graphics driver is put
 // (bundledDriverAssets, at the end of this file).
@@ -262,6 +264,36 @@ android {
                 }
             }
         }
+        // Call of Duty 4: Modern Warfare, the whole game in one app as the
+        // two above: the campaign's library (libcod4.so) and the
+        // multiplayer's (libcod4mp.so), without the recompiled code, which is
+        // in the player's own game package (com.cod4.recomp.game). The disc's
+        // version only (docs/COD4-BRINGUP.md). Not published: no release
+        // repository, so it does not look for updates.
+        create("cod4") {
+            dimension = "title"
+            applicationId = cod4ApplicationId
+            resValue("string", "app_name", "CoD 4: Modern Warfare" + if (appSuffix.isEmpty()) "" else " ($appSuffix)")
+            // Teal, and one bar (src/cod4/res/drawable), so the three games
+            // tell apart on one home screen.
+            resValue("color", "icon_accent", "#35C7C0")
+            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            if (gameSplit) buildConfigField("String", "GAME_PACKAGE", "\"$cod4ApplicationId.game\"")
+            manifestPlaceholders["gamePackage"] = "$cod4ApplicationId.game"
+            buildConfigField("String", "LIBRARY_SP", "\"cod4\"")
+            buildConfigField("String", "LIBRARY_MP", "\"cod4mp\"")
+            externalNativeBuild {
+                cmake {
+                    arguments += listOf(
+                        "-DMW2_TITLE=cod4", "-DMW3_RECOMP_ONLY=ON", "-DMW3_LINK_PROBE=ON",
+                        "-DMW2_ONLINE=none", "-DMW2_BOTH_TITLES=ON",
+                        "-DMW2_MP_LIBRARY_DIRECTORY=${File(cod4mpLibraries, "arm64-v8a").invariantSeparatorsPath}",
+                    )
+                    if (gameSplit) arguments += listOf("-DMW2_SPLIT=runtime")
+                    setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
+                }
+            }
+        }
         // The multiplayer alone, as an app beside the game: the test harness
         // for two players on one device (-PmpInstance above), not something
         // a player installs.
@@ -312,7 +344,7 @@ android {
     androidComponents {
         beforeVariants { variant ->
             val flavors = variant.productFlavors.toMap()
-            if (flavors["title"] in setOf("mw3", "mw3mp", "mw2") && flavors["tu"] == "tu6") variant.enable = false
+            if (flavors["title"] in setOf("mw3", "mw3mp", "mw2", "cod4") && flavors["tu"] == "tu6") variant.enable = false
             // A second copy is a test harness, never a release.
             if (mpInstance > 1 && flavors["title"] == "mw3mp" && variant.buildType != "debug") variant.enable = false
         }
@@ -334,10 +366,14 @@ android {
         getByName("mw2") {
             jniLibs.srcDir(mw2mpLibraries)
         }
-        // Modern Warfare 2's apps carry the same Turnip driver and nothing
-        // else of src/mw3/assets (the camouflage packs are MW3's): a copy of
-        // the drivers folder alone, made by bundledDriverAssets below.
-        listOf("campaign", "multiplayer", "mw2").forEach { getByName(it) { assets.srcDir(mw2DriverAssets) } }
+        getByName("cod4") {
+            jniLibs.srcDir(cod4mpLibraries)
+        }
+        // Modern Warfare 2's and Call of Duty 4's apps carry the same Turnip
+        // driver and nothing else of src/mw3/assets (the camouflage packs are
+        // MW3's): a copy of the drivers folder alone, made by
+        // bundledDriverAssets below.
+        listOf("campaign", "multiplayer", "mw2", "cod4").forEach { getByName(it) { assets.srcDir(mw2DriverAssets) } }
     }
 
     externalNativeBuild {
@@ -407,7 +443,7 @@ android {
 // run, and Gradle does not know the folder is that build's output: say so, or
 // the packaging could read it first and leave the multiplayer out.
 tasks.configureEach {
-    Regex("merge(Mw[23]Tu0\\w+)JniLibFolders").matchEntire(name)?.let {
+    Regex("merge((?:Mw[23]|Cod4)Tu0\\w+)JniLibFolders").matchEntire(name)?.let {
         dependsOn("externalNativeBuild${it.groupValues[1]}")
     }
 }
@@ -423,7 +459,7 @@ tasks.configureEach {
     // Every task that reads the MW2 flavours' assets: merging them, and in a
     // release build lint's model and analysis, which read the source folders
     // (the v0.1.0 release jobs of the MW2 repo failed on each undeclared one).
-    val forMw2 = listOf("Campaign", "Multiplayer", "Mw2").any { name.contains(it) }
+    val forMw2 = listOf("Campaign", "Multiplayer", "Mw2", "Cod4").any { name.contains(it) }
     if (forMw2 && (name.contains("Assets") || name.contains("lint", ignoreCase = true))) dependsOn(bundledDriverAssets)
 }
 

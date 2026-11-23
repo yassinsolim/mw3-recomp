@@ -58,6 +58,19 @@
 #define MW2_TITLE_NAME  "CoD4 multiplayer"
 #define T_ENTRY_POINT   0x82103AC8u          // the XEX header's ENTRY_POINT
 
+// The campaign's entries below, each found in this executable by the
+// campaign function's own instructions: the same sequence of opcodes, matched
+// once. Com_Error is again the one function that leaves by longjmp past a
+// 4096-byte buffer (303 callers), and the flip packet writer (sub_820B03A0)
+// reads the device at the campaign's offsets.
+#define T_Com_Error            82234308
+#define T_Cbuf_AddText         82237C50
+#define T_R_VideoSizes         8216CCD0
+#define T_D3D_Present          820B08D0   // the one caller of VdSwap
+#define T_D3D_ArenaWait        820A99C0
+#define T_DEV_PresentInterval  13580u
+#define T_DEV_ProgressBlock    10896u
+
 // the kernel's data imports, found as the campaign's below
 #define T_DATA_TimeStampBundlePtr 0x82000764u
 #define T_DATA_DebugMonitorPtr    0x82000820u
