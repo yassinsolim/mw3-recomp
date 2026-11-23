@@ -564,6 +564,8 @@ target_include_directories(mw2 PRIVATE "${CMAKE_SOURCE_DIR}/runtime")
 # the title, so a release has one list.
 if(MW2_TITLE STREQUAL "mw3mp")
     set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists_mw3.info")
+elseif(MW2_TITLE STREQUAL "cod4mp")
+    set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists_cod4.info")
 else()
     set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists.info")
 endif()

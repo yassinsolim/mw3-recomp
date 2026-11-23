@@ -1,0 +1,58 @@
+// What Find Match offers Call of Duty 4 on a relay, in the title's playlist
+// format (docs/relay.md, "Playlists"). Written for this project: the maps and
+// the script game types are the disc's own names, nothing else is the
+// publisher's. Raise `version` when the file changes.
+version 1
+
+gametype tdm
+name english "Team Deathmatch"
+script war
+teambased
+
+gametype ffa
+name english "Free-for-all"
+script dm
+
+playlist 0
+name english "Team Deathmatch"
+description english "Two teams, most kills wins."
+minparty 1
+maxparty 9
+mp_backlot,tdm,1
+mp_bloc,tdm,1
+mp_bog,tdm,1
+mp_cargoship,tdm,1
+mp_citystreets,tdm,1
+mp_convoy,tdm,1
+mp_countdown,tdm,1
+mp_crash,tdm,1
+mp_crossfire,tdm,1
+mp_farm,tdm,1
+mp_overgrown,tdm,1
+mp_pipeline,tdm,1
+mp_shipment,tdm,1
+mp_showdown,tdm,1
+mp_strike,tdm,1
+mp_vacant,tdm,1
+
+playlist 1
+name english "Free-for-all"
+description english "Every player for themselves."
+minparty 1
+maxparty 8
+mp_backlot,ffa,1
+mp_bloc,ffa,1
+mp_bog,ffa,1
+mp_cargoship,ffa,1
+mp_citystreets,ffa,1
+mp_convoy,ffa,1
+mp_countdown,ffa,1
+mp_crash,ffa,1
+mp_crossfire,ffa,1
+mp_farm,ffa,1
+mp_overgrown,ffa,1
+mp_pipeline,ffa,1
+mp_shipment,ffa,1
+mp_showdown,ffa,1
+mp_strike,ffa,1
+mp_vacant,ffa,1

@@ -27,6 +27,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   game files and saves are moved aside beside the app's folder, a rename
   that takes a second, where the place it used before made Android copy all
   6 to 8 GB out and back (minutes, and long enough to time out).
+- **Online from a second device on the same Wi-Fi** (all three games): every
+  copy came to the relay from the same port, and behind some routers the
+  second one in a household got no answer ("did not answer within 5
+  seconds") and stayed offline until restarted. Each copy now uses a port
+  the system picks.
+- **Call of Duty 4's Xbox LIVE Find Match** through a relay: the playlists
+  offered were Modern Warfare 2's, with maps this game does not have, and a
+  Team Deathmatch lobby stayed at "Match beginning in: 0" because the host's
+  read of the players' skill was never answered in a form it takes. It has
+  its own playlists (Team Deathmatch and Free-for-all on the disc's sixteen
+  maps) and the read is answered with no rows.
 
 ## [v0.1.4] - 2026-11-23
 

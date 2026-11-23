@@ -200,8 +200,13 @@ title and protocol, and every
 packet goes through it, so nobody needs an open port and nobody learns another
 player's address. A thread says Alive every second, so a copy stays known while
 the title is loading a map and not polling; a relay that forgot it answers
-Unknown, and the copy says Hello again with the id it had. Its own port is
-picked as lan's is, for the slot.
+Unknown, and the copy says Hello again with the id it had. Its slot is counted
+as lan's is, by the first free port above the shared one, which it holds and
+sends nothing from: what goes to the relay leaves from a port the system
+picks. Every first copy's slot port is the same (3075), and a second machine
+behind one router that came to the relay from it got no answer from a router
+that could not give it another ("did not answer within 5 seconds", seen from
+a PC while an AYN Thor on the same network was in a match).
 
 The account is the profile at the first controller
 ([gameplay.md](gameplay.md#signing-in)) plus the copy's slot, so a second
@@ -415,8 +420,8 @@ The title update's playlists are named `playlists.patch2`, the disc's
 `playlists.info`; both come from the relay ([relay.md](relay.md#playlists)), or
 on Steam from the game (below). A relay that has none for the title leaves
 each copy the list its release was built with (`relay/playlists.info`,
-`relay/playlists_mw3.info`), as on Steam: the relay lets only copies of one
-release meet, so they have the same bytes. The
+`relay/playlists_mw3.info`, `relay/playlists_cod4.info`), as on Steam: the
+relay lets only copies of one release meet, so they have the same bytes. The
 table's walk stops at the first playlist with no entries, so numbering starts at 0.
 
 `XUserReadStats` returns nothing, so the title balances no teams by skill.

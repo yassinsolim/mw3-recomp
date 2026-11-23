@@ -1205,14 +1205,52 @@ namespace
         return {};
     }
 
+#ifdef COD4_TITLE_MP
+    // XUserReadStats: (title, players, their XUIDs, views asked for, their
+    // specifications, the size of the results, the results). No service keeps
+    // statistics, so each view asked for is answered with no rows. Call of
+    // Duty 4 needs that much: the host of a Find Match lobby of a team game
+    // reads everyone's skill before it makes the teams, and takes anything
+    // but one view for a failure it prints nowhere a player sees, with the
+    // lobby left at "Match beginning in: 0" for good. The later titles go on
+    // with nothing written.
+    Reply XgiUserReadStats(uint32_t buffer)
+    {
+        const auto* read = GuestPtr<be32>(buffer);
+        if (!read) return Result(0x80070057);
+        const uint32_t views = read[3], size = read[5], results = read[6];
+        constexpr uint32_t kHeader = 8, kView = 16, kSpecification = 136;
+        auto* header = GuestPtr<be32>(results);
+        const auto* specifications = GuestPtr<be32>(uint32_t(read[4]));
+        if (!header || !specifications || uint64_t(kHeader) + uint64_t(views) * kView > size)
+            return Result(0x80070057);
+        header[0] = views;
+        header[1] = results + kHeader;
+        for (uint32_t i = 0; i < views; i++)
+        {
+            be32* view = header + (kHeader + i * kView) / 4;
+            view[0] = specifications[i * (kSpecification / 4)];   // the view's id
+            view[1] = 0;                                          // rows it holds in all
+            view[2] = 0;                                          // rows given
+            view[3] = 0;
+        }
+        return {};
+    }
+#endif
+
     bool Handled(uint32_t app, uint32_t message)
     {
         if (app == kAppXGI)
+        {
+#ifdef COD4_TITLE_MP
+            if (message == 0x000B0021) return true;
+#endif
             return message == 0x000B0006 || message == 0x000B0007 || message == 0x000B0010 ||
                    message == 0x000B0011 || message == 0x000B0012 || message == 0x000B0013 ||
                    message == 0x000B0014 || message == 0x000B0015 || message == 0x000B0018 ||
                    message == 0x000B001C || message == 0x000B001E || message == 0x000B001F ||
                    message == 0x000B0065;
+        }
         if (app == kAppXLiveBase)
             return message == 0x00050009 || message == 0x0005000B || message == 0x00058004 ||
                    message == 0x00058006 || (message == 0x00058007 && online::demonware::Served()) ||
@@ -1253,6 +1291,9 @@ namespace
             case 0x000B001C: return XgiSessionSearch(param1, param2, overlapped, false);
             case 0x000B001E: return XgiSessionMigrateHost(param1, param2);
             case 0x000B001F: return {};   // XSessionModifySkill: no service keeps a skill
+#ifdef COD4_TITLE_MP
+            case 0x000B0021: return XgiUserReadStats(param1);
+#endif
             case 0x000B0065: return XgiSessionSearch(param1, param2, overlapped, true);
             }
         }

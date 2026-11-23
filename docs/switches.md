@@ -79,7 +79,7 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 | `MW2_SERVER=<host>[:<port>]` | server: the relay's address (port 3074 when none is given) |
 | `MW2_SERVER_PASSWORD=<text>` | server: the password the relay asks for |
 | `MW2_NAME=<name>` | lan and server: the player's name, instead of his profile's; the name of the first profile when it is made |
-| `MW2_LAN_PORT=<port>` | lan: the shared broadcast port (3074); lan and server: each copy's own port is the first free one above it |
+| `MW2_LAN_PORT=<port>` | lan: the shared broadcast port (3074); lan and server: the first free port above it is each copy's own, which lan sends from and server only holds, to count the copies on a machine |
 | `MW2_LAN_JOIN=<name>` | lan and server: joins that player's party or lobby when it is seen |
 | `MW2_LAN_ACCEPT=1` | lan and server: accepts invitations |
 | `MW2_STEAM_APPID=<id>` | steam: the app id to run as (480, Spacewar) |

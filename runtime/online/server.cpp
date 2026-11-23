@@ -12,9 +12,10 @@
 // NetworkVersion): the relay keeps copies that differ in either apart, so
 // "everyone" is everyone this copy could play with. A thread says Alive once
 // a second, so a copy the title is not
-// polling -- while a map loads -- stays known. Each copy has a port of its own,
-// the first free one above MW2_LAN_PORT (3074), and how far above is its slot,
-// as on lan.
+// polling -- while a map loads -- stays known. Which copy on the machine this
+// one is, its slot, is counted as on lan: by the first free port above
+// MW2_LAN_PORT (3074), which is held and never used. What goes to the relay
+// leaves from a port the system picks.
 //
 // The relay also keeps what copies list for matchmaking (relay/src/directory.rs).
 // A listing is said again every few seconds, so one lost on the way, or a relay
@@ -79,6 +80,7 @@ namespace
                 if (id_) Say(relay::Kind_Bye, id_, nullptr, 0);
                 udp::CloseSocket(own_);
             }
+            if (slotHeld_ != kNoSocket) udp::CloseSocket(slotHeld_);
         }
 
         bool Open() override
@@ -94,8 +96,17 @@ namespace
                 return false;
             }
             if (!Resolve()) return false;
-            own_ = udp::OpenOwnSocket(uint16_t(env::Number("MW2_LAN_PORT", 3074)), slot_);
-            if (own_ == kNoSocket) { LOGE("online: server could not open a socket"); return false; }
+            slotHeld_ = udp::OpenOwnSocket(uint16_t(env::Number("MW2_LAN_PORT", 3074)), slot_);
+            // Not the slot's port: every first copy has the same one, and two
+            // machines behind one router then come to the relay from one
+            // port. A router that keeps a copy's port (most do) has to give
+            // the second machine another, and one that does not manage to
+            // leaves it unanswered: "did not answer within 5 seconds" for
+            // whoever in the household started second (seen from a PC with an
+            // AYN Thor in a match on the same network, while every other port
+            // was answered).
+            own_ = udp::OpenSocket(0, false);
+            if (slotHeld_ == kNoSocket || own_ == kNoSocket) { LOGE("online: server could not open a socket"); return false; }
 
             char text[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &relay_.sin_addr, text, sizeof text);
@@ -544,7 +555,8 @@ namespace
 
         std::string where_, password_;
         sockaddr_in relay_{};
-        Socket own_ = kNoSocket;
+        Socket own_ = kNoSocket;                 // to the relay and back
+        Socket slotHeld_ = kNoSocket;            // bound for the slot it stands for; nothing is sent from it
         uint32_t slot_ = 0;
         uint64_t id_ = 0;
         std::atomic<Clock::rep> said_{ 0 };   // when this copy last sent the relay anything

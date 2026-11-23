@@ -975,13 +975,12 @@ if ($ForPc) {
     if ($Game -eq 'mw3' -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $pcGame 'camos') }
     $envFile = Join-Path $pc '.env'
     if (-not (Test-Path $envFile)) {
-        # Call of Duty 4 has no relay and nothing to unlock: the window and the log.
-        $settings = if ($Cod4) { "MW2_FULLSCREEN=0`nMW2_LOG_FILE=cod4.log`n" } else {
-            $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }
-            if (-not $name) { $name = 'Player' }
-            if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
-            "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`nMW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n"
-        }
+        $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }
+        if (-not $name) { $name = 'Player' }
+        if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
+        $online = "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`n"
+        # Call of Duty 4 has nothing to unlock, and a log of its own name.
+        $settings = if ($Cod4) { $online + "MW2_LOG_FILE=cod4.log`n" } else { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n" }
         [IO.File]::WriteAllText($envFile, $settings)
     }
 }
