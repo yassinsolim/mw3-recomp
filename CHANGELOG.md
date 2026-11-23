@@ -4,6 +4,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.3] - 2026-11-23
+
+### Highlights
+- **Custom camos are remembered again.** Since v0.1.2 the choice was dropped
+  at every start, so a pack's camouflage showed as plain Gold. Pick yours
+  once more after updating.
+- **Pack camos shine like Gold** instead of looking near black. The packs
+  are unchanged: nothing to fetch or import again.
+- **Modern Warfare 3's campaign**: Resume Game no longer stays black after
+  the briefing when a mod is switched on.
+- **Windows build**: it links again.
+
+The game package built for v0.1.0 to v0.1.2 still fits: nothing to build
+again.
+
 ### Fixed
 - **Resume Game in the campaign no longer stops on a black screen when a mod
   is on.** With any mod turned on in the mods folder (a multiplayer-only one
