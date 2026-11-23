@@ -299,15 +299,37 @@ longest frame 32 ms. A release build takes no switches (no `options.txt`, and
 the heavier levels, the multiplayer and the Flip 2 were **not** run on it.
 
 The first published build, v0.1.0 (`yassinsolim/cod4-recomp`, a draft on 23
-November: `cod4-recomp-v0.1.0.apk`, version code 100, the release
-certificate, no recompiled code in it), states the same game code as the
-package built here (`cod4 94ec5f58a992`, `cod4mp a4c71519c558`). It was put
-over the app on the Flip 2 with the game files kept: it starts, loads
-`libcod4game.so` from `com.cod4.recomp.game`, loads the executable and brings
-up Turnip (**verified**, from its log; the lid was shut, so it waited for the
-screen there). Playing it by hand on either device, the two devices in one
-match with it, and installing it on the Thor are **open**: the Thor was not
-connected that evening.
+November, rebuilt that day from `6137d2a`: `cod4-recomp-v0.1.0.apk`, version
+code 100, the release certificate, no recompiled code in it), states the same
+game code as the package built here (`cod4 94ec5f58a992`, `cod4mp
+a4c71519c558`), and so does a package setup built from a fresh clone of the
+public repository (**verified**: `setup\setup.cmd -Game cod4 -Iso ... -Install
+-Yes` from a CRLF checkout, the Thor with no Call of Duty 4 package on it).
+A draft is invisible to setup, which then builds the app itself (version code
+104, this PC's key) and says so; the published path is Modern Warfare 2's,
+and the draft's asset names are the ones it looks for.
+
+As a new player has it, on the release build, by taps (**verified**, 23
+November; screenshots `perf-cod4/caps/t_np_*`, `f_rel_*`, `m2_*`, `u_flip*`):
+
+| | AYN Thor | Flip 2 |
+|---|---|---|
+| INSTALL & PLAY from `/sdcard/Download` | 6.4 GB in about 70 s, then the game | (installed before) |
+| F.N.G. | 118 to 119 FPS | 60 |
+| heavy level, from a save resumed in the menu | Charlie Don't Surf: 113 to 117 on the flight in, then 119 | Crew Expendable, first visit: 57 to 61 |
+| System Link, hosted alone | Backlot 119 | Crash 60 to 61 |
+| the two in one match through `mw3.yassin.app:3074` (the default) | host, 119 | joined from the list, 60 |
+
+That match is a whole ten-minute Team Deathmatch to its time limit, each on
+the other's scoreboard. Before the enumerator fix (CHANGELOG) it ended twice
+at 319 s of the host's uptime. The multiplayer's pause menu has no rank or
+unlock entries. The app's update was seen whole on the Flip 2: a debug build
+under the published name (code 99, signed again with the release key, asking
+`tools/serve_test_release.py --game cod4`) offered v0.1.0 with its notes,
+downloaded the draft's own APK and installed it over itself; the 2,595 game
+files and every save's checksum were the same afterwards. The notes show
+their Markdown asterisks as written. **Open**: the launcher's fix for the
+second start after INSTALL & PLAY was not seen on a device.
 
 Going from the app built here (code 104) to the published one (100) is a
 downgrade to Android, so the app's folder was moved aside for the uninstall,
