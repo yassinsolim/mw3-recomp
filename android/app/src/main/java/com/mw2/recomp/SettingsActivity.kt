@@ -29,7 +29,7 @@ class SettingsActivity : AppCompatActivity() {
         const val TAB_CONTROLS = 1
         const val TAB_NETWORK = 2
         const val TAB_FILES = 3
-        /** Modern Warfare 3's multiplayer only: bots, unlocks and match options. */
+        /** The multiplayer's own: bots and, in Modern Warfare 3, unlocks and match options. */
         const val TAB_MULTIPLAYER = 4
     }
 
@@ -85,10 +85,10 @@ class SettingsActivity : AppCompatActivity() {
         tabPages.add(findViewById(R.id.page_controls))
         tabPages.add(findViewById(R.id.page_network))
         tabPages.add(findViewById(R.id.page_files))
-        // The bots, the unlock switch and the match options are for Modern
-        // Warfare 3's multiplayer, the only title that reads them: a tab of
-        // their own, where they were the end of the Graphics page.
-        val hasMultiplayerTab = Title.isMw3 && Title.MULTIPLAYER.carried
+        // What only a multiplayer with bots reads, in a tab of its own: the
+        // bots, and below them Modern Warfare 3's unlock switch, map vote and
+        // match options, which Modern Warfare 2 has not got.
+        val hasMultiplayerTab = Title.hasBots
         if (hasMultiplayerTab) {
             val tab: Button = findViewById(R.id.tab_multiplayer)
             tab.visibility = android.view.View.VISIBLE
@@ -170,9 +170,6 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         switch(R.id.async_pipelines, prefs.asyncPipelines) { prefs.asyncPipelines = it }
         switch(R.id.persist_pipeline, prefs.persistPipelineCache) { prefs.persistPipelineCache = it }
         if (hasMultiplayerTab) {
-            switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
-            findViewById<Button>(R.id.camo_packs).setOnClickListener { showCamoPacks() }
-
             val botCountLabel: TextView = findViewById(R.id.bot_count_label)
             val botCount: SeekBar = findViewById(R.id.bot_count)
             botCount.max = Prefs.MAX_BOTS
@@ -198,6 +195,11 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 }
             })
             switch(R.id.bots_against_players, prefs.botsAgainstPlayers) { prefs.botsAgainstPlayers = it }
+        }
+        if (hasMultiplayerTab && Title.isMw3) {
+            findViewById<android.view.View>(R.id.mw3_multiplayer_group).visibility = android.view.View.VISIBLE
+            switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
+            findViewById<Button>(R.id.camo_packs).setOnClickListener { showCamoPacks() }
 
             matchOption(R.id.match_gravity_label, R.id.match_gravity, R.string.match_gravity,
                 Prefs.MATCH_GRAVITIES, 800, prefs.matchGravity) { prefs.matchGravity = it }

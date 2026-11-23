@@ -18,6 +18,7 @@
 #include "log.h"
 #include "console.h"
 #include "bots.h"
+#include "diagnostics.h"
 #include "match_options.h"
 #include "env.h"
 
@@ -151,17 +152,24 @@ void console::Pump(PPCContext& ctx, uint8_t* base)
     if (!placing) LOGI("console: queued \"%.*s\" at %.2f s", int(text.size()) - 1, text.c_str(), Elapsed());
 }
 
-// Cbuf_AddText(localClientNum, text). The `bots` and `match` lines are the
-// runtime's own (bots.cpp, match_options.cpp) and never reach the title, which
-// has no such commands; whatever queued one -- MW2_CONSOLE, a key, the app's
-// console entry -- comes through here. Only the title that has them is hooked:
-// the others' Cbuf_AddText is engine_log.cpp's to trace.
+// Cbuf_AddText(localClientNum, text): what the menus and the title's own code
+// queue for the console; MW2_TRACE_CBUF shows the commands a menu runs. The
+// `bots` and `match` lines are the runtime's own (bots.cpp, match_options.cpp)
+// and never reach the title, which has no such commands; whatever queued one --
+// MW2_CONSOLE, a key, the app's console entry -- comes through here. Only a
+// title that has bots is hooked here: the others' Cbuf_AddText is
+// engine_log.cpp's to trace.
 #if defined(T_SV_BotUserMoves) && defined(T_Cbuf_AddText)
 GUEST_HOOK(T_Cbuf_AddText)
 {
     if (ctx.r4.u32) {
         const char* text = reinterpret_cast<const char*>(base + ctx.r4.u32);
-        if (bots::ConsoleLine(text) || match_options::ConsoleLine(text)) return;
+        static const bool traced = diag::Flag("MW2_TRACE_CBUF");
+        if (traced) LOGI("cbuf(%u): %s", ctx.r3.u32, text);
+        if (bots::ConsoleLine(text)) return;
+#ifdef T_ClientEndFrame
+        if (match_options::ConsoleLine(text)) return;
+#endif
     }
     GUEST_ORIG(T_Cbuf_AddText)(ctx, base);
 }

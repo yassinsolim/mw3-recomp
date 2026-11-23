@@ -492,7 +492,10 @@
 #define T_SV_Cmd_TokenizeString 82283328   // (text)
 #define T_SV_Cmd_EndTokenizedString 82283348
 #define T_SV_GetConfigstring    822C3E88   // (index, buffer, size)
-#define T_G_SightTrace          822404D8   // (int* hit, start, end, pass0, pass1, mask)
+// SV_SightTrace, which the script's sightTracePassed reaches through a thunk
+// (sub_822404D8) that passes one zero vector as the bounds.
+#define T_SV_SightTrace         822D0ED8   // (int* hit, start, end, bounds, pass0, pass1, mask)
+#define T_DATA_ZeroBounds         0x820333BCu
 #define T_FF_Checksum           820E0258   // the userinfo's "checksum"
 #define T_Stats_Version         82289AC8   // "statver", the "%i"
 #define T_Stats_FormatChecksum  82289AF8   // "statver", the "%u"
@@ -536,6 +539,13 @@
 #define T_PS_VIEW_ANGLES          0x158u
 #define T_PS_VIEW_HEIGHT          0x168u
 #define T_PS_WEAPON               0x370u
+// The usercmd the stock think fills (0x2C bytes): +8 the pitch and +0xC the yaw
+// as 16-bit angles in a word each, +0x14 the weapon as a word, +0x1C forward and
+// +0x1D right as signed bytes.
+#define T_USERCMD_ANGLES          0x8u
+#define T_USERCMD_WEAPON          0x14u
+#define T_USERCMD_WEAPON_SHIFT    0u
+#define T_USERCMD_MOVE            0x1Cu
 
 // ---- match options (match_options.cpp) ----
 // ClientEndFrame(gentity): stores 800 in the player state's gravity (li r10,800
@@ -1263,6 +1273,11 @@
 #define T_Job_WaitPredicate    823EFBA0
 #define T_Com_Error            82281758
 #define T_Com_Printf           8227EC30
+// The title's other prints, each as far after Com_Printf as the update's
+// (engine_log.cpp): the server's refusals of a connect come through the first.
+#define T_Com_DPrintf          8227ED28
+#define T_Com_PrintError       8227EDC8
+#define T_Com_PrintWarning     8227EEF0
 #define T_Cbuf_AddText         82275470
 #define T_Memcard_InitializeSystem 8233CAF0
 #define T_Image_FlushMove      823DD658
@@ -1309,6 +1324,101 @@
 #define T_AIMASSIST_FOV_SCALE     288u
 #define T_CL_ControllerOf       821AB3C0   // (local client) -> its controller
 #define T_Gamepad_Settings      82193688   // (controller) -> its settings, the Sensitivity option at +4
+
+// Bots (bots.cpp, MW2_BOTS), as Modern Warfare 3's block has them, and here
+// the whole of IW's test clients survives: SV_AddTestClient is sub_822BD470,
+// found by its format `connect bot%d "..."` (8204A640), and the script's
+// addTestClient (sub_82250890) calls it. It tokenises that line, calls
+// SV_DirectConnect with {type 0, IP 0, the port from a counter at svs+0x14564},
+// finds the client by that address, sets its test-client flag, and calls
+// SV_SendClientGameState and SV_ClientEnterWorld with an empty usercmd.
+// bots.cpp makes the same calls with a name and a slot of its own. The flag
+// (client+0x31AFC) is what the server spares a test client by: the timeout
+// check (sub_822C23A0) skips it, SV_SendClientGameState gives it the stats it
+// would be dropped for not sending (EXE_NEEDSTATS), and SV_SendMessageToClient
+// (sub_822C8898) acknowledges its reliable commands. SV_BotUserMove
+// (sub_822C29B8, found by the testClients_ dvars it reads) is the stock think
+// for one client and SV_BotUserMoves the loop over those of address type 0,
+// called every server frame from sub_822C2C48 and sub_822C2D70.
+#define T_SV_BotUserMoves       822C2BD8
+#define T_SV_BotFrameBegin      822BDDE8   // what SV_BotUserMoves calls first
+#define T_SV_DirectConnect      822BC9D0   // (the address by value in r3:r4), `connect <id> "<userinfo>"` in the server's argv
+#define T_SV_SendClientGameState 822BB260  // (client): state 4
+#define T_SV_ClientThink        822BBF30   // (client, usercmd*)
+#define T_SV_ClientEnterWorld   822BB458   // (client, usercmd*): state 5 and ClientBegin
+#define T_SV_DropClient         822BACF8   // (client, reason, tell)
+#define T_SV_ExecuteClientCommand 822BBBD8 // (client, text, clientOK, 0)
+#define T_SV_Cmd_TokenizeString 82275E98   // (text)
+#define T_SV_Cmd_EndTokenizedString 82275EB8
+#define T_SV_GetConfigstring    822BEC20   // (index, buffer, size); Cmd_MenuResponse_f (sub_82224818) reads a menu's name with it
+// SV_SightTrace, which the script's sightTracePassed (sub_822458B0) reaches
+// through a thunk (sub_82233220) that passes one zero vector as the bounds and
+// no second entity to pass.
+#define T_SV_SightTrace         822CAE48   // (int* hit, start, end, bounds, pass0, pass1, mask)
+#define T_DATA_ZeroBounds         0x82053540u
+// What SV_AddTestClient puts in the userinfo and SV_DirectConnect compares.
+#define T_FF_Checksum           82102A10   // "checksum"
+#define T_Stats_Version         8227B620   // "statver", the "%i"
+#define T_Stats_FormatChecksum  8227B650   // "statver", the "%u"
+// svs (SV_AddTestClient's lis/addi): +0x3810 time, +0x3818 the client count,
+// +0x381C the clients.
+#define T_DATA_Svs                0x83620400u
+#define T_SVS_TIME                0x3810u
+#define T_SVS_CLIENT_COUNT        0x3818u
+#define T_SVS_CLIENTS             0x381Cu
+// A server client (0x97F80 bytes): +0 state (0 free, 1 zombie, 3 connected, 4
+// primed, 5 active), +8 the delta message, +0x18 the netchan (its outgoing
+// sequence first), +0x28 the address (type, IP, port at +8), +0x21294 the
+// gentity, +0x31AFC the test-client flag.
+#define T_SVCLIENT_SIZE           0x97F80u
+#define T_SVCLIENT_DELTA_MESSAGE  0x8u
+#define T_SVCLIENT_NETCHAN        0x18u
+#define T_SVCLIENT_ADDRESS        0x28u
+#define T_SVCLIENT_GENTITY        0x21294u
+#define T_SVCLIENT_TEST_CLIENT    0x31AFCu
+// The first slot SV_DirectConnect offers a player the party does not know and
+// who was not invited (822BD1B0; a dvar pointer, the integer at +12), and the
+// server id `mr` must name (Cmd_MenuResponse_f, 8222487C).
+#define T_DATA_FirstPublicSlotDvar 0x836203D4u
+#define T_DVAR_CURRENT            12u
+#define T_DATA_ServerId           0x83609474u
+#define T_CS_MENUS                0x95Du      // 32 configstrings: the menus' names, by the index `mr` takes (822248BC)
+// A gentity (0x280 bytes): +0 its number, +0x158 the gclient, +0x19C health
+// (the script's entity field table, 820361F8). A gclient (0x3700 bytes): the
+// player state first (offsets from the delta table at 82043388), then what the
+// script's client fields read (the table at 82027208 and its getters):
+// +0x3180 the session state (0 playing), +0x3194 the killcam's archive time,
+// +0x3198 score, +0x319C deaths, +0x31A0 kills, +0x3250 the team (0 free, 1
+// axis, 2 allies, 3 spectator), +0x3290 the name.
+#define T_GENTITY_CLIENT          0x158u
+#define T_GENTITY_HEALTH          0x19Cu
+#define T_GCLIENT_SESSION_STATE   0x3180u
+#define T_GCLIENT_ARCHIVE_TIME    0x3194u
+#define T_GCLIENT_TEAM            0x3250u
+#define T_GCLIENT_NAME            0x3290u
+#define T_PS_ORIGIN               0x1Cu
+#define T_PS_DELTA_ANGLES         0x60u
+#define T_PS_VIEW_ANGLES          0x10Cu
+#define T_PS_VIEW_HEIGHT          0x11Cu
+#define T_PS_WEAPON               0x2B4u
+// What the script's giveMaxAmmo (sub_8221CFB0, from the player method table at
+// 82028010) calls, in its order: the most rounds a player carries for a weapon,
+// the rounds he has outside the clip (the player state's fifteen {ammo type,
+// count} pairs at +0x2D8), the weapon's model, and Add_Ammo.
+#define T_BG_AmmoMax            82113510   // (player state, weapon, 0)
+#define T_BG_AmmoReserve        8210D268   // (player state, weapon)
+#define T_BG_WeaponModel        82114FE8   // (player state, weapon)
+#define T_G_AddAmmo             8222CCE0   // (gentity, weapon, model, rounds, fill the clip)
+// The usercmd SV_BotUserMove fills (0x28 bytes): +0 the server time, +4 the
+// buttons, +8 the pitch and +0xC the yaw as 16-bit angles in a word each,
+// +0x14 the weapon as a half word (so the high half of that word), +0x1A
+// forward and +0x1B right as signed bytes.
+#define T_USERCMD_SIZE            0x28u
+#define T_USERCMD_BUTTONS         0x4u
+#define T_USERCMD_ANGLES          0x8u
+#define T_USERCMD_WEAPON          0x14u
+#define T_USERCMD_WEAPON_SHIFT    16u
+#define T_USERCMD_MOVE            0x1Au
 
 #else
 

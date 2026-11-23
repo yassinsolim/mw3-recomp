@@ -1,6 +1,6 @@
 #pragma once
 
-// Bots for Modern Warfare 3's multiplayer (bots.cpp): players the host's own
+// Bots for the multiplayer of both games (bots.cpp): players the host's own
 // server adds and plays, so a match can be played alone or filled up.
 namespace bots
 {

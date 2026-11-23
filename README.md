@@ -220,7 +220,8 @@ Settings → Network is **Online** with that address, and the PC's `.env` has
   hosts. In a match, the app's pause menu has **Bots in my matches** to change
   the number without leaving. The same settings and the rest (all bots
   against the players, map vote, match options) are in **Settings →
-  Multiplayer**. On the PC: `MW2_BOTS=6` in `.env`.
+  Multiplayer**. On the PC: `MW2_BOTS=6` in `.env`. Modern Warfare 2's
+  multiplayer has the same bots ([README-MW2.md](README-MW2.md#multiplayer)).
 - **Everything unlocked.** On by default (**Settings → Multiplayer → Unlock
   all camos and items**; `MW2_UNLOCK_ALL=1` on the PC): every weapon,
   attachment, proficiency, camouflage, reticle, perk, piece of equipment,

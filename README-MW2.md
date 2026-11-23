@@ -40,6 +40,7 @@ report. Other hardware is untested.
 | Multiplayer: Terminal | 59.9 (53 on the first visit) | 30.0 (27 on the first visit) |
 | Multiplayer: Rust | 59.4 | 29.6 |
 | Special Ops: The Pit, started from the menus | not run | plays |
+| Multiplayer: six bots in a match the device hosts (Terminal) | join, fight and score; 119 to 120 on the 120 Hz screen | not run |
 | Split screen, two devices in one match | not tested | not tested |
 | The game's own menu from one title to the other | campaign to multiplayer works | multiplayer to campaign works |
 | See-through walls, garbage surfaces, vertex explosions | none seen | none seen |
@@ -119,6 +120,18 @@ others find it in the list. The app's Settings → Network chooses how players
 reach each other: **Online** (through the project's relay), **LAN** (your own
 network only) or off. Everyone needs this same version of the game; it does
 not play with consoles on Xbox LIVE.
+
+**Bots.** On the app's start screen, tap **Bots** (under **Multiplayer**) and
+choose how many (up to 17) and how good; the entry then reads
+`BOTS · 6 · REGULAR`. Start **Multiplayer**, then **System Link → Create Game
+→ Start Game** (or a private match): the bots join the matches *your* device
+hosts, pick a team and a class, fight and score, and leave to make room when
+a player joins. They do nothing in a match somebody else hosts. In a match,
+the app's pause menu has **Bots in my matches** to change the number without
+leaving; **Settings → Multiplayer** has the same settings and **All bots
+against the players**. The maps have no routes for them, so they feel their
+way round walls and are easier to find on a small map
+([docs/multiplayer.md](docs/multiplayer.md#bots-and-unlocks)).
 
 ## Credits
 
