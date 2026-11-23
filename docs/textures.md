@@ -694,7 +694,17 @@ copy it was in `saves/custom_camos.txt`
 the class has there, for a camouflage with a picture a weapon), and answers
 the menus' reads of that class with the copy's name, so the list, the class
 summary and a copied class all show what was chosen. Choosing one of the
-game's camouflages or another weapon removes the record.
+game's camouflages or another weapon removes the record: a write of one of
+the game's own to a slot the stats hold Gold in, or a write of Gold. Nothing
+else does. When the player signs in the menus look every class over and
+write `none` throughout one that has no weapon; on a phone that comes before
+the stats have arrived, when every class reads so, and taken for a choice it
+removed every record at each start: a camouflage chosen in one run was plain
+Gold in the next, while the log still named it at start-up. The log says
+what the weapons wear whenever it changes (`camos: the weapon image shows
+…`, Gold included), why a record went (`camos: <slot> was <camo> and is
+"<value>" now, as the menu set it`), and which picture each of Gold's images
+was given (`textures: the image of <key> (128x128) shows <file>`).
 
 The pictures go through Gold's (above): its weapon image, preview and banner
 are *switchable* replacements (`gpu::replace::Switchable`, `Select`), images

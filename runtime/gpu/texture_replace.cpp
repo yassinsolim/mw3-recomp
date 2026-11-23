@@ -83,6 +83,8 @@ namespace
         // last one's pictures and then keeps them.
         uint32_t request = 0;
         uint32_t choice = 0;
+        // The choice last said to be on an image (SayShown).
+        uint32_t said = 0;
         // The original's format and the size of its keyed level, known from
         // its first Load on; every picture of a switchable texture is made
         // that size, so that one image can take any of them.
@@ -631,6 +633,19 @@ namespace
         if (!entry.file.empty()) return { entry.file };
         return {};
     }
+
+    // Said once for each choice that reaches an image of a switchable
+    // texture, as the image is made or takes the choice's picture: the log's
+    // answer to whether what was chosen is what is drawn. Called with the
+    // lock held.
+    void SayShown(uint64_t key, Entry& entry)
+    {
+        if (entry.said == entry.choice) return;
+        entry.said = entry.choice;
+        const std::vector<fs::path> files = FilesOf(entry);
+        LOGI("textures: the image of %016llx (%ux%u) shows %s", (unsigned long long)key, entry.width,
+             entry.height, files.empty() ? "the title's own picture" : Utf8(files[0]).c_str());
+    }
 }
 
 bool gpu::replace::On()
@@ -767,6 +782,7 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
         {
             entry->used = ++s.clock;
             const uint32_t now = FrameNow(*entry);
+            if (switchable) SayShown(key, *entry);
             if (frame && switchable) *frame = Showing(*entry);
             else if (frame && entry->pictures.size() > 1) *frame = now;
             return entry->pictures[now];
@@ -817,6 +833,7 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Load(uint64_t key,
             entry->pictures = std::move(pictures);
             entry->choice++;
         }
+        SayShown(key, *entry);
         if (frame) *frame = Showing(*entry);
         return entry->pictures[FrameNow(*entry)];
     }
@@ -895,6 +912,7 @@ std::shared_ptr<const gpu::TextureData> gpu::replace::Due(uint64_t key, uint32_t
         const uint32_t now = Showing(entry);
         if (now == shown) return nullptr;
         shown = now;
+        SayShown(key, entry);
         s.advanced++;
         return entry.pictures[now & 0xFF];
     }

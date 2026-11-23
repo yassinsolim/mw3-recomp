@@ -5,6 +5,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Fixed
+- **A pack camouflage stays on the weapon after a restart.** In v0.1.2 a
+  camouflage chosen from a pack (the project's own thirteen included) was
+  drawn in the run it was chosen in and was plain Gold from the next start
+  on, in Create a Class too. At sign-in the game's menus tidy every custom
+  class, and on a phone that happened before the stats had loaded; the app
+  took it for the player choosing no camouflage and forgot the choice.
+  Choose the camouflage once more after updating. The log now says what the
+  weapons wear whenever it changes, and why a choice was dropped.
 - **Camo packs no longer look near black on a weapon.** A pack camouflage is
   drawn through Gold's image, whose alpha is Gold's gloss; a PC mod's maps
   are opaque, which the game read as a mirror's gloss, so Interstellar and

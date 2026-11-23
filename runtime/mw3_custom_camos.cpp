@@ -40,7 +40,12 @@
 // marks the right row and the class summary names it; a script that writes a
 // value it read that way (copying a class) is given "gold" for the stats and
 // the record is copied with it. Choosing any of the game's camouflages, or
-// another weapon, removes the record.
+// another weapon, removes the record. Only a write to a slot the stats hold
+// Gold in, or a write of Gold, is such a choice: when the player signs in the
+// menus look every class over and write "none" throughout one that has no
+// weapon, and on a phone that comes before the stats have arrived, when every
+// class reads so. That took the record of every class at each start, and a
+// camouflage chosen in one run was Gold in the next.
 //
 // THE PICTURE. Gold on a weapon is one image (docs/textures.md), as are the
 // menu's preview and banner for it. They are made switchable
@@ -79,7 +84,11 @@
 #include <vector>
 
 #if defined(T_UI_AddMenuList) && defined(T_UI_SetPlayerData) && defined(T_UI_ScriptMenuResponse) \
-    && defined(T_UI_FindLocalVar) && defined(T_StringTable_Lookup)
+    && defined(T_UI_FindLocalVar) && defined(T_StringTable_Lookup) && defined(T_UI_GetPlayerData)
+
+// The menus' reader of the stats, hooked in mw3_unlock_all.cpp and called
+// here as the title wrote it (StoredCamo).
+GUEST_ORIGINAL(T_UI_GetPlayerData);
 
 namespace
 {
@@ -221,6 +230,8 @@ namespace
         std::vector<Script> scripts[std::size(kMenus)];
         bool refused[std::size(kMenus)] = {};   // said once, not at every menu list added
         uint32_t gold = 0, empty = 0, goldMaterial = 0, rowZero = 0, scratch = 0;
+        // For StoredCamo: its operands and result, and two names of its path.
+        uint32_t probe = 0, weaponSetups = 0, camoField = 0;
         // `<class>.weaponSetups.<n>` -> `<pack>/<camo>`, and `active` -> the
         // class chosen in a match; saves/custom_camos.txt.
         std::map<std::string, std::string> chosen;
@@ -234,6 +245,10 @@ namespace
     State g;
 
     constexpr uint32_t kScratchSize = 128;
+    // The reader's operands: ten of 8 bytes {type, value}, 2 a string and 0
+    // an integer, their count at +0x50; its result, {type, value}, is put
+    // after them.
+    constexpr uint32_t kProbeCount = 0x50, kProbeResult = 0x58, kProbeSize = 0x60;
     constexpr char kActive[] = "active";
 
     fs::path SaveFile() { return kernel::SaveRoot() / "custom_camos.txt"; }
@@ -286,6 +301,17 @@ namespace
 
     constexpr char kWeaponOf[] = "#weapon";   // `<slot>#weapon`: the weapon the class has there
 
+    // What the weapons wear, said when it changes: a log's answer to "which
+    // camouflage was that".
+    constexpr char kOwnGold[] = "the game's Gold";
+    void SayWeapon(std::string now)
+    {
+        static std::string said = kOwnGold;
+        if (now == said) return;
+        LOGI("camos: the weapon image shows %s", now.c_str());
+        said = std::move(now);
+    }
+
     // What the images of `group` show: the camouflage's picture for it, or
     // with none the game's own. `slot` is the class's weapon slot the
     // camouflage is on, for a camouflage with a picture a weapon.
@@ -295,6 +321,7 @@ namespace
         if (!one)
         {
             gpu::replace::Select(group, none, 12.0);
+            if (group == kWeapon) SayWeapon(kOwnGold);
             return;
         }
         const camo::Camo& camo = one->camo;
@@ -326,16 +353,8 @@ namespace
         gpu::replace::Select(group, *pictures, effect == Effect::None ? camo.fps : 16.0, effect,
                              group == kWeapon ? Alpha::Title : Alpha::Picture);
         if (group != kWeapon) return;
-        // What the weapons wear, said when it changes: a log's answer to
-        // "which camouflage was that".
-        static std::string said;
-        std::string now = camo.key + (own.empty() ? "" : ", its picture for " + weapon->second) +
-                          (effect == Effect::None ? "" : ", animated");
-        if (now != said)
-        {
-            LOGI("camos: the weapon image shows %s", now.c_str());
-            said = std::move(now);
-        }
+        SayWeapon(camo.key + (own.empty() ? "" : ", its picture for " + weapon->second) +
+                  (effect == Effect::None ? "" : ", animated"));
     }
 
     // The weapon's image: the camouflage of the class chosen in the match.
@@ -381,6 +400,9 @@ namespace
         g.goldMaterial = g.fixed.String(base, "ui_camoskin_gold");
         g.rowZero = g.fixed.String(base, "11");
         g.scratch = g.fixed.Take(base, kScratchSize);
+        g.probe = g.fixed.Take(base, kProbeSize);
+        g.weaponSetups = g.fixed.String(base, "weaponSetups");
+        g.camoField = g.fixed.String(base, "camo");
         for (size_t i = 0; i < camos.size(); i++)
         {
             Listed one;
@@ -881,6 +903,38 @@ namespace
         return variable;
     }
 
+    // The camouflage the stats hold for a class's weapon, by the menus' own
+    // reader and for the local client the menu's command is for; empty when
+    // it answers no string.
+    std::string StoredCamo(PPCContext& ctx, uint8_t* base, const std::string& classes, const std::string& index,
+                           const std::string& weapon)
+    {
+        if (classes.size() >= kScratchSize) return {};
+        std::memcpy(base + g.scratch, classes.c_str(), classes.size() + 1);
+        const auto operand = [&](uint32_t i, uint32_t type, uint32_t value) {
+            Store(base, g.probe + i * 8, type);
+            Store(base, g.probe + i * 8 + 4, value);
+        };
+        operand(0, 2, g.scratch);
+        operand(1, 0, uint32_t(std::strtoul(index.c_str(), nullptr, 10)));
+        operand(2, 2, g.weaponSetups);
+        operand(3, 0, uint32_t(std::strtoul(weapon.c_str(), nullptr, 10)));
+        operand(4, 2, g.camoField);
+        Store(base, g.probe + kProbeCount, 5);
+        const uint32_t result = g.probe + kProbeResult;
+        Store(base, result, 0);
+        Store(base, result + 4, 0);
+        // The caller's frame is in use above r1; the call gets one of its own below.
+        const PPCContext saved = ctx;
+        ctx.r1.u64 = saved.r1.u32 - 0x100;
+        ctx.r4.u64 = g.probe;
+        ctx.r5.u64 = 0;
+        ctx.r6.u64 = result;
+        GUEST_ORIG(T_UI_GetPlayerData)(ctx, base);
+        ctx = saved;
+        return Load(base, result) == 2 && Load(base, result + 4) ? Text(base, Load(base, result + 4)) : std::string();
+    }
+
     // An argument of a menu command: a quoted string, a number, or
     // "localVarString" ( "name" ) / "localVarInt" ( "name" ), read as its value.
     struct Argument
@@ -1054,14 +1108,31 @@ GUEST_HOOK(T_UI_SetPlayerData)
     // camouflage (the menu's getPlayerData answers cc<nnn> for it), which
     // the stats are given as the Gold it is stored as.
     const Listed* custom = copy ? &g.listed[copy->index] : ByRef(path[5].text.c_str());
+    // One of the game's own written where a camouflage is recorded: the
+    // player's choice if the slot holds Gold or is given it. Anything else is
+    // the menus tidying a class that is not Gold, which is what every class
+    // is before the stats arrive.
+    const auto recorded = custom ? g.chosen.end() : g.chosen.find(slot);
+    const bool chosen = recorded != g.chosen.end() &&
+                        (!strcasecmp(path[5].text.c_str(), "gold") ||
+                         !strcasecmp(StoredCamo(ctx, base, path[0].text, path[1].text, path[3].text).c_str(), "gold"));
     const uint32_t variable = custom && !copy ? path[5].variable : 0;
     const uint32_t held = variable ? Load(base, variable + 8) : 0;
     if (variable) Store(base, variable + 8, g.gold);
     GUEST_ORIG(T_UI_SetPlayerData)(ctx, base);
     if (variable) Store(base, variable + 8, held);
 
-    if (custom) g.chosen[slot] = custom->camo.key;
-    else g.chosen.erase(slot);
+    if (custom)
+    {
+        g.chosen[slot] = custom->camo.key;
+    }
+    else
+    {
+        if (!chosen) return;
+        LOGI("camos: %s was %s and is \"%s\" now, as the menu set it", slot.c_str(), recorded->second.c_str(),
+             path[5].text.c_str());
+        g.chosen.erase(recorded);
+    }
     SaveChoices();
     ShowWeapon();
 }
@@ -1103,10 +1174,12 @@ void mw3camo::PlayerDataRead(uint8_t* base, uint32_t operands, uint32_t first, u
     };
     std::string slot;
     // The weapon a class has in a slot, noted as the menus read it: a
-    // camouflage with a picture a weapon is drawn by it.
+    // camouflage with a picture a weapon is drawn by it. "none" is no
+    // weapon to draw, and what every slot answers before the stats arrive.
     if (WeaponSlot(text(0), text(1), text(2), text(3), text(4), "weapon", slot))
     {
         const std::string weapon = Text(base, Load(base, result + 4));
+        if (!strcasecmp(weapon.c_str(), "none")) return;
         std::string& noted = g.chosen[slot + kWeaponOf];
         if (noted != weapon)
         {
