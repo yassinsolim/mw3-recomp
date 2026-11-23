@@ -1468,13 +1468,30 @@ namespace
     constexpr uint32_t kAppXLiveBaseEnumerators = 0xFC, kTitleServersOpen = 0x00058039;
     // XTITLE_SERVER_INFO { inaServer, dwFlags, szServerInfo[200] }
     constexpr uint32_t kTitleServerInfoSize = 0xD0, kTitleServerNameSize = 200;
+    // After the name in that private block: a word, the size and then the
+    // address of the work memory XTitleServerCreateEnumerator takes with
+    // XamAlloc and leaves to XAM, which frees it when the handle closes.
+    constexpr uint32_t kTitleServerWork = kTitleServerNameSize + 8;
 
     struct Enumerator : Object
     {
         uint32_t extra = 0;          // the object and the caller's private block after it
+        uint32_t extraSize = 0;      // that block's size
         bool titleServers = false;   // XTitleServerCreateEnumerator's
         bool listed = false;         // its one server was handed out
-        ~Enumerator() override { if (extra) kernel::FreeGuest(extra); }
+        // Call of Duty 4's multiplayer, signed in and told Live has no
+        // title server, asks again every frame: with each enumerator's work
+        // memory left behind (11 KB), the guest heap's 416 MB were gone after
+        // five minutes at 120 frames a second, and the next enumeration ended
+        // the match ("Xbox 360 Error 6 while trying to enumerate lsp title
+        // servers").
+        ~Enumerator() override
+        {
+            if (!extra) return;
+            if (titleServers && extraSize >= kTitleServerWork + 4)
+                kernel::FreeGuest(*GuestPtr<be32>(extra + kEnumeratorHeader + kTitleServerWork));
+            kernel::FreeGuest(extra);
+        }
         const char* TypeName() const override { return "enumerator"; }
     };
 
@@ -1486,6 +1503,7 @@ namespace
         {
             if (extraSize > 0x10000) return 0;
             enumerator->extra = kernel::AllocateGuest(kEnumeratorHeader + extraSize, 16);
+            enumerator->extraSize = extraSize;
             if (!enumerator->extra) return 0;
             std::memset(GuestPtr<uint8_t>(enumerator->extra), 0, kEnumeratorHeader + extraSize);
         }
