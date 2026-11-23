@@ -6,14 +6,14 @@ from pathlib import Path
 
 # The campaign, CoD3.exe (default.xex), of the USA/Europe disc: title id
 # 415607E6, version 0x00000001 (the disc's own build: base version the same),
-# entry 0x820E4600, image size 0x1AE0000. Recompiled with config/COD4.toml: 178
+# entry 0x820E4600, image size 0x1AE0000. Recompiled with config/COD4.toml: 181
 # jump tables, no boundary errors (docs/COD4-BRINGUP.md).
 SUPPORTED_SHA256 = (
     "f6b848ac4ecf2b12881223e4c3cd63c49ae36e1fadc6f2179428033274602739",
 )
 
 # The multiplayer, CoD3MP.exe (default_mp.xex), of the same disc: entry
-# 0x82103AC8, image size 0x33D0000. Recompiled with config/COD4MP.toml: 177
+# 0x82103AC8, image size 0x33D0000. Recompiled with config/COD4MP.toml: 179
 # jump tables, no boundary errors. Checked by file name, so neither executable
 # passes for the other.
 SUPPORTED_SHA256_MP = (

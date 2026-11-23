@@ -63,6 +63,8 @@ functions = [
     { address = 0x82284A18, size = 0x78 },
     { address = 0x82289FB0, size = 0x1FC },
     { address = 0x822C2B90, size = 0x1F8 },
+    { address = 0x822C2D88, size = 0xB8 },
+    { address = 0x822C2E40, size = 0xBC },
     { address = 0x822D8D98, size = 0x1F0 },
     { address = 0x822EC9A0, size = 0x7C },
     { address = 0x822F1040, size = 0x84 },

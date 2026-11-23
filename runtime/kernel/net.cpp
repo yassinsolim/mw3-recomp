@@ -337,7 +337,8 @@ namespace
     bool EthernetLinkUp()
     {
         static const bool up = [] {
-#if defined(MW2_TITLE_MP)
+#if defined(MW2_TITLE_MP) || defined(COD4_TITLE_MP)
+            // Call of Duty 4's multiplayer says the same without a link.
             bool value = true;
 #elif defined(MW3_TITLE_MP)
             bool value = online::Get() != nullptr;

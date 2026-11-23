@@ -118,7 +118,7 @@ class MainActivity : AppCompatActivity() {
             else info.versionCode
             val tu = BuildConfig.MW2_TU.uppercase()
             discVersion = when {
-                Title.isMw3 -> "DISC VERSION"
+                Title.isMw3 || Title.isCod4 -> "DISC VERSION"
                 isTu6() -> "TITLE UPDATE 6"
                 else -> "DISC VERSION 1.0.557"
             }
@@ -406,7 +406,13 @@ class MainActivity : AppCompatActivity() {
         // accepts either, preferring lean.
         // (TU6 installs from the same disc; the update applies after.)
         val isMp = Title.MULTIPLAYER.carried
-        val candidateIsos = if (Title.isMw3) {
+        val candidateIsos = if (Title.isCod4) {
+            listOf(
+                File("/sdcard/Download/cod4.iso"),
+                File("/sdcard/Download/Call of Duty 4 - Modern Warfare (USA, Europe).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "cod4.iso"),
+            )
+        } else if (Title.isMw3) {
             listOf(
                 File("/sdcard/Download/mw3.iso"),
                 File("/sdcard/Download/Call of Duty - Modern Warfare 3.iso"),

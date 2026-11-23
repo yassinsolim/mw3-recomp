@@ -254,6 +254,21 @@ namespace
         return endsWith(".ff") || endsWith(".pak") || endsWith(".bik") || endsWith(".bikbe") || lower == "nxeart";
     }
 
+    // Call of Duty 4's high mips: the top mip of each streamed texture, a file
+    // each in the disc's highmip folder, which the title opens as
+    // D:\highmip\<name>.hi. Without them it draws the lower mips.
+    constexpr const char* kHighMipFolder = "highmip";
+    bool IsHighMip(const std::string& name)
+    {
+        std::string lower = name;
+        for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+        const std::string prefix = std::string(kHighMipFolder) + "/";
+        if (lower.size() <= prefix.size() + 3 || lower.compare(0, prefix.size(), prefix) != 0) return false;
+        const std::string file = lower.substr(prefix.size());
+        return file.find_first_of("/\\:") == std::string::npos && file != "." && file != ".." &&
+               file.compare(file.size() - 3, 3, ".hi") == 0;
+    }
+
     struct Progress
     {
         std::mutex lock;
@@ -298,6 +313,8 @@ namespace
         }
         for (const auto& file : source->Files())
             if (IsGameFile(file.name)) files.push_back(&file);
+        for (const auto& file : source->FolderFiles())
+            if (IsHighMip(file.name)) files.push_back(&file);
         for (const Title& title : kTitles)
             if (const auto* file = source->Find(title.xex)) files.push_back(file);
 
@@ -309,13 +326,23 @@ namespace
         uint64_t needed = 0;
         std::vector<const install::Source::File*> copy;
         const fs::path canonicalFolder = folder.lexically_normal();
+        const fs::path highMipFolder = (folder / kHighMipFolder).lexically_normal();
         for (const auto* file : files)
         {
+            // One file in the game folder, or one in its highmip folder: a
+            // name with any other path in it is not copied.
+            const bool highMip = IsHighMip(file->name);
             if (file->name.empty() || file->name == "." || file->name == ".." ||
-                file->name.find('/') != std::string::npos || file->name.find('\\') != std::string::npos)
+                file->name.find('\\') != std::string::npos ||
+                (!highMip && file->name.find('/') != std::string::npos))
                 continue;
             const fs::path to = (folder / install::FromUtf8(file->name)).lexically_normal();
-            if (to.parent_path() != canonicalFolder) continue;
+            if (to.parent_path() != (highMip ? highMipFolder : canonicalFolder)) continue;
+            if (highMip)
+            {
+                fs::create_directories(highMipFolder, ec);
+                if (ec) { error = "Cannot create " + Utf8(fs::absolute(highMipFolder)) + ": " + ec.message(); return false; }
+            }
 
             if (fs::is_regular_file(to, ec) && fs::file_size(to, ec) == file->size)
             {

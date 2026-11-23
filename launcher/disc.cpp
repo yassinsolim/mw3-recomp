@@ -57,12 +57,13 @@ namespace
                 error = "the disc image is cut short";
                 return false;
             }
-            Walk(root);
+            Walk(root, "", files_);
             if (files_.empty()) { error = "the disc image has no files"; return false; }
             return true;
         }
 
         const std::vector<File>& Files() const override { return files_; }
+        const std::vector<File>& FolderFiles() const override { return folderFiles_; }
 
         bool Read(const File& file, uint64_t offset, void* out, size_t size) override
         {
@@ -97,8 +98,10 @@ namespace
 
         // A directory is a binary tree of entries at 4-byte offsets:
         // { left u16, right u16, sector u32, size u32, attributes u8, name length u8, name }.
-        // Only the root's files are kept: everything the title reads is there.
-        void Walk(const std::vector<uint8_t>& dir)
+        // The root's files are what nearly every title reads; the files of
+        // the root's own folders are kept apart, each named "<folder>/<file>"
+        // (FolderFiles), and nothing deeper is read.
+        void Walk(const std::vector<uint8_t>& dir, const std::string& folder, std::vector<File>& files)
         {
             std::vector<uint32_t> pending{ 0 }, seen;
             while (!pending.empty())
@@ -113,25 +116,33 @@ namespace
                 if (left) pending.push_back(left);
                 if (right) pending.push_back(right);
                 const uint8_t attributes = e[12], length = e[13];
-                if (attributes & 0x10 || at + 14 + length > dir.size()) continue;   // a directory
+                if (at + 14 + length > dir.size()) continue;
                 std::string name(reinterpret_cast<const char*>(e + 14), length);
                 if (!IsFileName(name)) continue;
 
-                const uint64_t fileOffset = base_ + uint64_t(Le32(e + 4)) * kSector;
-                const uint32_t fileSize = Le32(e + 8);
-                if (fileOffset > imageSize_ || fileSize > imageSize_ - fileOffset) continue;
+                const uint64_t offset = base_ + uint64_t(Le32(e + 4)) * kSector;
+                const uint32_t size = Le32(e + 8);
+                if (offset > imageSize_ || size > imageSize_ - offset) continue;
 
-                files_.push_back({ std::move(name), fileSize, fileOffset });
+                if (attributes & 0x10)   // a directory
+                {
+                    if (!folder.empty() || size == 0 || size > 32 * 1024 * 1024) continue;
+                    std::vector<uint8_t> table(size);
+                    if (ReadAt(offset, table.data(), table.size())) Walk(table, name + "/", folderFiles_);
+                    continue;
+                }
+                files.push_back({ folder + name, size, offset });
             }
         }
 
         std::ifstream file_;
         uint64_t base_ = 0;
         uint64_t imageSize_ = 0;
-        std::vector<File> files_;
+        std::vector<File> files_, folderFiles_;
     };
 
-    // A disc already extracted: the files at the top of the folder.
+    // A disc already extracted: the files at the top of the folder, and apart
+    // from them those of its own folders.
     class Folder final : public install::Source
     {
     public:
@@ -140,13 +151,24 @@ namespace
             root_ = path;
             std::error_code ec;
             for (const auto& entry : fs::directory_iterator(path, ec))
+            {
                 if (entry.is_regular_file(ec))
                     files_.push_back({ Utf8(entry.path().filename()), entry.file_size(ec), 0 });
+                else if (entry.is_directory(ec))
+                {
+                    const std::string folder = Utf8(entry.path().filename()) + "/";
+                    std::error_code inner;
+                    for (const auto& file : fs::directory_iterator(entry.path(), inner))
+                        if (file.is_regular_file(inner))
+                            folderFiles_.push_back({ folder + Utf8(file.path().filename()), file.file_size(inner), 0 });
+                }
+            }
             if (ec || files_.empty()) { error = "cannot read the folder " + Utf8(path); return false; }
             return true;
         }
 
         const std::vector<File>& Files() const override { return files_; }
+        const std::vector<File>& FolderFiles() const override { return folderFiles_; }
 
         bool Read(const File& file, uint64_t offset, void* out, size_t size) override
         {
@@ -163,7 +185,7 @@ namespace
 
     private:
         fs::path root_;
-        std::vector<File> files_;
+        std::vector<File> files_, folderFiles_;
         std::ifstream stream_;
         std::string open_;
     };

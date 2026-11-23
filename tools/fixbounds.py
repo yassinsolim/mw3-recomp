@@ -4,13 +4,16 @@ fall outside the analyzer's detected extent.
 
 Function starts are taken from: .pdata entries, every `bl` target in .text, the
 first instruction after a run of zero padding, and every word of .rdata and
-.data that is the address of an instruction and not a case label of a jump
-table: a function reached only through a pointer (Call of Duty 4 has leaf
-functions with jump tables right after one another, the second called through
-a table of handlers; without its start the two came out as one function and
-the call found none). A function containing a jump table then runs from the
-greatest such start <= the bctr, to the smallest start greater than the
-highest case label (backing off over trailing padding)."""
+.data that is the address of an instruction, is not a case label of a jump
+table and does not lie inside a function .pdata describes: a function reached
+only through a pointer (Call of Duty 4 has leaf functions with jump tables
+right after one another, the second called through a table of handlers;
+without its start the two came out as one function and the call found none).
+An address inside a .pdata function is one of its exception handler's labels
+(Modern Warfare 3 has three large functions with fourteen and more), not a
+start. A function containing a jump table then runs from the greatest such
+start <= the bctr, to the smallest start greater than the highest case label
+(backing off over trailing padding)."""
 import struct, re, sys, bisect, collections
 import title
 
@@ -18,7 +21,13 @@ img = title.image(); BASE = title.BASE
 def w(a): return struct.unpack_from(">I", img, a-BASE)[0]
 TVA, TSZ = title.text(img)
 
-starts = set(title.functions(img))
+described = sorted(title.functions(img).items())
+described_starts = [s for s, _ in described]
+def inside_described(a):
+    i = bisect.bisect_right(described_starts, a) - 1
+    return i >= 0 and described[i][0] < a < described[i][0] + described[i][1]
+
+starts = set(described_starts)
 
 prev_pad=False
 for a in range(TVA, TVA+TSZ, 4):
@@ -45,7 +54,7 @@ for name in (".rdata", ".data"):
     size = min(size, len(img) - (va - BASE))        # .data's tail is not in the file
     for a in range(va, va + size - 3, 4):
         t = w(a)
-        if TVA <= t < TVA+TSZ and t % 4 == 0 and t not in labels: starts.add(t)
+        if TVA <= t < TVA+TSZ and t % 4 == 0 and t not in labels and not inside_described(t): starts.add(t)
 starts=sorted(starts)
 
 bad=set()

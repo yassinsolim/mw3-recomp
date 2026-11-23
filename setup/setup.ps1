@@ -190,9 +190,9 @@ $Titles = if ($Mw2) { @{
     # Stepped: the instructions the recompiler does not know and the
     # configuration steps over (config/COD4.toml), which it still reports.
     sp = @{ Name = 'cod4'; Lib = 'cod4'; Label = 'campaign'; Xex = 'default'; Ppc = 'ppc_cod4'; Toml = 'COD4.toml'
-            Tables = 'cod4_switch_tables.toml'; Files = 76; Jump = 178; Stepped = 9 }
+            Tables = 'cod4_switch_tables.toml'; Files = 76; Jump = 181; Stepped = 9 }
     mp = @{ Name = 'cod4mp'; Lib = 'cod4mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_cod4_mp'; Toml = 'COD4MP.toml'
-            Tables = 'cod4mp_switch_tables.toml'; Files = 77; Jump = 177; Stepped = 9 }
+            Tables = 'cod4mp_switch_tables.toml'; Files = 77; Jump = 179; Stepped = 9 }
 } } else { @{
     sp = @{ Name = 'mw3'; Lib = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
             Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
@@ -770,6 +770,10 @@ foreach ($key in @($Keys)) {
         try { Exec $Python @('tools/xexdump.py', $xexRel, "$Disc/$($t.Xex).pe") -Cwd $Repo -Log "$($t.Name)_xexdump.log" -Quiet }
         finally { $env:PATH = $savedPath }
         Exec $AnalyseExe @($xexRel, "config/$($t.Tables)") -Cwd $Repo -Log "$($t.Name)_analyse.log" -Quiet
+        # Call of Duty 4 has a kind of jump table the analyser does not
+        # recognise. Its own alone: the other games' tables are part of what
+        # their game code is checked against, and stay as the analyser writes them.
+        if ($Cod4) { Exec $Python @('tools/intext_switch_tables.py') -Cwd $Repo -Log "$($t.Name)_intext_tables.log" -Quiet }
         # XenonRecomp crashes, rather than complaining, when its output directory is missing.
         if (Test-Path $ppcDir) { Remove-Item -Recurse -Force $ppcDir }
         New-Item -ItemType Directory $ppcDir | Out-Null
@@ -1050,5 +1054,4 @@ if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
-elseif ($Cod4) { Note 'On the phone: the app''s installer copies the disc''s top folder; the high-detail textures (highmip\) are not copied by it yet, and the game plays without them (docs\COD4-BRINGUP.md).' }
-else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } else { 'README.md' })." }
+else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } elseif ($Cod4) { 'docs\COD4-BRINGUP.md' } else { 'README.md' })." }

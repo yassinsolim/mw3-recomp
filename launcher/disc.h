@@ -33,6 +33,11 @@ namespace install
         virtual ~Source() = default;
         // The files at the root of the disc.
         virtual const std::vector<File>& Files() const = 0;
+        // The files of the root's own folders, one level down, each named
+        // "<folder>/<file>": Call of Duty 4 keeps its textures' top mips in
+        // one (highmip/). Apart from Files(), so that what takes the root's
+        // files by name never meets a path.
+        virtual const std::vector<File>& FolderFiles() const = 0;
         // Reads `size` bytes of `file` from `offset` into `out`.
         virtual bool Read(const File& file, uint64_t offset, void* out, size_t size) = 0;
 

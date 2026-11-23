@@ -51,8 +51,15 @@ enum class Title(val library: String, val executable: String) {
         /** The one app with the whole game. */
         val both: Boolean = carried.size > 1
 
-        /** com.mw3.recomp* is Modern Warfare 3; everything else here is MW2. */
+        /** com.mw3.recomp* is Modern Warfare 3; everything else here is MW2, */
         val isMw3: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.mw3.")
+
+        /**
+         * but for com.cod4.recomp*, Call of Duty 4, which goes the way of
+         * Modern Warfare 2's one app wherever this does not say otherwise:
+         * the disc's version alone, and a system link for its multiplayer.
+         */
+        val isCod4: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.cod4.")
 
         /** The title an executable's name on the disc belongs to, if this app carries it. */
         fun forExecutable(name: String): Title? = carried.firstOrNull { it.executable == name }
