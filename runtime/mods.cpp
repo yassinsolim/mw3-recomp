@@ -304,8 +304,8 @@ namespace
     // from. Taken during a level load, that goes wrong in this port (code
     // written there unasked is under a texture seconds later; asked for
     // through PMem_Alloc, 64 KB at a time, the match crashed in the title's
-    // audio code), so the mods' room is set aside once, as the game starts:
-    // see the PMem_EndAlloc hook.
+    // audio code), so the mods' room is set aside once, inside one of the
+    // title's own brackets: see the PMem_EndAlloc hook.
     uint32_t PoolAlloc(uint8_t* base, uint32_t size)
     {
         size = (size + 3) & ~3u;
@@ -628,19 +628,37 @@ GUEST_HOOK(T_G_LoadScripts)
     GUEST_ORIG(T_G_LoadScripts)(ctx, base);
 }
 
-// (name, end). The title's start-up brackets what it keeps for the whole run
-// in "$init", at the pools' low end, before any fastfile is loaded and before
-// anything is streamed. The mods' room is taken inside it, with the title's
-// own allocator (source 3: the script pool; protection 4, read and write),
-// so it lies under every zone's scripts and no zone's freeing gives it away.
+// (name, end). The title brackets what it loads at the pools' low end (end
+// 0): at start-up "$init", which it keeps for the whole run and closes before
+// any fastfile is loaded and before anything is streamed, and later one
+// bracket for each zone. The mods' room is taken inside a bracket, with the
+// title's own allocator (source 3: the script pool; protection 4, read and
+// write), so it is given away only when that bracket's memory is.
+//
+// The multiplayer takes it in "$init", under every zone's scripts. The
+// campaign cannot: a saved game holds every script thread's position as its
+// distance from the pool's start, the scripts of common.ff are the first thing
+// in the pool (the level's own come down from the high end), and room under
+// them moves them all by its size. A game saved without a mod then resumed
+// with one on, or the other way round, had its threads wake in the middle of
+// other functions and the server thread never came back (the screen stayed
+// black after the briefing). So there the room is taken as "common" closes,
+// right above its scripts, and the game's own code lies where it does with no
+// mod; it is taken again should the zone ever be loaded again.
+#ifdef T_GScr_LoadGameTypeScript
+static constexpr const char* kRoomBracket = "$init";
+#else
+static constexpr const char* kRoomBracket = "common";
+#endif
+
 GUEST_HOOK(T_PMem_EndAlloc)
 {
     const uint32_t name = ctx.r3.u32;
-    if (name && ctx.r4.u32 == 0 && !std::strcmp(reinterpret_cast<const char*>(base + name), "$init"))
+    if (name && ctx.r4.u32 == 0 && !std::strcmp(reinterpret_cast<const char*>(base + name), kRoomBracket))
     {
         std::lock_guard held(g_lock);
         ScanOnce();
-        if (g_any.load(std::memory_order_relaxed) && !g_arenaEnd && PPC_LOAD_U32(T_DATA_ScriptPool))
+        if (g_any.load(std::memory_order_relaxed) && PPC_LOAD_U32(T_DATA_ScriptPool))
         {
             const uint32_t address = Call(ctx, base, GUEST_FUNC(T_PMem_Alloc), kCodeRoom, 4, 4, 3);
             g_arenaStart = g_arenaNext = address - PPC_LOAD_U32(T_DATA_ScriptPool);

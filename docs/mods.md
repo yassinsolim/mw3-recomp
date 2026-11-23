@@ -96,8 +96,16 @@ not there; bots are the port's own ([switches.md](switches.md), `MW2_BOTS`).
   was under a texture seconds later; asked for through the title's
   allocator at that point, matches crashed in the title's audio code). So
   the mods' room is taken once, with the title's own `PMem_Alloc`, inside
-  the start-up's `$init` bracket: before any fastfile is loaded or anything
-  streamed, below every zone's scripts, and never given back.
+  one of the title's own brackets. In the multiplayer that is the start-up's
+  `$init`: before any fastfile is loaded or anything streamed, below every
+  zone's scripts, and never given back. In the campaign it is the bracket of
+  `common.ff`, right above that zone's scripts: a saved game holds every
+  script thread's position as its distance from the pool's start, so room
+  below the game's own scripts moved them all, and Resume Game on a save
+  made without a mod never left the black screen after the briefing when a
+  mod was on (v0.1.2 and before; an AYN Thor, the multiplayer-only `hello`
+  on). The level's own scripts come down from the pool's high end and are
+  not moved either way.
 - Own scripts are loaded while the title's loader is open and their `main`
   and `init` run through `Scr_ExecThread`, as the title runs its own.
 - Addresses and the evidence for each: `runtime/title.h`, "Mods".
@@ -129,12 +137,17 @@ Not verified, or limits:
   was not tried with mods on.
 - A large mod was not tried, nor a second match in one run, nor another
   game type.
-- The campaign: its hooks were found by the same code patterns and compile
-  (Android), but that title was not run with them.
+- The campaign: its hooks were found by the same code patterns; a replaced
+  stock script and a replaced raw file were not tried there.
 - Android: `mods-examples/hello` ran in multiplayer matches on an AYN Thor, in
   the app and in the multiplayer test copy; nothing larger was tried there.
   The app's MODS entry only explains the folder.
 - The launcher's script-mod install compiles; it was not run.
 - Map entities (`.ents`) are not replaced.
-- A campaign save holds script state; loading one made with other mods on is
-  untested.
+- A campaign save holds script state. The game's own scripts lie where they
+  do with no mod, so a save made with no mod resumes with one on (Black
+  Tuesday on an AYN Thor); a save made while a mod's own threads ran needs
+  the same mod at the same size, and loading one without it is untested.
+- The campaign on Android: an own script in `scripts/sp/` ran its `main()`
+  and `init()` in Black Tuesday started from Mission Select (a line printed
+  every three seconds); nothing larger was tried.

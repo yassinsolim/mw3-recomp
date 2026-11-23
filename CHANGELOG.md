@@ -5,6 +5,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Fixed
+- **Resume Game in the campaign no longer stops on a black screen when a mod
+  is on.** With any mod turned on in the mods folder (a multiplayer-only one
+  included), resuming a campaign save made without it played the briefing
+  and then stayed black at 0 FPS; v0.1.2 does the same. The room set aside
+  for the mods' scripts lay under the game's own, and a save holds every
+  script's position by its distance from the start. The room now lies above
+  them, so the game's scripts are where the save expects them. New Game and
+  Mission Select were not affected.
 - **A pack camouflage stays on the weapon after a restart.** In v0.1.2 a
   camouflage chosen from a pack (the project's own thirteen included) was
   drawn in the run it was chosen in and was plain Gold from the next start
