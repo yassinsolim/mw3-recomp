@@ -4,6 +4,26 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.4] - 2026-11-23
+
+### Highlights
+- **Bots in Modern Warfare 2's multiplayer.** Set them under Multiplayer →
+  BOTS on the start screen (how many, up to 17, and how good), then host a
+  System Link or private match. They join, pick a team and a class, fight,
+  score, and leave to make room for real players. The pause menu changes
+  their number in a match; Settings → Multiplayer has the same settings.
+- **Their limits**: the maps have no path data for them, so they feel their
+  way round walls and are easier to find on a small map. No grenades,
+  killstreaks or objectives yet. The disc version only, which is what this
+  app is. They join only the matches your device hosts.
+- **Modern Warfare 3's bots run on the code Modern Warfare 2's now share.**
+  How they fight and score, and the rule that a bot leaves to make room for
+  a player, are unchanged.
+
+The game package built for v0.1.0 to v0.1.3 still fits: nothing to build
+again.
+
+### Added
 - **Bots in Modern Warfare 2's multiplayer.** The launcher's **Bots** entry
   and Settings → Multiplayer are in Modern Warfare 2's app as well: choose
   how many (up to 17) and how good, start a System Link or private match, and
@@ -16,6 +36,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Modern Warfare 2's bots are handed a full load of ammunition when they have
   fired their last round; they would otherwise face their target for the rest
   of their lives.
+
+### Changed
 - Modern Warfare 2's multiplayer, disc version, diagnostics builds:
   `MW2_ENGINE_LOG` shows the title's other three prints as well (the server's
   reasons for refusing a connect among them).
