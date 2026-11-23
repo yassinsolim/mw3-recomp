@@ -76,11 +76,11 @@ as `tools/check_mw3_xex.py` does for Modern Warfare 3.
 
 | | campaign | multiplayer |
 |---|---|---|
-| Jump tables (XenonAnalyse) | 178 | 177 |
+| Jump tables | 181 (178 from XenonAnalyse, 3 from `tools/intext_switch_tables.py`) | 179 (177 and 2) |
 | Functions | 18,160 | 18,289 |
 | Source files written by the recompiler | 76 | 77 |
 | Switch-case errors, first run | 444 at 35 sites | 503 at 39 sites |
-| Leaf-function extents added | 32 | 35 |
+| Leaf-function extents added | 34 | 36 |
 | Switch-case errors now | 0 | 0 |
 | Instructions the recompiler does not know | 9 (stepped over, below) | 9 |
 
@@ -96,6 +96,16 @@ as `tools/check_mw3_xex.py` does for Modern Warfare 3.
   function start every word of `.rdata` and `.data` that is the address of an
   instruction and not a case label; two extents of the campaign and one of the
   multiplayer came out differently for it.
+- **Jump tables in the code that XenonAnalyse does not recognise.** Five
+  dispatches (three in the campaign, two in the multiplayer) are
+  `rlwinm r0,rN,2,0,29; lwzx r0,r12,r0; mtctr r0; bctr` with the table right
+  after the `bctr` and its address formed elsewhere. Without an entry the
+  recompiler took each `bctr` for a call through a pointer, and the
+  multiplayer ended as a map started with "indirect call to 822F9B18 has no
+  recompiled function". `tools/intext_switch_tables.py` appends an entry for
+  each to the title's switch tables after XenonAnalyse has written them
+  (setup runs it for this game only: the other games' tables are part of what
+  their game code is checked against). Three more leaf extents followed.
 - **`vandc` and `vctuxs`.** The pinned recompiler has the VMX128 forms of these
   two AltiVec instructions and not the plain ones, which neither later game
   uses. Nine instructions in three functions of each executable. Each is
@@ -110,9 +120,25 @@ as `tools/check_mw3_xex.py` does for Modern Warfare 3.
 ## The title blocks
 
 `runtime/title.h` has a block for each executable, selected by `COD4_TITLE`
-(and `COD4_TITLE_MP`). The build also defines `MW3_TITLE`, which the runtime's
-sources read as "not Modern Warfare 2: a hook without an entry is compiled
-out"; CMake's `MW2_IS_COD4` beside `MW2_IS_MW3` is the same arrangement.
+(and `COD4_TITLE_MP`).
+
+**Why the build also defines `MW3_TITLE`** (and CMake sets `MW2_IS_MW3`
+beside `MW2_IS_COD4`). It is more than a convenience. In the runtime's sources
+`MW3_TITLE` is what tells a title that is not Modern Warfare 2 from one that
+is: with it the MW2-only hooks (`Com_Printf`, the memory-card prompt, the
+predicate wait) and the MW2 phone build's arena workarounds are compiled out,
+the heap starts above a larger image, the executable's module handle is
+installed for the C runtime's start-up, and CMake builds the disc's one
+executable with no title update and no profile. Call of Duty 4 needs every one
+of those. Giving that meaning a name of its own would touch each of those
+places in code that Modern Warfare 2 and 3 are built from, to no effect on
+either, so it is left as it is and said here and at the top of
+`runtime/title.h`. What `MW3_TITLE` means that is Modern Warfare 3's alone is
+overridden for this title where it matters (the title id and name the
+installer checks, the network tag, the script compiler, which is not built)
+and otherwise harmless: its entries are compiled out with their hooks. One
+thing carried over on purpose and not measured: on Android the sun's shadows
+start off above a 60 frames a second limit, as for Modern Warfare 3.
 
 Every address was found in Call of Duty 4's own executable, by laying the
 function beside the one MW2's disc block names (`ppc_tu0/`):
@@ -155,53 +181,82 @@ of instructions, each matched once.
 Evidence is kept outside the repository, in
 `C:\Users\solim\mw3-android-work\private-captures\cod4\`.
 
-### Windows (llvm-mingw build, RTX 5080)
+### Windows (`setup\setup.cmd -Game cod4 -Build both`, llvm-mingw, RTX 5080)
+
+The setup's Windows path was run end to end: it copies the whole disc (6.5 GB
+with `highmip\`) into `out\pc-cod4\game`, builds `cod4.exe` and `cod4mp.exe`
+and writes `Campaign.cmd`, `Multiplayer.cmd` and `.env`. The runs below are of
+those executables, started as the two files start them.
 
 | | State | Evidence |
 |---|---|---|
 | Campaign starts; legal, Infinity Ward, Activision and introduction movies play | **verified** | `pc-first-boot-sheet.png` |
-| Title screen ("Press START") and the main menu | **verified** | `pc-title-press-start.png`, `pc-main-menu.png` |
-| New Game: the loading movie, `killhouse.ff` (F.N.G.) loads, the level draws with its HUD at 60 frames a second | **verified** | `pc-killhouse-ingame.png`, `pc-first-boot.log` |
-| The same with no `highmip/` folder: plays, with the lower mips | **verified** | run of `out\pc\cod4.exe`, 256 `.hi` files asked for and not found |
-| Multiplayer starts and reaches its main menu (Xbox LIVE, Split Screen, System Link) | **verified** | `pc-mp-main-menu.png`, `pc-mp-first-boot.log` |
-| Multiplayer, Xbox LIVE: "You must have an active network connection" (`Com_Error(1) XBOXLIVE_NETCONNECTION`), as expected with no network backend chosen | **verified** | the same log |
-| A multiplayer map | **open**: not tried | |
+| Title screen and the main menu | **verified** | `pc-title-press-start.png`, `pc-main-menu.png` |
+| New Game: the briefing movie, F.N.G. loads and draws at 60 frames a second | **verified** | `pc-killhouse-ingame.png`, `pc-first-boot.log` |
+| The pad walks, turns and fires in the level | **verified** | `pc-killhouse-movement-sheet.png` |
+| The level's checkpoint is saved, and Resume Game loads it in a later run | **verified** | `pc-resume-game-sheet.png` |
+| The same with no `highmip\` folder: plays, with the lower mips | **verified** | 256 `.hi` files asked for and not found |
+| Multiplayer reaches its main menu | **verified** | `pc-mp-main-menu.png` |
+| Multiplayer, a System Link match hosted on this machine: Shipment loads, team and class are chosen, the player spawns, walks, turns and fires, 60 frames a second | **verified** (`MW2_CONSOLE="30:set onlinegame 0;30.5:set systemlink 1;33:map mp_shipment"`) | `pc-mp-shipment-systemlink-sheet.png`, `pc-mp-shipment-systemlink.log` |
+| A second player joining that match; Xbox LIVE; split screen | **open**: not tried | |
 
-No unimplemented import was reached, no unknown GPU opcode, no guest fault.
-One warning in the campaign's level: a `WAIT_REG_MEM` given up on after 500 ms
-once, during the load.
+No unimplemented import was reached, no unknown GPU opcode, no guest fault in
+the runs above. One warning in the campaign's level: a `WAIT_REG_MEM` given up
+on after 500 ms once, during the load.
 
-### Android (the `cod4` flavour, `com.cod4.recomp.dev` with `com.cod4.recomp.dev.game`)
+### Android (`setup\setup.cmd -Game cod4 -Build android -Dev -Suffix .dev`)
 
-Built by `setup\setup.cmd -Game cod4 -Build android -Dev -Suffix .dev`: the
-recompile (the numbers above), both game libraries (30.3 MB package), the app
-(9.3 MB), installed with adb. The game files were pushed into the app's game
-folder with adb, not copied by the app's installer, which was **not run**.
-Bundled Turnip driver, touch controls, the app's defaults.
+The `cod4` flavour, `com.cod4.recomp.dev` with `com.cod4.recomp.dev.game`
+(30.3 MB of game code, a 10.6 MB app), the bundled Turnip driver, touch
+controls, the app's defaults. The launcher finds
+`/sdcard/Download/Call of Duty 4 - Modern Warfare (USA, Europe).iso` (or
+`cod4.iso`) by itself.
 
-| | Retroid Pocket Flip 2 (Adreno 650) | AYN Thor (Adreno 740) |
+| | AYN Thor (Adreno 740) | Retroid Pocket Flip 2 (Adreno 650) |
 |---|---|---|
-| Starts; logos and introduction movie | **verified**, 60 FPS (`flip2-intro-movie.png`) | **verified**, 119 FPS |
-| Title screen | **verified** (`flip2-title.png`) | **verified** (`thor-title.png`) |
-| Main menu | **verified** (`flip2-main-menu.png`) | **verified** (`thor-main-menu.png`), 119 FPS |
-| New Game: F.N.G. loads and draws with its HUD | **verified**, 60 FPS on the overlay (`flip2-killhouse-ingame.png`) | **open**: the scripted presses of A (`input swipe`) were not taken and the run was ended there; not a fault seen, not a level seen |
-| The left stick moves the player | **verified** (`flip2-killhouse-moved.png`) | **open** |
-| With `highmip/` | yes, all 2,480 files | no: the push ended before that folder, so this is the installer's set of files |
+| INSTALL & PLAY from the disc image: the root's files, the two `.bikbe` and all 2,480 of `highmip/` (6.4 GB, 116 entries), then the game starts | **verified** (`thor-launcher-disc-detected.png`) | **verified** (`flip2-installer-highmip.png`) |
+| Logos and introduction movie, title screen, main menu | **verified**, 119 FPS (`thor-main-menu-after-install.png`) | **verified**, 60 FPS (`flip2-after-install-main-menu.png`) |
+| New Game: F.N.G. loads and draws; the left stick walks and the right turns | **verified** from that install, 119 FPS on the overlay (`thor-killhouse-ingame.png`, `thor-install-and-play.log`) | **verified** with the same build on files pushed by adb, which are the installer's byte for byte in count and size (`flip2-killhouse-moved.png`); not repeated after the install, the Flip 2 being shut and dozing between taps |
 | Multiplayer | **open**: not started | **open** |
 
-Logs: `flip2-game.log`, `thor-game.log`. No guest fault, no `Com_Error`, no
-unimplemented import in either; three stutter warnings on the Flip 2 as the
-level's textures were first read. No frame-rate measurement was made beyond
-the overlay's number.
+No guest fault, no `Com_Error`, no unimplemented import in either log. No
+frame-rate measurement was made beyond the overlay's number.
+
+Seen on both and **open**: the on-screen Start does not skip the logos and the
+introduction as the pad's does on Windows, so a first start takes about two
+minutes to reach the title screen; and `MW2_INPUT_SCRIPT` in `options.txt` was
+read and its presses took no effect, so the runs above were driven by taps.
+
+### Modern Warfare 2 and 3 are as they were
+
+The shared files this title changed (`CMakeLists.txt`, `cmake/`,
+`runtime/title.h`, the installer, `launcher/disc.*`, `tools/fixbounds.py`,
+`tools/title.py`, `setup/setup.ps1`, the app) were checked on this branch
+against `android`:
+
+- **The game library statements are byte-identical** for `mw3`, `mw3mp`, `mw2`
+  and `mw2mp` (`49cb73ddd14a`, `ea9e4d15ac5e`, `d5de1f8e8711`, `94e6825e2bf7`):
+  `game_abi.cpp` of a game configure of each compared with `android`'s, and
+  the four `game_abi_expected.h` of the apps built here with `android`'s. No
+  player has to build game code again.
+- **`tools/fixbounds.py` prints the same** as `android`'s for all four
+  executables, run on a recompile of each without its extents. The first
+  version of the change did not: it took the exception handlers' labels inside
+  three of Modern Warfare 3's functions for starts, which is why an address
+  inside a function `.pdata` describes is now left alone.
+- **Both build and start on Windows**: Modern Warfare 3's campaign and Modern
+  Warfare 2's (the disc's version) built from this branch each ran 45 seconds
+  at 60 frames a second to their first screen (`regress-mw3-mw2-pc.png`,
+  `regress-mw3-pc.log`, `regress-mw2-pc.log`).
+- **Both apps build**: `assembleMw3Tu0Debug` and `assembleMw2Tu0Debug`.
 
 ## Open
 
-- The app's installer copies the disc's root (`.ff`, `.pak`, `.bik`,
-  `.bikbe` and the two executables) and not `highmip/`: the game plays
-  without it, with lower-detail textures. `setup -Game cod4 -Build pc` copies
-  the whole disc.
-- A multiplayer map (split screen or system link), and the network backends
-  for this title.
-- The frame's shape, the shader hand-over at load, the field of view and the
-  other optional hooks listed above.
+- A second player in a System Link match, split screen, and the network
+  backends (relay, LAN) for this title; the multiplayer on Android.
+- The on-screen Start during the opening movies and `MW2_INPUT_SCRIPT` on
+  Android (above).
+- The frame's shape (`MW2_RENDER`), the shader hand-over at load, the field of
+  view and the other optional hooks listed under the title blocks.
+- Frame rates measured over a level, on either device; levels after F.N.G.
 - Whether a title update exists and matters.
