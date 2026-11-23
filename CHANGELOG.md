@@ -38,6 +38,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   read of the players' skill was never answered in a form it takes. It has
   its own playlists (Team Deathmatch and Free-for-all on the disc's sixteen
   maps) and the read is answered with no rows.
+- **Call of Duty 4's multiplayer ended every match after about five
+  minutes** on a 120 Hz device (ten on a 60 Hz one) with "Xbox 360 Error 6
+  while trying to enumerate lsp title servers", and the host's screen stayed
+  black: memory the game takes each frame while it looks for a Live server
+  was never given back.
+- Call of Duty 4's app: the campaign's entry no longer says Special Ops,
+  which this game does not have.
+- The launcher (all three games) no longer starts the game a second time
+  when you quit the run that INSTALL & PLAY started.
 
 ## [v0.1.4] - 2026-11-23
 
