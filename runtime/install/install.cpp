@@ -250,7 +250,8 @@ namespace
             const size_t n = std::strlen(suffix);
             return lower.size() >= n && lower.compare(lower.size() - n, n, suffix) == 0;
         };
-        return endsWith(".ff") || endsWith(".pak") || endsWith(".bik") || lower == "nxeart";
+        // .bikbe: Call of Duty 4's two movies shown on a screen inside a level.
+        return endsWith(".ff") || endsWith(".pak") || endsWith(".bik") || endsWith(".bikbe") || lower == "nxeart";
     }
 
     struct Progress

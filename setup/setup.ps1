@@ -1050,5 +1050,5 @@ if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
-elseif ($Cod4) { Note 'On the phone: the app''s installer copies the disc''s top folder; the high-detail textures (highmip\) and the two .bikbe movies are not copied by it yet (docs\COD4-BRINGUP.md).' }
+elseif ($Cod4) { Note 'On the phone: the app''s installer copies the disc''s top folder; the high-detail textures (highmip\) are not copied by it yet, and the game plays without them (docs\COD4-BRINGUP.md).' }
 else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } else { 'README.md' })." }
