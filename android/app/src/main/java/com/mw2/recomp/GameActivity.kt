@@ -425,29 +425,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // Sustained performance mode locks CPU/GPU governors to steady frequencies
         // to prevent erratic thermal throttling mid-gameplay.
         window.setSustainedPerformanceMode(true)
-        if (prefs.fpsLimit in Prefs.FPS_LIMITS) {
-            val attributes = window.attributes
-            attributes.preferredRefreshRate = prefs.fpsLimit.toFloat()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val displayObj = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display
-                else {
-                    @Suppress("DEPRECATION")
-                    windowManager.defaultDisplay
-                }
-                if (displayObj != null) {
-                    val target = prefs.fpsLimit.toFloat()
-val modes = displayObj.supportedModes.filter { it.refreshRate + 1f >= target }
-val mode60 = modes
-    .filter { kotlin.math.abs(it.refreshRate / target - Math.round(it.refreshRate / target)) < 0.03f }
-    .minByOrNull { it.refreshRate }
-    ?: modes.minByOrNull { it.refreshRate }
-                    if (mode60 != null) {
-                        attributes.preferredDisplayModeId = mode60.modeId
-                    }
-                }
-            }
-            window.attributes = attributes
-        }
+        if (prefs.fpsLimit in Prefs.FPS_LIMITS) DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
         logDisplayMode()
         getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, handler)
         handler.postDelayed({ sayDisplayHeld() }, 5000)
@@ -794,15 +772,11 @@ val mode60 = modes
         android.util.Log.i("MW2", line)
     }
 
-    // Said once a run, when the mode request above has had its time: the
-    // system's own display setting outranks an app's request, and an AYN
-    // Thor whose dual-screen assistant put it back to 60 Hz after a restart
-    // showed 60 under a limit of 120 with nothing on screen to say why.
+    // Said once a run, when the mode request above has had its time
+    // (DisplayRate.kt); the launcher says the same, and how to mend it.
     private fun sayDisplayHeld() {
-        val shown = shownDisplay() ?: return
         val limit = prefs.fpsLimit
-        val now = shown.mode.refreshRate
-        if (now >= limit * 0.97f || shown.supportedModes.none { it.refreshRate >= limit * 0.97f }) return
+        val now = DisplayRate.heldAt(shownDisplay(), limit) ?: return
         android.util.Log.i("MW2", "display: held at $now Hz by the system under an FPS limit of $limit")
         android.widget.Toast.makeText(
             this, getString(R.string.display_held, now.roundToInt(), limit), android.widget.Toast.LENGTH_LONG,
@@ -921,9 +895,9 @@ val mode60 = modes
         if (launchData.isNotEmpty()) NativeBridge.nativeSetOption("MW2_LAUNCH_DATA", launchData)
         NativeBridge.nativeSetOption("MW2_SHADER_CACHE", shaderCacheFile.absolutePath)
 
-        // Identity on the network and lobby behaviour. Empty name means the
-        // profile's (fresh installs show "Player 1"); the accept flag lets a
-        // host's invitation join without asking.
+        // Identity on the network and lobby behaviour. The name is the
+        // player's, or the device's own until he gives one (Prefs.kt); the
+        // accept flag lets a host's invitation join without asking.
         NativeBridge.nativeSetOption("MW2_NAME", prefs.playerName)
         NativeBridge.nativeSetOption("MW2_LAN_ACCEPT", if (prefs.lanAccept) "1" else "")
         NativeBridge.nativeSetOption("MW2_LAN_IFACE", prefs.lanIface)
@@ -1029,8 +1003,12 @@ val mode60 = modes
             getString(R.string.resume) to { _: android.content.DialogInterface -> },
             getString(R.string.edit_controls) to { _: android.content.DialogInterface -> beginEditing() },
         )
-        // The Live lobby's invitations: MW2's, and MW3's when it is signed in.
-        if (isMw2Multiplayer || (isMultiplayer && prefs.liveSignIn)) {
+        // The Live lobby's invitations: MW2's and Call of Duty 4's, and
+        // MW3's when it is signed in, which through a relay it is
+        // (runtime/online/service.cpp, online::Live) -- its private match
+        // had a lobby nobody could be asked into or find.
+        if (isMw2Multiplayer ||
+            (isMultiplayer && (prefs.liveSignIn || prefs.networkBackend == "server"))) {
             labels.add(getString(R.string.invite_players) to { _: android.content.DialogInterface -> inviteNetworkPlayers() })
             labels.add(getString(R.string.join_game) to { _: android.content.DialogInterface -> pickNetworkPeer() })
         }
@@ -1098,12 +1076,16 @@ val mode60 = modes
     // Join a heard host right now, re-firing the join even if the automatic
     // one raced the menu and was swallowed.
     private fun pickNetworkPeer() {
-        val names = try {
-            NativeBridge.nativeLanPeerNames().split("\n").filter { it.isNotBlank() }
+        // A line a peer: its id in hexadecimal, a tab, its name.
+        val peers = try {
+            NativeBridge.nativeLanJoinable().split("\n").mapNotNull { line ->
+                val id = line.substringBefore('\t').toULongOrNull(16) ?: return@mapNotNull null
+                id.toLong() to line.substringAfter('\t', "")
+            }
         } catch (_: Throwable) {
             emptyList()
         }
-        if (names.isEmpty()) {
+        if (peers.isEmpty()) {
             AlertDialog.Builder(this)
                 .setMessage(R.string.no_peers)
                 .setPositiveButton(R.string.close, null)
@@ -1111,12 +1093,18 @@ val mode60 = modes
                 .show()
             return
         }
+        // Two players may have the same name; the end of each one's id then
+        // tells the two lines apart.
+        val labels = peers.map { (id, name) ->
+            if (peers.count { it.second == name } < 2) name
+            else getString(R.string.peer_of_many, name, "%04X".format(id and 0xFFFF))
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.join_game)
-            .setItems(names.toTypedArray()) { dialog, which ->
+            .setItems(labels.toTypedArray()) { dialog, which ->
                 dialog.dismiss()
                 try {
-                    NativeBridge.nativeLanJoinPeer(names[which])
+                    NativeBridge.nativeLanJoinPeer(peers[which].first)
                 } catch (_: Throwable) {
                 }
                 goFullscreen()
@@ -1496,10 +1484,47 @@ val mode60 = modes
     }
 
     companion object {
-        /** Started by the launcher once the files are in place. */
-        fun start(activity: Activity, title: Title) {
-            RunRequest(title, "").write(activity)
-            activity.startActivity(Intent(activity, GameActivity::class.java))
+        /**
+         * Started by the launcher once the files are in place; `then` runs
+         * once the run has been started. The multiplayer's first start asks
+         * for the player's name before it, with the device's own filled in:
+         * the other players see it, and few look for it in Settings.
+         */
+        fun start(activity: Activity, title: Title, then: () -> Unit = {}) {
+            val go = {
+                RunRequest(title, "").write(activity)
+                activity.startActivity(Intent(activity, GameActivity::class.java))
+                then()
+            }
+            val prefs = Prefs(activity)
+            if (title != Title.MULTIPLAYER || prefs.playerNameAsked || prefs.networkMode == Prefs.NETWORK_OFF) {
+                go()
+                return
+            }
+            val name = EditText(activity).apply {
+                setText(prefs.playerName)
+                hint = prefs.defaultPlayerName
+                isSingleLine = true
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                filters = arrayOf(android.text.InputFilter.LengthFilter(Prefs.MAX_PLAYER_NAME))
+                setSelectAllOnFocus(true)
+            }
+            val margin = (20 * activity.resources.displayMetrics.density).toInt()
+            val frame = FrameLayout(activity).apply {
+                setPadding(margin, margin / 4, margin, 0)
+                addView(name)
+            }
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.player_name)
+                .setMessage(R.string.player_name_ask)
+                .setView(frame)
+                .setPositiveButton(R.string.play) { _, _ ->
+                    prefs.playerName = name.text.toString()
+                    prefs.playerNameAsked = true
+                    go()
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
         }
     }
 }

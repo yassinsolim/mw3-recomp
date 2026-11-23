@@ -851,10 +851,46 @@ for the match in `private-logs\relayall\`.
   for each copy heard that comes before this one), which two Windows copies
   started together showed; an app built after `dd65b10` has it, the draft
   `3c10903` has not.
-- **Not run on the devices:** Modern Warfare 3's private match, and an
-  invitation sent from the lobby (INVITE, or the pause menu's Invite network
-  players); the PC as a third player, whose build is of another release than
-  the published apps and so never meets them.
+- **Not run on the devices that day:** Modern Warfare 3's private match, and
+  an invitation sent from the lobby; the PC as a third player. They are below.
+
+### The modes left, and three players (23 November 2026, later)
+
+The same relay and devices, `.dev` apps of the `refine` branch (the fixes
+below are in none of the published apps), each player under his device's own
+name ("AYN Thor 5DF4", "Flip2 0218"). A pass is as above.
+
+| Game | Mode | Host | Joiner | In the match | FPS Thor / Flip 2 | Evidence |
+|---|---|---|---|---|---|---|
+| Modern Warfare 3 | Private match, joined from the pause menu (Join network game) | Thor | Flip 2 | 2.4 min | 119 / 60 | `d1_m3_private_*` |
+| Modern Warfare 3 | Private match, by invitation (Invite network players; the Thor accepts invitations) | Flip 2 | Thor | 2.4 min | 119 / 60 | `d2_m3_invite_*` |
+| Modern Warfare 3 | Private match, joined from the pause menu; and by invitation | PC; Thor | Thor; PC | 2.3 min each | 119 / (PC) | `m3_priv_*`, `m3_invite_*` |
+| Call of Duty 4 | Find Match, Free-for-all, both searching in the same second | Thor | Flip 2 | 2.2 min; in the match 30 s after searching | 119 / 60 | `c4_ffa_*` |
+| Call of Duty 4 | Private match, joined from the pause menu | Thor | Flip 2 | 2.2 min | 119 / 60 | `c4_private_*` |
+
+Screenshots in `private-captures\refine\`, logs in `private-logs\refine\`.
+
+- **Modern Warfare 3's private match could not be joined**: "Unable to join
+  game session" twenty seconds after choosing the host. Before it joins a
+  friend the title asks the host which executable it runs ("exe_check";
+  the answer "MP" or "SP", as an invitation may be to Special Ops), and takes
+  the answer only from the address in the session it was given: it turns the
+  sender's address back into an XNADDR and compares all 36 bytes
+  (`sub_8234FBF0`). `XNetInAddrToXnAddr` wrote the stand-in address into
+  that XNADDR, which the host's own does not have, so the answer was dropped
+  and the wait ran out. It now gives the address the machine has for itself
+  (`kernel/net.cpp`). Modern Warfare 3's pause menu also had neither Invite
+  network players nor Join network game unless the experimental sign-in was
+  on; it has them whenever the relay carries the game.
+- **Three players of one name.** The players a copy hears were kept by name,
+  so a second one of the same name took the first one's line in Join network
+  game. They are kept by the transport's id (`online/players.cpp`), and the
+  list adds the end of the id to names that are there twice: a PC copy given
+  the Thor's name and the Thor, each in a private lobby, are two lines on the
+  Flip 2 (`flip_m3_join_list_3players.png`), and the PC's log hears both
+  devices. The relay keeps no names: nothing to deploy.
+- **Call of Duty 4's two searches in one second** end in one lobby on the
+  devices too (the tie-break of `dd65b10`).
 
 On Windows, two copies of the current source on one PC through the same
 relay (`m3_pc_*` and `c4_pc_*` logs, `m3_pc_*` and `c4_fm*` screenshots): Modern Warfare 3's

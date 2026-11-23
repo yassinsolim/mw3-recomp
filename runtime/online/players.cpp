@@ -69,9 +69,13 @@ namespace
     constexpr uint8_t kAnnounce = 0, kInvite = 1;
     constexpr auto kAnnounceEvery = std::chrono::seconds(1);
 
+    // A copy heard, kept under its id: the name is the player's to choose
+    // (every fresh install was "Player 1" once), and kept by name a second
+    // copy of the same name took the first one's place in the list.
     struct Peer
     {
         uint64_t id = 0, account = 0;
+        std::string name;
         bool joinable = false;
         uint8_t session[online::kSessionInfoSize]{};
         std::chrono::steady_clock::time_point heard{};
@@ -156,8 +160,10 @@ namespace
             if (now - announced_ >= kAnnounceEvery) AnnounceLocked();
             if (!join_.empty())
             {
-                auto it = peers_.find(join_);
-                if (it != peers_.end() && it->second.joinable)
+                const auto it = std::find_if(peers_.begin(), peers_.end(), [&](const auto& entry) {
+                    return entry.second.joinable && entry.second.name == join_;
+                });
+                if (it != peers_.end())
                 {
                     LOGI("online: %s joins %s", transport_->Name(), join_.c_str());
                     invites_.push_back(InviteFrom(it->second, false));
@@ -192,10 +198,10 @@ namespace
             std::lock_guard g(lock_);
             if (!hasJoinable_) { LOGW("online: nothing to invite anyone to yet"); return; }
             const Presence invite = PresenceLocked(kInvite);
-            for (const auto& [name, peer] : peers_)
+            for (const auto& [id, peer] : peers_)
             {
-                LOGI("online: %s invites %s", transport_->Name(), name.c_str());
-                transport_->SendTo(peer.id, &invite, sizeof invite);
+                LOGI("online: %s invites %s", transport_->Name(), peer.name.c_str());
+                transport_->SendTo(id, &invite, sizeof invite);
             }
         }
 
@@ -215,23 +221,29 @@ namespace
                                         [&](const auto& entry) { return entry.second.id < own; }));
         }
 
-        std::string PeerNames() override
+        std::string JoinablePeers() override
         {
             std::lock_guard g(lock_);
             ForgetGoneLocked();
-            std::string names;
-            for (const auto& [name, peer] : peers_)
-                if (peer.joinable) names += name + "\n";
-            return names;
+            std::string lines;
+            char id[20];
+            for (const auto& [from, peer] : peers_)
+            {
+                if (!peer.joinable) continue;
+                std::snprintf(id, sizeof id, "%llx\t", static_cast<unsigned long long>(from));
+                lines += id + peer.name + "\n";
+            }
+            return lines;
         }
 
         // The peer's Live party or lobby, as MW2_LAN_JOIN joins it.
-        bool JoinPeer(const std::string& name) override
+        bool JoinPeer(uint64_t id) override
         {
             std::lock_guard g(lock_);
-            const auto it = peers_.find(name);
+            const auto it = peers_.find(id);
             if (it == peers_.end() || !it->second.joinable) return false;
-            LOGI("online: %s joins %s", transport_->Name(), name.c_str());
+            LOGI("online: %s joins %s at %012llx", transport_->Name(), it->second.name.c_str(),
+                 static_cast<unsigned long long>(id));
             invites_.push_back(InviteFrom(it->second, false));
             return true;
         }
@@ -288,16 +300,20 @@ namespace
         void Heard(uint64_t from, const Presence& presence)
         {
             if (presence.instance == instance_) return;
-            const std::string name(presence.name, strnlen(presence.name, sizeof presence.name));
-            if (!peers_.count(name))
+            std::string name(presence.name, strnlen(presence.name, sizeof presence.name));
+            // The list goes to a picker a line a peer, id and name a tab apart.
+            for (char& c : name)
+                if (uint8_t(c) < ' ') c = ' ';
+            if (!peers_.count(from))
             {
                 ForgetGoneLocked();
                 if (peers_.size() >= kMostPeers) return;
                 LOGI("online: %s hears %s at %012llx", transport_->Name(), name.c_str(),
                      static_cast<unsigned long long>(from));
             }
-            Peer& peer = peers_[name];
+            Peer& peer = peers_[from];
             peer.id = from;
+            peer.name = name;
             peer.heard = std::chrono::steady_clock::now();
             peer.account = BigEndian64(presence.account);
             if (peer.account == Account() && !warned_)
@@ -373,7 +389,7 @@ namespace
         std::mutex lock_;
         std::map<uint16_t, std::deque<online::Datagram>> waiting_;
 
-        std::map<std::string, Peer> peers_;   // by name
+        std::map<uint64_t, Peer> peers_;      // by the transport's id for the copy
         bool hasJoinable_ = false;
         online::Joinable joinable_;
         std::chrono::steady_clock::time_point announced_{};

@@ -356,13 +356,43 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_PERSIST_PIPELINE, value).apply()
 
     /**
-     * The name other network players see (MW2_NAME). Empty means the
-     * profile's name, which on a fresh phone is "Player 1"; a second copy
-     * on one device starts as "Player 2".
+     * The name other network players see (MW2_NAME). Until the player types
+     * one it is the device's own (defaultPlayerName): the profile's name is
+     * "Player 1" on every fresh install, and a lobby of them told nobody who
+     * was who.
      */
     var playerName: String
-        get() = store.getString(KEY_PLAYER_NAME, DEFAULT_PLAYER_NAME) ?: DEFAULT_PLAYER_NAME
-        set(value) = store.edit().putString(KEY_PLAYER_NAME, value.take(15)).apply()
+        get() = store.getString(KEY_PLAYER_NAME, "").orEmpty().trim().ifEmpty { defaultPlayerName }
+        set(value) = store.edit().putString(KEY_PLAYER_NAME, value.trim().take(MAX_PLAYER_NAME)).apply()
+
+    /**
+     * The device's model and four characters of the number Android keeps for
+     * this app on this device (it outlives an update, and differs between two
+     * devices of one model): "AYN Thor 3F2A". The model gives up its leading
+     * words until it fits the fifteen characters a name has, so a "Retroid
+     * Pocket Flip2" is "Flip2 …". A second copy on one device (-PmpInstance)
+     * is another player, with other characters.
+     */
+    val defaultPlayerName: String by lazy {
+        val number = android.provider.Settings.Secure.getString(
+            app.contentResolver, android.provider.Settings.Secure.ANDROID_ID,
+        ).orEmpty()
+        val tail = "%04X".format("$number/${BuildConfig.MP_INSTANCE}".hashCode() and 0xFFFF)
+        val room = MAX_PLAYER_NAME - tail.length - 1
+        var model = android.os.Build.MODEL.orEmpty().trim()
+        while (model.length > room && ' ' in model) model = model.substringAfter(' ').trim()
+        "${model.take(room).trim()} $tail".trim()
+    }
+
+    /**
+     * Whether the player has been asked for that name, which the first start
+     * of the multiplayer does (GameActivity.start). One who typed a name in
+     * Settings before there was a question has answered it.
+     */
+    var playerNameAsked: Boolean
+        get() = store.getBoolean(KEY_PLAYER_NAME_ASKED, false) ||
+            store.getString(KEY_PLAYER_NAME, "").orEmpty().isNotBlank()
+        set(value) = store.edit().putBoolean(KEY_PLAYER_NAME_ASKED, value).apply()
 
     /** Accept LAN lobby invitations automatically (MW2_LAN_ACCEPT). */
     var lanAccept: Boolean
@@ -442,9 +472,8 @@ class Prefs(context: Context) {
         const val NETWORK_LAN = "lan"
         const val NETWORK_OFF = "off"
         val NETWORK_MODES = listOf(NETWORK_ONLINE, NETWORK_LAN, NETWORK_OFF)
-        /** A second copy on one device (-PmpInstance) is another player. */
-        val DEFAULT_PLAYER_NAME =
-            if (BuildConfig.MP_INSTANCE > 1) "Player ${BuildConfig.MP_INSTANCE}" else ""
+        /** A gamertag's longest, which is what the title shows of a name. */
+        const val MAX_PLAYER_NAME = 15
         private const val KEY_NETWORK_MODE = "networkMode"
         private const val KEY_RELAY_ADDRESS = "relayAddress"
         private const val KEY_LIVE_SIGN_IN = "liveSignIn"
@@ -503,6 +532,7 @@ class Prefs(context: Context) {
         val MATCH_JUMPS = intArrayOf(20, 39, 60, 80, 120, 200, 400)
         private const val KEY_PERSIST_PIPELINE = "persistPipelineCache"
         private const val KEY_PLAYER_NAME = "playerName"
+        private const val KEY_PLAYER_NAME_ASKED = "playerNameAsked"
         private const val KEY_LAN_ACCEPT = "lanAccept"
         private const val KEY_LAN_IFACE = "lanIface"
         private const val KEY_VOICE_CHAT = "voiceChat"

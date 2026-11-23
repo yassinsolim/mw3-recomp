@@ -532,20 +532,18 @@ MW2_NATIVE(jint, nativeLanPeers)(JNIEnv*, jobject)
     return 0;
 }
 
-// Joinable peers' names, one per line, for the join picker.
-MW2_NATIVE(jstring, nativeLanPeerNames)(JNIEnv* env, jobject)
+// Joinable peers for the join picker, a line each: id, tab, name.
+MW2_NATIVE(jstring, nativeLanJoinable)(JNIEnv* env, jobject)
 {
-    std::string names;
-    if (auto* service = online::Started()) names = service->PeerNames();
-    return FromString(env, names);
+    std::string peers;
+    if (auto* service = online::Started()) peers = service->JoinablePeers();
+    return FromString(env, peers);
 }
 
 // Join a heard peer right now (an explicit tap: no accept flag needed).
-MW2_NATIVE(jboolean, nativeLanJoinPeer)(JNIEnv* env, jobject, jstring name)
+MW2_NATIVE(jboolean, nativeLanJoinPeer)(JNIEnv*, jobject, jlong id)
 {
-    const std::string peer = ToString(env, name);
-    if (peer.empty()) return JNI_FALSE;
-    if (auto* service = online::Started()) return service->JoinPeer(peer) ? JNI_TRUE : JNI_FALSE;
+    if (auto* service = online::Started()) return service->JoinPeer(uint64_t(id)) ? JNI_TRUE : JNI_FALSE;
     return JNI_FALSE;
 }
 

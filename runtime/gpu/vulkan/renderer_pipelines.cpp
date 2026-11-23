@@ -534,6 +534,12 @@ namespace vk::renderer::detail
         // this; one it compiles takes ten times it and more.
         constexpr uint32_t kCompiledMs = 3;
 
+        // The warm-up's run since its queue was last empty: how many
+        // pipelines, how many of them the driver compiled, how many are
+        // being built this moment, and from when. Under g_warmupMutex.
+        uint32_t g_run = 0, g_runCompiled = 0, g_runBuilding = 0;
+        std::chrono::steady_clock::time_point g_runStart{};
+
         void Worker(bool demanded)
         {
             t_warmupThread = true;
@@ -545,35 +551,52 @@ namespace vk::renderer::detail
             // batch of a hundred dwords took up to three seconds that way.
             platform::SetThreadAffinity(demanded ? platform::ThreadAffinityRole::PerformanceCore
                                                  : platform::ThreadAffinityRole::WorkerCore);
-            std::deque<QueueItem>& queue = demanded ? g_demandQueue : g_warmupQueue;
             LOGI("warmup: %s worker thread started", demanded ? "demand" : "scheduler");
-            // The warm-up's run since its queue was last empty: how many
-            // pipelines, how many of them the driver compiled, and from when.
-            uint32_t run = 0, runCompiled = 0;
-            auto runStart = std::chrono::steady_clock::now();
+            // Whether the pipeline in hand came off the warm-up's queue.
+            bool warming = false;
+            // While the world is not drawn -- a menu, a loading screen -- the
+            // draws' threads have nothing to do, and take the warm-up's queue
+            // with it: a recorded list the driver's cache has nothing of (a
+            // new driver chosen, a cache thrown away, a driver that keeps
+            // none) was one thread's work on a little core, and a match
+            // started before it was through drew its first seconds with the
+            // surfaces coming in one by one, though every pipeline of them
+            // was known.
+            const auto helps = [demanded] {
+                return demanded && g_cutsceneActive.load(std::memory_order_relaxed) && !g_warmupQueue.empty();
+            };
             while (!g_warmupStopping.load(std::memory_order_relaxed))
             {
                 QueueItem item{};
                 {
                     std::unique_lock lock(g_warmupMutex);
-                    if (queue.empty() && run)
+                    if (warming) g_runBuilding--;
+                    if (g_warmupQueue.empty() && g_run && !g_runBuilding)
                     {
                         LOGI("warmup: %u recorded pipelines ready in %lld ms, %u of them compiled by the driver",
-                             run, (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
-                                      std::chrono::steady_clock::now() - runStart).count(), runCompiled);
-                        run = runCompiled = 0;
+                             g_run, (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        std::chrono::steady_clock::now() - g_runStart).count(), g_runCompiled);
+                        g_run = g_runCompiled = 0;
                     }
-                    g_warmupCv.wait(lock, [&queue] {
-                        return g_warmupStopping.load(std::memory_order_relaxed) || !queue.empty();
+                    g_warmupCv.wait(lock, [&] {
+                        return g_warmupStopping.load(std::memory_order_relaxed) ||
+                               !(demanded ? g_demandQueue : g_warmupQueue).empty() || helps();
                     });
 
                     if (g_warmupStopping.load(std::memory_order_relaxed))
                         break;
 
+                    // A draw's pipeline before any nothing is waiting for.
+                    warming = !demanded || g_demandQueue.empty();
+                    std::deque<QueueItem>& queue = warming ? g_warmupQueue : g_demandQueue;
                     item = queue.front();
                     queue.pop_front();
+                    if (warming)
+                    {
+                        if (!g_run && !g_runBuilding) g_runStart = std::chrono::steady_clock::now();
+                        g_runBuilding++;
+                    }
                 }
-                if (!demanded && !run) runStart = std::chrono::steady_clock::now();
 
                 const PipelineKey key = KeyOf(item.recorded);
 
@@ -619,7 +642,7 @@ namespace vk::renderer::detail
                 // No pause after a pipeline a draw is waiting for: its
                 // surface is undrawn every frame until it is there. The
                 // pauses below pace the ones nothing is waiting for.
-                if (demanded)
+                if (!warming)
                 {
                     g_pipelinesBuiltForDraws.fetch_add(1, std::memory_order_relaxed);
                     continue;
@@ -631,9 +654,14 @@ namespace vk::renderer::detail
                 // play, a multiplayer's 1500 recorded pipelines took five
                 // minutes to be there, and the draws that came first each
                 // waited for theirs.
-                run++;
-                if (tookMs < kCompiledMs) continue;
-                runCompiled++;
+                {
+                    std::lock_guard lock(g_warmupMutex);
+                    g_run++;
+                    if (tookMs >= kCompiledMs) g_runCompiled++;
+                }
+                // Nor on the draws' threads, which are here only while no
+                // world is drawn and leave the moment one is.
+                if (demanded || tookMs < kCompiledMs) continue;
 
                 // Backpressure: when the render thread is actively submitting
                 // frames the GPU command queue is shared and can saturate,
@@ -883,7 +911,12 @@ namespace vk::renderer::detail
 
     void SetCutsceneActive(bool active)
     {
-        warmup::g_cutsceneActive.store(active, std::memory_order_relaxed);
+        if (warmup::g_cutsceneActive.exchange(active, std::memory_order_relaxed) == active || !active) return;
+        // The world has just stopped being drawn: the draws' threads may
+        // take the warm-up's queue (warmup::Worker). Under the lock they
+        // wait with, or one about to wait would not hear it.
+        std::lock_guard lock(warmup::g_warmupMutex);
+        warmup::g_warmupCv.notify_all();
     }
 
     void NoteRenderSubmit()

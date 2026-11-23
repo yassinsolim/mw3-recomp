@@ -253,6 +253,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         lanIface.doAfterTextChanged { prefs.lanIface = it.toString() }
         val playerName: EditText = findViewById(R.id.player_name)
         playerName.setText(prefs.playerName)
+        playerName.hint = prefs.defaultPlayerName
         playerName.doAfterTextChanged { prefs.playerName = it.toString() }
         // How the multiplayer reaches other players (GameActivity sets
         // MW2_NETWORK from it); the campaign has no network.

@@ -138,7 +138,10 @@
     <string name="fov">Field of View (FOV): %1$d°</string>
     <string name="fov_hint">85° is recommended for ultrawide 20:9 mobile displays. (65° was original 16:9 console FOV).</string>
     <string name="fps_limit">FPS limit: %1$d</string>
-    <string name="display_held">The screen is set to %1$d Hz in the system\'s display settings, so %1$d frames a second are shown. Set it to %2$d Hz there for %2$d.</string>
+    <!-- A toast, of which Android 12 and later show two lines: on the AYN Thor the sentence it was ended at "are sh…". -->
+    <string name="display_held">Screen held at %1$d Hz by the system: %1$d FPS, not %2$d. See the launcher.</string>
+    <string name="display_held_launcher">The screen is held at %1$d Hz by the system, so the game will show %1$d frames a second under its FPS limit of %2$d. Set the screen to %2$d Hz in the system\'s display settings.</string>
+    <string name="display_held_ayn">On an AYN handheld: turn on Settings \u203a Display \u203a Smooth Display, or the refresh rate tile in the quick settings (swipe down from the top). The dual-screen assistant can turn it off again after a restart.</string>
     <string name="sun_shadows">Sun shadows: %1$s</string>
     <string-array name="sun_shadows_choices">
         <item>Chosen for this device</item>
@@ -240,7 +243,9 @@
     <string name="voice_ptt_hint">On: you are heard only while the on-screen Talk button is held. Off: the microphone is open for the whole match, for playing on a controller with the touch controls hidden.</string>
     <string name="voice_denied">Voice chat needs the microphone permission.</string>
     <string name="player_name">Network player name</string>
-    <string name="player_name_hint">The name other players on the network see (15 characters at most). Empty means the profile\u2019s name, which on a fresh install is \u201cPlayer 1\u201d.</string>
+    <string name="player_name_hint">The name other players on the network see (15 characters at most). Left empty, it is this device\u2019s own: its model and four characters that tell it from another of the same model.</string>
+    <string name="player_name_ask">The name other players see in lobbies and on the scoreboard. You can change it later in Settings.</string>
+    <string name="peer_of_many">%1$s (%2$s)</string>
     <string name="lan_accept">Accept network invites automatically</string>
     <string name="lan_accept_hint">When another player on the network invites this phone to their lobby, join without asking. Off means invites are only logged.</string>
     <string name="lan_iface">Announced adapter (blank = auto)</string>

@@ -921,6 +921,17 @@ in X ms, M of them compiled by the driver` says when they are all there.
 None of these threads lowers its priority: each takes locks the consumer
 takes, and a lowered thread held back with one held the consumer.
 
+While no world is drawn -- a menu, a loading screen -- the draws' threads
+take the warm-up's queue as well, without its pauses. It matters when the
+list is there and the driver's cache is not (another driver chosen, a cache
+thrown away, a driver that keeps none): on a Retroid Pocket Flip 2 with
+Modern Warfare 3's 438 recorded pipelines and no driver cache, the 413 the
+start does not build itself were ready 5.7 s after the start where the one
+thread on a little core took 39.9 s (`p5_*` logs). A match reached later than
+that had no surface waiting either way (the longest wait 2 frames, the spawn
+75 s after the start). A map never played before has nothing recorded: its
+first visit is as it was, the surfaces there within about three seconds.
+
 What a run records and compiles is written by a thread of its own
 (`saver`, every 10 s while something is new), when the activity pauses,
 when its surface goes and when memory is trimmed

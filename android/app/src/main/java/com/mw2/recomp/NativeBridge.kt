@@ -138,11 +138,11 @@ object NativeBridge {
     /** Other copies heard on the network right now (0 when offline/alone). */
     external fun nativeLanPeers(): Int
 
-    /** Joinable peers' names, one per line. */
-    external fun nativeLanPeerNames(): String
+    /** Joinable peers, a line each: the peer's id in hexadecimal, a tab, its name. */
+    external fun nativeLanJoinable(): String
 
-    /** Join a heard peer now. False when nobody by that name is heard. */
-    external fun nativeLanJoinPeer(name: String): Boolean
+    /** Join a heard peer now, by its id. False when no such peer is heard. */
+    external fun nativeLanJoinPeer(id: Long): Boolean
 
     // ---- the graphics driver ----------------------------------------------
 

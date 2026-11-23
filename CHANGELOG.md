@@ -5,6 +5,7 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+
 - **Bots in Call of Duty 4's multiplayer.** The launcher's **Bots** entry,
   Settings → Multiplayer and the pause menu's **Bots in my matches** are in
   Call of Duty 4's app as well: choose how many (up to 17) and how good,
@@ -15,6 +16,30 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   of Duty 4's addresses are in `runtime/title.h` with how each was found
   ([docs/multiplayer.md](docs/multiplayer.md#call-of-duty-4s-bots)). The game
   package built for v0.1.0 still fits: nothing to build again.
+- **A name of your own online.** Every device was "Player 1". The name is now
+  the device's until you give one (its model and four characters, "AYN Thor
+  5DF4"), and the first start of the multiplayer asks for it. On Windows
+  setup offers the computer's name the same way.
+- **The launcher says when the screen is held under the FPS limit** (an AYN
+  Thor put back to 60 Hz), and where to change it; the note in the game fits
+  the two lines Android shows of it.
+- **Modern Warfare 3: Invite network players and Join network game** in the
+  pause menu whenever it plays through a relay.
+
+### Fixed
+
+- **Join network game lists every player.** Two players with the same name
+  were one line; they are told apart by their ids now.
+- **Modern Warfare 3's private match can be joined** (and an invitation to it
+  accepted). It ended in "Unable to join game session" after twenty seconds.
+- **The update's notes** are shown as a list with titles, without Markdown's
+  signs, and whole.
+- **The launcher does not start the game again** after a Quit when Android
+  had ended the launcher under the run.
+- **After a new graphics driver or a lost driver cache** the pipelines a
+  previous run recorded are compiled on the fast cores while a menu or a
+  loading screen is up: 413 of them in 5.7 s on a Retroid Pocket Flip 2
+  where they took 39.9 s.
 
 ## [v0.1.5] - 2026-11-23
 

@@ -975,8 +975,16 @@ if ($ForPc) {
     if ($Game -eq 'mw3' -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $pcGame 'camos') }
     $envFile = Join-Path $pc '.env'
     if (-not (Test-Path $envFile)) {
-        $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }
-        if (-not $name) { $name = 'Player' }
+        # The name every PC starts with is its own, as every phone's is
+        # (Prefs.kt): the computer's name and the end of the number Windows
+        # gave this install, so two players who never chose one differ.
+        $guid = "$((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Cryptography' -ErrorAction SilentlyContinue).MachineGuid)" -replace '[^0-9A-Fa-f]'
+        $computer = "$env:COMPUTERNAME"
+        if ($computer.Length -gt 10) { $computer = $computer.Substring(0, 10) }
+        $own = ("$computer " + $guid.Substring([Math]::Max(0, $guid.Length - 4)).ToUpper()).Trim()
+        if (-not $own) { $own = 'Player' }
+        $name = if ($Interactive) { (Read-Host "Your player name online (15 characters at most; empty for `"$own`")").Trim() } else { '' }
+        if (-not $name) { $name = $own }
         if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
         $online = "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`n"
         # Call of Duty 4 has nothing to unlock, and a log of its own name.

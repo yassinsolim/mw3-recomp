@@ -29,6 +29,24 @@
             android:textSize="9sp"
             tools:text="v0.1.0-alpha" />
 
+        <!-- Shown while the system holds the screen under the FPS limit
+             (MainActivity.showDisplayHeld). -->
+        <TextView
+            android:id="@+id/display_notice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="#FFB020"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:textColor="#101828"
+            android:textSize="11sp"
+            android:lineSpacingExtra="2dp"
+            android:fontFamily="sans-serif-medium"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"

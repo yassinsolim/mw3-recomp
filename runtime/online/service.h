@@ -144,12 +144,14 @@ namespace online
         // agrees on (their ids): what breaks a tie between copies that do
         // the same thing at the same moment.
         virtual size_t PeersBefore() { return 0; }
-        // Joinable peers' names, one per line, for a picker UI.
-        virtual std::string PeerNames() { return {}; }
-        // Join a heard peer by name (an explicit tap, so no accept flag is
+        // Joinable peers for a picker UI, a line each: the peer's id in
+        // hexadecimal, a tab, the name. A name is the player's to choose, so
+        // two peers may have the same one; the id tells them apart.
+        virtual std::string JoinablePeers() { return {}; }
+        // Join a heard peer by its id (an explicit tap, so no accept flag is
         // needed): system-link sessions through the `connect` line, Live ones
-        // through the invitation path. False when nobody by that name is heard.
-        virtual bool JoinPeer(const std::string& name) { (void)name; return false; }
+        // through the invitation path. False when no such peer is heard.
+        virtual bool JoinPeer(uint64_t id) { (void)id; return false; }
 
         // Optional: friends to pick from, for the friends screen (friends.h).
         // False when the service has none. The list is copied into `list` only

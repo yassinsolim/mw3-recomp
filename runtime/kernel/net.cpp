@@ -431,7 +431,13 @@ PPC_FUNC(__imp__NetDll_XNetXnAddrToInAddr)
     ctx.r3.u64 = 0;
 }
 
-// (xnet, IN_ADDR, XNADDR* out, XNKID* out). Who a datagram came from.
+// (xnet, IN_ADDR, XNADDR* out, XNKID* out). Who a datagram came from: the
+// address that machine has for itself (TitleXnAddr there), byte for byte.
+// Modern Warfare 3 compares it with the host's in the session a friend was
+// asked into, before it believes the answer to its "exe_check" (sub_8234FBF0);
+// with the stand-in address written into it the two never matched, the answer
+// was dropped and the join ended twenty seconds later in "Unable to join game
+// session".
 PPC_FUNC(__imp__NetDll_XNetInAddrToXnAddr)
 {
     auto* service = online::Get();
@@ -441,11 +447,7 @@ PPC_FUNC(__imp__NetDll_XNetInAddrToXnAddr)
     const bool self = address == kLoopback;
     if (!service || !addr || !(self || PeerAt(address, id))) { ctx.r3.u64 = X_WSAENETDOWN; return; }
     kernel::TitleXnAddr(addr);
-    if (!self)
-    {
-        WritePeer(*addr, id);
-        addr->ina = address;
-    }
+    if (!self) WritePeer(*addr, id);
     if (auto* kid = GuestPtr<uint8_t>(ctx.r6.u32))
     {
         std::lock_guard g(g_peers.lock);

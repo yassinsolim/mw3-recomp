@@ -433,8 +433,7 @@ class InstallActivity : AppCompatActivity() {
         // only ends in "The game could not start". Said here instead.
         val playable = GameLibrary.ready(this, titleToStart())
         if (playable && intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
-            GameActivity.start(this, titleToStart())
-            finish()
+            GameActivity.start(this, titleToStart()) { finish() }
             return
         }
         val dialog = AlertDialog.Builder(this)
@@ -443,8 +442,7 @@ class InstallActivity : AppCompatActivity() {
         if (playable) {
             dialog.setMessage(R.string.install_done)
                 .setPositiveButton(R.string.play) { _, _ ->
-                    GameActivity.start(this, titleToStart())
-                    finish()
+                    GameActivity.start(this, titleToStart()) { finish() }
                 }
         } else {
             dialog.setMessage(getString(R.string.install_done) + "\n\n" + getString(R.string.game_code_missing))

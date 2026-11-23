@@ -70,6 +70,19 @@ class MainActivity : AppCompatActivity() {
 
     private var nativeReady = false
     private var hasAutoLaunched = false
+    private lateinit var displayNotice: TextView
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // The system grants or refuses the mode asked for a moment after the
+    // window has it, and the player mends the setting with the launcher
+    // still up: the notice follows the display.
+    private val displayListener = object : android.hardware.display.DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == shownDisplay()?.displayId) showDisplayHeld()
+        }
+    }
     private var pendingInstallId: Long = -1
     private var pendingUpdateUrl: String? = null
 
@@ -84,6 +97,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The launcher's process is often ended under a run for its memory,
+        // and the launcher the player quits to is then a new one made from
+        // what was saved: it has done its direct launch, or been through an
+        // install that started the game, and must not start it again.
+        hasAutoLaunched = savedInstanceState?.getBoolean(STATE_AUTO_LAUNCHED) ?: false
         setContentView(R.layout.activity_main)
         prefs = Prefs(this)
         // Before anything reads the driver choice (refresh() applies it, and
@@ -106,6 +124,9 @@ class MainActivity : AppCompatActivity() {
         detailText = findViewById(R.id.detail_text)
         versionTag = findViewById(R.id.version_tag)
         directLaunchSwitch = findViewById(R.id.direct_launch_switch)
+        displayNotice = findViewById(R.id.display_notice)
+        getSystemService(android.hardware.display.DisplayManager::class.java)
+            .registerDisplayListener(displayListener, handler)
         try {
             val info = packageManager.getPackageInfo(packageName, 0)
             val name = info.versionName ?: ""
@@ -271,7 +292,15 @@ class MainActivity : AppCompatActivity() {
         checkForUpdates()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_AUTO_LAUNCHED, hasAutoLaunched)
+    }
+
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        getSystemService(android.hardware.display.DisplayManager::class.java)
+            .unregisterDisplayListener(displayListener)
         try {
             unregisterReceiver(downloadDone)
         } catch (_: Throwable) {
@@ -279,10 +308,43 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun shownDisplay(): android.view.Display? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display
+        else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        }
+
+    /**
+     * The notice that the system holds the screen under the FPS limit, with
+     * where to mend it, or none. In the game it is a toast that is gone in a
+     * few seconds (GameActivity.sayDisplayHeld), and a player who missed it
+     * had 60 frames a second on a 120 Hz screen with nothing to say why.
+     */
+    private fun showDisplayHeld() {
+        val limit = prefs.fpsLimit
+        val now = DisplayRate.heldAt(shownDisplay(), limit)
+        if (now == null) {
+            displayNotice.visibility = android.view.View.GONE
+            return
+        }
+        var text = getString(R.string.display_held_launcher, Math.round(now), limit)
+        if (Build.MANUFACTURER.equals("AYN", ignoreCase = true)) {
+            text += " " + getString(R.string.display_held_ayn)
+        }
+        displayNotice.text = text
+        displayNotice.visibility = android.view.View.VISIBLE
+    }
+
     override fun onResume() {
         super.onResume()
         showArt()
         refresh()
+        // The launcher asks for the mode the game will ask for (the limit may
+        // have been changed in Settings since), and says so when the system
+        // has not given it after the moment a mode change takes.
+        if (prefs.fpsLimit in Prefs.FPS_LIMITS) DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
+        handler.postDelayed({ showDisplayHeld() }, DISPLAY_SETTLE_MS)
         // Back from an install the Play card started: it said a disc was
         // found, and the game is there now.
         if (detailIsPlay) detailText.text = playDetail()
@@ -795,7 +857,7 @@ class MainActivity : AppCompatActivity() {
                                     it.optString("name").endsWith(".apk", ignoreCase = true) &&
                                         assetMatches(it.optString("name"), wantTitle, wantTu)
                                 }?.optString("browser_download_url") ?: ""
-                            val notes = release.optString("body").take(1500)
+                            val notes = release.optString("body")
                             offered = true
                             runOnUiThread { showUpdateDialog(tag, page, apkUrl, notes, installed, code) }
                         }
@@ -819,7 +881,10 @@ class MainActivity : AppCompatActivity() {
         val body = TextView(this)
         body.setPadding(32, 8, 32, 8)
         body.textSize = 12f
-        body.text = getString(R.string.update_message, installed, code) + "\n\n" + notes
+        body.setLineSpacing(0f, 1.15f)
+        body.text = android.text.SpannableStringBuilder(getString(R.string.update_message, installed, code))
+            .append("\n\n")
+            .append(ReleaseNotes.styled(notes, resources.displayMetrics.density))
         val scroll = ScrollView(this)
         scroll.addView(body)
         AlertDialog.Builder(this)
@@ -961,6 +1026,13 @@ class MainActivity : AppCompatActivity() {
         // goes when a text is too long for the share.
         intent.putExtra(Intent.EXTRA_TEXT, text.take(200_000))
         startActivity(Intent.createChooser(intent, getString(R.string.share)))
+    }
+
+    companion object {
+        private const val STATE_AUTO_LAUNCHED = "hasAutoLaunched"
+
+        /** A mode change takes under a second on the devices seen; the notice waits this long for it. */
+        private const val DISPLAY_SETTLE_MS = 1500L
     }
 }
 
