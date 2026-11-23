@@ -387,11 +387,28 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
     if (!SubmitIfFilling()) Skip("frame submission failed");
 }
 
+#ifdef COD4_TITLE
+namespace
+{
+    void (*g_deliverCounts)(uint32_t tag, uint64_t samples) = nullptr;
+
+    // Hands over the occlusion counts the GPU has finished; whether one it
+    // has been given is still to come.
+    bool DeliverCounts()
+    {
+        vk::renderer::CollectOcclusionQueries(g_deliverCounts);
+        for (const State::PendingQuery& query : g.pendingQueries)
+            if (query.serial <= g.submissionSerial) return true;
+        return false;
+    }
+}
+#endif
+
 // The frame is whatever the title swaps to: the front buffer the swap packet
 // names, which a resolve filled like any other destination. A resolve the size
 // of the display is not the frame for being that size -- the title keeps the
 // screen in one for the next frame's blur, before the interface is drawn.
-void vk::renderer::Swap(uint32_t frontBuffer)
+void vk::renderer::Swap(uint32_t frontBuffer, [[maybe_unused]] void (*deliver)(uint32_t tag, uint64_t samples))
 {
     if (!g.device) return;
     auto found = g.resolvedTo.find(frontBuffer & ~0xFFFu);
@@ -414,7 +431,20 @@ void vk::renderer::Swap(uint32_t frontBuffer)
     if (frame_rate::Mode() == frame_rate::kByDisplay)
     {
         report::Timed waited(report::kDisplayWait);
-        vk::WaitForDisplay(g.presentSerial[(index + kPresentImages - 1) % kPresentImages]);
+        const uint64_t before = g.presentSerial[(index + kPresentImages - 1) % kPresentImages];
+#ifdef COD4_TITLE
+        // Call of Duty 4's back end waits awake for an earlier frame's
+        // occlusion count of the sun (sub_82108830: GetData and Sleep(0)
+        // until it is there), and the count is handed over on this thread,
+        // which is here for most of a frame at 120: the back end ran a core
+        // at 90% doing nothing, and could not start on the next frame before
+        // this one was shown. So the counts are handed over during the wait.
+        // Modern Warfare 2 and 3 were measured without, and are left so.
+        g_deliverCounts = deliver;
+        vk::WaitForDisplay(before, DeliverCounts() ? DeliverCounts : nullptr);
+#else
+        vk::WaitForDisplay(before);
+#endif
     }
     else vk::WaitUntilTaken(g.presentSerial[index]);
 

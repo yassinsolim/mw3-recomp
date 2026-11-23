@@ -20,8 +20,8 @@ void     vk::ShowWindow()      {}
 void     vk::StopPresenting()  {}
 void     vk::Stop()            {}
 void     vk::ShowImage(void*, uint32_t, uint32_t, uint64_t) {}
-void     vk::WaitUntilTaken(uint64_t) {}
-void     vk::WaitForDisplay(uint64_t) {}
+void     vk::WaitUntilTaken(uint64_t, bool (*)()) {}
+void     vk::WaitForDisplay(uint64_t, bool (*)()) {}
 uint64_t vk::GuestBlankPeriod() { return 0; }
 void     vk::TakeMouse(bool, Mouse& out) { out = {}; }
 bool     vk::Running()         { return false; }
@@ -1676,7 +1676,7 @@ void vk::ShowImage(void* image, uint32_t width, uint32_t height, uint64_t serial
     g.wake.notify_one();
 }
 
-void vk::WaitUntilTaken(uint64_t serial)
+void vk::WaitUntilTaken(uint64_t serial, bool (*meanwhile)())
 {
     if (!serial || !g.running.load(std::memory_order_relaxed)) return;
 #ifdef MW2_ANDROID
@@ -1694,9 +1694,19 @@ void vk::WaitUntilTaken(uint64_t serial)
     }
 #endif
     std::unique_lock lock(g.lock);
-    if (g.takenWake.wait_for(lock, std::chrono::milliseconds(250),
-                             [&] { return g.taken >= serial || !g.running; }))
-        return;
+    const auto taken = [&] { return g.taken >= serial || !g.running; };
+    const auto giveUp = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+    // What the caller owes somebody in the meantime is looked at every
+    // quarter of a millisecond, without the lock, for as long as it says
+    // there is more to come.
+    while (meanwhile && !taken() && std::chrono::steady_clock::now() < giveUp)
+    {
+        if (g.takenWake.wait_for(lock, std::chrono::microseconds(250), taken)) return;
+        lock.unlock();
+        if (!meanwhile()) meanwhile = nullptr;
+        lock.lock();
+    }
+    if (g.takenWake.wait_until(lock, giveUp, taken)) return;
     // A quarter of a second without the window taking a frame: it is hidden
     // or its display has stopped. The game does not wait on a window.
     while (!g.frameQueue.empty() && g.frameQueue.front().serial <= serial) g.frameQueue.pop_front();
@@ -1716,9 +1726,9 @@ void vk::WaitUntilTaken(uint64_t serial)
 // than a period after the one before. The 2% under keeps this clock from
 // being the one that paces where the display does: two clocks pacing the
 // same frames beat against each other.
-void vk::WaitForDisplay(uint64_t serial)
+void vk::WaitForDisplay(uint64_t serial, bool (*meanwhile)())
 {
-    WaitUntilTaken(serial);
+    WaitUntilTaken(serial, meanwhile);
     static std::chrono::steady_clock::time_point earliest;   // the ring consumer's own
     const auto period = std::chrono::nanoseconds(int64_t(frame_rate::DisplayPeriodNs() * 0.98));
     const auto now = std::chrono::steady_clock::now();

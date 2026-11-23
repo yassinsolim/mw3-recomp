@@ -65,6 +65,8 @@
 // reads the device at the campaign's offsets.
 #define T_Com_Error            82234308
 #define T_Cbuf_AddText         82237C50
+// The campaign's with one more test before the print (172 bytes for 144).
+#define T_Com_Printf           82234CB8
 #define T_R_VideoSizes         8216CCD0
 #define T_D3D_Present          820B08D0   // the one caller of VdSwap
 #define T_D3D_ArenaWait        820A99C0
@@ -97,6 +99,11 @@
 // prefix parse (the byte compares against 112, 80, 48 and 32); found from the
 // start-up function that queues "exec default.cfg" through it.
 #define T_Cbuf_AddText         821DE9D8
+// (channel, format, ...): the general print, as MW2's sub_82280900. Every
+// "Out of memory: filename '%s', line %d" is said through it (channel 16)
+// before Sys_Error (sub_82167250) restarts the title, and nowhere else
+// (MW2_ENGINE_LOG).
+#define T_Com_Printf           821DC0A0
 // MW2's sub_8238E5D0 statement for statement: the one caller of XGetVideoMode,
 // which stores the hi-def flag at +1, a 1024x600 scene at +8 and a 1280x720
 // frame at +16 of the structure in r3 (render_size.cpp, MW2_SCENE).

@@ -722,7 +722,7 @@ namespace
             {
                 s.Next();
                 const uint32_t frontBuffer = s.Next();
-                if (Rendering()) vk::renderer::Swap(frontBuffer);
+                if (Rendering()) vk::renderer::Swap(frontBuffer, WriteEndRecord);
             }
             g.swapsParsed++;
             pacing::Note(pacing::kSwap);

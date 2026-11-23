@@ -678,8 +678,13 @@ PPC_FUNC(__imp__XamInputGetState)
         android::input::Pad pad;
         if (android::input::Poll(user, pad))
         {
+            // The diagnostic input script presses on top of the pad, as on the
+            // desktop: a measurement run is the same path twice with no hand
+            // on the screen.
+            pad.buttons |= ScriptedButtons(user & 3);
             int16_t axes[4] = { pad.leftX, pad.leftY, pad.rightX, pad.rightY };
-            uint8_t triggers[2] = { pad.leftTrigger, pad.rightTrigger };
+            uint8_t triggers[2] = { std::max(pad.leftTrigger, g_scriptTriggers[user & 3][0]),
+                                    std::max(pad.rightTrigger, g_scriptTriggers[user & 3][1]) };
             if (user == 0)
             {
                 // The same hand-off the desktop build makes: what the player did
@@ -696,6 +701,8 @@ PPC_FUNC(__imp__XamInputGetState)
                     case player::Press::None: break;
                     }
             }
+            for (int i = 0; i < 4; i++)
+                if (g_scriptAxisHeld[user & 3][i]) axes[i] = g_scriptAxes[user & 3][i];
 
             Latch& latch = g_latch[user & 3];
             const bool changed = latch.buttons != pad.buttons ||

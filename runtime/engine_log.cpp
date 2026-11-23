@@ -92,7 +92,7 @@ GUEST_HOOK(T_Com_Error)
 }
 
 #if MW2_DIAGNOSTICS
-#if !defined(MW3_TITLE) // MW2-only print and console hooks
+#ifdef T_Com_Printf
 // Com_Printf(channel, format, ...): viewpos answers through it, so it is the
 // general print and not only the error one.
 GUEST_HOOK(T_Com_Printf)
@@ -101,6 +101,9 @@ GUEST_HOOK(T_Com_Printf)
     if (verbose) LOGK("Com_Printf(%u): %s", ctx.r3.u32, Format(ctx, ctx.r4.u32).c_str());
     GUEST_ORIG(T_Com_Printf)(ctx, base);
 }
+#endif
+
+#if !defined(MW3_TITLE) // MW2-only prints and console hook
 
 // The title's other prints, with the same arguments: its parsers report through
 // these, and without them a playlist that fails says nothing.

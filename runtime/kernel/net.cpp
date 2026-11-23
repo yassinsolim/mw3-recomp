@@ -92,6 +92,9 @@ namespace
         socket_t host = socket_t(INVALID_SOCKET);
         uint16_t port = 0;   // the title's, as it bound it; 0 until then
         bool bound = false;
+        // Opened as the console's voice and data protocol (IPPROTO_VDP, 254):
+        // the title puts the length of its game data in front of every datagram.
+        bool vdp = false;
         // The stream connected to the DemonWare lobby stand-in
         // (online/demonware.h): its bytes never reach the host's socket.
         std::shared_ptr<online::demonware::Lobby> lobby;
@@ -107,6 +110,29 @@ namespace
         auto it = g_sockets.find(guestSocket);
         return it == g_sockets.end() ? Socket{} : it->second;
     }
+
+#ifdef COD4_TITLE_MP
+    // Call of Duty 4 answers a System Link search from its game socket (port
+    // 1000, the voice and data protocol) to the searcher's plain UDP socket
+    // (port 1001), which reads the answer without the two bytes of length
+    // the protocol put in front: the console's network layer hands a UDP
+    // socket the game data alone. Every copy has the same sockets, so the
+    // sender's kind is this copy's own socket on the sender's port.
+    void GameDataOf(std::vector<uint8_t>& bytes, uint16_t fromPort)
+    {
+        bool fromVdp = false;
+        {
+            std::lock_guard g(g_socketLock);
+            for (const auto& [handle, socket] : g_sockets)
+                if (socket.port == fromPort && socket.vdp) fromVdp = true;
+        }
+        if (!fromVdp || bytes.size() < 2) return;
+        const size_t length = size_t(bytes[0]) << 8 | bytes[1];
+        if (length > bytes.size() - 2) return;
+        bytes.erase(bytes.begin(), bytes.begin() + 2);
+        bytes.resize(length);
+    }
+#endif
 
     socket_t HostSocket(uint32_t guestSocket) { return FindSocket(guestSocket).host; }
 
@@ -577,6 +603,9 @@ PPC_FUNC(__imp__NetDll_socket)
     std::lock_guard g(g_socketLock);
     uint32_t handle = g_nextSocket++;
     g_sockets[handle] = Socket{ s };
+    g_sockets[handle].vdp = ctx.r6.u32 == 254;
+    if (online::Trace())
+        LOGI("net-trace: socket %u made, type %u, protocol %u", handle, ctx.r5.u32, ctx.r6.u32);
     ctx.r3.u64 = handle;
 }
 
@@ -785,6 +814,9 @@ PPC_FUNC(__imp__NetDll_recvfrom)
         if (!self)
             Trace("receive", datagram.from, datagram.fromPort, datagram.toPort,
                   datagram.bytes.data(), datagram.bytes.size());
+#ifdef COD4_TITLE_MP
+        if (!socket.vdp) GameDataOf(datagram.bytes, datagram.fromPort);
+#endif
         const uint32_t got = std::min<uint32_t>(uint32_t(datagram.bytes.size()), ctx.r6.u32);
         std::memcpy(GuestPtr<char>(ctx.r5.u32), datagram.bytes.data(), got);
         if (ctx.r8.u32)

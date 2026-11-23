@@ -74,7 +74,9 @@ namespace vk::renderer
     void Resolve(const gpu::RegisterFile& registers);
 
     // The swap packet: the frame is what was resolved to this front buffer.
-    void Swap(uint32_t frontBuffer);
+    // `deliver` is CollectOcclusionQueries', for the counts the GPU finishes
+    // while the frame waits for the display.
+    void Swap(uint32_t frontBuffer, void (*deliver)(uint32_t tag, uint64_t samples));
 
     // The title's own occlusion query, bracketed by two EVENT_WRITE_ZPD events.
     // Everything drawn between the two is counted. The count is ready when the

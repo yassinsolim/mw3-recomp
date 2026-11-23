@@ -22,12 +22,13 @@ namespace vk
     // WaitUntilTaken(serial) has returned.
     void ShowImage(void* image, uint32_t width, uint32_t height, uint64_t serial);
     // Returns once the window has copied frame `serial` out (or let it go),
-    // at once without a window.
-    void WaitUntilTaken(uint64_t serial);
+    // at once without a window. `meanwhile` is called every quarter of a
+    // millisecond of the wait until it returns false.
+    void WaitUntilTaken(uint64_t serial, bool (*meanwhile)() = nullptr);
     // Paced by the display (frame_rate.h): returns once the window has taken
     // frame `serial`, the one before the frame being finished, and no sooner
     // than a display period after it last returned.
-    void WaitForDisplay(uint64_t serial);
+    void WaitForDisplay(uint64_t serial, bool (*meanwhile)() = nullptr);
     // The guest's blank period in nanoseconds, following the display the
     // window is on; 0 when there is none to follow.
     uint64_t GuestBlankPeriod();
