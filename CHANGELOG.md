@@ -4,6 +4,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Call of Duty 4: Modern Warfare, a third game, in development** (not
+  published; `setup\setup.cmd -Game cod4` builds it from your own disc for
+  Android and Windows). The campaign's first level and a System Link match
+  play; `docs/COD4-BRINGUP.md` says what has been checked and what has not.
+
 ## [v0.1.4] - 2026-11-23
 
 ### Highlights
