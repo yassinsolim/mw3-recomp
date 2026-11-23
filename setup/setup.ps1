@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
 Builds Modern Warfare 3 for Android (APK) and/or Windows from your own disc image;
-with -Game mw2, Modern Warfare 2 for Android from that game's disc image.
+with -Game mw2, Modern Warfare 2 for Android from that game's disc image; with
+-Game cod4, Call of Duty 4: Modern Warfare for Android and/or Windows from its.
 
 .DESCRIPTION
 One command for a Windows PC: setup\setup.cmd (or this script). It
@@ -13,7 +14,7 @@ One command for a Windows PC: setup\setup.cmd (or this script). It
   2. asks for your disc image (.iso) and reads the two executables out of it
      (the image is only ever opened for reading);
   3. checks each executable's SHA-256 against the disc builds this port
-     supports (tools/check_mw3_xex.py; Modern Warfare 2's one disc) and
+     supports (tools/check_mw3_xex.py, tools/check_cod4_xex.py; Modern Warfare 2's one disc) and
      refuses any other;
   4. recompiles them to C++ (XenonRecomp) and builds the game code for
      Android (a package of its own, with no screen: the campaign's, Special
@@ -22,16 +23,19 @@ One command for a Windows PC: setup\setup.cmd (or this script). It
      asked. The app is the published one, downloaded from the project's
      releases: it contains none of the game, finds the game code you built
      beside it, and updates itself from then on (docs/game-library.md).
-Everything it makes is in the git-ignored out\, mw3\ (mw2\), ppc_*\ and
+Everything it makes is in the git-ignored out\, mw3\ (mw2\, cod4\), ppc_*\ and
 XenonRecomp\ folders: it contains code made from your copy of the game and is
 for your own devices only. Never upload or share it.
 Re-runnable: finished steps are skipped. A first run takes one to several
 hours and about 40 GB of disk (60 GB with the Windows game).
 
 .PARAMETER Game
-mw3 (default) or mw2. Modern Warfare 2 is built for Android only, as Modern
-Warfare 3 is: the game code from the disc's own executables (no title
+mw3 (default), mw2 or cod4. Modern Warfare 2 is built for Android only, as
+Modern Warfare 3 is: the game code from the disc's own executables (no title
 update), and the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
+Call of Duty 4 (docs/COD4-BRINGUP.md) is built for Android and Windows as
+Modern Warfare 3 is, but has no published app: the app (com.cod4.recomp) is
+built here every time, signed with this PC's key.
 .PARAMETER Iso
 The disc image. Asked for when not given.
 .PARAMETER Title
@@ -93,7 +97,7 @@ setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Install
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('mw3', 'mw2')][string]$Game = 'mw3',
+    [ValidateSet('mw3', 'mw2', 'cod4')][string]$Game = 'mw3',
     [string]$Iso,
     [ValidateSet('both', 'sp', 'mp')][string]$Title,
     [ValidateSet('android', 'pc', 'both')][string]$Build,
@@ -170,7 +174,8 @@ $AnalyseExe = Join-Path $Xenon 'build\XenonAnalyse\XenonAnalyse.exe'
 # each game. Modern Warfare 2's are the disc's version (tu0): its trees,
 # configs and tables carry that in their names (tools/title.py).
 $Mw2 = $Game -eq 'mw2'
-$GameName = if ($Mw2) { 'Modern Warfare 2' } else { 'Modern Warfare 3' }
+$Cod4 = $Game -eq 'cod4'
+$GameName = if ($Mw2) { 'Modern Warfare 2' } elseif ($Cod4) { 'Call of Duty 4: Modern Warfare' } else { 'Modern Warfare 3' }
 $Disc = "$Game/tu0"
 # Name is what the build calls the title (MW2_TITLE), Lib its library's name
 # (CMakeLists.txt, MW2_LIBRARY_NAME).
@@ -181,6 +186,13 @@ $Titles = if ($Mw2) { @{
     mp = @{ Name = 'mp'; Lib = 'mw2mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_mp_tu0'; Toml = 'MW2MP.tu0.toml'
             Tables = 'mw2mp_switch_tables.tu0.toml'; Files = 117; Jump = 121
             Sha = 'aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde' }
+} } elseif ($Cod4) { @{
+    # Stepped: the instructions the recompiler does not know and the
+    # configuration steps over (config/COD4.toml), which it still reports.
+    sp = @{ Name = 'cod4'; Lib = 'cod4'; Label = 'campaign'; Xex = 'default'; Ppc = 'ppc_cod4'; Toml = 'COD4.toml'
+            Tables = 'cod4_switch_tables.toml'; Files = 76; Jump = 178; Stepped = 9 }
+    mp = @{ Name = 'cod4mp'; Lib = 'cod4mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_cod4_mp'; Toml = 'COD4MP.toml'
+            Tables = 'cod4mp_switch_tables.toml'; Files = 77; Jump = 177; Stepped = 9 }
 } } else { @{
     sp = @{ Name = 'mw3'; Lib = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
             Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
@@ -265,10 +277,11 @@ function Test-Tree($t) {
 
 # Whether an extracted executable is a disc build this port supports, as one
 # line of text; throws when it is not. Modern Warfare 3's builds are listed by
-# tools/check_mw3_xex.py; Modern Warfare 2 has the one disc (CMakeLists.txt,
-# MW2_XEX_SHA256_SP/MP).
+# tools/check_mw3_xex.py and Call of Duty 4's by tools/check_cod4_xex.py;
+# Modern Warfare 2 has the one disc (CMakeLists.txt, MW2_XEX_SHA256_SP/MP).
 function Test-Xex($python, $t) {
     $xexRel = "$Disc/$($t.Xex).xex"
+    if ($Cod4) { return Exec $python @('tools/check_cod4_xex.py', $xexRel) -Cwd $Repo }
     if (-not $Mw2) { return Exec $python @('tools/check_mw3_xex.py', $xexRel) -Cwd $Repo }
     $sha = Sha256Of (Join-Path $Repo $xexRel)
     if ($sha -ne $t.Sha) { throw "${xexRel}: SHA-256 $sha is not the Modern Warfare 2 disc's ($($t.Sha))" }
@@ -577,7 +590,9 @@ $AppPackage = "com.$Game.recomp$Suffix"
 $PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
 $Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
 
-$needIso = ($ForPc -and -not (Test-Path (Join-Path $Out 'pc\game\default.xex'))) -or
+# Call of Duty 4's Windows game has a folder of its own beside Modern Warfare 3's.
+$PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } else { 'pc' })
+$needIso = ($ForPc -and -not (Test-Path (Join-Path $PcFolder 'game\default.xex'))) -or
            @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
 while ($needIso -and -not ($Iso -and (Test-Path -LiteralPath $Iso -PathType Leaf))) {
     if ($Iso) { Warn "no file at $Iso" }
@@ -764,8 +779,9 @@ foreach ($key in @($Keys)) {
         $files = @(Get-ChildItem $ppcDir -File).Count
         $tables = & $count (Join-Path $Repo "config\$($t.Tables)") '[[switch]]'
         $bad = (& $count $recompLog 'Unrecognized instruction') + (& $count $recompLog 'trying to jump outside function')
-        Note "files: $files (expect $($t.Files))   jump tables: $tables (expect $($t.Jump))   recompiler errors: $bad (expect 0)"
-        if ($files -ne $t.Files -or $tables -ne $t.Jump -or $bad -ne 0) { Warn 'the recompiled tree differs from the tested one; the build may fail or misbehave.' }
+        $stepped = [int]$t.Stepped
+        Note "files: $files (expect $($t.Files))   jump tables: $tables (expect $($t.Jump))   recompiler errors: $bad (expect $stepped)"
+        if ($files -ne $t.Files -or $tables -ne $t.Jump -or $bad -ne $stepped) { Warn 'the recompiled tree differs from the tested one; the build may fail or misbehave.' }
         Step 'generate the shared header'
         Exec $Python @('tools/genshared.py') -Cwd $Repo -Log "$($t.Name)_genshared.log" -Quiet
         # What the tree was made with, for the next run to know whether it
@@ -791,8 +807,8 @@ if ($ForAndroid) {
     $fwd = { param($p) $p -replace '\\', '/' }
     # Whether the app is built here: always, but for the app with the whole
     # game, which is the published one unless -Dev asks, or none has been
-    # published.
-    $BuildApp = -not $Split -or $Dev
+    # published (Call of Duty 4's never is).
+    $BuildApp = -not $Split -or $Dev -or ($Cod4 -and -not $GameOnly)
 
     if ($Split) {
         # ---- the game code: a library for each title, in a package ----------
@@ -828,7 +844,7 @@ if ($ForAndroid) {
         Note ("{0} ({1:N1} MB; built against {2})" -f $apk, ((Get-Item $apk).Length / 1MB), ($built -join ', '))
 
         # ---- the app: the published one --------------------------------------
-        if (-not $GameOnly -and -not $Dev) {
+        if (-not $GameOnly -and -not $BuildApp) {
             Step "the published app (github.com/$ReleaseRepo, latest release)"
             $release = $null
             try { $release = (Exec 'curl.exe' @('-fsSL', '--retry', '3', "https://api.github.com/repos/$ReleaseRepo/releases/latest")) -join "`n" | ConvertFrom-Json } catch { }
@@ -888,7 +904,7 @@ if ($ForAndroid) {
         # assets and copies them into the game folder when it starts
         # (CamoPacks.kt), and the list of known packs, by which it credits a
         # mod the player adds and fetches the ones the project hosts.
-        if (-not $Mw2 -and @($Keys) -contains 'mp') {
+        if ($Game -eq 'mw3' -and @($Keys) -contains 'mp') {
             $assets = Join-Path $Repo 'android\app\src\mw3\assets'
             Install-CamoPacks (Join-Path $assets 'camos')
             Copy-Item -Force $CamoPackList (Join-Path $assets 'camo-packs.json')
@@ -897,6 +913,8 @@ if ($ForAndroid) {
         # multiplayer's library as well (cmake/android.cmake, MW2_BOTH_TITLES).
         $apps = if ($TestCopy) {
             @(@{ Label = "multiplayer test copy $Instance"; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Apk = "mw3mp$Instance-debug.apk"; Package = "com.mw3.recomp.mp$Instance" })
+        } elseif ($Cod4) {
+            @(@{ Label = 'app, without the game code'; Task = 'assembleCod4Tu0Debug'; Variant = 'cod4Tu0'; Apk = "cod4$Suffix-debug.apk"; Package = $AppPackage })
         } elseif ($Mw2) {
             @(@{ Label = 'app, without the game code'; Task = 'assembleMw2Tu0Debug'; Variant = 'mw2Tu0'; Apk = "mw2$Suffix-debug.apk"; Package = $AppPackage })
         } else {
@@ -918,7 +936,7 @@ if ($ForAndroid) {
 # ---- 6. the Windows game -----------------------------------------------------
 if ($ForPc) {
     if (-not (Test-Path "$MingwDir\bin\x86_64-w64-mingw32-clang++.exe")) { Step 'unpack llvm-mingw'; Unpack (Fetch $Pins.LlvmMingw) $MingwDir }
-    $pc = Join-Path $Out 'pc'
+    $pc = $PcFolder
     # Not $game: PowerShell names are case-insensitive, so it would be the
     # -Game parameter and fail its ValidateSet.
     $pcGame = Join-Path $pc 'game'
@@ -943,17 +961,20 @@ if ($ForPc) {
         Exec $CMake @('--build', $buildDir, '--target', 'mw2') -Log "pc_$($t.Name).log" -Quiet
         Copy-Item (Join-Path $buildDir "$($t.Name).exe") (Join-Path $pc "$($t.Name).exe") -Force
         $launcher = if ($key -eq 'mp') { 'Multiplayer.cmd' } else { 'Campaign.cmd' }
-        $lines = '@echo off', 'rem Settings are in .env beside this file (docs/switches.md); the log is mw3.log.',
+        $lines = '@echo off', "rem Settings are in .env beside this file (docs/switches.md); the log is $Game.log.",
                  'cd /d "%~dp0"', "$($t.Name).exe game\$($t.Xex).xex game"
         [IO.File]::WriteAllText((Join-Path $pc $launcher), (($lines -join "`r`n") + "`r`n"))
     }
-    if (@($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $pcGame 'camos') }
+    if ($Game -eq 'mw3' -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $pcGame 'camos') }
     $envFile = Join-Path $pc '.env'
     if (-not (Test-Path $envFile)) {
-        $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }
-        if (-not $name) { $name = 'Player' }
-        if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
-        $settings = "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`nMW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n"
+        # Call of Duty 4 has no relay and nothing to unlock: the window and the log.
+        $settings = if ($Cod4) { "MW2_FULLSCREEN=0`nMW2_LOG_FILE=cod4.log`n" } else {
+            $name = if ($Interactive) { (Read-Host 'Your player name online (15 characters at most; empty for "Player")').Trim() } else { '' }
+            if (-not $name) { $name = 'Player' }
+            if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
+            "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`nMW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n"
+        }
         [IO.File]::WriteAllText($envFile, $settings)
     }
 }
@@ -976,7 +997,7 @@ if ($ForAndroid -and $Apks.Count) {
             # carries the project's own alone -- the ones fetched and the
             # player's own mods -- go into the game folder, where the app
             # leaves a pack it did not put there as it is (CamoPacks.kt).
-            if ($Split -and -not $Mw2 -and -not $GameOnly -and -not $BuildApp) {
+            if ($Split -and $Game -eq 'mw3' -and -not $GameOnly -and -not $BuildApp) {
                 $packs = Join-Path $Out 'camos'
                 Install-CamoPacks $packs
                 $gameFolder = "/sdcard/Android/data/$AppPackage/files/game"
@@ -995,7 +1016,7 @@ if ($ForAndroid -and $Apks.Count) {
             # multiplayer (Title.home); an app cannot read another's folder on
             # a current Android, adb can. Never over saves already there, and
             # the old app and its files are left as they are.
-            if ($Split -and -not $Suffix) {
+            if ($Split -and -not $Suffix -and -not $Cod4) {
                 $files = "/sdcard/Android/data/$AppPackage/files"
                 $oldApps = if ($Mw2) {
                     @(@{ Package = 'cod.modern.warfare2.sp'; Home = $files; Label = 'campaign' },
@@ -1026,7 +1047,8 @@ if ($ForAndroid -and $Apks.Count) {
 Step 'done'
 foreach ($item in $Apks) { Note "APK: $($item.Apk)" }
 if ($ForPc) {
-    Note "Windows game: $(Join-Path $Out 'pc') (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
+    Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
+elseif ($Cod4) { Note 'On the phone: the app''s installer copies the disc''s top folder; the high-detail textures (highmip\) and the two .bikbe movies are not copied by it yet (docs\COD4-BRINGUP.md).' }
 else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } else { 'README.md' })." }

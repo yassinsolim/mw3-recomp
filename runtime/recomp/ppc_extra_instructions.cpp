@@ -12,7 +12,9 @@
 // of its own, with that register once.
 //
 // Compiled into the recompiled code's own target (CMakeLists.txt), so that
-// the calls are bound inside the game library where that is a file of its own.
+// the calls are bound inside the game library where that is a file of its
+// own; in a folder of its own for that, since every source at the top of
+// runtime/ is the runtime's.
 #include <ppc_context.h>
 
 // vandc vD,vA,vB: vA & ~vB, as the recompiler writes vandc128.

@@ -334,7 +334,7 @@ endif()
 if(MW2_IS_COD4 AND NOT MW2_SPLIT STREQUAL "runtime")
     # The two instructions the recompiler's configuration replaces by calls
     # (config/COD4.toml), beside the code that calls them.
-    target_sources(ppc_recomp PRIVATE "${CMAKE_SOURCE_DIR}/runtime/ppc_extra_instructions.cpp")
+    target_sources(ppc_recomp PRIVATE "${CMAKE_SOURCE_DIR}/runtime/recomp/ppc_extra_instructions.cpp")
 endif()
 if(NOT MW2_LOGGING)
     # Compiles every LOGI/LOGW/LOGE/LOGK call to nothing, warnings included.
