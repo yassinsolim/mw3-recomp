@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -464,6 +466,151 @@ tasks.configureEach {
     // (the v0.1.0 release jobs of the MW2 repo failed on each undeclared one).
     val forMw2 = listOf("Campaign", "Multiplayer", "Mw2", "Cod4").any { name.contains(it) }
     if (forMw2 && (name.contains("Assets") || name.contains("lint", ignoreCase = true))) dependsOn(bundledDriverAssets)
+}
+
+// ---- the build kit (docs/ondevice-build.md) ----------------------------------
+// What the app needs to build the game code on the device itself
+// (GameBuild.kt), as assets under buildkit/: everything that decides what the
+// app's own runtime will accept, so it travels with the app and not with the
+// toolchain package, which only brings the compiler and the recompiler.
+//
+//   config/<title>.toml       the recompiler's configuration, as it is here
+//   runtime/mmio_hook.h       force-included into every recompiled file
+//   cmake/game_library.list   the symbols left to the dynamic linker
+//   shared_header_prefix.h    what tools/genshared.py writes before the
+//                             declarations, taken out of that script
+//   kit.json                  the titles (executable, the SHA-256 of the
+//                             supported builds, the folders the configuration
+//                             names), the compiler's and linker's options as
+//                             CMakeLists.txt and cmake/game_library.cmake give
+//                             them, and for each title the statement the
+//                             runtime expects (cmake/game_abi.cmake's, made
+//                             here the same way from config/abi/)
+class KitTitle(
+    val library: String, val executable: String, val sha256: List<String>, val toml: String,
+    val tables: String, val tree: String, val defines: List<String>,
+)
+class KitGame(val folder: String, val titles: List<KitTitle>, val extraSources: List<String> = emptyList())
+// The executables' hashes are setup/setup.ps1's (Modern Warfare 2),
+// tools/check_mw3_xex.py's and tools/check_cod4_xex.py's.
+val kitGames = mapOf(
+    "mw2" to KitGame(
+        "mw2/tu0",
+        listOf(
+            KitTitle("mw2", "default.xex", listOf("990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff"),
+                "MW2.tu0.toml", "mw2_switch_tables.tu0.toml", "ppc_tu0", listOf("MW2_VERSION_TU0=1")),
+            KitTitle("mw2mp", "default_mp.xex", listOf("aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde"),
+                "MW2MP.tu0.toml", "mw2mp_switch_tables.tu0.toml", "ppc_mp_tu0", listOf("MW2_TITLE_MP=1", "MW2_VERSION_TU0=1")),
+        ),
+    ),
+    "mw3" to KitGame(
+        "mw3/tu0",
+        listOf(
+            KitTitle("mw3", "default.xex",
+                listOf("d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912",
+                    "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1"),
+                "MW3.toml", "mw3_switch_tables.toml", "ppc_mw3", listOf("MW3_TITLE=1")),
+            KitTitle("mw3mp", "default_mp.xex", listOf("0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c"),
+                "MW3MP.toml", "mw3mp_switch_tables.toml", "ppc_mw3_mp", listOf("MW3_TITLE=1", "MW3_TITLE_MP=1")),
+        ),
+    ),
+    "cod4" to KitGame(
+        "cod4/tu0",
+        listOf(
+            KitTitle("cod4", "default.xex", listOf("f6b848ac4ecf2b12881223e4c3cd63c49ae36e1fadc6f2179428033274602739"),
+                "COD4.toml", "cod4_switch_tables.toml", "ppc_cod4", listOf("COD4_TITLE=1", "MW3_TITLE=1")),
+            KitTitle("cod4mp", "default_mp.xex", listOf("9aae8db5b38f0b394f9052d1ee9c8b1f18038ff86fc5f4110f173f66043a0cc6"),
+                "COD4MP.toml", "cod4mp_switch_tables.toml", "ppc_cod4_mp", listOf("COD4_TITLE=1", "COD4_TITLE_MP=1", "MW3_TITLE=1")),
+        ),
+        // The two instructions the configuration replaces by calls (CMakeLists.txt).
+        listOf("runtime/recomp/ppc_extra_instructions.cpp"),
+    ),
+)
+// A file's text and its SHA-256 as cmake/game_abi.cmake take them: without
+// the carriage returns a Windows checkout has.
+fun kitText(path: String): String = File(repositoryRoot, path).readBytes().toString(Charsets.ISO_8859_1).replace("\r", "")
+fun kitHash(text: String): String =
+    MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.ISO_8859_1)).joinToString("") { "%02x".format(it) }
+fun kitJson(value: Any?): String = when (value) {
+    is Map<*, *> -> value.entries.joinToString(",", "{", "}") { "${kitJson(it.key.toString())}:${kitJson(it.value)}" }
+    is List<*> -> value.joinToString(",", "[", "]") { kitJson(it) }
+    is String -> "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
+    else -> value.toString()
+}
+kitGames.forEach { (game, kit) ->
+    val into = layout.buildDirectory.dir("build-kit/$game").get().asFile
+    val copied = kit.titles.map { "config/${it.toml}" } + kit.extraSources + listOf("runtime/mmio_hook.h", "cmake/game_library.list")
+    val hashed = copied + kit.titles.flatMap { title ->
+        listOf("kernel_imports.list", "ppc_config.h", "switch_tables.sha256").map { "config/abi/${title.library}/$it" }
+    } + listOf("setup/setup.ps1", "patches/xenonrecomp-mw2.patch", "tools/genshared.py", "XenonRecomp/XenonUtils/ppc_context.h")
+    val task = tasks.register("gameBuildKit${game.replaceFirstChar { it.uppercase() }}") {
+        inputs.files(hashed.map { File(repositoryRoot, it) })
+        inputs.file("build.gradle.kts")
+        outputs.dir(into)
+        doLast {
+            into.deleteRecursively()
+            val root = File(into, "buildkit")
+            copied.forEach { File(root, it).apply { parentFile.mkdirs() }.writeText(kitText(it), Charsets.ISO_8859_1) }
+            val commit = Regex("XenonCommit[ ]*=[ ]*'([0-9a-f]+)'").find(kitText("setup/setup.ps1"))?.groupValues?.get(1)
+                ?: throw GradleException("setup/setup.ps1 no longer names the XenonRecomp commit (\$XenonCommit)")
+            val patch = kitHash(kitText("patches/xenonrecomp-mw2.patch"))
+            val shared = kitText("tools/genshared.py")
+            val prefix = Regex("HEADER = \"\"\"(.*?)\"\"\"", RegexOption.DOT_MATCHES_ALL).find(shared)?.groupValues?.get(1)
+                ?: throw GradleException("tools/genshared.py no longer has its HEADER text")
+            // The script's string has each backslash written twice.
+            File(root, "shared_header_prefix.h").writeText(prefix.replace("\\\\", "\\"), Charsets.ISO_8859_1)
+            val memoryHook = kitHash(kitText("runtime/mmio_hook.h"))
+            // The recompiler writes its context header into the tree behind these lines (cmake/game_abi.cmake).
+            val context = kitHash("#pragma once\n#include \"ppc_config.h\"\n\n" + kitText("XenonRecomp/XenonUtils/ppc_context.h"))
+            val titles = kit.titles.map { title ->
+                val recorded = "config/abi/${title.library}"
+                val recompiledWith = "recompiler $commit\nrecompiler-patch $patch\n" +
+                    "configuration ${kitHash(kitText("config/${title.toml}"))}\nshared-header ${kitHash(shared)}\n"
+                mapOf(
+                    "library" to title.library, "executable" to title.executable, "sha256" to title.sha256,
+                    "toml" to title.toml, "tables" to title.tables, "tree" to title.tree,
+                    "defines" to listOf("MW2_TRACE_INDIRECT=1") + title.defines,
+                    "recompiledWith" to recompiledWith,
+                    "expectedAbi" to "title ${title.library}\n" + recompiledWith +
+                        "jump-tables ${kitText("$recorded/switch_tables.sha256").trim()}\n" +
+                        "code-extent ${kitHash(kitText("$recorded/ppc_config.h"))}\n" +
+                        "register-context $context\n" +
+                        "system-calls ${kitHash(kitText("$recorded/kernel_imports.list"))}\n" +
+                        "memory-hook $memoryHook\n",
+                )
+            }
+            File(root, "kit.json").writeText(
+                kitJson(
+                    mapOf(
+                        "game" to game, "folder" to kit.folder,
+                        "recompiler" to mapOf("commit" to commit, "patchSha256" to patch),
+                        "memoryHookSha256" to memoryHook,
+                        "extraSources" to kit.extraSources,
+                        // CMakeLists.txt (ppc_recomp) and the NDK's own defaults, as a
+                        // setup\setup.ps1 build has them, less -g: nothing on the device
+                        // strips the library, and the compiler needs less memory without.
+                        "compile" to listOf(
+                            "-DANDROID", "-fdata-sections", "-ffunction-sections", "-funwind-tables", "-fstack-protector-strong",
+                            "-no-canonical-prefixes", "-D_FORTIFY_SOURCE=2", "-O3", "-DNDEBUG", "-fPIC", "-w", "-fwrapv",
+                            "-fno-omit-frame-pointer", "-std=gnu++20",
+                        ),
+                        // cmake/game_library.cmake, as the linker itself takes them.
+                        "link" to listOf(
+                            "--build-id=sha1", "--gc-sections", "-z", "max-page-size=16384", "-z", "common-page-size=16384",
+                            "--unresolved-symbols=ignore-all",
+                        ),
+                        "titles" to titles,
+                    ),
+                ) + "\n",
+            )
+        }
+    }
+    android.sourceSets.getByName(game) { assets.srcDir(into) }
+    val flavour = game.replaceFirstChar { it.uppercase() } + "Tu0"
+    tasks.configureEach {
+        // As bundledDriverAssets: every task that reads the flavour's assets.
+        if (name.contains(flavour) && (name.contains("Assets") || name.contains("lint", ignoreCase = true))) dependsOn(task)
+    }
 }
 
 dependencies {

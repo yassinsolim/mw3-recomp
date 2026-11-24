@@ -1,0 +1,356 @@
+package com.mw2.recomp
+
+import android.Manifest
+import android.app.Activity
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.BatteryManager
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.widget.Button
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
+import kotlin.concurrent.thread
+
+/**
+ * "Build the game code on this device": the screen of GameBuild.kt, for a
+ * player with no PC (docs/ondevice-build.md). Three things in order, each
+ * said as done or with the one button that does it:
+ *
+ *  1. the disc's executables, from the installed game files where they are
+ *     there already, otherwise out of the disc image the player picks;
+ *  2. the toolchain package (Toolchain.kt), downloaded from the app's own
+ *     release and installed through the system's prompt;
+ *  3. the build, which GameBuildService keeps going with the app in the
+ *     background: this screen only shows GameBuild.progress and asks the
+ *     service to start, pause or carry on.
+ */
+class BuildActivity : AppCompatActivity() {
+
+    private lateinit var prefs: Prefs
+    private lateinit var state: GameBuildService.State
+    private lateinit var status: TextView
+    private lateinit var pick: Button
+    private lateinit var browse: Button
+    private lateinit var toolchainButton: Button
+    private lateinit var begin: Button
+    private lateinit var progress: ProgressBar
+    private lateinit var progressText: TextView
+    private lateinit var warning: TextView
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    /** The executables are being taken out of the disc image or the game folder. */
+    @Volatile
+    private var taking = false
+    private var executables = false
+    private var toolchainDownload = -1L
+
+    /** A build was running when this screen last looked: its end is news to say. */
+    private var sawRunning = false
+
+    /** Read when the screen comes to the front and when a build ends, not on every tick: they are files. */
+    private var toolchain: Toolchain? = null
+    private var wanted: List<GameBuild.KitTitle> = emptyList()
+    private var outdated = false
+
+    private val document = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data
+        if (result.resultCode == Activity.RESULT_OK && uri != null) {
+            takeExecutables {
+                val descriptor = contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("the file could not be opened")
+                descriptor.use { FileInputStream(it.fileDescriptor).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
+            }
+        }
+    }
+
+    private val browser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val path = result.data?.getStringExtra(FileBrowserActivity.EXTRA_PATH)
+        if (result.resultCode == Activity.RESULT_OK && path != null) {
+            takeExecutables { FileInputStream(path).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
+        }
+    }
+
+    /** The notification is where the player sees the build from elsewhere; it runs without the permission too. */
+    private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { startBuild() }
+
+    private val downloadDone = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) != toolchainDownload) return
+            installToolchain(toolchainDownload)
+            toolchainDownload = -1
+        }
+    }
+
+    private val tick = object : Runnable {
+        override fun run() {
+            show()
+            handler.postDelayed(this, 500)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_build)
+        title = getString(R.string.build_title)
+        prefs = Prefs(this)
+        state = GameBuildService.State(this)
+        status = findViewById(R.id.status)
+        pick = findViewById(R.id.pick)
+        browse = findViewById(R.id.browse)
+        toolchainButton = findViewById(R.id.toolchain)
+        begin = findViewById(R.id.begin)
+        progress = findViewById(R.id.progress)
+        progressText = findViewById(R.id.progress_text)
+        warning = findViewById(R.id.warning)
+
+        pick.setOnClickListener {
+            document.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"))
+        }
+        browse.setOnClickListener { browser.launch(Intent(this, FileBrowserActivity::class.java)) }
+        toolchainButton.setOnClickListener { downloadToolchain() }
+        begin.setOnClickListener {
+            when {
+                GameBuild.progress.running -> GameBuildService.pause(this)
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+                    !state.wanted -> notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                else -> startBuild()
+            }
+        }
+        // Exported: the broadcast is the system's download provider's (MainActivity.downloadDone).
+        ContextCompat.registerReceiver(
+            this, downloadDone, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), ContextCompat.RECEIVER_EXPORTED,
+        )
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(downloadDone)
+        super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        GameBuildService.resumeIfInterrupted(this)
+        reload()
+        // The game files hold both executables once they are installed: no
+        // disc image is asked for then. Hashing them is off the main thread.
+        thread(name = "build-executables") {
+            var have = GameBuild.haveExecutables(this)
+            val folder = prefs.gameDirectory
+            if (!have && !taking && Title.carried.all { it.installed(folder) }) {
+                have = try {
+                    GameBuild.takeFromGameFolder(this, folder)
+                    true
+                } catch (_: IOException) {
+                    // Not a build this app supports: the player may have another image.
+                    false
+                }
+            }
+            handler.post { executables = have }
+        }
+        handler.post(tick)
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(tick)
+        super.onPause()
+    }
+
+    private fun takeExecutables(take: () -> Unit) {
+        taking = true
+        thread(name = "build-executables") {
+            val problem = try {
+                take()
+                null
+            } catch (error: Exception) {
+                error.message ?: error.toString()
+            }
+            handler.post {
+                taking = false
+                executables = problem == null
+                if (problem != null && !isFinishing) {
+                    AlertDialog.Builder(this).setMessage(problem).setPositiveButton(R.string.close, null).show()
+                }
+            }
+        }
+    }
+
+    private fun startBuild() {
+        GameBuildService.start(this)
+    }
+
+    // ---- the toolchain package --------------------------------------------------
+
+    private fun toolchainPage(): Uri = Uri.parse("https://github.com/${BuildConfig.UPDATE_REPO}/releases/latest")
+
+    private fun downloadToolchain() {
+        if (!packageManager.canRequestPackageInstalls()) {
+            // The system's own screen for allowing this app to install one;
+            // the player comes back here and asks again.
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+            }
+            return
+        }
+        try {
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            // Into the app's own folder: no permission, and gone with the app.
+            File(getExternalFilesDir(null), TOOLCHAIN_FILE).delete()
+            val request = DownloadManager.Request(Uri.parse("https://github.com/${BuildConfig.UPDATE_REPO}/releases/latest/download/$TOOLCHAIN_FILE"))
+                .setTitle(getString(R.string.build_toolchain_name))
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+                .setDestinationInExternalFilesDir(this, null, TOOLCHAIN_FILE)
+                .setAllowedOverMetered(true)
+            toolchainDownload = manager.enqueue(request)
+        } catch (_: Exception) {
+            openToolchainPage()
+        }
+    }
+
+    private fun installToolchain(id: Long) {
+        try {
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val uri = manager.getUriForDownloadedFile(id) ?: throw IOException("the download failed")
+            startActivity(
+                Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION),
+            )
+        } catch (_: Exception) {
+            if (isFinishing) return
+            AlertDialog.Builder(this)
+                .setMessage(R.string.build_toolchain_failed)
+                .setPositiveButton(R.string.open_page) { _, _ -> openToolchainPage() }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+        }
+    }
+
+    private fun openToolchainPage() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, toolchainPage()))
+        } catch (_: Exception) {
+        }
+    }
+
+    // ---- what the screen says ---------------------------------------------------
+
+    private fun charging(): Boolean {
+        val battery = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        return (battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
+    }
+
+    private fun reload() {
+        toolchain = Toolchain.find(this)
+        wanted = GameBuild.wanted(this)
+        outdated = GameBuild.outdated(this)
+    }
+
+    private fun show() {
+        val now = GameBuild.progress
+        if (sawRunning && !now.running) reload()
+        val toolchain = toolchain
+        val lines = ArrayList<String>()
+        lines.add(
+            getString(
+                when {
+                    executables -> R.string.build_have_executables
+                    taking -> R.string.build_taking_executables
+                    else -> R.string.build_need_executables
+                },
+            ),
+        )
+        lines.add(
+            when {
+                toolchain != null -> getString(R.string.build_have_toolchain, toolchain.version)
+                toolchainDownload != -1L -> getString(R.string.build_toolchain_downloading)
+                else -> getString(R.string.build_need_toolchain)
+            },
+        )
+        if (wanted.isEmpty()) lines.add(getString(R.string.build_done))
+        status.text = lines.joinToString("\n")
+
+        val busy = now.running || state.wanted
+        pick.visibility = if (executables || busy) View.GONE else View.VISIBLE
+        browse.visibility = pick.visibility
+        pick.isEnabled = !taking
+        browse.isEnabled = !taking
+        toolchainButton.visibility = if (toolchain != null || busy) View.GONE else View.VISIBLE
+        toolchainButton.isEnabled = toolchainDownload == -1L
+
+        begin.visibility = if (wanted.isEmpty() && !busy) View.GONE else View.VISIBLE
+        begin.isEnabled = busy || (executables && toolchain != null)
+        begin.text = getString(
+            when {
+                now.running -> R.string.build_pause
+                state.wanted -> R.string.build_resume
+                outdated -> R.string.build_again
+                else -> R.string.build_begin
+            },
+        )
+
+        progress.visibility = if (busy) View.VISIBLE else View.GONE
+        if (now.running) {
+            progress.isIndeterminate = now.total == 0
+            progress.max = maxOf(1, now.total)
+            progress.progress = now.done
+            var said = GameBuildService.describe(this, now)
+            if (now.step == GameBuild.Step.COMPILE) {
+                said += "\n" + getString(
+                    when (now.held) {
+                        "memory" -> R.string.build_jobs_memory
+                        "heat" -> R.string.build_jobs_heat
+                        else -> R.string.build_jobs
+                    },
+                    now.jobs, now.batteryCelsius,
+                )
+            }
+            progressText.text = said
+        } else {
+            progressText.text = if (state.wanted) getString(R.string.build_paused) else ""
+        }
+        warning.visibility = if (busy && !charging()) View.VISIBLE else View.GONE
+
+        val ended = sawRunning && !now.running
+        sawRunning = now.running
+        // A failure is said when it happens, or when the player comes back
+        // to this screen after one that happened while they were elsewhere.
+        val error = state.error
+        if (!now.running && error.isNotEmpty()) {
+            state.error = ""
+            AlertDialog.Builder(this)
+                .setTitle(R.string.build_failed)
+                .setMessage(error + "\n\n" + getString(R.string.build_failed_where, GameBuild.report(this).path))
+                .setPositiveButton(R.string.close, null)
+                .show()
+        } else if (ended && !state.wanted && wanted.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.build_title)
+                .setMessage(R.string.build_done_explained)
+                .setPositiveButton(R.string.close) { _, _ -> finish() }
+                .setCancelable(false)
+                .show()
+        }
+    }
+
+    companion object {
+        /** The toolchain package's name among the assets of the app's release. */
+        const val TOOLCHAIN_FILE = "recomp-toolchain.apk"
+    }
+}

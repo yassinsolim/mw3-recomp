@@ -444,6 +444,12 @@ class InstallActivity : AppCompatActivity() {
                 .setPositiveButton(R.string.play) { _, _ ->
                     GameActivity.start(this, titleToStart()) { finish() }
                 }
+        } else if (GameBuild.offered(this)) {
+            dialog.setMessage(getString(R.string.install_done) + "\n\n" + getString(R.string.build_code_missing))
+                .setPositiveButton(R.string.build_entry) { _, _ ->
+                    startActivity(Intent(this, BuildActivity::class.java))
+                    finish()
+                }
         } else {
             dialog.setMessage(getString(R.string.install_done) + "\n\n" + getString(R.string.game_code_missing))
         }

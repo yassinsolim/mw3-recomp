@@ -27,6 +27,12 @@
          say so (GameService.kt). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Building the game code on the device (GameBuildService.kt): the
+         processor must not sleep under a build the player has walked away
+         from, and its progress and its end are a notification, which Android
+         13 shows only with the player's leave. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.vulkan.version"
         android:version="0x400000" android:required="true" />
@@ -45,6 +51,8 @@
         <package android:name="cod.modern.warfare2.sp.tu6" />
         <package android:name="cod.modern.warfare2.mp.tu6" />
         <package android:name="${gamePackage}" />
+        <!-- The compiler and the recompiler, for building the game code here (Toolchain.kt). -->
+        <package android:name="com.recomp.toolchain" />
     </queries>
 
     <application
@@ -149,6 +157,27 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <activity
+            android:name=".BuildActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <!-- The build of the game code, kept going with the app in the
+             background (GameBuildService.kt), in the launcher's process. No
+             type Android names fits a compiler at work for an hour; "data
+             sync" is ended after six. -->
+        <service
+            android:name=".GameBuildService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Compiling the game code from the player's own disc" />
+        </service>
 
         <activity
             android:name=".FileBrowserActivity"

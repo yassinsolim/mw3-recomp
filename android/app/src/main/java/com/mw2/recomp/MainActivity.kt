@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var installButton: Button
     private lateinit var secondButton: Button
     private lateinit var botsButton: Button
+    private lateinit var buildButton: Button
     private lateinit var modsButton: Button
     private lateinit var tu6Button: Button
     private lateinit var updatesButton: Button
@@ -116,6 +117,7 @@ class MainActivity : AppCompatActivity() {
         installButton = findViewById(R.id.install)
         secondButton = findViewById(R.id.other_app)
         botsButton = findViewById(R.id.entry_bots)
+        buildButton = findViewById(R.id.entry_build)
         modsButton = findViewById(R.id.entry_mods)
         tu6Button = findViewById(R.id.entry_tu6)
         updatesButton = findViewById(R.id.entry_updates)
@@ -194,6 +196,11 @@ class MainActivity : AppCompatActivity() {
                 getString(R.string.install_hint),
             )
             startActivity(Intent(this, InstallActivity::class.java))
+        }
+        buildButton.setOnClickListener {
+            select(buildButton)
+            showDetail(getString(R.string.build_title), getString(R.string.build_detail))
+            startActivity(Intent(this, BuildActivity::class.java))
         }
         findViewById<Button>(R.id.driver).setOnClickListener {
             select(it as Button)
@@ -338,6 +345,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // A build of the game code the system ended carries on (GameBuildService.kt).
+        if (GameBuild.offered(this)) GameBuildService.resumeIfInterrupted(this)
         showArt()
         refresh()
         // The launcher asks for the mode the game will ask for (the limit may
@@ -427,7 +436,7 @@ class MainActivity : AppCompatActivity() {
             val gameCode = GameLibrary.installed(this)
             if (!gameCode) {
                 play.isEnabled = false
-                status.text = getString(R.string.game_code_missing)
+                status.text = getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
             }
 
             if (gameCode && prefs.autoLaunch && !hasAutoLaunched) {
@@ -458,6 +467,15 @@ class MainActivity : AppCompatActivity() {
             }
             directLaunchSwitch.visibility = android.view.View.GONE
         }
+
+        // Building the game code here: offered while there is any to build,
+        // and said while a build is under way.
+        val building = GameBuildService.State(this).wanted
+        buildButton.visibility =
+            if (GameBuild.offered(this) && (building || GameBuild.wanted(this).isNotEmpty())) android.view.View.VISIBLE
+            else android.view.View.GONE
+        buildButton.text = getString(if (building) R.string.build_entry_running else R.string.build_entry)
+        if (installed && GameBuild.outdated(this)) status.text = getString(R.string.build_code_outdated)
 
         applyDriverChoice()
         footer.text = getString(
@@ -580,7 +598,10 @@ class MainActivity : AppCompatActivity() {
         // code (GameLibrary.kt) one only ends in "The game could not start",
         // and the second entry is not greyed out as Play is.
         if (!GameLibrary.ready(this, title)) {
-            showDetail(getString(R.string.cannot_start), getString(R.string.game_code_missing))
+            showDetail(
+                getString(R.string.cannot_start),
+                getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing),
+            )
             return
         }
         // A second controller means a second player can join (split-screen
