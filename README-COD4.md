@@ -41,9 +41,10 @@ untested.
 | Multiplayer: Crash, a System Link match the device hosts | 119.1 | 60.0 |
 | Multiplayer: the two devices in one System Link match (Backlot), through the project's relay | both spawn and play, ten minutes to the time limit | both spawn and play |
 | Multiplayer: Xbox LIVE Find Match (Team Deathmatch), the two devices through the project's relay | 119, six and a half minutes in the match | 60 |
+| Multiplayer: Xbox LIVE Find Match (Free-for-all), and a private match joined from the pause menu, the two devices through the project's relay | 119 | 60 |
 | Checkpoints: saved, and loaded by Resume Game | works on Windows; not checked on Android | not checked |
 | Bots in the matches the device hosts (the launcher's **Bots** entry) | not run | join, fight and score: six on Crash for a ten-minute match, 60 |
-| Split screen; Free-for-all, a private match and invitations on Xbox LIVE | not tested | not tested |
+| Split screen; invitations on Xbox LIVE | not tested | not tested |
 
 What to expect:
 

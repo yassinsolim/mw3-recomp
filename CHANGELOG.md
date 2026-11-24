@@ -4,6 +4,87 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+## [v0.1.6] - 2026-11-24
+
+Modern Warfare 3's and Modern Warfare 2's v0.1.6 and Call of Duty 4's
+v0.1.1, from the same commit.
+
+### Highlights
+Each game's release notes, in plain text.
+
+Modern Warfare 3, v0.1.6
+
+- Private matches and invitations work through the server. Joining a
+  private match ended in "Unable to join game session"; the pause menu now
+  has Invite network players and Join network game.
+- A name of your own online. Every device was "Player 1". The name is now
+  your device's (for example "AYN Thor 5DF4") until you type one, and the
+  multiplayer asks once at its first start.
+- The start screen says when the system holds the screen under the FPS
+  limit (an AYN Thor put back to 60 Hz) and how to change it: Settings,
+  Display, Smooth Display, or the refresh rate tile in the quick settings.
+- Join network game lists every player, two of one name included.
+- After a new graphics driver or a lost driver cache, the pipelines of maps
+  played before are compiled on the fast cores during menus and loading:
+  413 in 5.7 s on a Retroid Pocket Flip 2, where they took 39.9 s.
+- A tidier update dialog: the notes as a list, and whole. You see it from
+  the next update on.
+- The launcher no longer starts the game again after you quit, when Android
+  had closed the launcher during the run.
+- The bots run on code now shared by all three games; they play as before.
+
+The game package built for v0.1.0 to v0.1.5 still fits: nothing to build
+again.
+
+Modern Warfare 2, v0.1.6
+
+- A name of your own online. Every device was "Player 1". The name is now
+  your device's (for example "AYN Thor 5DF4") until you type one, and the
+  multiplayer asks once at its first start.
+- The start screen says when the system holds the screen under the FPS
+  limit (an AYN Thor put back to 60 Hz) and how to change it: Settings,
+  Display, Smooth Display, or the refresh rate tile in the quick settings.
+- Join network game lists every player, two of one name included.
+- A tidier update dialog: the notes as a list, and whole. You see it from
+  the next update on.
+- Small CPU savings in the renderer: its look-ups went from 9% of the
+  render thread's time to 5% in S.S.D.D. The frame rate is the same within
+  what two runs differ by.
+- After a new graphics driver or a lost driver cache, the pipelines of maps
+  played before are compiled on the fast cores during menus and loading.
+- The launcher no longer starts the game again after you quit, when Android
+  had closed the launcher during the run.
+- The bots run on code now shared by all three games; they play as before.
+
+The game package built for v0.1.0 to v0.1.5 still fits: nothing to build
+again.
+
+Call of Duty 4, v0.1.1
+
+- Bots. On the start screen: Multiplayer, then BOTS, to choose how many (up
+  to 17) and how good. Host a System Link match and they join it, pick a
+  team and a class, fight, score, and leave to make room when a player
+  joins. The pause menu changes their number in a match. Six on Crash
+  played a ten-minute match at 60 FPS on a Retroid Pocket Flip 2.
+- Their limits: the maps have no path data for them, so they feel their way
+  round walls; no grenades or objectives. They join only the matches your
+  device hosts.
+- Xbox LIVE Find Match in Free-for-all, and a private match joined from the
+  pause menu (Join network game), were played between two devices through
+  the server.
+- Quitting after INSTALL & PLAY stays in the launcher: it started the game
+  again when Android had closed the launcher during the run.
+- A name of your own online. Every device was "Player 1". The name is now
+  your device's (for example "AYN Thor 5DF4") until you type one, and the
+  multiplayer asks once at its first start.
+- The start screen says when the system holds the screen under the FPS
+  limit (an AYN Thor put back to 60 Hz) and how to change it: Settings,
+  Display, Smooth Display, or the refresh rate tile in the quick settings.
+- A tidier update dialog: the notes as a list, and whole. You see it from
+  the next update on.
+
+The game package built for v0.1.0 still fits: nothing to build again.
+
 ### Added
 
 - **Bots in Call of Duty 4's multiplayer.** The launcher's **Bots** entry,
