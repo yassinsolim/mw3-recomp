@@ -152,13 +152,28 @@ class TouchOverlayView @JvmOverloads constructor(
         return hypot(x - centreX(element), y - centreY(element)) <= radius(element) + slack
     }
 
-    /** Buttons first, the look area last: it sits under everything. */
+    /**
+     * Buttons first, the look area last: it sits under everything. Where two
+     * buttons' circles overlap, the touch is the one's whose centre it is
+     * nearer to, in that button's own radii. The first in the layout used to
+     * win, and the D-pad is before the triggers there: on a 5.5 inch screen
+     * its circle reaches over the middle of LT beside it, so a tap on LT's
+     * centre pressed the D-pad's corner and only LT's outer edge was LT.
+     */
     private fun elementAt(x: Float, y: Float, includeHidden: Boolean = false): ControlElement? {
+        var nearest: ControlElement? = null
+        var nearestReach = Float.MAX_VALUE
         for (element in layout.elements) {
             if (element.kind == ControlKind.LOOK) continue
             if (!element.visible && !includeHidden) continue
-            if (hit(element, x, y)) return element
+            if (!hit(element, x, y)) continue
+            val reach = hypot(x - centreX(element), y - centreY(element)) / radius(element)
+            if (reach < nearestReach) {
+                nearest = element
+                nearestReach = reach
+            }
         }
+        if (nearest != null) return nearest
         for (element in layout.elements) {
             if (element.kind != ControlKind.LOOK) continue
             if (!element.visible && !includeHidden) continue
