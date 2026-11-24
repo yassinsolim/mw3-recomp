@@ -691,9 +691,9 @@
                     android:layout_height="wrap_content"
                     android:text="@string/bots_against_players" />
 
-                <!-- Modern Warfare 3 only (SettingsActivity shows it). -->
+                <!-- Modern Warfare 3 and Advanced Warfare (SettingsActivity shows it). -->
                 <LinearLayout
-                    android:id="@+id/mw3_multiplayer_group"
+                    android:id="@+id/unlocks_group"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -713,10 +713,21 @@
                     android:text="@string/unlock_all_items" />
 
                 <TextView
+                    android:id="@+id/unlock_all_items_hint"
                     style="@style/SettingHint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/unlock_all_items_hint" />
+
+                </LinearLayout>
+
+                <!-- Modern Warfare 3 only (SettingsActivity shows it). -->
+                <LinearLayout
+                    android:id="@+id/mw3_multiplayer_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
 
                 <Button
                     android:id="@+id/camo_packs"

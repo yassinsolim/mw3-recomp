@@ -5,6 +5,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Advanced Warfare's multiplayer on the two devices, the rest**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-rest-on-the-devices-24-november-2026)):
+  the AYN Thor and the Retroid Pocket Flip 2 meet by Xbox LIVE's Find
+  Match through the relay (119 and 60 frames a second); Exo Survival
+  starts from the campaign's own menu entry on both, and the two play it
+  together through the relay; a bot leaves a full match for a joining
+  player. Exo Survival's rounds 2 to 5 and its Exo upgrade station were
+  seen with a test harness that keeps the player alive, which is not in
+  the source: the title has no cheat for it, and without one the players
+  driven here were killed in round 1.
 - **Advanced Warfare's frame rate, measured on both devices**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#frame-rate-on-the-two-devices-24-november-2026)):
   `MW2_SCENE` for both of its executables, and an 832x480 scene on an Adreno
@@ -88,6 +98,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **Advanced Warfare: Create a Class had padlocks under Xbox LIVE on a
+  phone.** The app set `MW2_UNLOCK_ALL` for Modern Warfare 3 only; it now
+  sets it for Advanced Warfare's multiplayer too, with its own switch in
+  Settings ("Unlock all items", on unless turned off).
 - `NtCreateSemaphore` read its counts from the registers of Windows' call,
   which has an access mask this console's has not (Modern Warfare 3 imports
   it too).

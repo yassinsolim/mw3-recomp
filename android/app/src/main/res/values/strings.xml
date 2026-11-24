@@ -219,6 +219,8 @@
     <string name="section_matches">Matches</string>
     <string name="unlock_all_items">Unlock all camos and items</string>
     <string name="unlock_all_items_hint">Every weapon, attachment, camouflage, reticle, proficiency, perk, piece of equipment, death streak, strike package streak, title and emblem can be chosen whatever the rank, and there are fifteen custom classes. Only this device reads them so: nothing is written to the stats, and off shows what was really earned again. Takes effect the next time the game starts.</string>
+    <string name="unlock_all_items_aw">Unlock all items</string>
+    <string name="unlock_all_items_hint_aw">Under Xbox LIVE every weapon, attachment, perk, Exo ability, launcher, scorestreak and wildcard can be chosen whatever the rank (System Link lists them all by itself). Only this device reads them so: nothing is written to the stats, and off shows what was really earned again. Takes effect the next time the game starts.</string>
     <string name="camo_packs">Camo packs</string>
     <string name="camo_packs_hint">Extra camouflages, listed below Gold in Create a Class beside the game\'s own. See the packs and who made them, switch one off, or add a PC camouflage mod you downloaded.</string>
     <string name="bot_count">Bots in my matches: %1$d</string>

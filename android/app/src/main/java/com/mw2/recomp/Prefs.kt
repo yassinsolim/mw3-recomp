@@ -307,8 +307,9 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_ASYNC_PIPELINES, value).apply()
 
     /**
-     * Modern Warfare 3's multiplayer: every item reads as unlocked
-     * (MW2_UNLOCK_ALL, runtime/mw3_unlock_all.cpp). The stats are not changed.
+     * Modern Warfare 3's and Advanced Warfare's multiplayer: every item reads
+     * as unlocked (MW2_UNLOCK_ALL, runtime/mw3_unlock_all.cpp and
+     * aw_unlock_all.cpp). The stats are not changed.
      */
     var unlockAllItems: Boolean
         get() = store.getBoolean(KEY_UNLOCK_ALL_ITEMS, true)

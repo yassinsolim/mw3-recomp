@@ -418,8 +418,9 @@ them: controller 0 is the first active one, its profile is signed in, and
    starts the level again ("A level's end, the next level, the Flip 2").
 2. A level played from its first minute to its last without a start point,
    and the levels after Atlas.
-3. The multiplayer's Xbox LIVE menu, Exo Survival and Combat Readiness
-   Program ("The multiplayer", below, has what works).
+3. The multiplayer's Combat Readiness Program, Exo Survival under Xbox
+   LIVE, and a round of Exo Survival survived on a device without the test
+   build ("The multiplayer", below, has what works).
 4. `setup/setup.sh` for this title from end to end on Linux.
 
 ## After merging `android` in (24 November 2026)
@@ -564,11 +565,12 @@ State on 24 November 2026: a System Link match is hosted with the title's
 own bots on Windows, the AYN Thor and the Retroid Pocket Flip 2, and joined
 by another copy over the local network and through the relay
 (`mw3.yassin.app:3074`): two copies on Windows, and the Thor and the Flip 2
-in one match, each hosting in turn. On Windows two copies also meet by Xbox
-LIVE's Find Match and by an invitation to a private match, both through the
-relay, and Exo Survival is played by one copy and by two ("Xbox LIVE and Exo
-Survival", below). Neither was run on a device; Combat Readiness Program is
-open.
+in one match, each hosting in turn. Through the relay two copies meet by
+Xbox LIVE's Find Match (on Windows, and the Thor with the Flip 2) and by an
+invitation to a private match (on Windows). Exo Survival is reached from the
+campaign's own menu on both devices and played by one and by two; a bot
+leaves a full match for a joining player ("Xbox LIVE and Exo Survival" and
+"The rest on the devices", below). Combat Readiness Program is open.
 
 ### What the executable has (derived, from `default_mp.pe`)
 
@@ -641,8 +643,18 @@ Start Game (the party's `go <map> <game type>` to every member).
   AMR9) with no padlock (`flip-mp-pick13-*`). Under Xbox LIVE the check
   applies: without the switch a rank 1 player's Primary Weapons has a
   padlock on all but the first assault rifle
-  (`pc-mp-findmatch-relay-copy-b-sheet.png`). The hook is back in for that;
-  **it was not run under Live after it went back in.**
+  (`pc-mp-findmatch-relay-copy-b-sheet.png`), and the app had left it
+  unset for this title: on the Thor, signed in on the relay, the assault
+  rifles after the AK12 had padlocks
+  (`thor-live-cac-padlocks-before-fix.png`). The app now sets it for
+  Advanced Warfare's multiplayer as for Modern Warfare 3's (Settings,
+  Multiplayer, "Unlock all items", on unless turned off:
+  `thor-settings-unlock-all-items.png`), and with it all
+  six kinds of primary weapon and the attachments list without one
+  (`thor-live-cac-unlocked-*`). The perks, Exo abilities, scorestreaks and
+  wildcards were not paged through. The Windows game's settings file is
+  written without the switch and without a relay for this title
+  (`setup/setup.ps1`): set `MW2_UNLOCK_ALL=1` there by hand.
 
 ### Seen on Windows (RTX 5080, two copies on one PC, `MW2_NETWORK=lan`)
 
@@ -725,10 +737,8 @@ The two relay matches ran with the host's patience in the app (the log's
 both had drawn the map before. A Windows copy also joined the Flip 2's
 lobby through the relay ("Waiting for host to start game").
 
-**Open:** whether a bot leaves when a third player needs its place (the
-scripts' `fill_open`, not seen with a full team); a join by a copy that is
-silent for twenty seconds or more (above); Combat Readiness Program (not
-opened).
+**Open:** a join by a copy that is silent for twenty seconds or more
+(above); Combat Readiness Program (not opened).
 
 ### Xbox LIVE and Exo Survival (24 November 2026, Windows)
 
@@ -787,10 +797,70 @@ launch data (`MW2_LAUNCH_DATA`, hexadecimal) the menu is EXO SURVIVAL
 | One player, System Link, Bio Lab | the Exo choice, "Survive", round 1's enemies, one kill for 100 points, the player's death and the After Action Report | `pc-survival-solo-round1-*` |
 | Two players, System Link through the relay | the second copy joins the lobby, both choose an Exo and play round 1; "Survivors lost" lists both | `pc-survival-relay-two-players-copy-*` |
 
-**Not seen:** a round survived (the player is driven by timed input and
-shoots at nothing in particular); Exo Survival chosen in the campaign's own
-menu and handed over (the launch data was written by hand); Exo Survival
-under Xbox LIVE; any of this section on a device.
+More of it, and the devices, are in the next section.
+
+### The rest on the devices (24 November 2026)
+
+The app built with `-Suffix .awm` from `a94803e` and the unlock switch's
+change, on the AYN Thor and the Retroid Pocket Flip 2, both set to Online
+(the relay at `mw3.yassin.app:3074`), driven by touch over adb. The frame
+rates are the app's own counter, read from the screenshots. Evidence in
+`private-captures\aw\`.
+
+| | Seen | FPS Thor / Flip 2 | Evidence |
+|---|---|---|---|
+| Exo Survival from the campaign's menu | Main Menu, Exo Survival (Co-Op): the campaign ends, the app starts the multiplayer's library with the launch data the title left, and the menu is EXO SURVIVAL (CO-OP). Nothing written by hand, and nothing changed for it; on both devices | 119 / 60 | `thor-survival-campaign-menu-entry.png`, `thor-survival-menu-after-handover.png`, `thor-survival-lobby-biolab.png` |
+| Exo Survival, one player, by touch | System Link, Create Game, Start Game on Bio Lab; the Exo choice, round 1's enemies; the player was killed in round 1 | 119 | `thor-survival-solo-touch-round1.png` |
+| Exo Survival, the Thor hosting and the Flip 2 joining through the relay | the Flip 2 lists the game (`thor`, Bio Lab, Exo Survival, 1 (4)) and joins the lobby; both choose an Exo and play round 1. As the title is: both were killed in round 1 (After Action Report on both). With the test build below: rounds 1 to 4 on both, the same round, upgrade points (2, 4, 6) and objective clock ("Defuse Round", 0:58 and 0:57) on each | 119 / 60 | `survival-relay-*` |
+| Find Match | both choose Team Deathmatch seven seconds apart, load Comeback and play; each scoreboard lists `thor` (Atlas) and `flip` (Sentinel) | 119 / 60 | `findmatch-relay-*` |
+| A bot leaves for a player | the Thor hosts System Link with Bots at 11: twelve of twelve (`thor`, five bots with him, six against). The Flip 2 joins the match under way: `flip` is in Sentinel and the bot Ogre is gone, six a side | 115 to 119 / 60 | `botrule-*` |
+| Create a Class under Xbox LIVE | see "Unlocks" above | 119 | `thor-live-cac-*` |
+
+**The bot's leaving** was counted on Windows too, from the host's own list of
+clients (`svs` +0x207E90, a bot's +0x31B04 is 2), read from outside the
+process once a second while a second copy joined a match with `MW2_BOTS=11`:
+11 bots and 1 player until the join, 10 and 2 from the second it connected
+(`pc-mp-bot-leave-rule-*`). The earlier count of ten bots before a join was
+a misreading of a scoreboard.
+
+**Past round 1.** The executable has no `god`, `give` or `noclip` command
+and no cheat dvar (its strings were searched), and a player driven by timed
+input or by blind touches dies in round 1. So the later rounds were seen
+with a harness that is not in the source:
+
+- On Windows, a script outside the process that reads and writes the game's
+  memory thirty times a second: the first player's health is put back
+  (gentity +0x1AC), his view is turned to the nearest living enemy (the
+  player state's `delta_angles`, +0x90, against its view angles, +0x1B4)
+  and his spare ammunition refilled (the table at +0x584), while the input
+  script pulls the trigger. Rounds 1 to 5 went by with their own kills
+  (round 2's performance card: 13 kills, 5 headshots), flying drones in
+  round 5 (`pc-survival-solo-round*`, `-rounds-test-harness-sheet.png`).
+- For the two devices the same three things for the first four players
+  were built into a copy of the app as a thread on the host
+  (`MW2_AW_TEST_SURVIVAL`), installed for that one session and never
+  committed. The Flip 2 was a client of it: the rounds, points and
+  objectives it showed came from the Thor through the relay.
+
+**The upgrade stations** (Windows, the same harness, the player moved to
+the station by writing his position; its place is the first of the
+objectives in the player state, +0x139C). "Press and hold X to upgrade
+Exo." opens Choose Upgrades: Exo Class, Exo Stats, Exo Ability, Scorestreak
+Upgrades. Exo Stats' three lines are locked until rounds 10 and 15, as the
+title has them. Exo Ability lists Exo Shield for 1 point: bought, it reads
+Equipped and the upgrade points go from 4 to 3
+(`pc-survival-exo-upgrade-*`, `pc-survival-exo-ability-bought-*`). The
+weapon station and a support drop were not opened.
+
+**Seen and not explained:** in Exo Survival on Windows some wall panels of
+Bio Lab's outside were drawn as coloured noise in one run
+(`pc-survival-*` sheets), which is how the campaign's textures looked
+before the image pool's move was made. On the Thor a touch on a stick
+moved nothing during the two-player session's intermission, where it had
+turned and walked the player in the session before; not looked into.
+
+**Not seen:** a round survived on a device by play alone; Exo Survival under
+Xbox LIVE (its public matchmaking); the weapon station; Local Play.
 
 ## Frame rate on the two devices (24 November 2026)
 

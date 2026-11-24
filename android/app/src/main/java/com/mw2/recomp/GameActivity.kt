@@ -849,11 +849,14 @@ class GameActivity : AppCompatActivity(), NativeListener {
             NativeBridge.nativeSetOption("MW2_BOT_SKILL", prefs.botSkill.toString())
             NativeBridge.nativeSetOption("MW2_BOT_TEAMS", if (prefs.botsAgainstPlayers) "against" else "")
         }
-        // Modern Warfare 3's multiplayer: every item unlocked, the host's match
-        // options, the field of view and voice chat (the other titles read
-        // none of them here).
-        if (isMw3Multiplayer) {
+        // Every item unlocked: Modern Warfare 3's multiplayer and Advanced
+        // Warfare's, whose check applies under Xbox LIVE (aw_unlock_all.cpp).
+        if (isMw3Multiplayer || (isMultiplayer && Title.isAw)) {
             NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
+        }
+        // Modern Warfare 3's multiplayer: the host's match options, the field
+        // of view and voice chat (the other titles read none of them here).
+        if (isMw3Multiplayer) {
             NativeBridge.nativeSetOption("MW2_MATCH_GRAVITY", prefs.matchGravity.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_SPEED", prefs.matchSpeed.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_JUMP", prefs.matchJump.toString())

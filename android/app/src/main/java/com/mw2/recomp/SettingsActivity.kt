@@ -205,9 +205,20 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
             })
             switch(R.id.bots_against_players, prefs.botsAgainstPlayers) { prefs.botsAgainstPlayers = it }
         }
+        // Advanced Warfare has the unlock switch and none of the rest
+        // (runtime/aw_unlock_all.cpp): its own wording, since it has no
+        // camouflages or classes to add.
+        if (hasMultiplayerTab && (Title.isMw3 || Title.isAw)) {
+            findViewById<android.view.View>(R.id.unlocks_group).visibility = android.view.View.VISIBLE
+            // The wording first: the switch keeps the label it finds.
+            if (Title.isAw) {
+                findViewById<SwitchCompat>(R.id.unlock_all_items).setText(R.string.unlock_all_items_aw)
+                findViewById<TextView>(R.id.unlock_all_items_hint).setText(R.string.unlock_all_items_hint_aw)
+            }
+            switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
+        }
         if (hasMultiplayerTab && Title.isMw3) {
             findViewById<android.view.View>(R.id.mw3_multiplayer_group).visibility = android.view.View.VISIBLE
-            switch(R.id.unlock_all_items, prefs.unlockAllItems) { prefs.unlockAllItems = it }
             findViewById<Button>(R.id.camo_packs).setOnClickListener { showCamoPacks() }
 
             matchOption(R.id.match_gravity_label, R.id.match_gravity, R.string.match_gravity,

@@ -582,15 +582,20 @@ private match, End Game.
 
 Bots are in Modern Warfare 3's multiplayer, in Modern Warfare 2's disc
 version (not its title update 6) and in Call of Duty 4's; the unlocks are
-Modern Warfare 3's only. Advanced Warfare's multiplayer has bots of its own,
+Modern Warfare 3's and Advanced Warfare's. Advanced Warfare's multiplayer
+has bots of its own,
 which the same switches set through its lobby's rules (`runtime/aw_bots.cpp`,
 11 at most; [AW-BRINGUP.md](AW-BRINGUP.md#the-multiplayer)): seen on Windows,
 the Thor and the Flip 2 in System Link, hosted and joined over the local
-network and through the relay. Signed in to Live on a relay, its Find Match
-and an invited private match were seen between two copies on Windows; it
+network and through the relay, and one of them leaves a full match for a
+joining player. Signed in to Live on a relay, its Find Match was seen
+between two copies on Windows and between the Thor and the Flip 2, and an
+invited private match on Windows; it
 finds matches through its publisher's matchmaking, which the DemonWare
-stand-in answers from the relay's listings, and Exo Survival starts by
-launch data ([AW-BRINGUP.md](AW-BRINGUP.md#xbox-live-and-exo-survival-24-november-2026-windows)).
+stand-in answers from the relay's listings. Exo Survival starts from the
+campaign's menu, which hands the mode over as launch data, and `MW2_UNLOCK_ALL`
+(the app's "Unlock all items") takes the padlocks off Create a Class under
+Live ([AW-BRINGUP.md](AW-BRINGUP.md#the-rest-on-the-devices-24-november-2026)).
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a
@@ -878,6 +883,9 @@ name ("AYN Thor 5DF4", "Flip2 0218"). A pass is as above.
 | Call of Duty 4 | Private match, joined from the pause menu | Thor | Flip 2 | 2.2 min | 119 / 60 | `c4_private_*` |
 | Advanced Warfare | System Link, the match under way with the host's 6 bots (24 November 2026; evidence in `private-captures\aw\`) | Thor | Flip 2 | joined while it ran; both scoreboards list both | 119 / 59 | `relay-thor-hosts-flip-joined-*` |
 | Advanced Warfare | the same | Flip 2 | Thor | the same | 119 / 60 | `relay-flip-hosts-thor-joined-*` |
+| Advanced Warfare | Xbox LIVE, Find Match, Team Deathmatch on Comeback | Thor | Flip 2 | both scoreboards list both, on opposite teams | 119 / 60 | `findmatch-relay-*` |
+| Advanced Warfare | System Link, a full match (the host and 11 bots) | Thor | Flip 2 | joined while it ran; one bot left, six a side | 119 / 60 | `botrule-*` |
+| Advanced Warfare | Exo Survival from the campaign's menu, System Link, Bio Lab | Thor | Flip 2 | round 1 and both killed as the title is; rounds 1 to 4 with a test build that keeps the players alive | 119 / 60 | `survival-relay-*` |
 
 Screenshots in `private-captures\refine\`, logs in `private-logs\refine\`.
 
