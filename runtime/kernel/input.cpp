@@ -535,6 +535,98 @@ namespace
     std::once_flag g_scriptOnce;
     std::chrono::steady_clock::time_point g_scriptStart;
 
+    // One entry, "<seconds>:<name>[:<held>]", its time counted from `from`.
+    void AddScriptEntry(const std::string& entry, double from)
+    {
+        const size_t colon = entry.find(':');
+        if (colon == std::string::npos) return;
+        const double when = from + std::atof(entry.substr(0, colon).c_str());
+        std::string name = entry.substr(colon + 1);
+        double held = 0.2;
+        const size_t second = name.find(':');
+        if (second != std::string::npos)
+        {
+            held = std::atof(name.substr(second + 1).c_str());
+            if (held <= 0.0) held = 0.2;
+            name = name.substr(0, second);
+        }
+        uint32_t user = 0;
+        if (name.size() > 2 && name[name.size() - 2] == '@')
+        {
+            user = uint32_t(name.back() - '1') & 3;
+            name.resize(name.size() - 2);
+        }
+        const size_t before = g_script.size();
+        int axis = -1; int16_t value = 0;
+        float x = 0, y = 0;
+        if (name == "lt" || name == "rt")
+            g_script.push_back({ when, 0, name == "lt" ? 0 : 1, held });
+        else if (NamedAxis(name, axis, value))
+            g_script.push_back({ when, 0, -1, held, axis, value });
+        else if (name == "click")
+            g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Click });
+        else if (std::sscanf(name.c_str(), "at%f/%f", &x, &y) == 2)
+            g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Pointer, x, y });
+        else if (std::sscanf(name.c_str(), "turn%f/%f", &x, &y) == 2)
+            g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Turn, x, y });
+        else
+            for (const Named& button : kButtons)
+                if (name == button.name)
+                    g_script.push_back({ when, button.bit, -1, held });
+        for (size_t i = before; i < g_script.size(); i++) g_script[i].user = user;
+        if (g_script.size() > before) g_scripted[user] = true;
+    }
+
+    void AddScriptEntries(const std::string& line, double from)
+    {
+        for (size_t at = 0; at <= line.size(); )
+        {
+            size_t comma = line.find(',', at);
+            if (comma == std::string::npos) comma = line.size();
+            AddScriptEntry(line.substr(at, comma - at), from);
+            at = comma + 1;
+        }
+    }
+
+    // MW2_INPUT_LIVE=<file>: a script written while the game runs. Timed
+    // input cannot play a level: the prompt comes when it comes, and where
+    // the player ends up after ten seconds of walking is not where the
+    // script's author thought. So each line added to the file is a script
+    // whose times count from the moment the line is read, "0:ly+:3,1:a", and
+    // whoever writes it looks at the dumped frames in between. A line
+    // starting with `!` is a console command instead: "!viewpos". The file
+    // is read from where the last read ended, a line once its newline is
+    // there, ten times a second.
+    void ReadLiveScript(double now)
+    {
+        static const char* path = diag::Text("MW2_INPUT_LIVE");
+        static double next = 0.0;
+        static long offset = 0;
+        static std::string partial;
+        if (!path || now < next) return;
+        next = now + 0.1;
+        std::FILE* file = std::fopen(path, "rb");
+        if (!file) return;
+        char buffer[1024];
+        size_t got = 0;
+        if (std::fseek(file, offset, SEEK_SET) == 0)
+            while ((got = std::fread(buffer, 1, sizeof buffer, file)) > 0)
+            {
+                partial.append(buffer, got);
+                offset += long(got);
+            }
+        std::fclose(file);
+        for (size_t end; (end = partial.find('\n')) != std::string::npos; partial.erase(0, end + 1))
+        {
+            std::string line = partial.substr(0, end);
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.empty()) continue;
+            LOGI("input: live at %.2f s: %s", now, line.c_str());
+            if (line[0] == '!') console::RunNow(line.c_str() + 1);
+            else AddScriptEntries(line, now);
+        }
+    }
+
     uint16_t ScriptedButtons(uint32_t user)
     {
         if constexpr (!diag::kOn) return 0;
@@ -542,52 +634,7 @@ namespace
             g_scriptStart = std::chrono::steady_clock::now();
             const char* text = diag::Text("MW2_INPUT_SCRIPT");
             if (!text) return;
-            for (const char* at = text; *at; )
-            {
-                const char* comma = std::strchr(at, ',');
-                std::string entry(at, comma ? comma - at : std::strlen(at));
-                const size_t colon = entry.find(':');
-                if (colon != std::string::npos)
-                {
-                    const double when = std::atof(entry.substr(0, colon).c_str());
-                    std::string name = entry.substr(colon + 1);
-                    double held = 0.2;
-                    const size_t second = name.find(':');
-                    if (second != std::string::npos)
-                    {
-                        held = std::atof(name.substr(second + 1).c_str());
-                        if (held <= 0.0) held = 0.2;
-                        name = name.substr(0, second);
-                    }
-                    uint32_t user = 0;
-                    if (name.size() > 2 && name[name.size() - 2] == '@')
-                    {
-                        user = uint32_t(name.back() - '1') & 3;
-                        name.resize(name.size() - 2);
-                    }
-                    const size_t before = g_script.size();
-                    int axis = -1; int16_t value = 0;
-                    float x = 0, y = 0;
-                    if (name == "lt" || name == "rt")
-                        g_script.push_back({ when, 0, name == "lt" ? 0 : 1, held });
-                    else if (NamedAxis(name, axis, value))
-                        g_script.push_back({ when, 0, -1, held, axis, value });
-                    else if (name == "click")
-                        g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Click });
-                    else if (std::sscanf(name.c_str(), "at%f/%f", &x, &y) == 2)
-                        g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Pointer, x, y });
-                    else if (std::sscanf(name.c_str(), "turn%f/%f", &x, &y) == 2)
-                        g_script.push_back({ when, 0, -1, held, -1, 0, 0, Press::Mouse::Turn, x, y });
-                    else
-                        for (const Named& button : kButtons)
-                            if (name == button.name)
-                                g_script.push_back({ when, button.bit, -1, held });
-                    for (size_t i = before; i < g_script.size(); i++) g_script[i].user = user;
-                    if (g_script.size() > before) g_scripted[user] = true;
-                }
-                if (!comma) break;
-                at = comma + 1;
-            }
+            AddScriptEntries(text, 0.0);
             static const char* kAxisNames[4] = { "left stick X", "left stick Y",
                                                  "right stick X", "right stick Y" };
             for (const Press& press : g_script)
@@ -597,6 +644,9 @@ namespace
                                      : press.trigger ? "right trigger" : "left trigger",
                      press.at, press.held, press.bit);
         });
+        if (user == 0)
+            ReadLiveScript(std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - g_scriptStart).count());
         g_scriptTriggers[user][0] = g_scriptTriggers[user][1] = 0;
         for (int i = 0; i < 4; i++) { g_scriptAxes[user][i] = 0; g_scriptAxisHeld[user][i] = false; }
         if (user == 0) g_scriptMouse.pointing = g_scriptMouse.click = g_scriptMouse.turning = false;

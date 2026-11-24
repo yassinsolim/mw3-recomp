@@ -713,9 +713,12 @@ else
             step "adb push the install disc's packages (4 GB) to the app's dlc folder"
             dlc=/sdcard/Android/data/$APP_PACKAGE/files/dlc
             "$ADB" -s "$serial" shell "mkdir -p $dlc"
+            # adb reads its standard input to the end, and in this loop that
+            # is the list of packages: the first one's adb took the second's
+            # name and one package of the two reached the phone.
             while IFS= read -r package; do
-                there=$("$ADB" -s "$serial" shell "stat -c %s $dlc/$(basename "$package") 2>/dev/null || echo 0" | tr -d '\r')
-                [ "$there" = "$(stat -c %s "$package")" ] || "$ADB" -s "$serial" push "$package" "$dlc/$(basename "$package")" > /dev/null
+                there=$("$ADB" -s "$serial" shell "stat -c %s $dlc/$(basename "$package") 2>/dev/null || echo 0" < /dev/null | tr -d '\r')
+                [ "$there" = "$(stat -c %s "$package")" ] || "$ADB" -s "$serial" push "$package" "$dlc/$(basename "$package")" < /dev/null > /dev/null
             done < <(find "$INSTALL_FOLDER" -type f)
         fi
         if [ -n "$ISO" ] && { [ "$PUSH_ISO" = 1 ] || ask "Copy the disc image to the phone's Download folder for the app's installer (7-8 GB, several minutes)?" n; }; then
