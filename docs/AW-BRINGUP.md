@@ -305,7 +305,7 @@ beside it as they come off the disc.
 | Sound | the mixer runs (frames submitted, none dropped); checked since by what is said in it (at the end) | the same logs |
 | New Game from the menu, a second level, a save written and loaded | **verified** since (at the end); a level played to its end and a checkpoint within one are **open** | |
 | The multiplayer: its main menu and Options | **verified**, 60 presents a second | `pc-mp-main-menu.png`, `pc-mp-main-menu-options-sheet.png`, `.log` |
-| A multiplayer map, bots, a system link | **not run** | |
+| A multiplayer map, bots, a system link | **verified**, below ("The multiplayer") | `pc-mp-*` |
 | `setup\setup.cmd -Game aw -Build pc` from the two images | **verified**: both trees as expected (207 and 204 files, 210 and 230 tables, 415 stepped), `out\pc-aw` starts and mounts the packages from `aw\install` | |
 
 ### Android (AYN Thor, `com.aw.recomp.aw`, built by `setup.ps1 -Game aw -Build android -Suffix .aw`)
@@ -467,3 +467,91 @@ was **not measured**.
 spent 75 s of the pod below 30 presents a second; the PC was shared with
 other builds at the time. Timed input is also why two runs stopped where
 they did: a prompt came after the presses meant for it had ended.
+## The multiplayer
+
+State on 24 November 2026: on Windows a System Link match is hosted, played
+with the title's own bots and joined by a second copy over the local
+network. Through the relay the game is listed and the session joined, and the
+joiner is then dropped while the level loads (**open**). Nothing of it has
+been run on a device: the app (`-Suffix .awm`) was being built when the work
+stopped.
+
+### What the executable has (derived, from `default_mp.pe`)
+
+Strings and the code that loads their addresses, read with capstone over
+`tools/title.py`'s image.
+
+| What | Address | Found by |
+|---|---|---|
+| `SV_AddBot(name)` | `824120C0` | one of two users of `connect bot%d "%s\name\%s\qport\%d\ctz\%s"` (`8208F0B0`); returns the bot's gentity |
+| `SV_AddTestClient` | `824123F0` | the other; names its client `tcBot%d` |
+| `SV_DirectConnect` | `82411388` | both call it with the address by value in `r3:r4` (type 0, the bot's port); `error\nEXE_SERVERISFULL` is its |
+| the server's argv tokeniser | `824A2830` | `(text, 512 - pool[0x4820], args 838229A0, pool 83819950)`, called before it, as Call of Duty 4's |
+| `NET_CompareAdr` | `82479FF0` | compares a client's address (+0x28, 16 bytes) with the new one |
+| `svs` | `83D48780` | `SV_AddBot`'s `lis/addi`; +0x207E8C the client count, +0x207E90 the clients, +0x2134D0 the next bot's port |
+| a server client | 0x77A80 bytes | the loop's step; +0 the state (0 free), +0x28 the address, +0x31B04 set to 2 for a bot |
+| a gentity | 640 bytes | `SV_AddBot`'s return: `[83F5C680 + 0xC73C] + number * 640` |
+| the match rules | `82247CE0(which, reset)`, blocks of 0x28 bytes at `84779560` | every bot setting of the menus goes through it |
+| the bots' defaults | `82247A98` | the leaf that fills +0x20..+0x24 from `bot_AutoConnectDefault` and `bot_DifficultyDefault` |
+| the Lobby menu functions | table at `82060180`.. | `SetBotsTeamLimit` `82717800`, `SetBotsDifficulty` `82717AF0`, `SetBotsConnectType` `82718110`, `BotsAreAllowed` `82714A80`; `RemoveMemberBot` (`827168E0`) reads its arguments and does nothing on this console |
+| `luaL_error` | `827636B8` | 1160 callers, all in the Lua library |
+| the commands of `CL_Init` | `82601830` | `xstartlobby`, `xstartprivateparty`, `xstartprivatematch`, `xpartygo`, `connect`, `disconnect`, `startSingleplayer`; the dvars `systemlink` (`82B0CE38`), `onlinegame` (`839B200C`), `xblive_privatematch` (`84215734`) |
+| the item check | `82495080(controller, stats, table, row, int* needed)`, through `82496258` | the users of `mp/unlocktable.csv`; 0 is unlocked |
+| the image pool's move | `822AEAA8` | the campaign's, laid beside it (found by the campaign's work) |
+
+Only the bots' defaults, the match rules' address, `luaL_error` and the
+image pool's move are entries of `runtime/title.h`: nothing else is called.
+The usercmd and the client states were not needed and not derived: the bots
+think in the engine.
+
+**Why `devmap` does nothing here.** The multiplayer's executable has no
+such command: the strings `devmap`, `fast_restart` and `spdevmap` are in the
+campaign's and not in it. A map starts from a lobby: Create Game, then
+Start Game (the party's `go <map> <game type>` to every member).
+
+### What was changed
+
+- **The network** (`kernel/net.cpp`, `online/service.cpp`). The menu asks for
+  the Ethernet link before System Link or Xbox LIVE opens; it is up when an
+  online service started, as for Modern Warfare 3. The title's two sockets
+  (port 1000, the voice and data protocol, and port 1001, UDP) are the
+  service's; with none they stay on the loopback. The copy is not signed in
+  to Live: choosing Xbox LIVE asks `XamQueryLiveHiveA` and `XHttp`, which
+  nothing answers, and the title says its service is not available.
+- **Bots** (`runtime/aw_bots.cpp`). `MW2_BOTS`, `MW2_BOT_SKILL`,
+  `MW2_BOT_TEAMS` and the console's `bots` line write the lobby's own bot
+  rules (the smaller half friendly, the rest enemy, connect type
+  `fill_open`); the scripts of `common_bots_mp.ff` add the bots, which walk
+  the maps' path data, boost-jump and use their classes. `runtime/bots.cpp`
+  is not used. Game Setup's Friendly Bots and Enemy Bots still decide when
+  the player sets them. At most 11.
+- **The streamed images' move** (`T_Image_FlushMove`): without it most
+  world and weapon textures were noise.
+- **Unlocks: nothing.** In System Link, Create a Class lists every weapon
+  and all seventeen attachments of a rank 1 profile without a padlock
+  (`pc-mp` runs, 24 November); a hook on the item check was written, found
+  to have nothing to do there, and taken out. Under Xbox LIVE the check
+  applies, and that menu is not reachable.
+
+### Seen on Windows (RTX 5080, two copies on one PC, `MW2_NETWORK=lan`)
+
+Driven by `MW2_INPUT_SCRIPT`: Down, Down, A (System Link), Down, A (Create
+Game), A (Start Game), A (Auto-Assign), A (the first class). The map was
+chosen with `set ui_mapname <map>` from the console before Start Game, which
+loads that map but leaves the lobby naming the other one: a second copy
+then cannot join ("Unable to join game session"), so the joins below are on
+the lobby's own map. Evidence in `private-captures\aw\`.
+
+| | Seen | Evidence |
+|---|---|---|
+| Team Deathmatch on Ascend (`mp_refraction`), `MW2_BOTS=6`, 5 minutes | three bots a side, 16 to 19 at 5:01; 60 presents a second, 56.3 frames a second in play over the run with its loading | `pc-mp-ascend-6-bots-scoreboard.png`, `-sheet.png`, `.log` |
+| The same on Bio Lab (`mp_lab2`) | 22 to 13 at 5:11; 57.4 | `pc-mp-biolab-6-bots-*` |
+| Detroit, Retreat | loaded and played; `bots 9` from the console in a match brought the bots to nine | not kept |
+| A second copy joins a lobby | "Waiting for host to start game", both listed | not kept |
+| A second copy joins a match with `MW2_BOTS=11` | the server had ten bots (four friendly, six enemy: the scripts keep the host's place in his team's six) and the player took the twelfth slot; both scoreboards list him | `pc-mp-leave-rule-*` |
+| The same through the relay (`mw3.yassin.app:3074`) | the game listed, the session joined, the level's loading screen, then "Server Disconnected" | `pc-mp-relay-*` |
+
+**Open:** the relay; whether a bot leaves when a third player needs its
+place (the scripts' `fill_open`, not seen with a full team); Exo Survival
+and Combat Readiness Program (not opened); the multiplayer on the Thor and
+the Flip 2; the frame rates there.

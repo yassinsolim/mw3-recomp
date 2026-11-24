@@ -31,6 +31,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - `MW2_AUDIO_DUMP=<file.wav>` writes the title's mix as it submits it, for
   checking the sound of a run nobody listened to
   ([docs/switches.md](docs/switches.md)).
+- **Advanced Warfare's multiplayer plays a System Link match on Windows**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-multiplayer)): hosted from
+  Create Game on Ascend, Bio Lab, Detroit and Retreat, and joined by a second
+  copy over the local network. `MW2_BOTS`, `MW2_BOT_SKILL`, `MW2_BOT_TEAMS`
+  and the console's `bots` line set the title's own bots (11 at most), which
+  use the maps' paths and the exo's jumps. The title has a network link when
+  a service started and its sockets are the service's, as Modern Warfare
+  3's. Its streamed textures are no longer noise (`T_Image_FlushMove`).
+  Create a Class needs no unlock switch in System Link. Not working yet:
+  a match through the relay (the joiner is dropped while the level loads)
+  and Xbox LIVE; not run: any device.
 
 ### Fixed
 - `NtCreateSemaphore` read its counts from the registers of Windows' call,

@@ -581,7 +581,11 @@ private match, End Game.
 
 Bots are in Modern Warfare 3's multiplayer, in Modern Warfare 2's disc
 version (not its title update 6) and in Call of Duty 4's; the unlocks are
-Modern Warfare 3's only.
+Modern Warfare 3's only. Advanced Warfare's multiplayer has bots of its own,
+which the same switches set through its lobby's rules (`runtime/aw_bots.cpp`,
+11 at most; [AW-BRINGUP.md](AW-BRINGUP.md#the-multiplayer)): seen on Windows
+in System Link, hosted and joined over the local network, not yet through
+the relay nor on a device.
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a
