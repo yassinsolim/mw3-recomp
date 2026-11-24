@@ -16,7 +16,11 @@ and the campaign reaches its main menu and plays its first level (Seoul) with
 the right exposure on Windows at 60 frames a second and on the AYN Thor at
 119; the multiplayer reaches its main menu on Windows. A first run goes
 Brightness, Safe Area, main menu, each of the two asking for an adjustment
-before it takes A.
+before it takes A. Since then, on Windows: New Game, Resume Game and Mission
+Select from the menus, Seoul to its rooftop and Atlas to its funeral, the
+textures put right and the sound checked by what is said in it
+("The campaign from its menus", at the end). No level has been played to
+its end.
 
 ## The two discs
 
@@ -170,13 +174,29 @@ the two packages on the Thor); by hand it is as
   `[[midasm_hook]]` calling `runtime/recomp/ppc_extra_instructions.cpp`, as
   Call of Duty 4's two are, written by `tools/extra_instructions.py` from the
   recompiler's own report. `patches/xenonrecomp-mw2.patch` is untouched.
-  **Not verified one by one**: no test compares them with the console's
-  results, and which of them the runs below go through was not looked at.
+  **Verified against their definitions**
+  (`tests/ppc_extra_instructions_test.cpp`, registered with `ctest` where the
+  recompiler's checkout is): each of the twelve and both unpacks, through
+  registers laid out as the recompiler keeps them, against a model written
+  in the console's terms (a vector as sixteen bytes, its elements
+  big-endian) with no host vector instruction in it: cases worked out by
+  hand, 20,000 random pairs each with the result register also one of the
+  operands, and for the unpacks every one of the 65,536 half floats in each
+  place one is read from. All fourteen are as defined; none was changed.
+  Run on x86-64 with and without optimisation. The same check is built for
+  arm64 (the code the phones run takes other paths through SIMDe) and was
+  **not run** on a device. The encodings were read again in the image
+  (`vpkuwus128` and `vpkuhus128` as Xenia's tables have them, the registers
+  of the VMX128 forms, `bdnzt`'s condition bit, `vupkd3d128`'s kinds 3 and
+  5). What the test does not say: whether the 415 places are the only ones
+  that need a function (the recompiler's report is taken for that), and
+  `vaddsws` does not set the saturation flag, which nothing here reads.
 - **Two kinds of `vupkd3d128` the recompiler traps on** (half floats, two
   and four to a vector: four places in the campaign, five in the
   multiplayer). The first level's drawing stopped at one. Hooks of the same
-  kind (`PpcVupkd3dHalf2`, `PpcVupkd3dHalf4`); the level's geometry is right
-  with them, which is all that checks them.
+  kind (`PpcVupkd3dHalf2`, `PpcVupkd3dHalf4`), checked with the others: two
+  halves are halfwords 6 and 7 and give (x, y, 0, 1), four are halfwords 4
+  to 7, and an exponent of all ones is a number, as Xenia's unpack has them.
 
 ## The title blocks
 
@@ -201,8 +221,10 @@ this executable whose instructions' kinds, in order, are nearest, then read.
 
 Located and not entered: the shader hand-over at load
 (`T_D3D_PatchVertexFetches` is `820E54C0`, MW3's instruction for
-instruction; `T_D3D_InitPixelShader` `820DB2B8` by `tools/port_hooks.py`) and
-`T_Image_FlushMove` (`825A91F0`, 0.85). Not located: the video sizes (three
+instruction; `T_D3D_InitPixelShader` `820DB2B8` by `tools/port_hooks.py`).
+`T_Image_FlushMove` (`825A91F0` in the campaign, `822AEAA8` in the
+multiplayer) is entered since the textures were put right (at the end).
+Not located: the video sizes (three
 functions call `XGetVideoMode` in the campaign), the frame-rate dvar, and
 everything of the engine's own.
 
@@ -280,8 +302,8 @@ beside it as they come off the disc.
 | The first run's two screens, then the main menu (Campaign, Multiplayer, Exo Survival), the Campaign menu, Intel, back | **verified** from an empty profile with the pad alone: Start, a direction on Brightness, A, a direction each way on Safe Area, A (below) | `pc-first-run-brightness-safe-area-main-menu-sheet.png`, `.log`; the menus themselves `pc-sp-main-menu-campaign-sheet.png` |
 | A level: Seoul by `devmap seoul`, its opening movie, the drop pod, the save-device dialog, the pause menu, the Exo Type card | **verified**, 60 presents a second, 54,000 draws a second, no fault | `pc-seoul-ingame-exposure-fixed-sheet.png`, `.log`, `pc-seoul-pause-menu.png` |
 | Exposure | **verified** right with the write-back; before and after are `pc-seoul-ingame-overexposed-sheet.png` and `pc-seoul-ingame-exposure-fixed-sheet.png` | |
-| Sound | the mixer runs (frames submitted, none dropped); **not listened to** | the same logs |
-| New Game from the menu, a second level, a save written and loaded | **not run** | |
+| Sound | the mixer runs (frames submitted, none dropped); checked since by what is said in it (at the end) | the same logs |
+| New Game from the menu, a second level, a save written and loaded | **verified** since (at the end); a level played to its end and a checkpoint within one are **open** | |
 | The multiplayer: its main menu and Options | **verified**, 60 presents a second | `pc-mp-main-menu.png`, `pc-mp-main-menu-options-sheet.png`, `.log` |
 | A multiplayer map, bots, a system link | **not run** | |
 | `setup\setup.cmd -Game aw -Build pc` from the two images | **verified**: both trees as expected (207 and 204 files, 210 and 230 tables, 415 stepped), `out\pc-aw` starts and mounts the packages from `aw\install` | |
@@ -308,7 +330,8 @@ what the script does (every section of code, the `addi` form) and writes
 the script's tables to the byte for both of this title's executables and
 both of Call of Duty 4's (**verified** on this PC, in a unit test against
 the script's output); the build itself was **not run** on a device.
-`setup/setup.sh` (Linux) does not know this title.
+`setup/setup.sh` (Linux) knows this title since (`--game aw`,
+`--install-iso`); it was **not run** from end to end.
 
 ### The other titles
 
@@ -385,16 +408,14 @@ them: controller 0 is the first active one, its profile is signed in, and
 
 ## Open, in the order it matters
 
-1. New Game from the menu, the other levels, saving.
-2. The multiplayer past its menu; its title block has none of the engine's
-   entries (bots, client states, the relay). `devmap mp_detroit` from the
-   console at its menu did nothing (**verified** on Windows: no fastfile
-   opened, no error, the menu stayed), so no multiplayer map has loaded.
-3. The twelve stepped-over instructions and the two half-float unpacks
-   against known results.
-4. `setup/setup.sh` for this title, and the build kit run on a device (it
-   is in the app; `InTextTables.kt` was checked against the script on this
-   PC, the build itself was not run).
+1. A level played to its end and the next one started by it; a checkpoint
+   within a level, written and resumed. Neither has been seen.
+2. Everything on the Retroid Pocket Flip 2: the campaign's flow, its frame
+   rate, the stepped-over instructions' check on arm64, and the build kit
+   run on a device (it is in the app; `InTextTables.kt` was checked against
+   the script on a PC, the build itself was not run).
+3. The multiplayer (the `aw-mp` branch has its own notes).
+4. `setup/setup.sh` for this title from end to end on Linux.
 
 ## After merging `android` in (24 November 2026)
 
@@ -406,3 +427,43 @@ tables, in-text tables and extents are still what `config/abi/` and
 `origin/android` give; the 17 standalone tests (`-DMW2_TESTS_ONLY=ON`,
 Ubuntu under WSL) pass, and so do the validation workflow's tool checks.
 The other titles were **not** rebuilt after the merge.
+
+## The campaign from its menus (24 November 2026, Windows)
+
+Driven by `MW2_INPUT_SCRIPT` from an empty profile; evidence in
+`private-captures\aw\` as before. The PC had no sound device during these
+runs, so the sound is the mix as the title submitted it
+(`MW2_AUDIO_DUMP`), not what a speaker played.
+
+| | State | Evidence |
+|---|---|---|
+| New Game: Campaign, New Game, the autosave notice, Select Difficulty, Seoul's loading movie | **verified** | `pc-newgame-from-menu-sheet.png`, `.log` |
+| Seoul: the Exo Type card, the drop pod, "Tap X to Pull Lever", "LT or RT to Release Harness", "RS to Open Hatch", the rooftop with the weapon in hand and the objective marker | **verified**; no further: the player was turned and walked by timed input and did not find the way down | `pc-seoul-resume-pod-rooftop-textures-fixed-sheet.png`, `.log` |
+| A save: `saves/savegame.svg/savegame.svg`, 1,181,466 bytes, its header naming `seoul` and "Start Level Save" | **verified** written at the level's start | the log's `content: mounted save0:` lines |
+| Resume Game: "Resume Game?", the save opened, the level from its start | **verified** for Seoul and for Atlas | `pc-resume-game-dialog-sheet.png` |
+| A checkpoint within a level | **open**: the save did not change in any run, and none got far enough to say whether it should have | |
+| Mission Select: the first mission's card and the row of missions; the later ones dimmed and not selectable on a profile that has only started Seoul | **verified** | `pc-mission-select.png`, `pc-mission-select-locked-without-mis-cheat.png` |
+| Atlas (`recovery`), chosen in Mission Select with the title's own `set mis_cheat 1` from the console: the warning that the mission's progress is overwritten (No is the default), Select Difficulty, its loading movie, the Exo Type card, the funeral, "X To Pay Respects"; its start save written (785,421 bytes) | **verified**; no further | `pc-atlas-from-mission-select-sheet.png`, `.log` |
+| Sound: the movies' narration and the levels' speech | **verified** by transcribing the dump: Seoul's "We come into this world with our eyes closed", the pod's countdown and "Mitchell, now!", the rooftop's orders; Atlas's eulogy. In a level the speech is in the front pair and the centre is silent | `pc-seoul-audio-transcript.txt`, `pc-atlas-audio-transcript.txt` |
+| A level's end and the next level from it | **open** | |
+
+**The textures.** From Seoul's first minute buildings, faces and the pod were
+drawn as coloured noise, different in every run
+(`pc-seoul-textures-noise-before-image-move-sheet.png`). The textures read
+from guest memory were noise themselves (`MW2_DUMP_TEXTURES`), some in
+whole and some in quarters, and reading them again at every use changed
+nothing, so the memory held it. The title keeps its streamed images in a
+pool it compacts (`sub_822C8628` loads them, `sub_825A9A40` allocates), and
+moves a block by having the GPU copy it: a vertex shader's memory export,
+which this renderer does not do. The earlier titles' hook makes the copy at
+its draw (`runtime/image_move.cpp`); this title's function was located and
+not entered. Entered (`T_Image_FlushMove`, its arguments and the copy
+draw's stream constant read in the function), the picture is right. The
+pool is busy: 144,279 blocks moved in 400 s of Seoul, and the texture
+report counts a million signings after its copies, whose cost on a phone
+was **not measured**.
+
+**Seen and not explained.** One run of three with the same build and input
+spent 75 s of the pod below 30 presents a second; the PC was shared with
+other builds at the time. Timed input is also why two runs stopped where
+they did: a prompt came after the presses meant for it had ended.
