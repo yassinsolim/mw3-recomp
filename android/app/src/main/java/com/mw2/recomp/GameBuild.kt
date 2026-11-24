@@ -288,17 +288,50 @@ object GameBuild {
      * here is checked against the app's record of the system calls.
      */
     private fun writeSharedHeader(context: Context, tree: File) {
-        val defined = Regex("(?:PPC_FUNC_IMPL|PPC_WEAK_FUNC)\\(([A-Za-z_][A-Za-z0-9_]*)\\)")
-        val called = Regex("\\b([A-Za-z_][A-Za-z0-9_]*)\\(ctx, base\\)")
-        val mapped = Regex("\\{ 0x[0-9A-F]+, ([A-Za-z_][A-Za-z0-9_]*) \\}")
+        // The script's three patterns, looked for by hand: a regular
+        // expression over the tree's 60 MB took the device over a minute.
+        //   (PPC_FUNC_IMPL|PPC_WEAK_FUNC)\((name)\)     a definition
+        //   \b(name)\(ctx, base\)                      a call
+        //   \{ 0x[0-9A-F]+, (name) \}                   a row of the function table
         val definitions = HashSet<String>()
         val references = HashSet<String>()
+        fun word(c: Char) = c == '_' || c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9'
+        fun name(text: String, from: Int, to: Int): String? =
+            if (to > from && !(text[from] in '0'..'9')) text.substring(from, to) else null
         for (file in sources(tree) + File(tree, "ppc_func_mapping.cpp")) {
             check()
-            val source = file.readBytes().toString(Charsets.ISO_8859_1)
-            defined.findAll(source).forEach { definitions.add(it.groupValues[1]) }
-            called.findAll(source).forEach { references.add(it.groupValues[1]) }
-            mapped.findAll(source).forEach { references.add(it.groupValues[1]) }
+            val text = file.readBytes().toString(Charsets.ISO_8859_1)
+            for (opening in listOf("PPC_FUNC_IMPL(", "PPC_WEAK_FUNC(")) {
+                var at = text.indexOf(opening)
+                while (at >= 0) {
+                    val from = at + opening.length
+                    var to = from
+                    while (to < text.length && word(text[to])) to++
+                    if (to < text.length && text[to] == ')') name(text, from, to)?.let { definitions.add(it) }
+                    at = text.indexOf(opening, to)
+                }
+            }
+            var at = text.indexOf("(ctx, base)")
+            while (at >= 0) {
+                var from = at
+                while (from > 0 && word(text[from - 1])) from--
+                // The whole word before the bracket, as the pattern's \b has
+                // it: one that starts with a digit is no name at all.
+                name(text, from, at)?.let { references.add(it) }
+                at = text.indexOf("(ctx, base)", at + 1)
+            }
+            at = text.indexOf("{ 0x")
+            while (at >= 0) {
+                var digits = at + 4
+                while (digits < text.length && (text[digits] in '0'..'9' || text[digits] in 'A'..'F')) digits++
+                if (digits > at + 4 && text.startsWith(", ", digits)) {
+                    val from = digits + 2
+                    var to = from
+                    while (to < text.length && word(text[to])) to++
+                    if (text.startsWith(" }", to)) name(text, from, to)?.let { references.add(it) }
+                }
+                at = text.indexOf("{ 0x", at + 1)
+            }
         }
         references.remove("PPC_CALL_INDIRECT_FUNC")
         val header = StringBuilder(context.assets.open("buildkit/shared_header_prefix.h").bufferedReader().use { it.readText() })
@@ -372,9 +405,10 @@ object GameBuild {
 
     /**
      * How many compilers may run now, and what holds the number down. One
-     * compiler of a recompiled file takes about [JOB_MB] of memory at its
-     * peak (seen on the AYN Thor), and the system ends the whole build if
-     * they take what it needs for itself; a device that says it is hot, or
+     * compiler of a recompiled file takes up to 250 MB (eight of them 1.4 GB
+     * together, on the AYN Thor); [JOB_MB] leaves room for a larger file,
+     * since the system ends the whole build if the compilers take what it
+     * needs for itself; a device that says it is hot, or
      * whose battery is, gets half of them, and one alone when it is worse.
      */
     private fun jobs(context: Context, running: Int, ceiling: Int, measures: Measures): Pair<Int, String> {
@@ -640,6 +674,6 @@ object GameBuild {
     }
 
     /** One compiler's memory at its peak, and what is left to the system, in megabytes. */
-    private const val JOB_MB = 900L
-    private const val RESERVE_MB = 1200L
+    private const val JOB_MB = 400L
+    private const val RESERVE_MB = 1000L
 }

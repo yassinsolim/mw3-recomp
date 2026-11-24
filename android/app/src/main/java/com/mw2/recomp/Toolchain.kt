@@ -11,7 +11,7 @@ import org.json.JSONObject
 /**
  * The compiler and the recompiler, for building the game code on this device
  * (GameBuild.kt, docs/ondevice-build.md). They are a package of their own,
- * [PACKAGE], published beside the app: Android runs a program only from a
+ * com.recomp.toolchain, published beside the app: Android runs a program only from a
  * package's library folder, never from a file an app wrote, so the programs
  * are that package's "libraries" (libllvm.so is clang and the linker in one,
  * libXenonRecomp.so, libXenonAnalyse.so), and this app starts them from there.
