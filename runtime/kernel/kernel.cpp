@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "xex_module_handle.h"
+#include "xex_header.h"
 #include "title.h"
 #include "heap.h"
 #include "../guest.h"
@@ -7,6 +8,7 @@
 #include "../log.h"
 #include <map>
 #include <mutex>
+#include <set>
 #include <vector>
 #include <chrono>
 #include <atomic>
@@ -141,6 +143,110 @@ namespace
              importRecord, handleSlot, ldrAddress, headerAddress, xexHeader.size());
     }
 #endif
+
+#if defined(AW_TITLE)
+    // The kernel's variables, which an executable imports as it does the
+    // kernel's functions: its record for one holds, once loaded, the
+    // variable's address. Advanced Warfare's D3D9 (XDK 21256) enters
+    // VdHSIOCalibrationLock around VdRetrainEDRAM as the device is made, and a
+    // record left as the file has it (library and ordinal, 0x000101C1) is the
+    // critical section it then spins on. Each variable here gets storage of its
+    // own with what a console's would hold; the three the earlier titles read
+    // have installers of their own (above, and misc.cpp).
+    //
+    // The records are read from the XEX header's import table (key 0x103FF:
+    // the libraries' names, then for each library the addresses of its
+    // records), not looked for in the image by their value: 0x0001000E is not
+    // rare enough a word for that. A variable's record has no type in its top
+    // byte, as a function's first record has not, but a function has a second
+    // one, of type 1, where its thunk is.
+    std::map<uint16_t, uint32_t> KernelVariableRecords()
+    {
+        std::map<uint16_t, uint32_t> variables;
+        const uint32_t table = kernel::xex::ImageHeaderField(guest::Base(), g_executableXexHeader, 0x103FF);
+        if (!table) return variables;
+        const uint32_t namesSize = *GuestPtr<be32>(table + 4);
+        const uint32_t libraries = *GuestPtr<be32>(table + 8);
+        const char* names = GuestPtr<char>(table + 12);
+        uint32_t library = table + 12 + namesSize;
+        for (uint32_t i = 0; i < libraries; i++)
+        {
+            const uint32_t size = *GuestPtr<be32>(library);
+            // The name's number counts the table's strings, each padded to four bytes.
+            uint32_t wanted = uint16_t(*GuestPtr<be16>(library + 36)) & 0xFF, at = 0;
+            while (wanted && at < namesSize)
+            {
+                at += uint32_t(strnlen(names + at, namesSize - at)) + 1;
+                at = (at + 3) & ~3u;
+                wanted--;
+            }
+            if (at < namesSize && std::strncmp(names + at, "xboxkrnl.exe", namesSize - at) == 0)
+            {
+                std::set<uint16_t> thunked;
+                const uint32_t count = uint16_t(*GuestPtr<be16>(library + 38));
+                for (uint32_t r = 0; r < count; r++)
+                {
+                    const uint32_t record = *GuestPtr<be32>(library + 40 + r * 4);
+                    const uint32_t value = *GuestPtr<be32>(record);
+                    if ((value >> 24) == 1) thunked.insert(uint16_t(value));
+                    else if ((value >> 24) == 0) variables[uint16_t(value)] = record;
+                }
+                for (uint16_t ordinal : thunked) variables.erase(ordinal);
+            }
+            library += size;
+        }
+        return variables;
+    }
+
+    void InstallKernelVariables()
+    {
+        struct Variable { uint16_t ordinal; const char* name; uint32_t size; void (*fill)(uint32_t address); };
+        static const Variable kVariables[] = {
+            // An object type is known by its address alone.
+            { 0x00E, "ExEventObjectType", 16, nullptr },
+            { 0x01B, "ExThreadObjectType", 16, nullptr },
+            // The command line the title was started with: none.
+            { 0x1AE, "ExLoadedCommandLine", 512, nullptr },
+            // { flags, processors, ... }: a hard disk (0x20), six hardware threads.
+            { 0x156, "XboxHardwareInfo", 16, [](uint32_t a) { *GuestPtr<be32>(a) = 0x20; *GuestPtr<uint8_t>(a + 4) = 6; } },
+            // { major, minor, build, qfe }: the last system software, 2.0.17559.0.
+            { 0x158, "XboxKrnlVersion", 8, [](uint32_t a) { *GuestPtr<be16>(a) = 2; *GuestPtr<be16>(a + 4) = 17559; } },
+            // The devices D3D9 and the system's interface register: none yet.
+            { 0x1BE, "VdGlobalDevice", 4, nullptr },
+            { 0x1BF, "VdGlobalXamDevice", 4, nullptr },
+            { 0x1C0, "VdGpuClockInMHz", 4, [](uint32_t a) { *GuestPtr<be32>(a) = 500; } },
+            // An RTL_CRITICAL_SECTION nobody holds (sync.cpp): a synchronisation
+            // event with an empty wait list, a lock count of -1.
+            { 0x1C1, "VdHSIOCalibrationLock", 28, [](uint32_t a) {
+                  *GuestPtr<uint8_t>(a) = 1;
+                  *GuestPtr<be32>(a + 8) = a + 8;
+                  *GuestPtr<be32>(a + 12) = a + 8;
+                  *GuestPtr<be32>(a + 16) = uint32_t(-1);
+              } },
+            // No certification monitor.
+            { 0x266, "KeCertMonitorData", 4, nullptr },
+        };
+        const std::map<uint16_t, uint32_t> records = KernelVariableRecords();
+        for (const Variable& variable : kVariables)
+        {
+            // Not every executable imports every one (the campaign has no ExEventObjectType).
+            const auto found = records.find(variable.ordinal);
+            if (found == records.end()) continue;
+            const uint32_t record = found->second;
+            const uint32_t address = kernel::AllocateGuest(variable.size, 16);
+            if (!address) { LOGE("%s: no guest memory for the kernel's variable", variable.name); continue; }
+            std::memset(guest::Base() + address, 0, variable.size);
+            if (variable.fill) variable.fill(address);
+            *GuestPtr<be32>(record) = address;
+            LOGI("%s: import %08X -> %08X", variable.name, record, address);
+        }
+        // The three installed before this are pointers by now; what is left
+        // with its ordinal in it is a variable this table does not know.
+        for (const auto& [ordinal, record] : records)
+            if (uint32_t(*GuestPtr<be32>(record)) == (0x00010000u | ordinal))
+                LOGW("the kernel's variable of ordinal %03X (import %08X) is not provided", ordinal, record);
+    }
+#endif
 }
 
 namespace
@@ -183,6 +289,9 @@ void kernel::Initialise(const std::filesystem::path& gameRoot, const std::vector
     InstallExecutableModuleHandle(xexHeader);
 #else
     (void)xexHeader;
+#endif
+#if defined(AW_TITLE)
+    InstallKernelVariables();
 #endif
     g_gameRoot = gameRoot;
     LOGI("game root: %s%s", gameRoot.string().c_str(),

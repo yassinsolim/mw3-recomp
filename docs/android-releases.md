@@ -61,6 +61,15 @@ Every run of the filter has to drop both, beside what it already drops:
 
     git filter-repo --invert-paths --path android/toolchain/build/ --path android/toolchain-probe/build/
 
+Advanced Warfare is not published: no public repository has it. Until one
+does, a run of the filter for another game's mirror also drops what is that
+title's alone, so that a mirror names no game its README does not
+(`aw/`, `ppc_aw/` and `ppc_aw_mp/` are git-ignored and refused by
+`tools/check_no_game_files.py`, so none of the game is in the history):
+
+    git filter-repo --invert-paths --path config/AW.toml --path config/AWMP.toml \
+        --path tools/check_aw_xex.py --path docs/AW-BRINGUP.md
+
 They are the project's own builds of free software, so nothing is disclosed
 if they slip through; a mirror with them is 80 MB heavier for ever and over
 GitHub's size warning. `tools/check_no_game_files.py` now refuses a tracked

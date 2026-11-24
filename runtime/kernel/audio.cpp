@@ -41,6 +41,17 @@ PPC_FUNC(__imp__XAudioSubmitRenderDriverFrame)
     ctx.r3.u64 = X_ERROR_SUCCESS;
 }
 
+// XAudioGetSpeakerConfig(config*): what the console's audio settings say is
+// connected. Digital surround, the answer that has XAudio2 render all six
+// channels, which is what the driver's frames carry (apu/audio.cpp folds them
+// down where the device has fewer).
+PPC_FUNC(__imp__XAudioGetSpeakerConfig)
+{
+    constexpr uint32_t kDigitalSurround = 0x00010001;
+    if (auto* config = GuestPtr<be32>(ctx.r3.u32)) *config = kDigitalSurround;
+    ctx.r3.u64 = X_ERROR_SUCCESS;
+}
+
 // The dashboard's per-category volumes; there is no dashboard, so full.
 PPC_FUNC(__imp__XAudioGetVoiceCategoryVolume)
 {

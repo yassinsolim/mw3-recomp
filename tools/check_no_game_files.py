@@ -22,7 +22,7 @@ FORBIDDEN_SUFFIXES = {
     ".ppc_dump",
 }
 FORBIDDEN_DIRS = {"mw2", "mw3", "cod4", "ppc", "ppc_mw3", "ppc_mw3_mp", "ppc_mp", "ppc_tu0", "ppc_mp_tu0",
-                  "ppc_cod4", "ppc_cod4_mp"}
+                  "ppc_cod4", "ppc_cod4_mp", "aw", "ppc_aw", "ppc_aw_mp"}
 LFS_MAGIC = b"version https://git-lfs.github.com/spec/"
 # What is built is not committed, whatever it is called.
 BUILT_SUFFIXES = {".apk", ".aab"}
@@ -113,6 +113,9 @@ def self_test():
     assert violations(["ppc_mw3/ppc_recomp.0.cpp"], rh, sz)
     assert violations(["cod4/notes.txt"], rh, sz)
     assert violations(["ppc_cod4_mp/ppc_recomp.0.cpp"], rh, sz)
+    assert violations(["aw/tu0/notes.txt"], rh, sz)
+    assert violations(["ppc_aw/ppc_recomp.0.cpp"], rh, sz)
+    assert violations(["ppc_aw_mp/ppc_config.h"], rh, sz)
     assert violations(["android/toolchain/build/out/lib/arm64-v8a/libllvm.so"], rh, sz)
     assert violations(["out/toolchain/recomp-toolchain.apk"], rh, sz)
     assert not violations(["docs/MW3-BUILD.md", "tools/title.py", "runtime/main.cpp",

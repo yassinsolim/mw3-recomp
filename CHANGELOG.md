@@ -5,6 +5,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Call of Duty: Advanced Warfare, started**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)): titles `aw` and `awmp` for the
+  Windows build. Both discs read, both executables recompile clean, and the
+  campaign draws its logos, title screen and first-run Brightness screen; it
+  does not leave that screen yet, the second disc's content is not mounted,
+  and there is no setup, app or Android build for it. `tools/check_aw_xex.py`,
+  `tools/extra_instructions.py`, `tools/ctr_branch_extents.py`.
 - **Building the game code without a Windows PC**
   ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
   - `setup/setup.sh`: setup for Linux, for all three games
@@ -33,6 +40,11 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   ([docs/ondevice-build.md](docs/ondevice-build.md)).
 - `tools/check_no_game_files.py` refuses a tracked APK and any tracked file
   over 20 MB.
+
+### Fixed
+- `NtCreateSemaphore` read its counts from the registers of Windows' call,
+  which has an access mask this console's has not (Modern Warfare 3 imports
+  it too).
 
 ## [v0.1.6] - 2026-11-24
 
@@ -138,7 +150,6 @@ The game package built for v0.1.0 still fits: nothing to build again.
   pause menu whenever it plays through a relay.
 
 ### Fixed
-
 - **Join network game lists every player.** Two players with the same name
   were one line; they are told apart by their ids now.
 - **Modern Warfare 3's private match can be joined** (and an invitation to it

@@ -238,4 +238,6 @@ PPC_FUNC(__imp__KeSetAffinityThread)
     ctx.r3.u64 = affinity;
 }
 PPC_FUNC(__imp__KeSetBasePriorityThread)  { ctx.r3.u64 = 0; }
+// What KeSetBasePriorityThread answers as the priority before: no thread here has another.
+PPC_FUNC(__imp__KeQueryBasePriorityThread) { ctx.r3.u64 = 0; }
 PPC_FUNC(__imp__ExRegisterTitleTerminateNotification) { ctx.r3.u64 = 0; }

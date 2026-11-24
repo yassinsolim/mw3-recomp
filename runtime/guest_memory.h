@@ -25,9 +25,11 @@
 // recompiled code dereferences a guest pointer directly, with nothing to hook.
 namespace guest
 {
-#if defined(COD4_TITLE_MP)
+#if defined(COD4_TITLE_MP) || defined(AW_TITLE)
     // Call of Duty 4's multiplayer image ends at 0x853D0000 and its lookup
-    // table 0x5AC988 after that.
+    // table 0x5AC988 after that. Advanced Warfare's images end at 0x84D90000
+    // (the campaign) and 0x84CB0000 (the multiplayer), with tables of
+    // 0xCD2C12 and 0xF0CAB0 bytes after them, the higher ending at 0x85BBCAB0.
     inline constexpr uint32_t kHeapBase      = 0x86000000u;
 #elif defined(MW3_TITLE)
     // MW3's larger image and lookup table extend past MW2's heap start.
