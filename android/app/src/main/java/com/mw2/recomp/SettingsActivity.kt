@@ -321,9 +321,13 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         })
 
         // ---- the game files ----
-        val paths: TextView = findViewById(R.id.paths)
-        paths.text = if (prefs.gameDirectory.isEmpty()) getString(R.string.paths_none)
-        else getString(R.string.paths_line, prefs.gameDirectory)
+        showPaths()
+        // The way back to the install screen once the game is installed: to
+        // play from the disc image instead of the copied files, or the other
+        // way round, or from an image that has moved.
+        findViewById<Button>(R.id.change_source).setOnClickListener {
+            startActivity(Intent(this, InstallActivity::class.java))
+        }
 
         findViewById<Button>(R.id.forget).setOnClickListener {
             AlertDialog.Builder(this)
@@ -332,7 +336,8 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton(R.string.reset) { _, _ ->
                     prefs.gameDirectory = ""
-                    paths.text = getString(R.string.paths_none)
+                    prefs.discImage = ""
+                    showPaths()
                 }
                 .show()
         }
@@ -675,6 +680,23 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 if (fromUser) onChange(amount)
             }
         })
+    }
+
+    /** Where the game is read from: the folder, and the disc image when it is played from one. */
+    private fun showPaths() {
+        val paths: TextView = findViewById(R.id.paths)
+        val disc = prefs.discImage
+        paths.text = when {
+            prefs.gameDirectory.isEmpty() -> getString(R.string.paths_none)
+            disc.isEmpty() -> getString(R.string.paths_line, prefs.gameDirectory)
+            else -> getString(R.string.paths_line_disc, DiscImage.label(this, disc), prefs.gameDirectory)
+        }
+    }
+
+    /** Back from the install screen, which may have changed it. */
+    override fun onResume() {
+        super.onResume()
+        showPaths()
     }
 
     /** The two methods nobody ever needs, out of the way. */

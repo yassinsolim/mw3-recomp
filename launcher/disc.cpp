@@ -2,8 +2,13 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 using install::Utf8;
@@ -20,15 +25,20 @@ namespace
     class Image final : public install::Source
     {
     public:
+        ~Image() override { if (file_) std::fclose(file_); }
+
         bool Open(const fs::path& path, std::string& error)
         {
-            file_.open(path, std::ios::binary);
+            file_ = OpenFile(path);
             if (!file_) { error = "cannot open " + Utf8(path); return false; }
-            file_.seekg(0, std::ios::end);
-            const auto endPos = file_.tellg();
+            Seek(0, SEEK_END);
+#ifdef _WIN32
+            const int64_t endPos = _ftelli64(file_);
+#else
+            const int64_t endPos = ftello(file_);
+#endif
             if (endPos <= 0) { error = "empty disc image"; return false; }
             imageSize_ = uint64_t(endPos);
-            file_.seekg(0, std::ios::beg);
 
             for (uint64_t base : { 0x0ull, 0xFD90000ull, 0x2080000ull, 0x18300000ull, 0x18310000ull })
             {
@@ -76,13 +86,38 @@ namespace
         static uint32_t Le32(const uint8_t* p) { return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24; }
         static uint16_t Le16(const uint8_t* p) { return uint16_t(p[0] | p[1] << 8); }
 
+        // By the path's own characters (a narrow path on Windows is in the
+        // ANSI code page), or a copy of the descriptor an "fd:<number>"
+        // source names: the caller keeps its own.
+        static std::FILE* OpenFile(const fs::path& path)
+        {
+#ifdef _WIN32
+            return _wfopen(path.c_str(), L"rb");
+#else
+            const int descriptor = install::SourceDescriptor(path.string());
+            if (descriptor < 0) return std::fopen(path.c_str(), "rb");
+            const int copy = dup(descriptor);
+            std::FILE* file = copy < 0 ? nullptr : fdopen(copy, "rb");
+            if (!file && copy >= 0) close(copy);
+            return file;
+#endif
+        }
+
+        // Positions past 2 GB: `long` is 32 bits on Windows.
+        void Seek(int64_t offset, int whence)
+        {
+#ifdef _WIN32
+            _fseeki64(file_, offset, whence);
+#else
+            fseeko(file_, off_t(offset), whence);
+#endif
+        }
+
         bool ReadAt(uint64_t at, void* out, size_t size)
         {
             if (at > imageSize_ || size > imageSize_ - at) return false;
-            file_.clear();
-            file_.seekg(std::streamoff(at));
-            file_.read(static_cast<char*>(out), std::streamsize(size));
-            return size_t(file_.gcount()) == size;
+            Seek(int64_t(at), SEEK_SET);
+            return std::fread(out, 1, size, file_) == size;
         }
 
         // The setup copies a disc's file to the game folder under the name the
@@ -135,7 +170,7 @@ namespace
             }
         }
 
-        std::ifstream file_;
+        std::FILE* file_ = nullptr;
         uint64_t base_ = 0;
         uint64_t imageSize_ = 0;
         std::vector<File> files_, folderFiles_;
@@ -210,6 +245,14 @@ bool install::Source::ReadAll(const File& file, std::vector<uint8_t>& out)
     return Read(file, 0, out.data(), out.size());
 }
 
+int install::SourceDescriptor(const std::string& source)
+{
+    if (source.rfind("fd:", 0) != 0 || source.size() == 3) return -1;
+    char* end = nullptr;
+    const long number = std::strtol(source.c_str() + 3, &end, 10);
+    return (*end || number < 0) ? -1 : int(number);
+}
+
 std::unique_ptr<install::Source> install::Source::Open(const fs::path& path, std::string& error)
 {
     std::error_code ec;
@@ -219,7 +262,11 @@ std::unique_ptr<install::Source> install::Source::Open(const fs::path& path, std
         if (!folder->Open(path, error)) return nullptr;
         return folder;
     }
-    if (!fs::is_regular_file(path, ec)) { error = Utf8(path) + " is neither a disc image nor a folder"; return nullptr; }
+    if (SourceDescriptor(path.string()) < 0 && !fs::is_regular_file(path, ec))
+    {
+        error = Utf8(path) + " is neither a disc image nor a folder";
+        return nullptr;
+    }
     auto image = std::make_unique<Image>();
     if (!image->Open(path, error)) return nullptr;
     return image;

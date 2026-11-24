@@ -2,13 +2,18 @@
 // "\\Device\\Cdrom0\\...", and the console filesystem is case-insensitive, so
 // paths are mapped onto the game root and resolved case-insensitively.
 //
-// The game root is the disc and is read-only. The one writable place is a
-// mounted content package -- "save0:" and friends, put there by the content
-// layer in content.cpp -- so a path whose device names a mount resolves under
-// that mount instead, and may be created, written, truncated and deleted.
+// The game root is the disc and is read-only: the game folder, and under it
+// the disc image where the player plays from one (volume.h), so a file the
+// folder has -- a mod's, an update's -- is read before the disc's own. The
+// one writable place is a mounted content package -- "save0:" and friends,
+// put there by the content layer in content.cpp -- so a path whose device
+// names a mount resolves under that mount instead, and may be created,
+// written, truncated and deleted. A downloadable content package is mounted
+// too, read-only, and read where it lies.
 #include <ppc_recomp_shared.h>
 #include "kernel.h"
 #include "objects.h"
+#include "volume.h"
 #include "../guest.h"
 #include "../diagnostics.h"
 #include "../env.h"
@@ -72,6 +77,13 @@ namespace
         // Xenia exposes Harddisk0\\Partition0 as a zero-length NullDevice;
         // it has a handle but no host FILE* backing it.
         bool nullDevice = false;
+        // A file inside the disc image or a content package: no host FILE*
+        // either, and its own place in the file, since the descriptor it
+        // reads through may be other files' too.
+        std::shared_ptr<ReadVolume> volume;
+        const ReadVolume::Entry* entry = nullptr;
+        int descriptor = -1;
+        uint64_t position = 0;
         std::mutex lock;
 
         const char* TypeName() const override { return "file"; }
@@ -84,6 +96,7 @@ namespace
             // has gone. Pointless for one that is about to be deleted.
             if (handle && writable && !deleteOnClose) kernel::SyncStream(handle);
             if (handle) std::fclose(handle);
+            if (volume) volume->Release(descriptor);
             // NT has no delete call of its own: a caller marks the file and the
             // deletion happens when the last handle goes.
             if (deleteOnClose)
@@ -205,18 +218,31 @@ namespace
         relative = Canonical(p);
     }
 
-    // The mount table the content layer fills in. Everything not in it is the
-    // disc, which is read-only.
+    // The mount table the content layer fills in: a folder that may be written
+    // to (a save), or a volume that may not (downloadable content). Everything
+    // not in it is the disc, which is read-only.
+    struct Mount
+    {
+        fs::path root;                      // empty: there is only the volume
+        std::shared_ptr<ReadVolume> volume;
+        bool writable = false;
+    };
     std::mutex g_mountLock;
-    std::map<std::string, fs::path> g_mounts;
+    std::map<std::string, Mount> g_mounts;
 
-    fs::path DeviceRoot(const std::string& device, bool& writable)
+    Mount DeviceOf(const std::string& device)
     {
         std::lock_guard g(g_mountLock);
         auto it = g_mounts.find(device);
-        if (it == g_mounts.end()) { writable = false; return GameRoot(); }
-        writable = true;
+        if (it == g_mounts.end()) return { GameRoot(), Disc(), false };
         return it->second;
+    }
+
+    // A file or folder of the device's volume, where its folder has none of
+    // that name.
+    const ReadVolume::Entry* InVolume(const Mount& at, const std::string& relative)
+    {
+        return (at.volume && !relative.empty()) ? at.volume->Find(relative) : nullptr;
     }
 
     // Where a name that is not there yet would go. Only ever used under a mount,
@@ -313,8 +339,9 @@ namespace
             return X_STATUS_SUCCESS;
         }
 
-        bool writable = false;
-        const fs::path root = DeviceRoot(device, writable);
+        const Mount at = DeviceOf(device);
+        const bool writable = at.writable;
+        const fs::path& root = at.root;
 
         fs::path resolved;
         bool existed = false;
@@ -329,7 +356,23 @@ namespace
                 existed = ResolveInsensitive(mods, relative, resolved);
         }
         if (!existed)
-            existed = !relative.empty() && ResolveInsensitive(root, relative, resolved);
+            existed = !relative.empty() && !root.empty() && ResolveInsensitive(root, relative, resolved);
+        if (const ReadVolume::Entry* entry = existed ? nullptr : InVolume(at, relative))
+        {
+            if (disposition == FILE_CREATE) return X_STATUS_OBJECT_NAME_COLLISION;
+            auto f = std::make_shared<FileObject>();
+            f->path = relative;
+            f->volume = at.volume;
+            f->entry = entry;
+            f->size = entry->size;
+            f->isDirectory = entry->directory;
+            if (!entry->directory) f->descriptor = at.volume->Acquire();
+            information = FILE_OPENED;
+            handleOut = InsertHandle(f);
+            if (TraceFiles())
+                LOGK("open %s -> %s in %s (read-only)", guestPath.c_str(), relative.c_str(), at.volume->Name().c_str());
+            return X_STATUS_SUCCESS;
+        }
         if (!existed)
         {
             // A name that is not there is only an error until something is allowed
@@ -397,7 +440,13 @@ namespace
 void kernel::MountDevice(const std::string& name, const fs::path& root)
 {
     std::lock_guard g(g_mountLock);
-    g_mounts[Lower(name)] = root;
+    g_mounts[Lower(name)] = Mount{ root, nullptr, true };
+}
+
+void kernel::MountVolume(const std::string& name, std::shared_ptr<ReadVolume> volume)
+{
+    std::lock_guard g(g_mountLock);
+    g_mounts[Lower(name)] = Mount{ {}, std::move(volume), false };
 }
 
 void kernel::UnmountDevice(const std::string& name)
@@ -458,7 +507,7 @@ PPC_FUNC(__imp__NtReadFile)
     uint32_t length = ctx.r9.u32;
     uint32_t offsetPtr = ctx.r10.u32;
 
-    if (!file || (!file->handle && !file->nullDevice) || !buffer)
+    if (!file || (!file->handle && !file->nullDevice && !file->entry) || !buffer)
     {
         if (iosb) { iosb->status = X_STATUS_INVALID_PARAMETER; iosb->information = 0; }
         if (event) event->Set();
@@ -485,16 +534,26 @@ PPC_FUNC(__imp__NtReadFile)
             if (iosb) { iosb->status = X_STATUS_SUCCESS; iosb->information = 0; }
             return;
         }
-        // C requires a positioning call between a write and a read on the same
-        // update stream; seeking to where it already is counts as one.
-        if (offset >= 0) Seek(file->handle, offset);
-        else if (file->writable) std::fseek(file->handle, 0, SEEK_CUR);
         // Into a buffer of our own and copied across, not read straight into
         // guest memory: a page the GPU's shadow watches is read-only, and the
         // kernel fails a read into it where a copy faults and carries on.
         thread_local std::vector<uint8_t> bounce;
         if (bounce.size() < length) bounce.resize(length);
-        const size_t got = std::fread(bounce.data(), 1, length, file->handle);
+        size_t got;
+        if (file->entry)
+        {
+            const uint64_t at = offset >= 0 ? uint64_t(offset) : file->position;
+            got = file->volume->Read(file->descriptor, *file->entry, at, bounce.data(), length);
+            file->position = at + got;
+        }
+        else
+        {
+            // C requires a positioning call between a write and a read on the same
+            // update stream; seeking to where it already is counts as one.
+            if (offset >= 0) Seek(file->handle, offset);
+            else if (file->writable) std::fseek(file->handle, 0, SEEK_CUR);
+            got = std::fread(bounce.data(), 1, length, file->handle);
+        }
         std::memcpy(guest::Base() + buffer, bounce.data(), got);
         uint32_t status = (got == 0 && length != 0) ? X_STATUS_END_OF_FILE : X_STATUS_SUCCESS;
         if (iosb) { iosb->status = status; iosb->information = uint32_t(got); }
@@ -589,7 +648,7 @@ PPC_FUNC(__imp__NtQueryInformationFile)
     else if (infoClass == FilePositionInformation && buffer)
     {
         std::lock_guard g(file->lock);
-        *GuestPtr<be64>(buffer) = file->handle ? Tell(file->handle) : 0ull;
+        *GuestPtr<be64>(buffer) = file->entry ? file->position : file->handle ? Tell(file->handle) : 0ull;
     }
     else if (infoClass == FileNetworkOpenInformation && buffer)
     {
@@ -618,18 +677,19 @@ PPC_FUNC(__imp__NtQueryFullAttributesFile)
         ctx.r3.u64 = X_STATUS_SUCCESS;
         return;
     }
-    bool writable = false;
-    const fs::path root = DeviceRoot(device, writable);
+    const Mount at = DeviceOf(device);
     fs::path resolved;
-    if (relative.empty() || !ResolveInsensitive(root, relative, resolved))
+    const bool onHost = !relative.empty() && !at.root.empty() && ResolveInsensitive(at.root, relative, resolved);
+    const ReadVolume::Entry* entry = onHost ? nullptr : InVolume(at, relative);
+    if (!onHost && !entry)
     {
         NoteMissing("NtQueryFullAttributesFile", name);
         ctx.r3.u64 = X_STATUS_OBJECT_NAME_NOT_FOUND;
         return;
     }
     std::error_code ec;
-    bool dir = fs::is_directory(resolved, ec);
-    uint64_t size = dir ? 0 : fs::file_size(resolved, ec);
+    const bool dir = entry ? entry->directory : fs::is_directory(resolved, ec);
+    const uint64_t size = entry ? entry->size : dir ? 0 : fs::file_size(resolved, ec);
     if (auto* p = GuestPtr<be64>(ctx.r4.u32))
     {
         for (int i = 0; i < 4; i++) p[i] = 0;
@@ -654,7 +714,11 @@ PPC_FUNC(__imp__NtSetInformationFile)
     if (file && buffer)
     {
         std::lock_guard g(file->lock);
-        if (infoClass == FilePositionInformation && file->handle)
+        if (infoClass == FilePositionInformation && file->entry)
+        {
+            file->position = uint64_t(*GuestPtr<be64>(buffer));
+        }
+        else if (infoClass == FilePositionInformation && file->handle)
         {
             Seek(file->handle, int64_t(uint64_t(*GuestPtr<be64>(buffer))));
         }

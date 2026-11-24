@@ -19,6 +19,22 @@ This is the same code as [mw3-recomp](https://github.com/yassinsolim/mw3-recomp)
 which does this for *Modern Warfare 3* and builds for Windows as well; the two
 repositories differ only in which app their releases carry.
 
+## Two steps to play
+
+The app on the [releases](https://github.com/yassinsolim/mw2-recomp/releases)
+page is not the whole game: it carries no game code and no game files. Both
+come from your own disc, in two steps, and the app says which is still to do:
+
+1. **On a PC:** `setup\setup.cmd -Game mw2` builds the game code from your
+   disc image and installs it, with the app, on the device over USB
+   ([Setup](#setup-windows)).
+2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
+   your disc image (`.iso`) in `Download`, on the device or its memory card,
+   and plays from it where it is: nothing is copied.
+
+An app installed by itself, without step 1, says "Step 1 is not done" and
+cannot start the game.
+
 ## Status
 
 The game is the disc's own version (1.0.557, no title update). Measured on two
@@ -68,11 +84,15 @@ What to expect:
 - A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
   free. With a Linux PC, see
   [Setup without a Windows PC](#setup-without-a-windows-pc).
-- A 64-bit Android phone or handheld with Android 8 or later and Vulkan, about
-  7 GB free for the game files (plus room for the 7.3 GB disc image while
-  installing).
+- A 64-bit Android phone or handheld with Android 8 or later and Vulkan, with
+  room for the 7.3 GB disc image on its own storage or on a memory card. The
+  game plays from the image; copying its files into the app instead (about
+  7 GB more) is a choice.
 
 ## Setup (Windows)
+
+Step 1 of the [two](#two-steps-to-play), on the PC, and then step 2 on the
+phone:
 
 1. Get the code: `git clone https://github.com/yassinsolim/mw2-recomp.git C:\mw2`
    (a short path without spaces).
@@ -81,8 +101,11 @@ What to expect:
        setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Install -PushIso
 
 3. On the phone: open **CoD: Modern Warfare 2**, choose **INSTALL & PLAY**. It
-   finds the disc image in `Download` and copies the game files once, for the
-   campaign, Special Ops and the multiplayer together.
+   finds the disc image in `Download` (on a memory card too) and plays from
+   it: the campaign, Special Ops and the multiplayer read their files out of
+   the image, so keep it there. **Choose Another Source** names an image
+   anywhere else, or copies the files into the app instead
+   ([docs/android.md](docs/android.md#the-game-files)).
 
 The script downloads the tools it needs into `.toolchain\` (each pinned and
 checked by SHA-256; only Microsoft's C++ Build Tools are installed

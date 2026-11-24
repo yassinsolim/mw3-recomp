@@ -90,6 +90,19 @@ namespace kernel
         static const std::filesystem::path root = std::filesystem::temp_directory_path() / "mw3-xam-test";
         return root;
     }
+    // The content layer's list of the player's map packs (content.cpp): here,
+    // as many as the test says, each an XCONTENT_DATA with its type alone.
+    uint32_t g_downloaded = 0;
+    uint32_t ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next)
+    {
+        uint32_t written = 0;
+        for (; next < g_downloaded && (written + 1) * 0x134 <= bufferSize; next++, written++)
+        {
+            std::memset(GuestPtr<uint8_t>(buffer + written * 0x134), 0xEE, 0x134);
+            *GuestPtr<be32>(buffer + written * 0x134 + 4) = 2;
+        }
+        return written;
+    }
     void TitleXnAddr(void* out) { std::memset(out, 0, 36); }
     bool XnAddrPeer(const void*, uint64_t&) { return false; }
     void NoteSessionId(const void*) {}
@@ -442,6 +455,26 @@ namespace
         assert(Call(__imp__XamEnumerate, content, 0, 0, 0, kBuffer, kOverlapped) == X_ERROR_IO_PENDING);
         assert(ReadOverlapped().result == kFunctionFailed && ReadOverlapped().extended == (0x80070000 | X_ERROR_NO_MORE_FILES));
         assert(Call(__imp__XamEnumerate, 0xDEADBEEF, 0, 0, 0, kBuffer, 0) == X_ERROR_INVALID_HANDLE);
+
+        // Downloadable content (type 2) lists the player's packages: as many as
+        // the buffer holds each time, with the entry after the last cleared,
+        // then no more.
+        kernel::g_downloaded = 3;
+        assert(Call(__imp__XamContentCreateEnumerator, 0, 0, 2, 0, 6, kOut, kOut2) == X_ERROR_SUCCESS);
+        const uint32_t packs = *GuestPtr<be32>(kOut2);
+        std::memset(GuestPtr<uint8_t>(kBuffer), 0x55, 4 * 0x134);
+        assert(Call(__imp__XamEnumerate, packs, 0, kBuffer, 2 * 0x134, kOut, 0) == X_ERROR_SUCCESS);
+        assert(uint32_t(*GuestPtr<be32>(kOut)) == 2 && uint32_t(*GuestPtr<be32>(kBuffer + 0x134 + 4)) == 2);
+        assert(*GuestPtr<uint8_t>(kBuffer + 2 * 0x134) == 0x55);     // no room: nothing past the buffer
+        Clear(kOverlapped, 32);
+        assert(Call(__imp__XamEnumerate, packs, 0, kBuffer, 4 * 0x134, 0, kOverlapped) == X_ERROR_IO_PENDING);
+        assert(ReadOverlapped().result == X_ERROR_SUCCESS && ReadOverlapped().length == 1);
+        assert(uint32_t(*GuestPtr<be32>(kBuffer + 4)) == 2 && uint32_t(*GuestPtr<be32>(kBuffer + 0x134 + 4)) == 0);
+        assert(Call(__imp__XamEnumerate, packs, 0, kBuffer, 4 * 0x134, kOut, 0) == X_ERROR_NO_MORE_FILES);
+        // Saved content (type 1) has none of them.
+        assert(Call(__imp__XamEnumerate, content, 0, kBuffer, 4 * 0x134, kOut, 0) == X_ERROR_NO_MORE_FILES);
+        kernel::g_downloaded = 0;
+        CloseHandle(packs);
         CloseHandle(plain);
         CloseHandle(content);
     }

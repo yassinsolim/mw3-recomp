@@ -32,7 +32,7 @@ layer's device table. The save is `saves/savegame.svg/savegame.svg`.
 |---|---|
 | `XamContentGetDeviceState` | device 1 (`kernel::kSaveDeviceId`) is connected; any other is not |
 | `XamContentGetDeviceData` | one hard disk, 16 GB with 8 GB free: the title compares the free space with what it is about to write and refuses to save if it does not fit |
-| `XamContentCreateEx` | honours the disposition (create new, create always, open existing, open always, truncate), reports whether the package was new or existing, and mounts it |
+| `XamContentCreateEx` | honours the disposition (create new, create always, open existing, open always, truncate), reports whether the package was new or existing, and mounts it. Downloadable content (type 2) is another matter: one of the player's own map packs, mounted read-only where it lies ([dlc.md](dlc.md)) |
 | `XamContentClose` | unmounts |
 | `XamContentDelete` | removes the directory, and the `.bak` beside it |
 

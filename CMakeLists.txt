@@ -48,7 +48,8 @@ if(BUILD_TESTING)
     mw3_runtime_test(kernel_memory_test runtime/kernel/memory.cpp)
     mw3_runtime_test(kernel_threads_test runtime/kernel/threads.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_objects_test runtime/kernel/objects.cpp)
-    mw3_runtime_test(kernel_files_test runtime/kernel/files.cpp runtime/kernel/objects.cpp runtime/kernel/durable.cpp)
+    mw3_runtime_test(kernel_files_test runtime/kernel/files.cpp runtime/kernel/volume.cpp runtime/kernel/objects.cpp
+                     runtime/kernel/durable.cpp launcher/disc.cpp)
     mw3_runtime_test(kernel_dpc_test runtime/kernel/dpc.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_xam_test runtime/kernel/xam.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_sync_test runtime/kernel/sync.cpp runtime/kernel/objects.cpp)
@@ -436,6 +437,9 @@ file(GLOB RUNTIME_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_SOURCE_DIR}/runtime/apu/*.cpp"
      "${CMAKE_SOURCE_DIR}/runtime/install/*.cpp"
      "${CMAKE_SOURCE_DIR}/runtime/gpu/vulkan/*.cpp")
+# The disc image's reader, which the installer shares: the file layer reads the
+# game out of an image where it lies (runtime/kernel/volume.h).
+list(APPEND RUNTIME_SOURCES "${CMAKE_SOURCE_DIR}/launcher/disc.cpp")
 
 # What this build's shaders come out as (runtime/gpu/vulkan/shader_build.h):
 # a SHA-256 of the sources that decide it, the translator's and the pipeline
@@ -470,7 +474,7 @@ if(ANDROID)
     # The window, the touch pad, the AAudio sink, the driver loader and the
     # JNI surface the app talks to (docs/android.md).
     file(GLOB ANDROID_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/runtime/android/*.cpp")
-    list(APPEND RUNTIME_SOURCES ${ANDROID_SOURCES} "${CMAKE_SOURCE_DIR}/launcher/disc.cpp")
+    list(APPEND RUNTIME_SOURCES ${ANDROID_SOURCES})
     # Its processor check is x86 only (__builtin_cpu_supports).
     list(REMOVE_ITEM RUNTIME_SOURCES "${CMAKE_SOURCE_DIR}/runtime/cpu_level.cpp")
     # What loads the recompiled code's library, where it is one (MW2_SPLIT).

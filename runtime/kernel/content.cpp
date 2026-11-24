@@ -12,10 +12,18 @@
 // The title never looks inside the container -- it only asks XAM to mount one
 // and then reads and writes files through the drive letter -- so a directory is
 // enough for it to save, load and delete.
+//
+// Downloadable content is the other kind of package, and the other way round:
+// a map pack is a package the player bought, read-only, which the multiplayer
+// lists (XamContentCreateEnumerator, type 2), mounts ("mappack1:", "dlc1:")
+// and reads fastfiles out of. Those are the player's own files from their
+// console, kept in a `dlc` folder as the console has them, and read where
+// they lie (volume.h, docs/dlc.md).
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "kernel.h"
 #include "objects.h"
+#include "volume.h"
 #include "../guest.h"
 #include "../log.h"
 #include "../env.h"
@@ -25,6 +33,7 @@
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 using namespace kernel;
 namespace fs = std::filesystem;
@@ -115,6 +124,89 @@ namespace
         ec.clear();
         fs::remove_all(package, ec);
     }
+
+    // XCONTENTTYPE_MARKETPLACE: what a downloaded map pack is.
+    constexpr uint32_t kMarketplaceContent = 2;
+    constexpr uint32_t kContentDisplayName = 8, kContentDisplayMax = 128;
+    constexpr uint32_t kContentDataSize = 0x134;
+
+    struct Downloaded
+    {
+        std::string name;               // as XCONTENT_DATA names it
+        std::shared_ptr<ReadVolume> volume;
+    };
+
+    // Every package of this title's downloadable content under `folder`, which
+    // may be the console's own tree (Content\0000000000000000\<title>\00000002)
+    // copied whole, or the packages alone.
+    void FindDownloaded(const fs::path& folder, std::vector<Downloaded>& found)
+    {
+        constexpr int kDeepest = 6;
+        std::error_code ec;
+        for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+             !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+        {
+            if (it.depth() >= kDeepest) it.disable_recursion_pending();
+            std::error_code entryError;
+            if (!it->is_regular_file(entryError)) continue;
+            const std::string host = it->path().filename().string();
+            std::string error;
+            const auto volume = ReadVolume::OpenPackage(it->path(), error);
+            if (!volume)
+            {
+                LOGW("content: %s %s; it is not used", it->path().string().c_str(), error.c_str());
+                continue;
+            }
+            const ReadVolume::Package& header = volume->Header();
+            if (header.titleId != T_TITLE_ID || header.contentType != kMarketplaceContent)
+            {
+                LOGW("content: %s is for title %08X, content type %08X, not this title's downloadable content",
+                     it->path().string().c_str(), header.titleId, header.contentType);
+                continue;
+            }
+            const std::string name = SafeName(host).substr(0, kContentFileMax - 1);
+            bool listed = false;
+            for (const Downloaded& other : found) listed = listed || other.name == name;
+            if (listed || name.empty()) continue;
+            LOGI("content: downloadable content %s (%zu files, licence bits %08X)", it->path().string().c_str(),
+                 volume->RootFiles().size(), header.licenceBits);
+            found.push_back({ name, volume });
+        }
+    }
+
+    // Looked for once, when the title first asks: MW2_DLC_DIR, the `dlc`
+    // folder beside the game folder, and the one beside the disc image.
+    const std::vector<Downloaded>& DownloadedContent()
+    {
+        static const std::vector<Downloaded> content = []
+        {
+            std::vector<Downloaded> found;
+            if (const char* named = env::Text("MW2_DLC_DIR")) FindDownloaded(fs::path(named), found);
+            FindDownloaded(fs::absolute(GameRoot()).parent_path() / "dlc", found);
+            if (const auto& disc = Disc(); disc && !disc->Path().empty())
+                FindDownloaded(fs::absolute(disc->Path()).parent_path() / "dlc", found);
+            return found;
+        }();
+        return content;
+    }
+}
+
+uint32_t kernel::ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next)
+{
+    const auto& content = DownloadedContent();
+    uint32_t written = 0;
+    for (; next < content.size() && (written + 1) * kContentDataSize <= bufferSize; next++, written++)
+    {
+        const uint32_t at = buffer + written * kContentDataSize;
+        std::memset(GuestPtr<uint8_t>(at), 0, kContentDataSize);
+        *GuestPtr<be32>(at + kContentDeviceId) = kSaveDeviceId;
+        *GuestPtr<be32>(at + kContentType) = kMarketplaceContent;
+        const std::u16string& display = content[next].volume->Header().displayName;
+        auto* wide = GuestPtr<be16>(at + kContentDisplayName);
+        for (size_t i = 0; i < display.size() && i + 1 < kContentDisplayMax; i++) wide[i] = uint16_t(display[i]);
+        std::memcpy(GuestPtr<char>(at + kContentFileName), content[next].name.data(), content[next].name.size());
+    }
+    return written;
 }
 
 const fs::path& kernel::SaveRoot()
@@ -199,6 +291,28 @@ PPC_FUNC(__imp__XamContentCreateEx)
 
     const uint32_t type = *GuestPtr<be32>(contentData + kContentType);
     const uint32_t device = *GuestPtr<be32>(contentData + kContentDeviceId);
+    if (type == kMarketplaceContent)
+    {
+        // A map pack: one of the packages listed, as a drive of its files.
+        // The licence it reports is the package's own, every bit its header
+        // grants: the console would match them against the profile and the
+        // console the package was bought on, and neither is here.
+        std::shared_ptr<ReadVolume> volume;
+        for (const auto& [name, found] : DownloadedContent())
+            if (name == file) volume = found;
+        const uint32_t result = volume ? X_ERROR_SUCCESS : X_ERROR_PATH_NOT_FOUND;
+        if (volume)
+        {
+            MountVolume(drive, volume);
+            LOGK("content: mounted %s: on %s (downloadable content, read-only)", drive.c_str(), volume->Name().c_str());
+        }
+        else LOGK("content: there is no downloadable content named %s (%s: asked to open it)", file.c_str(), drive.c_str());
+        if (auto* d = GuestPtr<be32>(dispositionOut)) *d = 2u;      // XCONTENT_EXISTING
+        if (auto* l = GuestPtr<be32>(licenseOut)) *l = volume ? volume->Header().licenceBits : 0u;
+        CompleteOverlapped(overlapped, result);
+        ctx.r3.u64 = result;
+        return;
+    }
     const fs::path package = SaveRoot() / file;
     std::error_code ec;
     const bool existed = fs::is_directory(package, ec);

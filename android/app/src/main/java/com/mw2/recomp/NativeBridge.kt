@@ -154,8 +154,19 @@ object NativeBridge {
 
     external fun nativeGameInstalled(gameDir: String): Boolean
 
-    /** Blocking. Returns null when it worked, or a sentence to show when it did not. */
-    external fun nativeInstall(source: String, gameDir: String): String?
+    /**
+     * Blocking. Returns null when it worked, or a sentence to show when it did
+     * not. [source] is a path, or "fd:<number>" for an open document
+     * (DiscImage.kt); with [link], only the executables are copied, for a
+     * game played from the image.
+     */
+    external fun nativeInstall(source: String, gameDir: String, link: Boolean): String?
+
+    /**
+     * The bytes of the game folder's copies of the image's files, which a
+     * game played from the image does not need; deleted with [remove].
+     */
+    external fun nativeCopiedFiles(source: String, gameDir: String, remove: Boolean): Long
 
     /** Fills [progress] with { bytes done, bytes total } and returns the file being copied. */
     external fun nativeInstallProgress(progress: LongArray): String

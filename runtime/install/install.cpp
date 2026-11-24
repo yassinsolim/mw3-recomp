@@ -277,7 +277,14 @@ namespace
         std::atomic<bool> cancel{ false };
     };
 
-    bool Install(const fs::path& from, Progress& progress, std::string& error)
+    // The picture of the game the launcher shows behind its menu (DiscArt.kt).
+    bool IsArt(const std::string& name)
+    {
+        return name.size() == 6 && std::equal(name.begin(), name.end(), "nxeart",
+                                              [](char a, char b) { return std::tolower(uint8_t(a)) == b; });
+    }
+
+    bool Install(const fs::path& from, Progress& progress, std::string& error, bool link)
     {
         auto source = install::Source::Open(from, error);
         if (!source) return false;
@@ -311,10 +318,13 @@ namespace
             if (Sha256(bytes) != title.disc) { error = WrongDisc(title.xex, bytes); return false; }
 #endif
         }
+        // Played from the image, the game folder has the executables and the
+        // picture; everything else stays in the image.
         for (const auto& file : source->Files())
-            if (IsGameFile(file.name)) files.push_back(&file);
-        for (const auto& file : source->FolderFiles())
-            if (IsHighMip(file.name)) files.push_back(&file);
+            if (link ? IsArt(file.name) : IsGameFile(file.name)) files.push_back(&file);
+        if (!link)
+            for (const auto& file : source->FolderFiles())
+                if (IsHighMip(file.name)) files.push_back(&file);
         for (const Title& title : kTitles)
             if (const auto* file = source->Find(title.xex)) files.push_back(file);
 
@@ -636,7 +646,7 @@ void install::CancelInstall()
 #endif
 }
 
-bool install::InstallFrom(const fs::path& from, std::string& error, Report report, void* user)
+bool install::InstallFrom(const fs::path& from, std::string& error, Report report, void* user, bool link)
 {
 #ifdef MW2_ANDROID
     Progress progress;
@@ -662,7 +672,7 @@ bool install::InstallFrom(const fs::path& from, std::string& error, Report repor
             report(progress.file.c_str(), progress.done, progress.total, user);
         });
 
-    const bool ok = Install(from, progress, error);
+    const bool ok = Install(from, progress, error, link);
     finished.store(true, std::memory_order_release);
     if (reporter.joinable()) reporter.join();
     {
@@ -674,9 +684,38 @@ bool install::InstallFrom(const fs::path& from, std::string& error, Report repor
     else    LOGE("install: %s", error.c_str());
     return ok;
 #else
+    (void)link;
     error = "Not implemented on desktop";
     return false;
 #endif
+}
+
+uint64_t install::CopiedFiles(const fs::path& from, bool remove)
+{
+    uint64_t bytes = 0;
+#ifdef MW2_ANDROID
+    std::string error;
+    const auto source = install::Source::Open(from, error);
+    if (!source) return 0;
+    std::error_code ec;
+    const auto count = [&](const install::Source::File& file)
+    {
+        const fs::path copy = g_gameFolder / install::FromUtf8(file.name);
+        if (!fs::is_regular_file(copy, ec) || fs::file_size(copy, ec) != file.size) return;
+        bytes += file.size;
+        if (remove) fs::remove(copy, ec);
+    };
+    for (const auto& file : source->Files())
+        if (IsGameFile(file.name) && !IsArt(file.name)) count(file);
+    for (const auto& file : source->FolderFiles())
+        if (IsHighMip(file.name)) count(file);
+    // The folder of high mips goes when it is left empty, and only then.
+    if (remove) fs::remove(g_gameFolder / kHighMipFolder, ec);
+    if (remove) LOGI("install: removed %.1f GB of copies of the disc image's files", bytes / 1e9);
+#else
+    (void)from; (void)remove;
+#endif
+    return bytes;
 }
 
 std::vector<uint8_t>& install::LaunchData()

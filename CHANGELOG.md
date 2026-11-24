@@ -38,6 +38,50 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   ([docs/ondevice-build.md](docs/ondevice-build.md)).
 - `tools/check_no_game_files.py` refuses a tracked APK and any tracked file
   over 20 MB.
+- **Play from the disc image, on the device or a memory card (all three
+  games, Android).** Install & Play no longer copies 7 GB: the game reads its
+  files out of the `.iso` where it is, and only the two executables and the
+  start screen's picture (11 MB) go into the app. The image may be in
+  `Download`, on a memory card, or anywhere the Files app reaches (the app
+  keeps the permission and reads through the open document, so no all-files
+  access is needed). Copying the files into the app is still a choice on the
+  install screen, and **Settings → Files → Change where the game is read
+  from** moves an installed game either way, offering to delete the 7 GB of
+  copies. Saves, settings, mods, camouflage packs and an update's files stay
+  in the app, and a file there is read before the image's. Measured on a
+  Retroid Pocket Flip 2 (cold file cache, two runs each): Modern Warfare 2's
+  S.S.D.D. loads in 3.6 s from the image on the device, 3.7 s from copied
+  files and 3.8 s from the image on a memory card (exFAT, 59 MB/s); The Gulag
+  in 6.2, 6.3 and 6.9 s; no late frames in the half minute after either.
+  From the image: Modern Warfare 2's Terminal (multiplayer) 5.9 to 6.5 s,
+  Modern Warfare 3's Survival on Resistance 13.2 to 13.5 s, Call of Duty 4's
+  F.N.G. 5.1 s with its high mips read from the image's `highmip` folder
+  (`runtime/kernel/volume.{h,cpp}`, `kernel/files.cpp`, `DiscImage.kt`,
+  `InstallActivity.kt`; [docs/android.md](docs/android.md#the-game-files),
+  [docs/runtime.md](docs/runtime.md#files)).
+- **Your own map packs (experimental).** The multiplayer of each game lists,
+  mounts and reads the downloadable content packages a player copies from
+  their own console into a `dlc` folder, where they lie, with the licence
+  bits the package carries. Tested with synthetic packages made from a disc's
+  own files (Modern Warfare 2 played Rust out of one); **no real map pack has
+  been tried**, and Modern Warfare 2's and 3's were made for a later game
+  version than the disc's. What to supply, what the runtime does and what is
+  untested: [docs/dlc.md](docs/dlc.md).
+- **The two steps of setting up, said first.** The app is published without
+  the game's code, and a player who installed it alone ran Install & Play and
+  only then read "The game code is not on this device". The launcher now
+  shows both steps with which is done (1. on a PC, setup builds the game code
+  from your disc and installs it over USB; 2. on the device, Install & Play),
+  in a dialog at the start while the game code is missing, with a button to
+  the README's new **Two steps to play** section, which each of the three
+  READMEs now opens with.
+- The file browser lists a memory card at the top of the device's storage.
+
+### Tests
+- `kernel_files_test`: a synthetic disc image (by path and by descriptor)
+  under the game folder, and a synthetic content package mounted as a drive;
+  `kernel_xam_test`: the downloadable content enumerator. Both were built
+  with the NDK and run on an arm64 Android device.
 
 ## [v0.1.6] - 2026-11-24
 

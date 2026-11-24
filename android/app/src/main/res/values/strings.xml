@@ -61,17 +61,28 @@
     <string name="done">Done</string>
     <string name="share">Share</string>
 
-    <string name="status_ready">Ready to play.\nThe game files are in %1$s.</string>
-    <string name="status_not_installed">The game files are not installed yet.\n\nThis app contains no game data. You supply your own copy: a disc image of the game you own, or a folder with its files in it.</string>
+    <string name="status_ready_disc">Status: Game Ready\nPlayed from the disc image:\n%1$s</string>
+    <string name="status_disc_missing">The disc image the game is played from is not there any more:\n%1$s\nPut it back (a memory card, a moved or deleted file), or choose it again with Install the game files.</string>
+    <string name="status_disc_found">Game disc found:\n%1$s\nInstall &amp; Play plays from it where it is: nothing is copied.</string>
+    <string name="status_not_installed">The game files are not set up yet.\n\nThis app contains no game data. You supply your own copy: a disc image (.iso) of the game you own, on this device or its memory card.</string>
     <string name="status_library_missing">The runtime could not be loaded:\n%1$s</string>
     <string name="footer">%1$s\nDriver: %2$s\nBuild %3$s, %4$s</string>
 
     <!-- installing -->
-    <string name="install_hint">Point this at a disc image (.iso) of your own copy, or at a folder holding the files from one. Everything needed is copied into the app\'s own storage and checked as it goes; about 7 GB of free space is wanted.</string>
+    <string name="install_hint">Point this at a disc image (.iso) of your own copy, on this device or its memory card. The game plays from the image where it is, with nothing copied; or its files can be copied into the app, about 7 GB, from an image or from a folder holding a disc\'s files.</string>
+    <string name="install_mode_link">Play from the disc image</string>
+    <string name="install_mode_link_hint">Nothing is copied and it is ready in a second. The image has to stay where it is: the game reads its files out of it. Saves, settings and mods are kept in the app as always.</string>
+    <string name="install_mode_copy">Copy the game files into the app</string>
+    <string name="install_mode_copy_hint">About 7 GB on the device\'s own storage, and some minutes. The image or folder is not needed afterwards.</string>
+    <string name="install_done_link">The game is set up to play from the disc image. Keep the image where it is.</string>
+    <string name="source_unreadable">This cannot be read any more: %1$s</string>
+    <string name="copies_found">The app still holds %1$s of game files copied earlier. The disc image has the same files, so the game no longer needs the copies.\n\nRemove them to free the space?</string>
+    <string name="copies_keep">Keep them</string>
+    <string name="copies_remove">Remove</string>
     <string name="choose_source">Browse the phone\u2019s storage</string>
     <string name="begin_install">Install</string>
     <string name="no_source">Nothing chosen yet.</string>
-    <string name="chosen">Installing from:\n%1$s</string>
+    <string name="chosen">Source:\n%1$s</string>
     <string name="installing">%1$s  (%2$d%%)</string>
     <string name="install_done">The game files are installed.</string>
     <string name="install_failed">The install did not finish:\n%1$s</string>
@@ -95,15 +106,16 @@
     <!-- bringing a file in through the system picker -->
     <string name="pick_with_files">Choose with the Files app</string>
     <string name="import_file">Import</string>
-    <string name="import_explained">The Files app hands over a document rather than a path, so the file is copied into this app first: %1$s now, and about 7 GB again for the installed game. %2$s is free.\n\nIf space is tight, use “Browse the phone’s storage” instead — it reads the file where it lies.</string>
-    <string name="import_explained_unknown">The Files app hands over a document rather than a path, so the file is copied into this app first. A disc image is several gigabytes, and the installed game needs about 7 GB more.\n\nIf space is tight, use “Browse the phone’s storage” instead — it reads the file where it lies.</string>
+    <string name="import_explained">This document is not a file on the device (a cloud entry, for one), so it cannot be read where it is and is copied into this app first: %1$s. %2$s is free.\n\nA file on the device or its memory card needs no copy: download it first, or use “Browse the phone’s storage”.</string>
+    <string name="import_explained_unknown">This document is not a file on the device (a cloud entry, for one), so it cannot be read where it is and is copied into this app first. A disc image is several gigabytes.\n\nA file on the device or its memory card needs no copy: download it first, or use “Browse the phone’s storage”.</string>
     <string name="copying">Copying in: %1$s</string>
 
     <!-- the file browser -->
     <string name="use_this_folder">Use this folder</string>
     <string name="allow_storage">Allow storage access</string>
-    <string name="storage_explained">Android only lets an app read files outside its own folder once you allow it. Without that, put the disc image in Android/data/%1$s/files and pick it from there.</string>
+    <string name="storage_explained">Android only lets an app read files outside its own folder once you allow it. Without that, use “Choose with the Files app”, which needs no permission, or put the disc image in Android/data/%1$s/files and pick it from there.</string>
     <string name="up_one">..  (up one)</string>
+    <string name="other_storage">Other storage: %1$s</string>
 
     <!-- the driver screen -->
     <string name="driver_hint">Adreno phones can run Mesa\'s Turnip driver, which is often much quicker than the one the phone shipped with, and sometimes renders things the shipped one gets wrong. Import the driver\'s zip archive as it was downloaded; it is unpacked into the app\'s own storage.</string>
@@ -183,6 +195,9 @@
     <string name="shaders_cleared">Shader cache cleared. Shaders rebuild as you play.</string>
     <string name="logs_cleared">Logs cleared.</string>
     <string name="paths_line">Installed in:\n%1$s</string>
+    <string name="paths_line_disc">Played from the disc image:\n%1$s\nExecutables, mods and saves in:\n%2$s</string>
+    <string name="change_source">Change where the game is read from</string>
+    <string name="change_source_hint">Opens the install screen: play from a disc image instead of the copied files (and free their 7 GB), copy the files in instead, or point at an image that has moved.</string>
     <string name="paths_none">Nothing installed yet.</string>
 
     <!-- split-screen (a physical controller means a second player) -->
@@ -286,7 +301,7 @@
     <string name="error_not_installed">The game files are not installed. Install them from the launcher first.</string>
     <string name="error_start">The runtime would not start. The log has the details.</string>
     <!-- the game's code, where the app is published without it (GameLibrary.kt) -->
-    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd (on Linux: bash setup/setup.sh) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
+    <string name="game_code_missing">Step 1 is not done: the game code is not on this device. It is made from your own disc.\nOn your PC, run setup\\setup.cmd (on Linux: bash setup/setup.sh) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
     <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -GameOnly with this device connected over USB. If you built it online: in your private repository, Actions, Build my game package, Run workflow. Your game files and saves are kept.</string>
     <!-- for a player with no PC (BuildOnline.kt, docs/BUILD-WITHOUT-PC.md) -->
     <string name="build_online">Prepare files for building online</string>
@@ -297,6 +312,14 @@
     <string name="build_online_failed">The files could not be prepared: %1$s.</string>
     <string name="build_online_done">%1$s and %2$s are now in this device\'s Download folder. They are your game\'s executables: keep them to yourself.\n\nNext, in your browser, signed in to GitHub:\n\n1. Open github.com/yassinsolim/recomp-builder, tap Use this template, Create a new repository, and choose Private.\n2. In your new repository: Add file, Upload files, choose the two files from Download, Commit changes.\n3. The build starts by itself and takes an hour or two (Actions shows it). Then open Releases, tap the .apk in the draft at the top and install it.\n\nNever make that repository public: it holds your copy of the game\'s code.</string>
     <string name="build_online_guide">Open the full guide</string>
+    <!-- the two steps of setting up, said before either is started (MainActivity.showSetupSteps) -->
+    <string name="setup_title">TWO STEPS TO PLAY</string>
+    <string name="setup_command">setup\\setup.cmd</string>
+    <string name="setup_steps">1. ON A PC (%1$s): run %3$s with this device connected over USB. It builds the game code from your own disc and installs it here.\n2. ON THIS DEVICE (%2$s): Install &amp; Play, which reads the game files from your disc image (.iso).</string>
+    <string name="setup_done">done</string>
+    <string name="setup_todo">to do</string>
+    <string name="setup_guide">Open the guide</string>
+    <string name="setup_guide_where">The app alone is not the game: it carries no game code and no game files, and both come from your own disc. The guide has every command:\n%1$s</string>
     <string name="stats_line">%1$.0f fps   %2$d MB textures   %3$d×%4$d</string>
 
     <!-- the run's own notification, which is there so the process is not the

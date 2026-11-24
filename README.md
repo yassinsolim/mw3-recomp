@@ -15,6 +15,23 @@ there is no streaming.
 > or share the APKs, the Windows game, the extracted files or the generated
 > code** (`out/`, `mw3/`, `ppc_mw3*/`): they contain the game.
 
+## Two steps to play
+
+The Android app on the [releases](https://github.com/yassinsolim/mw3-recomp/releases)
+page is not the whole game: it carries no game code and no game files. Both
+come from your own disc, in two steps, and the app says which is still to do:
+
+1. **On a PC:** `setup\setup.cmd` builds the game code from your disc image
+   and installs it, with the app, on the device over USB
+   ([Quick start](#quick-start-windows)).
+2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
+   your disc image (`.iso`) in `Download`, on the device or its memory card,
+   and plays from it where it is: nothing is copied
+   ([Install on Android](#install-on-android)).
+
+An app installed by itself, without step 1, says "Step 1 is not done" and
+cannot start the game.
+
 ## Status
 
 Tested mostly on one Android device (an AYN Thor: Snapdragon 8 Gen 2,
@@ -63,13 +80,18 @@ game code as your own package. It shares every renderer fix made since
   free (60 GB with the Windows game). A first build takes one to several
   hours. With a Linux PC, see [No Windows PC](#no-windows-pc).
 - For Android: a 64-bit phone or handheld with Android 10 or later and
-  Vulkan, about 7 GB free per app for the game files (plus room for the
-  ~8 GB disc image while installing). Qualcomm (Adreno) devices get a bundled
-  Turnip driver; others use their own driver and are untested.
+  Vulkan, with room for the ~8 GB disc image on its own storage or on a memory
+  card. The game plays from the image; copying its files into the app
+  instead (about 7 GB more) is a choice. Qualcomm (Adreno) devices get a
+  bundled Turnip driver; others use their own driver and are untested.
 - For the Windows game: a GPU with Vulkan and a processor from 2011 or later
   (x86-64-v2).
 
 ## Quick start (Windows)
+
+Step 1 of the [two](#two-steps-to-play): the game code, built on the PC and
+installed on the phone. Step 2, on the phone, is
+[Install on Android](#install-on-android).
 
 1. Get the code: `git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`
    (or **Code → Download ZIP** and unpack it). A short path without spaces,
@@ -135,13 +157,19 @@ code (minutes, not hours) and installs it; game files and saves are kept.
    put the published app over it (they are signed with different keys), so
    setup offers to replace it, keeping the game files and saves; the app's
    settings start afresh.
-2. **The game files.** Copy your `.iso` to the phone (setup can do it:
-   `-PushIso`, or answer yes). Open the app, choose **Install the game files**,
-   then **Browse the phone's storage** and pick the image. The app checks
-   both executables and copies what it needs into its own storage (about
-   7 GB), once: the campaign and the multiplayer read the same folder. From
-   then on the app's start screen shows the game's own artwork, read from
-   your disc's files on the phone: the app is published without it.
+2. **The game files.** Copy your `.iso` to the phone's `Download` folder, or
+   to a memory card's (setup can do the first: `-PushIso`, or answer yes).
+   Open the app and choose **INSTALL & PLAY**: it finds the image, checks both
+   executables and plays from the image where it is. Nothing is copied but
+   the two executables, so it is ready in a second and the image has to stay
+   there. An image anywhere else: **Choose Another Source**, then **Choose
+   with the Files app** (no permission needed) or **Browse the phone's
+   storage**. The same screen can copy the files into the app instead (about
+   7 GB), after which the image is not needed, and **Settings → Files →
+   Change where the game is read from** switches between the two later
+   ([docs/android.md](docs/android.md#the-game-files)). From then on the
+   app's start screen shows the game's own artwork, read from your disc's
+   files on the phone: the app is published without it.
 3. **Play.** Tap **Campaign · Special Ops** or **Multiplayer**. The game's
    own menu entries that go from one to the other work too: the app restarts
    the game with the other half. The on-screen pad can be edited from the

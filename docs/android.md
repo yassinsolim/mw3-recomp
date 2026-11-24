@@ -400,12 +400,32 @@ The workflow in [.github/workflows/android.yml](../.github/workflows/android.yml
 
 The app does not bundle game files. The player provides an Xbox 360 disc image (`.iso`, `.7z`, or `.zip` of version 1.0.557):
 
-- **Automatic Discovery**: Placing `Call of Duty - Modern Warfare 2 (USA, Europe).iso` in `/sdcard/Download/` enables the one-tap **⚡ INSTALL & PLAY** option in the launcher.
-- **Extracted Location**: The installer unpacks verified game assets into:
-  `/sdcard/Android/data/com.mw2.recomp.sp/files/game/`
+- **Automatic Discovery**: Placing `Call of Duty - Modern Warfare 2 (USA, Europe).iso` in a `Download` folder, the device's or a memory card's, enables the one-tap **⚡ INSTALL & PLAY** option in the launcher.
+- **Game folder**: `/sdcard/Android/data/com.mw2.recomp.sp/files/game/` holds the executables and the picture (11 MB) of a game played from its image, or every file of one that was copied in; mods, camouflage packs and an update's files are there either way.
 - **Saves Location**: Campaign and profile saves are stored in:
   `/sdcard/Android/data/com.mw2.recomp.sp/files/saves/`
 - **Start-screen artwork** (`DiscArt.kt`): every disc has `nxeart` at its root, the package the console's dashboard takes the game's backdrop from. The installer copies it with the game files; the launcher takes `nxebg.jpg` (1920x1080) out of it once, keeps it in the app's private folder (`files/art/`), and draws it behind the menu under a scrim (`BackdropView.kt`), cropped about its middle on a screen that is not 16:9. It is never in the APK or the repository: without the game files, or with a package it cannot read, the launcher keeps its own haze. The home-screen icon is always the project's emblem.
+
+### The game files
+
+Two ways, chosen on the install screen (`InstallActivity.kt`) and changed later from **Settings → Files → Change where the game is read from**:
+
+- **Play from the disc image** (the default). The runtime lays the image under the game folder and reads the game's files out of it where it lies ([runtime.md](runtime.md#files)); the installer checks the executables and copies only them and `nxeart`. The image has to stay where it is. The app keeps it as a path, or, for one chosen with the Files app, as the document's address with the picker's permission kept (`DiscImage.kt`): the game's process opens the document and hands the runtime the descriptor, so an image on a memory card needs no all-files access. When the image is gone (deleted, moved, the card out), the launcher says so and offers the install screen, and a run started anyway ends with the same sentence.
+- **Copy the game files into the app**, about 7 GB, from an image or a folder of a disc's files; the source is not needed afterwards. Going from copied to the image, the app offers to delete the copies (the files of the image's names and sizes; anything else in the folder stays).
+
+Writable data is the app's in both: saves, settings, the shader and pipeline caches, `camos/`, `mods/`, `dlc/` ([dlc.md](dlc.md)).
+
+Measured on a Retroid Pocket Flip 2 (Snapdragon 865, UFS; the memory card exFAT at 59 MB/s sequential), from the level's console command to the first frame of play, with the file cache pushed out before each run by reading 16 GB of other files (8 GB of memory); two or three runs each:
+
+| | image, device storage | image, memory card | copied files |
+|---|---|---|---|
+| Modern Warfare 2, S.S.D.D. (51 MB fastfile) | 3.6 s | 3.8 to 3.9 s | 3.7 to 3.8 s |
+| Modern Warfare 2, The Gulag (87 MB) | 6.2 s | 6.8 to 7.0 s | 6.2 to 6.3 s |
+| Modern Warfare 2 multiplayer, Terminal | 5.9 to 6.5 s | | |
+| Modern Warfare 3, Survival on Resistance | 13.2 to 13.5 s | | |
+| Call of Duty 4, F.N.G. (high mips from the image's `highmip`) | 5.1 s | | |
+
+Late frames in the half minute after the load: none from the device's storage or from copied files, none or one from the card. The card's image chosen with the Files app (read through the descriptor) loads as the one named by its path does (3.9 and 6.9 s). Copying Modern Warfare 2's files took about half a minute; setting up from the image takes under a second. On the AYN Thor, one uncontrolled run of S.S.D.D. from the image loaded in 4.0 s; the comparison was not repeated there.
 
 ---
 

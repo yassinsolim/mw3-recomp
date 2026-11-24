@@ -63,6 +63,7 @@
 #include "env.h"
 #include "log.h"
 #include "kernel/kernel.h"
+#include "kernel/volume.h"
 
 #include <algorithm>
 #include <cctype>
@@ -217,15 +218,18 @@ namespace
         }
     };
 
-    // The fastfiles in the game's folder, by name without the extension.
+    // The game's fastfiles, by name without the extension: the game folder's,
+    // and the disc image's where the game is played from one.
     std::vector<std::string> Fastfiles()
     {
         std::vector<std::string> names;
-        std::error_code error;
-        for (const auto& entry : std::filesystem::directory_iterator(kernel::GameRoot(), error)) {
-            const std::filesystem::path& path = entry.path();
+        const auto take = [&](const std::filesystem::path& path) {
             if (Lower(path.extension().string()) == ".ff") names.push_back(Lower(path.stem().string()));
-        }
+        };
+        std::error_code error;
+        for (const auto& entry : std::filesystem::directory_iterator(kernel::GameRoot(), error)) take(entry.path());
+        if (const auto& disc = kernel::Disc())
+            for (const std::string& file : disc->RootFiles()) take(file);
         return names;
     }
 

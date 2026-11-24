@@ -1524,6 +1524,8 @@ namespace
         uint32_t extraSize = 0;      // that block's size
         bool titleServers = false;   // XTitleServerCreateEnumerator's
         bool listed = false;         // its one server was handed out
+        bool downloaded = false;     // XContentCreateEnumerator's, for downloadable content
+        size_t next = 0;             // the first package it has not handed out
         // Call of Duty 4's multiplayer, signed in and told Live has no
         // title server, asks again every frame: with each enumerator's work
         // memory left behind (11 KB), the guest heap's 416 MB were gone after
@@ -1592,7 +1594,10 @@ PPC_FUNC(__imp__XamGetPrivateEnumStructureFromHandle)
 // (user, device, contentType, flags, itemCount, bufferSizeOut, handleOut)
 PPC_FUNC(__imp__XamContentCreateEnumerator)
 {
+    constexpr uint32_t kMarketplaceContent = 2;
     const uint32_t handle = NewEnumerator(0);
+    if (auto enumerator = LookupHandleAs<Enumerator>(handle))
+        enumerator->downloaded = ctx.r5.u32 == kMarketplaceContent;
     if (auto* size = GuestPtr<be32>(ctx.r8.u32)) *size = ctx.r7.u32 * kXContentDataSize;
     if (auto* out = GuestPtr<be32>(ctx.r9.u32)) *out = handle;
     ctx.r3.u64 = handle ? X_ERROR_SUCCESS : X_ERROR_NOT_ENOUGH_MEMORY;
@@ -1606,15 +1611,25 @@ PPC_FUNC(__imp__XamEnumerate)
     const bool server = enumerator->titleServers && !enumerator->listed && online::demonware::Served() &&
                         WriteTitleServer(*enumerator, ctx.r5.u32, ctx.r6.u32);
     if (server) enumerator->listed = true;
+    // The player's map packs (content.cpp). The title reads the list up to
+    // the first entry with no content type, so the one after the last is
+    // cleared where the buffer has room for it.
+    uint32_t count = server ? 1 : 0;
+    if (enumerator->downloaded)
+    {
+        count = kernel::ListDownloadedContent(ctx.r5.u32, ctx.r6.u32, enumerator->next);
+        if (count && (count + 1) * kXContentDataSize <= ctx.r6.u32)
+            std::memset(GuestPtr<uint8_t>(ctx.r5.u32 + count * kXContentDataSize), 0, kXContentDataSize);
+    }
     if (const uint32_t overlapped = ctx.r8.u32)
     {
-        if (server) CompleteOverlappedEx(overlapped, X_ERROR_SUCCESS, X_ERROR_SUCCESS, 1);
+        if (count) CompleteOverlappedEx(overlapped, X_ERROR_SUCCESS, X_ERROR_SUCCESS, count);
         else CompleteOverlappedEx(overlapped, kFunctionFailed, 0x80070000 | X_ERROR_NO_MORE_FILES, 0);
         ctx.r3.u64 = X_ERROR_IO_PENDING;
         return;
     }
-    if (auto* items = GuestPtr<be32>(ctx.r7.u32)) *items = server ? 1 : 0;
-    ctx.r3.u64 = server ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
+    if (auto* items = GuestPtr<be32>(ctx.r7.u32)) *items = count;
+    ctx.r3.u64 = count ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
 }
 
 // XamGetSystemVersion, XGetLanguage and XGetAVPack are in misc.cpp.

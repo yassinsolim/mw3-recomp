@@ -837,6 +837,21 @@
                     android:layout_height="wrap_content" />
 
                 <Button
+                    android:id="@+id/change_source"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/change_source" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/change_source_hint" />
+
+                <Button
                     android:id="@+id/forget"
                     android:background="@drawable/bg_button_action"
                     android:textColor="#E8EAED"
