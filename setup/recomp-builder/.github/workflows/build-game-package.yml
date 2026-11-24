@@ -1,0 +1,171 @@
+# Builds your game package (the recompiled game code, an APK for your own
+# phone) from the executables of your own disc, for a player with no PC:
+# docs/BUILD-WITHOUT-PC.md in yassinsolim/mw3-recomp, mw2-recomp or
+# cod4-recomp.
+#
+# This file lives in YOUR PRIVATE copy of yassinsolim/recomp-builder. The
+# executables you upload and the package it builds contain the game's code:
+# they are yours alone and must never be public. So the job
+#   - refuses to run, before anything else, in a repository that is public;
+#   - looks again just before it stores the package, and stores it only as a
+#     DRAFT release of this repository, which nobody but you can see even if
+#     the repository were made public later;
+#   - uploads nothing anywhere else.
+#
+# It starts by itself when you upload the two executables (the files the
+# app's "Prepare files for building online" wrote into Download), and from
+# Actions, "Build my game package", "Run workflow" when you want it again
+# (the app says so when an update needs the game code built again).
+#
+# The work itself is setup/setup.sh of the game's public repository, the
+# same script a Linux PC runs: it checks the executables against the disc
+# builds the port supports, recompiles them and builds the package.
+name: Build my game package
+
+on:
+  push:
+    paths:
+      - "**.xex"
+  workflow_dispatch:
+    inputs:
+      game:
+        description: "Which game (normally told by the files' names)"
+        type: choice
+        default: from the files
+        options: [from the files, mw3, mw2, cod4]
+      version:
+        description: "The app's version to build for (a tag such as v0.1.6), or latest"
+        default: latest
+      app_suffix:
+        description: "Developers only: the package suffix of a development app (.dev)"
+        default: ""
+      source:
+        description: "Developers only: another repository with the source (owner/name)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-game-package
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # With pipefail: a build that fails must not pass for the `tee` after it.
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # setup.sh reads the published app's release with it: without, the
+      # runner's shared address is often over GitHub's limit for anonymous use.
+      GITHUB_TOKEN: ${{ github.token }}
+      WANTED_GAME: ${{ inputs.game || 'from the files' }}
+      WANTED_VERSION: ${{ inputs.version || 'latest' }}
+      APP_SUFFIX: ${{ inputs.app_suffix }}
+      SOURCE: ${{ inputs.source }}
+    steps:
+      - name: Refuse to run in a public repository
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ "${PRIVATE}" != "true" ]; then
+            echo "::error::This repository is PUBLIC. The executables and the game package contain the game's code and must never be public. Delete this repository, make a new one from the template with visibility Private, and upload the executables there."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v6
+
+      - name: Which game the uploaded executables are
+        run: |
+          # Wherever they were uploaded to, under the names the app gives
+          # them (mw2-default.xex, mw2-default_mp.xex) or the disc's own
+          # (default.xex, default_mp.xex), which do not say the game.
+          mkdir -p "${RUNNER_TEMP}/xex"
+          find . -path ./.git -prune -o -type f -iname '*.xex' -print0 |
+            while IFS= read -r -d '' file; do
+              # A second download of a name is "name (1).xex" on a phone.
+              cp "${file}" "${RUNNER_TEMP}/xex/$(basename "${file,,}" | sed 's/ *([0-9]*)//')"
+            done
+          games="$(ls "${RUNNER_TEMP}/xex" | sed -n 's/^\(mw3\|mw2\|cod4\)-default\(_mp\)\?\.xex$/\1/p' | sort -u | paste -sd' ')"
+          if [ "${WANTED_GAME}" != "from the files" ]; then games="${WANTED_GAME}"; fi
+          if [ -z "${games}" ]; then
+            echo "::error::No executables found. Upload the two files the app's 'Prepare files for building online' wrote into Download (for example mw2-default.xex and mw2-default_mp.xex). If yours are called default.xex and default_mp.xex, start this from Actions, Run workflow, and choose the game."
+            exit 1
+          fi
+          echo "GAMES=${games}" >> "${GITHUB_ENV}"
+          echo "building: ${games}"
+
+      - name: Build the game package
+        run: |
+          mkdir -p "${RUNNER_TEMP}/packages"
+          for game in ${GAMES}; do
+            repository="${SOURCE:-yassinsolim/${game}-recomp}"
+            url="https://github.com/${repository}.git"
+            # A developer's source may be a branch of this private repository.
+            if [ "${repository}" = "${GITHUB_REPOSITORY}" ]; then url="https://x-access-token:${GH_TOKEN}@github.com/${repository}.git"; fi
+            ref="${WANTED_VERSION}"
+            if [ "${ref}" = "latest" ]; then
+              # The published app's own source, so that the package is what
+              # that app was built for. Releases from before this way of
+              # building have no setup.sh: the newest source builds for them.
+              ref="$(gh api "repos/${repository}/releases/latest" --jq .tag_name 2> /dev/null || true)"
+              if [ -z "${ref}" ] || ! gh api "repos/${repository}/contents/setup/setup.sh?ref=${ref}" --silent 2> /dev/null; then ref=main; fi
+            fi
+            echo "::group::${game}: the source, ${repository} at ${ref}"
+            source="${RUNNER_TEMP}/source-${game}"
+            git clone --quiet --depth 1 --branch "${ref}" "${url}" "${source}"
+            echo "::endgroup::"
+            # One signing key for every package this repository builds, kept
+            # in it: Android puts a new package over the installed one only
+            # when both are signed with the same key.
+            mkdir -p "${source}/.toolchain/android-user-home"
+            if [ -f signing/debug.keystore ]; then cp signing/debug.keystore "${source}/.toolchain/android-user-home/"; fi
+            bash "${source}/setup/setup.sh" --game "${game}" --xex-dir "${RUNNER_TEMP}/xex" --game-only --yes \
+              --sdk "${ANDROID_HOME}" ${APP_SUFFIX:+--suffix "${APP_SUFFIX}"} 2>&1 | tee "${RUNNER_TEMP}/setup-${game}.log"
+            cp "${source}/out/${game}-game${APP_SUFFIX}.apk" "${RUNNER_TEMP}/packages/"
+            if [ ! -f signing/debug.keystore ]; then
+              mkdir -p signing
+              cp "${source}/.toolchain/android-user-home/debug.keystore" signing/debug.keystore
+            fi
+            # Room for the next game.
+            rm -rf "${source}"
+          done
+
+      - name: Keep this repository's signing key
+        run: |
+          if [ -n "$(git status --porcelain signing)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add signing/debug.keystore
+            git commit --quiet -m "The key this repository's game packages are signed with"
+            # Not worth the build: without it the next package is signed with a
+            # new key, and the one installed has to be uninstalled first.
+            git push --quiet || echo "::warning::The signing key could not be saved in this repository. Before installing the next package you build, uninstall this one (Settings, Apps)."
+          fi
+
+      - name: Store the package as a draft release, visible to you alone
+        run: |
+          # Looked at again, now: the repository may have been made public
+          # while the build ran.
+          if [ "$(gh api "repos/${GITHUB_REPOSITORY}" --jq .private)" != "true" ]; then
+            echo "::error::This repository is no longer private: the package is not stored."
+            exit 1
+          fi
+          gh release delete game-package --repo "${GITHUB_REPOSITORY}" --yes 2> /dev/null || true
+          gh release create game-package "${RUNNER_TEMP}"/packages/*.apk --repo "${GITHUB_REPOSITORY}" --draft \
+            --title "My game package (private: never share it)" \
+            --notes "Built from your own disc's executables. On your phone, signed in to GitHub in the browser: tap the .apk below to download it, open it from the notification (or the Files app, Downloads) and tap Install; allow your browser to install apps when Android asks. Then open the game's app. This is a draft on purpose: only you can see it. Never publish it."
+          {
+            echo "### Your game package is ready"
+            echo
+            echo "Open **Releases** in this repository (the draft at the top), tap the \`.apk\` and install it."
+            echo
+            echo '```'
+            grep -hE 'built against|fits the published app|warning:|done in' "${RUNNER_TEMP}"/setup-*.log | sed 's/\x1b\[[0-9;]*m//g'
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"

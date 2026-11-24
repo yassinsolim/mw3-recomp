@@ -61,7 +61,7 @@ game code as your own package. It shares every renderer fix made since
   than built wrong.
 - A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
   free (60 GB with the Windows game). A first build takes one to several
-  hours.
+  hours. With a Linux PC, or no PC at all, see [No Windows PC](#no-windows-pc).
 - For Android: a 64-bit phone or handheld with Android 10 or later and
   Vulkan, about 7 GB free per app for the game files (plus room for the
   ~8 GB disc image while installing). Qualcomm (Adreno) devices get a bundled
@@ -233,28 +233,29 @@ Settings → Network is **Online** with that address, and the PC's `.env` has
   levels allow. Prestige Mode and its double experience are left as earned
   ([details](docs/MW3-MP-BRINGUP.md#everything-unlocked)).
 
-## Linux
+## No Windows PC
 
-The same pipeline runs on Linux (Ubuntu 24.04, also under WSL2), by hand:
+- **A Linux PC** (written for Ubuntu 24.04; new, not yet proven), one command:
 
-```sh
-python3 tools/xdvdfs.py <your.iso> mw3/tu0 default.xex default_mp.xex   # read-only
-bash tools/recomp_mw3.sh       # campaign    -> ppc_mw3/
-bash tools/recomp_mw3.sh mp    # multiplayer -> ppc_mw3_mp/
-for title in mw3 mw3mp; do
-  MW2_TITLE=$title MW2_VERSION=tu0 python3 tools/genshared.py
-  MW2_TITLE=$title MW2_VERSION=tu0 python3 tools/gen_kernel_stubs.py
-done
-bash android/fetch_deps.sh     # libadrenotools and the Turnip driver
-cd android && echo "sdk.dir=$ANDROID_HOME" > local.properties
-MW2_LTO=OFF ./gradlew assembleMw3Tu0Debug     # one APK, both titles
-```
+  ```sh
+  git clone https://github.com/yassinsolim/mw3-recomp.git && cd mw3-recomp
+  bash setup/setup.sh --iso ~/Downloads/MW3.iso
+  ```
 
-It needs JDK 17, NDK 28.2.13676358, `platforms;android-35`, CMake 3.22.1+,
-clang-18, Ninja and Python 3.10+. `build.sh` at the root is the Modern Warfare 2
-pipeline this port grew from; for MW3 use the steps above
-([docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#build-wsl2-ubuntu-2404),
-desktop runs: [docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md)).
+  It fetches its tools into `.toolchain/`, builds the game code
+  (`out/mw3-game.apk`), downloads the published app and offers to install
+  both on a phone connected over USB. It builds for Android only, runs as
+  many compilers as the free memory holds (an old PC is slower, not stuck),
+  and `--game-only` rebuilds the game code after an update.
+- **No PC at all** (new, not yet proven): GitHub builds the game code for you, in a private
+  repository of your own, from the two executables the app reads out of your
+  disc image on the phone (**Settings → Files → Prepare files for building
+  online**).
+
+Both, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+The pipeline by hand, and desktop runs on Linux:
+[docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#build-wsl2-ubuntu-2404),
+[docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md).
 
 ## Troubleshooting
 
@@ -266,7 +267,7 @@ desktop runs: [docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md)).
 | errors about long paths or spaces | move the folder to a short path such as `C:\mw3` |
 | `adb` says *unauthorized* | unlock the phone and accept the USB debugging prompt |
 | the app says the game files are missing | do step 2 of *Install on Android* |
-| the app says the game code is not on this device | run `setup\setup.cmd` with the phone connected: it builds and installs it |
+| the app says the game code is not on this device | run `setup\setup.cmd` with the phone connected: it builds and installs it (without a Windows PC: [No Windows PC](#no-windows-pc)) |
 | the app says the game code does not match this version | on the PC: `git pull`, then `setup\setup.cmd -GameOnly` with the phone connected |
 | black screen or crashes on a non-Qualcomm phone | untested hardware; the app's **Log** screen says what happened |
 | friends do not see your game | everyone on the same relay, same version; the host must have **started** the match |

@@ -46,6 +46,15 @@ class SettingsActivity : AppCompatActivity() {
         installModFolder(File(path))
     }
 
+    /** The disc image the executables are read from when the game files are not installed (BuildOnline.kt). */
+    private val discImage = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val image = result.data?.data ?: return@registerForActivityResult
+        prepareBuildOnline { BuildOnline.fromDiscImage(this, image) }
+    }
+
     /**
      * The microphone, asked for when the player turns voice chat on and at
      * no other time. Refused, the switch goes back off: voice chat without a
@@ -327,6 +336,28 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 }
                 .show()
         }
+        if (BuildOnline.offered) {
+            findViewById<android.view.View>(R.id.build_online_hint).visibility = android.view.View.VISIBLE
+            val prepare: Button = findViewById(R.id.build_online)
+            prepare.visibility = android.view.View.VISIBLE
+            prepare.setOnClickListener {
+                val installed = prefs.gameDirectory
+                if (BuildOnline.inGameFolder(installed)) {
+                    prepareBuildOnline { BuildOnline.fromGameFolder(this, installed) }
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.build_online)
+                        .setMessage(R.string.build_online_pick)
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.build_online_choose) { _, _ ->
+                            discImage.launch(
+                                Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                            )
+                        }
+                        .show()
+                }
+            }
+        }
 
         // ---- storage ----
         val storage: TextView = findViewById(R.id.storage)
@@ -349,6 +380,44 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
         findViewById<Button>(R.id.install_mods).setOnClickListener {
             modBrowse.launch(Intent(this, FileBrowserActivity::class.java))
         }
+    }
+
+    /** Writes the executables into Download with [write], off the main thread, and says what to do with them. */
+    private fun prepareBuildOnline(write: () -> Unit) {
+        val working = AlertDialog.Builder(this)
+            .setTitle(R.string.build_online)
+            .setMessage(R.string.build_online_working)
+            .setCancelable(false)
+            .show()
+        Thread {
+            val failure = try {
+                write()
+                null
+            } catch (error: Exception) {
+                error.message ?: error.toString()
+            }
+            runOnUiThread {
+                working.dismiss()
+                val dialog = AlertDialog.Builder(this).setTitle(R.string.build_online)
+                if (failure != null) {
+                    dialog.setMessage(getString(R.string.build_online_failed, failure))
+                        .setPositiveButton(R.string.close, null)
+                } else {
+                    dialog.setMessage(
+                        getString(
+                            R.string.build_online_done,
+                            BuildOnline.fileName(Title.CAMPAIGN),
+                            BuildOnline.fileName(Title.MULTIPLAYER),
+                        )
+                    )
+                        .setNegativeButton(R.string.close, null)
+                        .setPositiveButton(R.string.build_online_guide) { _, _ ->
+                            startActivity(Intent(Intent.ACTION_VIEW, BuildOnline.guide))
+                        }
+                }
+                dialog.show()
+            }
+        }.start()
     }
 
     /** Slides the gold rule under the chosen tab. */

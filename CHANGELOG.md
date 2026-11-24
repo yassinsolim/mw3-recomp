@@ -4,6 +4,26 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Building the game code without a Windows PC**
+  ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
+  - `setup/setup.sh`: setup for Linux, for all three games
+    (`bash setup/setup.sh --game mw2 --iso <file>`). It fetches a pinned JDK
+    and the Android SDK and NDK into `.toolchain/`, reads and checks the
+    executables, recompiles, builds the game package, downloads the
+    published app and installs both over adb (`--device`). The number of
+    compilers follows the free memory, and it says how much memory and time
+    the build took. Android only; the Windows game stays `setup.ps1`'s.
+  - With no PC at all: the app's **Settings → Files → Prepare files for
+    building online** writes the disc's two executables into Download (from
+    the installed game files, or read out of the disc image), and the
+    workflow in `setup/recomp-builder/` (the template repository
+    `yassinsolim/recomp-builder`) builds the game package from them in the
+    player's own private repository. It refuses to run in a public
+    repository and keeps the package as a draft release, which only the
+    owner can see.
+  - The app's messages about missing or outdated game code name both.
+
 ## [v0.1.6] - 2026-11-24
 
 Modern Warfare 3's and Modern Warfare 2's v0.1.6 and Call of Duty 4's
