@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The toolchain's package is found by name, as the game's app finds it. -->
+    <queries>
+        <package android:name="${toolchainPackage}" />
+    </queries>
+    <application
+        android:label="Build tools probe"
+        android:allowBackup="false">
+        <!-- Started from adb with the command to run (ProbeActivity.java). -->
+        <activity
+            android:name=".ProbeActivity"
+            android:exported="true" />
+    </application>
+</manifest>
