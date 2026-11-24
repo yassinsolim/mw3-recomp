@@ -66,6 +66,7 @@ object GameBuild {
         val compile: List<String> = strings(json, "compile")
         val link: List<String> = strings(json, "link")
         val extraSources: List<String> = strings(json, "extraSources")
+        val inTextTables: Boolean = json.getBoolean("inTextTables")
         val titles: List<KitTitle> = json.getJSONArray("titles").let { list -> (0 until list.length()).map { KitTitle(list.getJSONObject(it)) } }
 
         private fun strings(json: JSONObject, key: String): List<String> =
@@ -362,6 +363,15 @@ object GameBuild {
         var log = File(logs, "${title.library}_analyse.log")
         if (execute(context, listOf(toolchain.analyser.path, program, "config/${title.tables}"), root, log) != 0) {
             throw Failure(context.getString(R.string.build_tool_failed, "XenonAnalyse", tail(log)))
+        }
+        // Call of Duty 4 has a kind of jump table the analyser does not
+        // recognise (setup\setup.ps1 runs tools/intext_switch_tables.py there).
+        if (kit.inTextTables) {
+            try {
+                InTextTables.add(File(root, program), File(root, "config/${title.tables}"))
+            } catch (error: IOException) {
+                throw Failure(context.getString(R.string.build_tool_failed, "the jump tables", error.message.orEmpty()))
+            }
         }
         // The recompiler crashes, rather than complaining, when its output folder is missing.
         tree.deleteRecursively()

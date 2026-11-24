@@ -69,6 +69,16 @@ game code as your own package. It shares every renderer fix made since
 - For the Windows game: a GPU with Vulkan and a processor from 2011 or later
   (x86-64-v2).
 
+## Quick start (Android only, no PC)
+
+1. Install the app from the [latest release](../../releases/latest) and copy
+   your disc image (`.iso`) to the device's Download folder.
+2. Open the app, choose **Install & Play** for the game files, then **Build
+   the game code**: it finds the executables, offers to install the toolchain
+   package (once, about 45 MB) and builds. Keep the charger connected; three
+   to fifteen minutes depending on the device, and you may leave the app.
+3. Play. Details: [docs/ondevice-build.md](docs/ondevice-build.md).
+
 ## Quick start (Windows)
 
 1. Get the code: `git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`

@@ -6,10 +6,9 @@ Until now that took a PC (`setup\setup.ps1`). With the build tools installed
 beside the app, the phone does it: the same recompiler, the same compiler line,
 the same link, and a library that states what the PC's states.
 
-This page is the tools' side: the package `com.recomp.toolchain`, what is in
-it, where it comes from and how it was tried. The app's side (finding the
-executables in the disc image, running the build, loading the result) is the
-app's own section below.
+First the tools: the package `com.recomp.toolchain`, what is in it, where it
+comes from and how it was tried. Then [the app's side](#the-apps-side):
+finding the executables, running the build, loading the result.
 
 ## The toolchain package
 
@@ -65,7 +64,7 @@ shared storage.
 ```
 
 `{llvm}` is the program's path, `{data}` the folder `data.zip` was unpacked
-into. A compile is `compile`, the build's own flags (`-O2 -DNDEBUG -fPIC -w
+into. A compile is `compile`, the build's own flags (`-O3 -DNDEBUG -fPIC -w
 -fwrapv -fno-omit-frame-pointer -std=gnu++20`, the title's definitions and
 include folders, `-include runtime/mmio_hook.h`), `-c`, the source and `-o`.
 A link is `linkPrefix`, the build's own options (`--build-id=sha1
@@ -159,3 +158,104 @@ Found on the way, for whoever writes a build around the tools:
 - The debug information is what makes the PC's compile heavy (a gigabyte a
   compiler). Without it a phone of 8 GB has room for eight compilers.
 
+## The app's side
+
+A player with the app, the toolchain package and a disc image needs nothing
+else. In the launcher, **Build the game code** (`BuildActivity.kt`) says what
+is there and offers the one button for what is missing:
+
+1. **The executables.** `default.xex` and `default_mp.xex` are taken from the
+   installed game files, from a disc image in Download, or out of the image
+   the player picks (`DiscImage.kt` reads the image's folder; nothing else of
+   it is read). Each is kept only if its SHA-256 is a build the app supports,
+   so an image of another game is passed over.
+2. **The toolchain package.** Found through the package manager
+   (`Toolchain.kt`); when it is missing the app downloads
+   `recomp-toolchain.apk` from the latest release of its own repository and
+   hands it to the system's install prompt. A package whose recompiler is not
+   the app's (`toolchain.json`, `recompiler`) is refused before anything runs.
+3. **The build** (`GameBuild.kt`), in a foreground service
+   (`GameBuildService.kt`) with a wake lock and a notification: unpack the
+   toolchain's data (once), then for each title analyse, recompile, write the
+   shared header, compare the statement, compile and link.
+
+### What travels with the app: the build kit
+
+Everything that decides whether the app's runtime accepts the result is in
+the app, as assets under `buildkit/` that Gradle makes from the checkout at
+build time (`android/app/build.gradle.kts`, `gameBuildKit<Game>`): the titles'
+`config/*.toml` as they are, `runtime/mmio_hook.h`, `cmake/game_library.list`,
+the text `tools/genshared.py` writes before its declarations, and `kit.json`
+with the executables' hashes, the compiler's and linker's options as
+`CMakeLists.txt` and `cmake/game_library.cmake` give them (`-O3`, less `-g`),
+and for each library the statement the runtime expects, composed as
+`cmake/game_abi.cmake` composes it from `config/abi/`. The kit's statements
+are the PC builds' to the byte (checked for mw2, mw2mp, mw3 and mw3mp).
+
+The work folder in the app's private storage is laid out as the repository
+is, so the configuration files are used unchanged. `tools/genshared.py` is
+done by `GameBuild.writeSharedHeader`, `tools/intext_switch_tables.py` (Call
+of Duty 4) by `InTextTables.kt`. Before the first compile the statement of
+what was actually made (the jump tables, the code's extent, the register
+context, the system calls) is compared with the kit's; a difference stops
+the build in half a minute and names the line.
+
+### Loading: a file in the app's own storage
+
+The library is left in `files/game-code/lib<title>game.so` with the statement
+beside it, and `GameLibrary.kt` loads it from there, before the game package
+of a PC build (which is still used when the first is refused). An app may not
+*run* a program it wrote, but it may *load* a library it wrote: on the AYN
+Thor and the Retroid Pocket Flip 2 (Android 13, targetSdk 35) `dlopen` of the
+file works with no SELinux denial, so no package is assembled and signed on
+the device and the game package's rules are unchanged. The runtime checks
+the statement exactly as it does for a package.
+
+### Pausing, interruptions, memory and heat
+
+- Every step leaves its result under its final name only when it is whole
+  (an object is `*.o.part` until the compiler has ended well), and the build
+  looks at the files and does what is left. Pause ends the compilers and
+  keeps the objects; a build whose process the system ended is started again
+  by the sticky service or, failing that, when the launcher is next opened.
+  Seen on the Thor: the app replaced in the middle of a build, and a pause at
+  36 of 226 files, both carried on from where they were.
+- As many compilers as cores, fewer when memory is short (400 MB counted for
+  each, 1 GB left to the system; a compiler the system kills is run again
+  with one fewer), half when Android reports a severe thermal status or the
+  battery passes 46 °C, one when critical or past 50 °C.
+- The screen shows the step, files done of the total, the time left, the
+  number of compilers and the battery's temperature, and asks for the charger
+  when it is not connected. `game-build-report.txt` in the app's folder on
+  shared storage has each step's time, for a bug report.
+- After an update of the app that changes the statement, the launcher says
+  the game code has to be built again and the same entry does it; the
+  executables are kept, so no disc image is asked for.
+
+### What was measured (the whole flow, in the app)
+
+Both titles of a game, `-O3`, eight compilers, from the Build button to both
+libraries in place:
+
+| | AYN Thor, Modern Warfare 2 | AYN Thor, Modern Warfare 3 | Retroid Pocket Flip 2 (8 GB), Modern Warfare 2 |
+|---|---|---|---|
+| analyse, recompile, header (campaign + multiplayer) | 13 s + 14 s | 16 s + 18 s | 17 s + 18 s |
+| compile | 74 s + 80 s (226 files) | 115 s + 129 s (295 files) | 142 s + 149 s |
+| link | 0.1 s each | 0.1 s each | 0.1 s each |
+| the whole build | about 3 min | 4 min 40 s | 5 min 30 s |
+| all compilers together, at most | 1.4 GB | 1.5 GB | 1.4 GB |
+| free memory, at least | 10.6 GB | 10.4 GB | 3.2 GB |
+| battery | 28 °C | 28 °C | 33 to 34 °C |
+| hottest CPU sensor / board sensor | 93 °C / 57 °C | 92 °C / 58 °C | 90 °C / 59 °C (skin) |
+| Android's thermal status | none | none | none |
+
+On the Thor the app had no game package: Modern Warfare 2 went from the
+Build button to the game's main menu on the library built there, and Modern
+Warfare 3 to its opening film; the build ran on unchanged with the app in the
+background. On the Flip 2 the build was run and the libraries' statements
+checked; the game was not started there.
+
+Not yet tried on a device: Call of Duty 4 (its kit and `InTextTables.kt` are
+in the app; the statement check will say whether the tables come out as the
+script's), the download-and-install of the toolchain from a release (there
+is none yet), and Android versions other than 13.

@@ -481,7 +481,8 @@ tasks.configureEach {
 //                             declarations, taken out of that script
 //   kit.json                  the titles (executable, the SHA-256 of the
 //                             supported builds, the folders the configuration
-//                             names), the compiler's and linker's options as
+//                             names), what setup\setup.ps1 does for the game
+//                             besides, the compiler's and linker's options as
 //                             CMakeLists.txt and cmake/game_library.cmake give
 //                             them, and for each title the statement the
 //                             runtime expects (cmake/game_abi.cmake's, made
@@ -490,7 +491,11 @@ class KitTitle(
     val library: String, val executable: String, val sha256: List<String>, val toml: String,
     val tables: String, val tree: String, val defines: List<String>,
 )
-class KitGame(val folder: String, val titles: List<KitTitle>, val extraSources: List<String> = emptyList())
+class KitGame(
+    val folder: String, val titles: List<KitTitle>, val extraSources: List<String> = emptyList(),
+    /** The jump tables the analyser does not find are added (tools/intext_switch_tables.py, InTextTables.kt). */
+    val inTextTables: Boolean = false,
+)
 // The executables' hashes are setup/setup.ps1's (Modern Warfare 2),
 // tools/check_mw3_xex.py's and tools/check_cod4_xex.py's.
 val kitGames = mapOf(
@@ -524,6 +529,7 @@ val kitGames = mapOf(
         ),
         // The two instructions the configuration replaces by calls (CMakeLists.txt).
         listOf("runtime/recomp/ppc_extra_instructions.cpp"),
+        inTextTables = true,
     ),
 )
 // A file's text and its SHA-256 as cmake/game_abi.cmake take them: without
@@ -586,6 +592,7 @@ kitGames.forEach { (game, kit) ->
                         "recompiler" to mapOf("commit" to commit, "patchSha256" to patch),
                         "memoryHookSha256" to memoryHook,
                         "extraSources" to kit.extraSources,
+                        "inTextTables" to kit.inTextTables,
                         // CMakeLists.txt (ppc_recomp) and the NDK's own defaults, as a
                         // setup\setup.ps1 build has them, less -g: nothing on the device
                         // strips the library, and the compiler needs less memory without.

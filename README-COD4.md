@@ -78,6 +78,13 @@ What has been checked and how, and what is still open:
   7 GB free for the game files (plus room for the 7.8 GB disc image while
   installing).
 
+## Setup on the device (no PC)
+
+The app's **Build the game code** builds the game code on the device, as
+for the other two games ([docs/ondevice-build.md](docs/ondevice-build.md));
+for Call of Duty 4 it has not been tried on a device yet, so the PC setup
+below is the tested route.
+
 ## Setup (Windows)
 
 1. Get the code: `git clone https://github.com/yassinsolim/cod4-recomp.git C:\cod4`

@@ -23,6 +23,11 @@ other file in it. With one folder for both games, as it was, a PC that had
 built both put all four libraries in each package: a Modern Warfare 2
 package of 98 MB where its own two are 40 (Modern Warfare 3's are 54).
 
+A player without a PC builds the same libraries on the device itself
+([ondevice-build.md](ondevice-build.md)): they are then files in the app's
+own storage, which `GameLibrary.kt` loads before the package's, under the
+same rules.
+
 ## How the two halves find each other
 
 `-DMW2_SPLIT=runtime` builds the app's library, `-DMW2_SPLIT=game` the game's

@@ -72,6 +72,16 @@ What to expect:
   7 GB free for the game files (plus room for the 7.3 GB disc image while
   installing).
 
+## Setup on the device (no PC)
+
+1. Install the app from the [latest release](../../releases/latest) and copy
+   your disc image (`.iso`) to the device's Download folder.
+2. Open the app, choose **Install & Play** for the game files, then **Build
+   the game code**: it finds the executables, offers to install the toolchain
+   package (once, about 45 MB) and builds. Keep the charger connected; three
+   to fifteen minutes depending on the device, and you may leave the app.
+3. Play. Details: [docs/ondevice-build.md](docs/ondevice-build.md).
+
 ## Setup (Windows)
 
 1. Get the code: `git clone https://github.com/yassinsolim/mw2-recomp.git C:\mw2`

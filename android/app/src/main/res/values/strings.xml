@@ -325,13 +325,13 @@
     <string name="build_title">Build the game code on this device</string>
     <string name="build_entry">Build the game code</string>
     <string name="build_entry_running">Building the game code…</string>
-    <string name="build_detail">The game code is made from your own disc and is in no download. This device can make it itself, with no PC: it takes the disc\'s two executables, a compiler package installed once, and a quarter of an hour to an hour of work that goes on in the background.</string>
+    <string name="build_detail">The game code is made from your own disc and is in no download. This device can make it itself, with no PC: it takes the disc\'s two executables, a compiler package installed once, and some minutes of work that goes on in the background.</string>
     <string name="build_code_missing">The game code is not on this device yet: it is made from your own disc.\nChoose \"Build the game code\" to make it here, or run setup\\setup.cmd on a PC with this device connected over USB.</string>
     <string name="build_code_outdated">This update of the app needs the game code built again.\nChoose \"Build the game code\": your game files and saves are kept.</string>
-    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs the disc\'s two executables, the toolchain package (the compiler, installed once, about 100 MB to download) and about 1 GB of free space while it works. The build takes a quarter of an hour to an hour depending on the device; it carries on while you use other apps, and from where it was if it is interrupted.</string>
+    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs the disc\'s two executables, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build takes about five to fifteen minutes depending on the device; it carries on while you use other apps, and from where it was if it is interrupted.</string>
     <string name="build_have_executables">1. The game\'s executables: found, and a version this app supports.</string>
     <string name="build_taking_executables">1. The game\'s executables: reading them from the disc image…</string>
-    <string name="build_need_executables">1. The game\'s executables: not here yet. Choose the disc image (.iso) of your own copy; it is only read.</string>
+    <string name="build_need_executables">1. The game\'s executables: not here yet. Choose the disc image (.iso) of your own copy; it is only read. One in the Download folder is found by itself.</string>
     <string name="build_have_toolchain">2. The toolchain package: installed (%1$s).</string>
     <string name="build_toolchain_downloading">2. The toolchain package: downloading… Android asks whether to install it when it has arrived.</string>
     <string name="build_need_toolchain">2. The toolchain package: not installed.</string>

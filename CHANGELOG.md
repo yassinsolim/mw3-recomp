@@ -5,6 +5,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Build the game code on the device itself**
+  ([docs/ondevice-build.md](docs/ondevice-build.md)): no PC and no GitHub.
+  The launcher's **Build the game code** takes the disc's two executables
+  from the installed game files or a disc image (one in Download is found by
+  itself), installs the toolchain package from the release, and recompiles,
+  compiles and links in the background with a progress bar, the time left,
+  pause and carry on. About 3 minutes for Modern Warfare 2 on an AYN Thor,
+  5 for Modern Warfare 3, 5 and a half for Modern Warfare 2 on a Retroid
+  Pocket Flip 2 (8 GB). The library is loaded from the app's own storage; a
+  game package built on a PC still works. After an update that needs new
+  game code the same entry builds it again, with no disc image.
 - **Building the game code without a Windows PC**
   ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
   - `setup/setup.sh`: setup for Linux, for all three games
