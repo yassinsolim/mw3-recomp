@@ -7,6 +7,7 @@
 #include "../log.h"
 #include "../crash.h"
 #include "../platform.h"
+#include "../title.h"
 
 #include <atomic>
 #include <cstdlib>
@@ -34,6 +35,13 @@ namespace
     // not pass the title's "is this the main thread" checks.
     std::atomic<uint32_t> g_nextThreadId{ 2 };   // the main thread is 1
 
+    // The cores for a thread the title has on that processor of the console.
+    platform::ThreadAffinityRole RoleOn(uint8_t processor)
+    {
+        return (T_FRAME_PROCESSORS >> processor) & 1 ? platform::ThreadAffinityRole::PerformanceCore
+                                                      : platform::ThreadAffinityRole::SpareCore;
+    }
+
     // Signalled once it has exited, which is what a wait on a thread waits for.
     struct GuestThread : Dispatcher
     {
@@ -43,7 +51,8 @@ namespace
         uint32_t startContext = 0;
         uint32_t stackBase = 0;
         uint32_t pcr = 0;
-        uint8_t processor = 0;
+        std::atomic<uint8_t> processor{ 0 };
+        std::atomic<uint32_t> hostThread{ 0 };   // platform::ThreadId, once it runs
         bool exited = false;      // under the dispatcher lock
         Event resumeGate;         // signalled when the thread may run
 
@@ -86,7 +95,8 @@ namespace
         {
             Dispatcher* gate = &resumeGate;
             Wait(&gate, 1, false, nullptr);
-            platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
+            hostThread = platform::ThreadId();
+            platform::SetThreadAffinity(RoleOn(processor));
 
             // ExCreateThread's fourth argument is XAPI's thread-startup shim, and the
             // kernel enters that rather than the routine: it installs the per-thread state
@@ -161,7 +171,7 @@ PPC_FUNC(__imp__ExCreateThread)
     if (const uint32_t mask = creationFlags >> 24)
     {
         t->processor = uint8_t(__builtin_ctz(mask));
-        *GuestPtr<uint8_t>(t->pcr + 268) = t->processor;   // KPCR.CurrentProcessorNumber
+        *GuestPtr<uint8_t>(t->pcr + 268) = t->processor.load();   // KPCR.CurrentProcessorNumber
     }
 
     uint32_t handle = InsertHandle(t, crash::CurrentThreadName(), uint32_t(ctx.lr));
@@ -179,7 +189,7 @@ PPC_FUNC(__imp__ExCreateThread)
 
     LOGK("ExCreateThread -> id %u handle %08X at %08X, %u KB stack at %08X, processor %u"
          " (flags %08X), r13 %08X%s",
-         t->threadId, handle, startAddress, stackSize / 1024, t->stackBase, t->processor,
+         t->threadId, handle, startAddress, stackSize / 1024, t->stackBase, unsigned(t->processor),
          creationFlags, t->pcr,
          (creationFlags & kCreateSuspended) ? " (suspended)" : "");
     ctx.r3.u64 = X_STATUS_SUCCESS;
@@ -230,8 +240,11 @@ PPC_FUNC(__imp__KeSetAffinityThread)
     auto t = ObjectAtAs<GuestThread>(ctx.r3.u32);
     if (t && affinity)
     {
-        t->processor = uint8_t(__builtin_ctz(affinity));
-        *GuestPtr<uint8_t>(t->pcr + kProcessorOffset) = t->processor;
+        const uint8_t processor = uint8_t(__builtin_ctz(affinity));
+        t->processor = processor;
+        *GuestPtr<uint8_t>(t->pcr + kProcessorOffset) = processor;
+        // Before it runs it takes its cores itself, by the processor it then has.
+        if (const uint32_t thread = t->hostThread) platform::SetThreadAffinity(RoleOn(processor), thread);
     }
     else if (affinity)
         LOGW("KeSetAffinityThread: %08X is not a guest thread", ctx.r3.u32);

@@ -553,25 +553,46 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     const uint32_t maxWidth = 4096u, maxHeight = 4096u;
 #endif
     const uint32_t width = std::min(usePitch, maxWidth);
-    uint32_t height = std::clamp(uint32_t(scissor.offset.y) + scissor.extent.height,
-                                 32u, maxHeight);
+    const uint32_t asked = uint32_t(scissor.offset.y) + scissor.extent.height;
+    uint32_t colourHeight = std::clamp(asked, 32u, maxHeight), depthHeight = colourHeight;
 
     // The shadow maps' scale or the frame's, for both targets.
     const uint32_t passScale = PassScale(r[gpu::RB_DEPTH_INFO], useSamples);
+    const TargetKey colourKey{ colour.BaseTile(), usePitch, uint32_t(ColourFormatFor(colour.Format())),
+                               useSamples, false, passScale };
+    const TargetKey depthKey = DepthKey(depthInfo.BaseTile(), uint32_t(g.depthFormat), useSamples, passScale);
+    // A scissor at its reset value says nothing of the surface's height,
+    // and a draw under one is drawn into the surface as it is: as tall as
+    // the draws with a scissor made it and the resolves have read of it,
+    // or as its partner in this pass where it is new. Advanced Warfare
+    // draws its blur passes so, rectangles in window coordinates, into a
+    // surface 150 rows tall: grown to the limit, each of the eight passes a
+    // frame loaded and stored two attachments of 2048 rows for them.
+    if (asked > maxHeight)
+    {
+        const Target* const hasColour = FindTarget(colourKey);
+        const Target* const hasDepth = FindTarget(depthKey);
+        const auto rows = [&](const Target* target) {
+            return std::clamp(std::max(target->height, target->rowsRead), 32u, maxHeight);
+        };
+        if (hasColour) colourHeight = rows(hasColour);
+        if (hasDepth) depthHeight = rows(hasDepth);
+        if (hasColour && !hasDepth) depthHeight = colourHeight;
+        if (hasDepth && !hasColour) colourHeight = depthHeight;
+    }
     // A shadow map's surface is as tall as the title made it. The title also
     // draws a stencil rectangle into it in depth-only mode with the scissor
     // at its 8192 reset value, which would make it 4096 tall: at the shadow
     // maps' scale, twice the memory for rows nothing reads.
-    if (passScale != g.scale) height = std::min(height, shadows::SurfaceHeight());
+    if (passScale != g.scale)
+    {
+        colourHeight = std::min(colourHeight, shadows::SurfaceHeight());
+        depthHeight = std::min(depthHeight, shadows::SurfaceHeight());
+    }
 
     gpu::detail::SetCurrentDrawStage("Draw_EnsureTarget");
-    Target* colourTarget = EnsureTarget({ colour.BaseTile(), usePitch,
-                                          uint32_t(ColourFormatFor(colour.Format())),
-                                          useSamples, false, passScale },
-                                        width, height, colour.Format());
-    Target* depthTarget = EnsureTarget(DepthKey(depthInfo.BaseTile(), uint32_t(g.depthFormat),
-                                                useSamples, passScale),
-                                       width, height, depthInfo.Format());
+    Target* colourTarget = EnsureTarget(colourKey, width, colourHeight, colour.Format());
+    Target* depthTarget = EnsureTarget(depthKey, width, depthHeight, depthInfo.Format());
     if (!colourTarget || !depthTarget) return;
 
     if (!BeginFrame()) { Skip("no command buffer"); return; }
@@ -597,6 +618,7 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
                  depthInfo.BaseTile(), unsigned(depthTarget->samples),
                  (unsigned long long)depthTarget->draws,
                  depthTarget->depthClearedIn == g.frames ? "this frame" : "not this frame");
+        depthTarget->depthEmpty = false;
         BeginRendering(*colourTarget, *depthTarget, passWidth, passHeight);
     }
     else if (g.passUnsure) ResumeRendering();

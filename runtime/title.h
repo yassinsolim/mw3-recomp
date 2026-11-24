@@ -1844,6 +1844,23 @@
 #endif
 #endif
 
+// The console's processors, as XSetThreadProcessor numbers them, whose
+// threads are held to the performance cores; a thread the title puts on
+// another may also run on the efficiency cores. Every processor, unless the
+// title has more threads busy at once than a phone has performance cores.
+// Advanced Warfare has six: the main thread on 0, the renderer's backend on 3
+// and the server on 5 make a frame in turn, and the job workers on 1, 2 and 4
+// take what they are handed. All six on the AYN Thor's four performance
+// cores, with the command recorder, left those cores 97% busy and the three
+// efficiency cores 26%, each thread ready to run and waiting for a core a
+// quarter to a half of the time: 107 frames a second in Fusion's landing,
+// 115 with the workers let onto the other three.
+#if defined(AW_TITLE)
+#define T_FRAME_PROCESSORS     0b101001u
+#else
+#define T_FRAME_PROCESSORS     0b111111u
+#endif
+
 // The macros that turn a table entry into the symbols the recompiled code uses.
 // MW2_CAT expands its arguments before pasting, so GUEST_FUNC(T_D3D_Present)
 // is sub_820C3390 in the campaign build and sub_820DFD10 in the multiplayer's.

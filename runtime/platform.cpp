@@ -77,7 +77,7 @@ void platform::IdleThreadPriority() { SetThreadPriority(GetCurrentThread(), THRE
 
 // Only Android pins threads (below): a desktop scheduler places them better
 // than a guess at the machine's cores would.
-void platform::SetThreadAffinity(ThreadAffinityRole) {}
+void platform::SetThreadAffinity(ThreadAffinityRole, uint32_t) {}
 uint32_t platform::CoreCount(ThreadAffinityRole) { return 0; }
 
 // No symbols without a PDB: each frame as its offset in the executable, which
@@ -162,6 +162,8 @@ bool platform::ThreadTime(uintptr_t clock, uint64_t& nanoseconds)
     nanoseconds = Nanoseconds(kernel) + Nanoseconds(user);
     return true;
 }
+
+bool platform::ThreadReadyTime(uint32_t, uint64_t&) { return false; }
 
 bool platform::ProcessorLoad(Load& load)
 {
@@ -329,15 +331,18 @@ namespace
             return topology.perfMask ? topology.perfMask : topology.primeMask;
         case platform::ThreadAffinityRole::WorkerCore:
             return topology.workerMask ? topology.workerMask : topology.perfMask;
+        // Every core but the fastest, which stays the ring consumer's.
+        case platform::ThreadAffinityRole::SpareCore:
+            return topology.perfMask | topology.workerMask;
         default:
             return 0;
         }
     }
 }
 
-// Pins the calling thread to the SoC's core cluster for its role. Android
+// Pins the thread to the SoC's core cluster for its role. Android
 // only: a desktop scheduler places threads better than this would.
-void platform::SetThreadAffinity(ThreadAffinityRole role)
+void platform::SetThreadAffinity(ThreadAffinityRole role, uint32_t thread)
 {
     const CpuTopology& topology = Topology();
     if (!topology.discovered) return;
@@ -351,7 +356,7 @@ void platform::SetThreadAffinity(ThreadAffinityRole role)
         if (targetMask & (1u << i))
             CPU_SET(i, &cpuset);
     }
-    sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+    sched_setaffinity(pid_t(thread), sizeof(cpu_set_t), &cpuset);
 }
 
 uint32_t platform::CoreCount(ThreadAffinityRole role)
@@ -360,7 +365,7 @@ uint32_t platform::CoreCount(ThreadAffinityRole role)
     return topology.discovered ? uint32_t(__builtin_popcount(MaskOf(topology, role))) : 0;
 }
 #else
-void platform::SetThreadAffinity(ThreadAffinityRole) {}
+void platform::SetThreadAffinity(ThreadAffinityRole, uint32_t) {}
 uint32_t platform::CoreCount(ThreadAffinityRole) { return 0; }
 #endif
 
@@ -492,6 +497,20 @@ bool platform::ThreadTime(uintptr_t clock, uint64_t& nanoseconds)
     if (!clock || clock_gettime(clockid_t(uint32_t(clock - 1)), &time) != 0) return false;
     nanoseconds = uint64_t(time.tv_sec) * 1000000000u + uint64_t(time.tv_nsec);
     return true;
+}
+
+bool platform::ThreadReadyTime(uint32_t id, uint64_t& nanoseconds)
+{
+    // "time on a processor, time waiting on a run queue, timeslices".
+    char path[64];
+    std::snprintf(path, sizeof path, "/proc/self/task/%u/schedstat", id);
+    std::FILE* file = std::fopen(path, "r");
+    if (!file) return false;
+    unsigned long long ran = 0, ready = 0;
+    const bool read = std::fscanf(file, "%llu %llu", &ran, &ready) == 2;
+    std::fclose(file);
+    nanoseconds = ready;
+    return read;
 }
 
 bool platform::ProcessorLoad(Load& load)

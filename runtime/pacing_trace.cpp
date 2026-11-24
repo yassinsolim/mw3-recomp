@@ -29,6 +29,14 @@ namespace
         static const char* path = diag::Text("MW2_TRACE_PACING");
         return path;
     }
+
+    // MW2_TRACE_PACING_FROM=<seconds>: nothing is noted before then. A level
+    // whose slow part is minutes in fills the table on the way there.
+    int64_t From()
+    {
+        static const int64_t from = int64_t(diag::Number("MW2_TRACE_PACING_FROM")) * 1'000'000;
+        return from;
+    }
 }
 
 int64_t pacing::Microseconds()
@@ -45,9 +53,11 @@ void pacing::Note(Event event, uint32_t value)
     if (!On()) return;
     static const bool sized = (g_entries.resize(kEntries), true);
     (void)sized;
+    const int64_t now = Microseconds();
+    if (now < From()) return;
     const size_t at = g_next.fetch_add(1, std::memory_order_relaxed);
     if (at >= kEntries) return;
-    g_entries[at] = { Microseconds(), value, platform::ThreadId(), char(event) };
+    g_entries[at] = { now, value, platform::ThreadId(), char(event) };
 }
 
 void pacing::Write()

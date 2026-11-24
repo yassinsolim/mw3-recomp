@@ -26,11 +26,13 @@ namespace platform
         PrimeCore,       // The ring consumer: the one stage every frame goes through, the only thread let on the fastest core
         PerformanceCore, // The title's threads, the command recorder, the texture readers
         WorkerCore,      // Background shader warmup / audio / file I/O
+        SpareCore,       // A title's threads beyond the ones that make its frame in turn: the performance and the efficiency cores
         Default          // OS scheduler default
     };
 
-    // Pin calling thread to the SoC core cluster appropriate for its role.
-    void SetThreadAffinity(ThreadAffinityRole role);
+    // Pins a thread (ThreadId's number; 0 is the calling thread) to the SoC
+    // core cluster appropriate for its role.
+    void SetThreadAffinity(ThreadAffinityRole role, uint32_t thread = 0);
     // How many cores that cluster has; 0 where threads are not pinned (the
     // desktop), so a caller sizing a pool falls back to its own number.
     uint32_t CoreCount(ThreadAffinityRole role);
@@ -45,6 +47,9 @@ namespace platform
     uintptr_t ThreadClock();
     // The thread's processor time so far; false once it has ended.
     bool ThreadTime(uintptr_t clock, uint64_t& nanoseconds);
+    // How long the thread `id` (ThreadId) has stood ready to run with no
+    // processor thread to run on; false where the system does not say.
+    bool ThreadReadyTime(uint32_t id, uint64_t& nanoseconds);
     // Processor time so far: this process's, and the busy and whole time of
     // every thread of the processor together.
     struct Load { uint64_t process = 0, busy = 0, total = 0; };

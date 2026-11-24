@@ -63,7 +63,11 @@ namespace
     {
         std::string name;
         uintptr_t clock = 0;
+        uint32_t id = 0;
         uint64_t last = 0, inPlay = 0;
+        // Ready to run and not running: the threads outnumbering the cores
+        // they may run on shows here and nowhere else.
+        uint64_t lastReady = 0, readyInPlay = 0;
         uint64_t unsampled = 0;    // between the last reading and the thread's end
         bool read = false, ended = false;
     };
@@ -103,6 +107,12 @@ namespace
                 if (!platform::ThreadTime(thread.clock, now)) { thread.ended = true; continue; }
                 if (play && thread.read) thread.inPlay += now - thread.last;
                 thread.last = now;
+                uint64_t ready;
+                if (platform::ThreadReadyTime(thread.id, ready))
+                {
+                    if (play && thread.read) thread.readyInPlay += ready - thread.lastReady;
+                    thread.lastReady = ready;
+                }
                 thread.read = true;
             }
         }
@@ -143,6 +153,7 @@ void report::ThreadStarted(const char* name)
     thread.name = name;
     if (const size_t at = thread.name.find(" ("); at != std::string::npos) thread.name.resize(at);
     thread.clock = platform::ThreadClock();
+    thread.id = platform::ThreadId();
     t_thread = &thread;
 }
 
@@ -297,11 +308,14 @@ void report::Write()
              threads, 100.0 * double(m.inPlay.busy) / total, 100.0 * double(m.inPlay.process) / total,
              100.0 * double(others) / total);
         // The busiest of ours; the rest has the driver's and the system's threads in it.
-        std::vector<std::pair<uint64_t, std::string>> busiest;
+        std::vector<std::pair<uint64_t, std::string>> busiest, readiest;
         {
             std::lock_guard lock(g_threadsLock);
             for (const Thread& thread : g_threads)
+            {
                 if (thread.inPlay) busiest.emplace_back(thread.inPlay, thread.name);
+                if (thread.readyInPlay) readiest.emplace_back(thread.readyInPlay, thread.name);
+            }
         }
         std::sort(busiest.begin(), busiest.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
         const double wall = double(m.playNanoseconds) / 100.0;   // one thread's time, in %
@@ -322,6 +336,18 @@ void report::Write()
                           double(m.inPlay.process > listed ? m.inPlay.process - listed : 0) / wall);
             LOGI("report: in play, the game's threads in %% of one processor thread: %s%s", list.c_str(), rest);
         }
+        std::sort(readiest.begin(), readiest.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        list.clear();
+        for (size_t i = 0; i < readiest.size() && i < 8 && double(readiest[i].first) / wall >= 1.0; i++)
+        {
+            char entry[96];
+            std::snprintf(entry, sizeof entry, "%s%s %.0f", list.empty() ? "" : ", ", readiest[i].second.c_str(),
+                          double(readiest[i].first) / wall);
+            list += entry;
+        }
+        if (!list.empty())
+            LOGI("report: in play, the game's threads ready to run and waiting for a processor thread, in %% of the"
+                 " time: %s", list.c_str());
     }
     if (m.playNanoseconds && m.watchInPlay.protects)
     {

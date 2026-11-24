@@ -312,6 +312,7 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
         g.resolves++;
         EndPass();
         PassTimesBetween();
+        from->rowsRead = std::max(from->rowsRead, uint32_t(rect.offset.y) + rect.extent.height);
 
         uint32_t width = std::min(rect.extent.width, from->width - uint32_t(rect.offset.x));
         uint32_t height = std::min(rect.extent.height, from->height - uint32_t(rect.offset.y));
@@ -444,6 +445,7 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
 
     EndPass();
     PassTimesBetween();
+    source->rowsRead = std::max(source->rowsRead, uint32_t(rect.offset.y) + rect.extent.height);
 
     // The image is the destination surface RB_COPY_DEST_PITCH describes, not
     // the rectangle, and the rectangle lands at its own offset in it -- as

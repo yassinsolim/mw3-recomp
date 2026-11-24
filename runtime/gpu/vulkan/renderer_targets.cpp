@@ -154,12 +154,14 @@ namespace vk::renderer::detail
         for (auto& [key, target] : g.targets)
         {
             if (!target.depth || key.baseTile < fromTile) continue;
-            // Nothing has been drawn since the last time this was cleared, so
+            // Nothing has been drawn into it since it was last cleared, so
             // there is nothing to clear. The idiom arrives as a pair of
-            // rectangles covering one tile span between them, and each pass
-            // clears before it draws, so without this every target is cleared
-            // several times a frame for nothing.
-            if (target.clearedAtDraw == g.drawsRecorded) continue;
+            // rectangles covering one tile span between them, each pass
+            // clears before it draws, and the span reaches every depth
+            // surface above its base whichever the pass is about to use:
+            // Advanced Warfare's frame cleared seventeen depth images, five
+            // of them as tall as a target may be, to draw into three.
+            if (target.depthEmpty) { target.depthClearedIn = g.frames; continue; }
             if (!ended) { EndPass(); ended = true; }
             const VkImageAspectFlags aspect =
                 VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -181,8 +183,10 @@ namespace vk::renderer::detail
                           VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                           VK_ACCESS_TRANSFER_WRITE_BIT, kDepthAccess,
                           VK_PIPELINE_STAGE_TRANSFER_BIT, kDepthStages);
-            target.clearedAtDraw = g.drawsRecorded;
+            target.depthEmpty = true;
             target.depthClearedIn = g.frames;
+            PassTimesMark("depth cleared by the title's idiom %ux%u %ux", target.width * target.scale,
+                          target.height * target.scale, unsigned(target.samples));
         }
     }
 
@@ -240,6 +244,8 @@ namespace vk::renderer::detail
             if ((across + 79) / 80 != tilesPerRow || (down + 15) / 16 > rows) continue;
             if (!ended) { EndPass(); ended = true; }
             ClearColour(target, packed);
+            PassTimesMark("colour cleared by the title's idiom %ux%u %ux", target.width * target.scale,
+                          target.height * target.scale, unsigned(target.samples));
         }
     }
 
@@ -833,6 +839,7 @@ namespace vk::renderer::detail
                               VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                               VK_ACCESS_TRANSFER_WRITE_BIT, kDepthAccess,
                               VK_PIPELINE_STAGE_TRANSFER_BIT, kDepthStages);
+                target->depthEmpty = packed == 0;
             }
         }
     }
@@ -859,6 +866,7 @@ namespace vk::renderer::detail
             VkClearDepthStencilValue value{ 0.0f, 0 };
             vkCmdClearDepthStencilImage(cmd, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                         &value, 1, &range);
+            target.depthEmpty = true;
         }
         else
         {

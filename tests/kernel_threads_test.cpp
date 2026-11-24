@@ -86,7 +86,8 @@ namespace platform
         std::thread(body, argument).detach();
         return true;
     }
-    void SetThreadAffinity(ThreadAffinityRole) {}
+    void SetThreadAffinity(ThreadAffinityRole, uint32_t) {}
+    uint32_t ThreadId() { return 1; }
 }
 
 using namespace kernel;

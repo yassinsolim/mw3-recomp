@@ -150,9 +150,12 @@ namespace vk::renderer::detail
         // surface the title fills every frame and one it fills every third
         // are the same total and a different picture.
         uint64_t framesWithColour = 0;
-        // The draw count at which an EDRAM clear last emptied this, so the
-        // second rectangle of a clear pair does not clear it again.
-        uint64_t clearedAtDraw = UINT64_MAX;
+        // A depth target holding what the EDRAM clear leaves, zero, in every
+        // sample: no instance has been opened on it since it was cleared.
+        bool depthEmpty = false;
+        // The lowest row a resolve has asked of it, which may be below what
+        // it has: a draw whose scissor names no height grows it that far.
+        uint32_t rowsRead = 0;
         // The frame that clear happened in, for the pass trace.
         uint64_t depthClearedIn = UINT64_MAX;
     };
