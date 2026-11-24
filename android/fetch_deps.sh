@@ -13,17 +13,22 @@ set -euo pipefail
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${REPOSITORY_ROOT}/third_party/libadrenotools"
 REMOTE="${ADRENOTOOLS_REMOTE:-https://github.com/bylaws/libadrenotools.git}"
-REVISION="${ADRENOTOOLS_REVISION:-c6f1d2df63e792e3be6cb3bc95ee6bb9a2503d21}"
+# The commit every build so far was made with. The one named here before is
+# not in that repository: a first run's clone of it failed quietly and took
+# the default branch instead, and a second run's fetch of it failed outright
+# ("not our ref"), which stopped setup.sh whenever it was run again.
+REVISION="${ADRENOTOOLS_REVISION:-8fae8ce254dfc1344527e05301e43f37dea2df80}"
 
+# A clone cannot name a commit, so the commit is fetched into the clone: a
+# first run and a later one end on the same code.
 if [ -d "${TARGET}/.git" ]; then
     echo "libadrenotools is already there; updating it."
-    git -C "${TARGET}" fetch --depth 1 origin "${REVISION}"
-    git -C "${TARGET}" checkout --force FETCH_HEAD
 else
     echo "Cloning libadrenotools into ${TARGET}"
-    git clone --depth 1 --branch "${REVISION}" "${REMOTE}" "${TARGET}" 2>/dev/null ||
-        git clone --depth 1 "${REMOTE}" "${TARGET}"
+    git clone --depth 1 "${REMOTE}" "${TARGET}"
 fi
+git -C "${TARGET}" fetch --depth 1 origin "${REVISION}"
+git -C "${TARGET}" checkout --force FETCH_HEAD
 
 # Its own dependency: the linker shim it loads the driver through.
 git -C "${TARGET}" submodule update --init --recursive --depth 1
