@@ -40,6 +40,12 @@ namespace
         uint64_t bySource[uint32_t(vk::gpu_time::Source::kCount)]{};
         uint64_t lastEnd = 0;
         bool anyEnd = false;
+        // Pairs whose stamps never came or were no span of time, how often
+        // the chip's clock was found behind where it had been, and
+        // submissions that found every pair taken.
+        uint64_t dropped = 0, steppedBack = 0;
+        std::atomic<uint64_t> untimed{ 0 };
+        std::atomic<uint64_t> busyNanoseconds{ 0 };
         std::vector<VkCommandBuffer> batch;   // under the queue's lock
     } g;
 
@@ -48,9 +54,9 @@ namespace
     bool Before(uint64_t a, uint64_t b) { return ((b - a) & g.mask) - 1 < (g.mask >> 1); }
 }
 
-void vk::gpu_time::Start(VkPhysicalDevice physical, VkDevice device, VkQueue queue, uint32_t family)
+void vk::gpu_time::Start(VkPhysicalDevice physical, VkDevice device, VkQueue queue, uint32_t family, bool wanted)
 {
-    if (!report::On()) return;
+    if (!report::On() && !wanted) return;
     uint32_t families = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(physical, &families, nullptr);
     std::vector<VkQueueFamilyProperties> properties(families);
@@ -128,7 +134,7 @@ void vk::gpu_time::Start(VkPhysicalDevice physical, VkDevice device, VkQueue que
 
 void vk::gpu_time::Stop()
 {
-    if (g.on.load(std::memory_order_acquire))
+    if (g.on.load(std::memory_order_acquire) && report::On())
     {
         Collect();
         static const char* const kNames[] = { "the renderer's frames", "copies to the screen" };
@@ -138,6 +144,11 @@ void vk::gpu_time::Stop()
                 LOGI("report: the graphics chip's busy time: %4.1f%% %s (%.0f ms)",
                      100.0 * double(g.bySource[s]) / total, kNames[s],
                      double(g.bySource[s]) * g.nanosecondsPerTick / 1e6);
+        if (g.dropped || g.steppedBack || g.untimed.load())
+            LOGI("report: the graphics chip's busy time leaves out %llu submissions whose times never came or"
+                 " were not times, and %llu made while every timer was taken; its clock stepped back %llu times",
+                 (unsigned long long)g.dropped, (unsigned long long)g.untimed.load(),
+                 (unsigned long long)g.steppedBack);
     }
     g.on.store(false, std::memory_order_release);
     if (g.commands) vkDestroyCommandPool(g.device, g.commands, nullptr);
@@ -153,7 +164,10 @@ VkResult vk::gpu_time::Submit(VkQueue queue, const VkSubmitInfo& submit, VkFence
     {
         std::lock_guard lock(g.lock);
         if (g.taken - g.collected.load(std::memory_order_acquire) >= kPairs)
+        {
+            g.untimed.fetch_add(1, std::memory_order_relaxed);
             return vkQueueSubmit(queue, 1, &submit, fence);
+        }
         pair = uint32_t(g.taken % kPairs);
         g.live[pair].store(true, std::memory_order_relaxed);
         g.source[pair] = uint8_t(source);
@@ -189,11 +203,34 @@ void vk::gpu_time::Collect()
         const VkResult read = vkGetQueryPoolResults(g.device, g.pool, 2 * pair, 2, sizeof results, results,
                                                     sizeof results[0],
                                                     VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
-        if ((read != VK_SUCCESS && read != VK_NOT_READY) || !results[0][1] || !results[1][1]) break;
         const uint64_t start = results[0][0] & g.mask, end = results[1][0] & g.mask;
-        if (start == g.seen[pair][0] && end == g.seen[pair][1]) break;
+        if ((read != VK_SUCCESS && read != VK_NOT_READY) || !results[0][1] || !results[1][1] ||
+            (start == g.seen[pair][0] && end == g.seen[pair][1]))
+        {
+            // Not written yet. With every other pair taken behind it the
+            // GPU would be half a second of submissions late with this one:
+            // it is never coming, and waiting for it would leave every
+            // submission from here on untimed.
+            if (taken - collected < kPairs) break;
+            g.dropped++;
+            continue;
+        }
         g.seen[pair][0] = start;
         g.seen[pair][1] = end;
+        if (!Before(start, end))
+        {
+            g.dropped++;
+            continue;
+        }
+        // The queue runs submissions in the order their pairs were taken, so
+        // an end before the last one's is the chip's clock put back, and
+        // counting on from the old end would count nothing until the clock
+        // had caught up with it.
+        if (g.anyEnd && Before(end, g.lastEnd))
+        {
+            g.anyEnd = false;
+            g.steppedBack++;
+        }
         // Submissions overlap -- the start is stamped as the command processor
         // reaches it, which can be while the last one's draws are still on --
         // so only the part past the last end is new.
@@ -207,7 +244,12 @@ void vk::gpu_time::Collect()
         g.anyEnd = true;
     }
     g.collected.store(collected, std::memory_order_release);
-    if (busy) report::Spent(report::kGpuBusy, uint64_t(double(busy) * g.nanosecondsPerTick));
+    if (!busy) return;
+    const uint64_t nanoseconds = uint64_t(double(busy) * g.nanosecondsPerTick);
+    g.busyNanoseconds.fetch_add(nanoseconds, std::memory_order_relaxed);
+    report::Spent(report::kGpuBusy, nanoseconds);
 }
+
+uint64_t vk::gpu_time::Busy() { return g.busyNanoseconds.load(std::memory_order_relaxed); }
 
 #endif

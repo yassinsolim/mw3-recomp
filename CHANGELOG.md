@@ -5,6 +5,28 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Fewer drops to 45 frames a second on a Snapdragon 865**
+  ([docs/android.md](docs/android.md#the-campaigns-slow-places-24-november-2026)),
+  in all four games' campaigns on the Retroid Pocket Flip 2:
+  - The 3D scene is drawn in fewer pixels for as long as the graphics chip
+    is late with a frame, and at its whole size again afterwards
+    (`MW2_SCENE_DYNAMIC`, on for an Adreno 6xx; the HUD and the menus keep
+    their pixels). Modern Warfare 2's flight to the Gulag: its worst seconds
+    46 frames a second to 54, 67% of its frames on time to 87%. Modern
+    Warfare 3's Iron Lady: 40 to 50 after each shell to a steady 60, 116
+    late frames in two minutes to 2.
+  - The first time a level shows a new view its shaders are compiled on
+    every core, not on the three the game itself runs on: Modern Warfare
+    3's Mind the Gap ran at 41 to 45 for five seconds there and holds 56 to
+    60; Advanced Warfare's Traffic opened at 23 to 49 and opens at 50 to 56.
+  - The report's time on the graphics chip read nothing for a minute at a
+    stretch after the chip's clock had been put back; it is counted again.
+    `MW2_REPORT_SECONDS=1` writes a line for each second of play, to find a
+    level's slow places; `MW2_SCENE_SHARE` draws the scene at one size, or
+    at two in turn, to compare the pictures.
+  The AYN Thor runs as it did (S.S.D.D., Mind the Gap and F.N.G. at 118 to
+  119). Not changed: Call of Duty 4's Charlie Don't Surf, which is held by
+  the renderer's thread where the helicopters land.
 - **Advanced Warfare on a phone's efficiency cores**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#frame-rate-on-the-two-devices-24-november-2026)):
   the title keeps six threads busy at once and all were held to the

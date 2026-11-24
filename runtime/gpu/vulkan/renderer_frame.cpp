@@ -318,6 +318,7 @@ namespace vk::renderer::detail
         const VkQueryControlFlags flags =
             vk::pipeline::PreciseOcclusionQueries() ? VK_QUERY_CONTROL_PRECISE_BIT : 0;
         g.guestQueryScale[query % kGuestQueryRing] = uint8_t(g.currentScale);
+        g.guestQueryShare[query % kGuestQueryRing] = g.currentShare;
         Record([=](VkCommandBuffer command) { vkCmdBeginQuery(command, pool, query, flags); });
         g.guestQueryOpen = true;
     }
@@ -489,6 +490,7 @@ namespace vk::renderer::detail
         stutters::Finished(g.frames, worldDrawn);
         report::Frame(worldDrawn);
         NoteFrame(worldDrawn);
+        SceneFrame(worldDrawn);
         SetCutsceneActive(!worldDrawn);
         if (worldDrawn)
         {
@@ -555,11 +557,16 @@ namespace
                                   VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) != VK_SUCCESS)
             return;
         // The title compares the count with numbers of its own pixels, and
-        // each query counted the pixels of its own pass's scale.
+        // each query counted the pixels of its own pass's scale, or of the
+        // part of the scene that pass drew.
         for (uint32_t i = 0; i < query.count; i++)
         {
-            const uint64_t scale = g.guestQueryScale[(query.first + i) % kGuestQueryRing];
-            query.samples += samples[i] / (scale * scale);
+            const uint32_t at = (query.first + i) % kGuestQueryRing;
+            const uint64_t scale = g.guestQueryScale[at];
+            const uint64_t counted = samples[i] / (scale * scale);
+            const float share = g.guestQueryShare[at];
+            query.samples += share > 0.0f && share < 1.0f ? uint64_t(std::llround(double(counted) / double(share)))
+                                                          : counted;
         }
     }
 }

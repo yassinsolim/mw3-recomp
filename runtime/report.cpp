@@ -55,7 +55,15 @@ namespace
     std::atomic<uint64_t> g_shaders[3]{};   // by ShaderBuilt's fromCache, plus one
     std::atomic<uint64_t> g_pipelines[3]{}; // by PipelineBuilt's, likewise
     std::string g_compiled = "not used: a development run";
+    // The share of its width the scene was last drawn at, in percent
+    // (report::Scene); 0 where it is never drawn smaller.
+    std::atomic<uint32_t> g_scene{ 0 };
+}
 
+void report::Scene(uint32_t percent) { g_scene.store(percent, std::memory_order_relaxed); }
+
+namespace
+{
     // The machine's load in play, read once a second: whether the processor
     // was ours or another program's, which of our threads took it, and how
     // close the memory came to running out. A few system calls a second.
@@ -83,6 +91,9 @@ namespace
         bool loaded = false;
         platform::Load last, inPlay;
         uint64_t playNanoseconds = 0;
+        // MW2_REPORT_SECONDS: what the second since the last reading held.
+        uint64_t frames = 0, onTime = 0, spentAtSample[report::kTimeCount]{};
+        double longestMs = 0;
         uint64_t leastFree = UINT64_MAX, mostCommitted = 0;
         gpu::watch::Costs watch, watchInPlay;
     } m;
@@ -225,10 +236,12 @@ void report::Frame(bool world)
             s.intervals++;
             s.intervalMs += ms;
             s.longestMs = std::max(s.longestMs, ms);
+            m.frames++;
+            m.longestMs = std::max(m.longestMs, ms);
             if (const double blankMs = frame_rate::DisplayPeriodNs() / 1e6; blankMs > 0)
             {
                 s.againstDisplay++;
-                if (ms <= 1.05 * blankMs) s.withinABlank++;
+                if (ms <= 1.05 * blankMs) { s.withinABlank++; m.onTime++; }
                 if (ms <= 2.05 * blankMs) s.withinTwoBlanks++;
             }
         }
@@ -239,7 +252,28 @@ void report::Frame(bool world)
     s.last = now;
     if (!m.started || now - m.sampled >= std::chrono::seconds(1))
     {
-        Sample(m.started && m.allPlay, now - m.sampled);
+        const bool play = m.started && m.allPlay;
+        Sample(play, now - m.sampled);
+        // A second of play in one line: where in a level the frame rate
+        // falls, and whether the graphics chip or the renderer's thread is
+        // what it waits for there.
+        static const bool seconds = env::Flag("MW2_REPORT_SECONDS");
+        if (seconds && play && m.frames)
+        {
+            auto took = [&](Time time) { return double(spent[time] - m.spentAtSample[time]) / 1e6 / double(m.frames); };
+            char scene[48] = "";
+            if (const uint32_t share = g_scene.load(std::memory_order_relaxed))
+                std::snprintf(scene, sizeof scene, "; the scene at %u%% of its width", share);
+            LOGI("report: second %.0f: %llu frames, %llu on time, the longest %.0f ms; a frame: the graphics chip"
+                 " %.1f ms, the renderer's thread %.1f ms (%.1f waiting for the chip, %.1f reading textures,"
+                 " %.1f compiling)%s",
+                 std::chrono::duration<double>(now - s.first).count(), (unsigned long long)m.frames,
+                 (unsigned long long)m.onTime, m.longestMs, took(kGpuBusy), took(kExecuting) - took(kDisplayWait),
+                 took(kGpuWait), took(kTextures), took(kCompiling), scene);
+        }
+        m.frames = m.onTime = 0;
+        m.longestMs = 0;
+        std::copy(std::begin(spent), std::end(spent), m.spentAtSample);
         m.started = true;
         m.sampled = now;
         m.allPlay = true;

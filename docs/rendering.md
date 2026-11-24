@@ -589,6 +589,56 @@ zone loads again is scaled again. `widescreen` itself stays 1: the menus also
 test it (the loading screen shows its bar `when( dvarbool(widescreen) )`), and
 a test makes a whole number of what it is given.
 
+### The scene drawn smaller under load
+
+`MW2_SCENE_DYNAMIC=1` (`runtime/gpu/vulkan/renderer_scene.cpp`; unset, on for
+an Adreno 6xx under Android) draws the scene in fewer pixels while a frame
+takes the graphics chip longer than the display gives it. `MW2_SCENE` cannot
+do that: the title makes its surfaces once. So the surfaces keep the title's
+size and the renderer draws into a part of them, from the first pixel:
+
+- **Which surfaces.** Those as wide in EDRAM as the scene (its width rounded
+  up to 80 samples: 880 for 832x480, where the frame's are 1280), drawn at
+  one sample and at the title's own size (`MW2_SCALE` off), of a format the
+  device can stretch (a blit; filtered, for colour). A pass on one has its
+  viewport and scissor taken to the part (`ToDrawnScene`), its depth
+  surface's with it; a surface remembers the part its contents were last
+  drawn in.
+- **A resolve out of one** stretches the part over the rectangle the title
+  names, filtered for colour and as it is for depth, instead of copying
+  (`SceneBlit`). The copy the title reads back is then the size it expects,
+  so the passes after the scene -- the depth of field's and the bloom's
+  smaller buffers, the stretch over the frame, soft particles reading the
+  depth -- know nothing of it. A rectangle that reaches the scene's edge
+  stops a pixel short of the part's: the filter reads a pixel past where it
+  is told to, and what lies past the part is an older frame's.
+- **The frame**, with the HUD and the menus, is another surface and keeps
+  its pixels.
+- **Occlusion counts** of a pass drawn smaller are divided by the share of
+  the title's pixels it drew, as `MW2_SCALE`'s are by the scale squared.
+- **The steps** are 92, 84, 76 and 70% of the scene's width and height (85,
+  71, 58 and 49% of its pixels). Once a window of ten frames the frames'
+  time on the chip (its own clock, `gpu_time.h`, which is therefore on
+  whether `MW2_REPORT` is or not) is set against what the display gives a
+  frame: a step down when they took 97% of it, or 90% of it reckoned at the
+  chip's fastest clock (an Adreno's governor lowers the clock while there
+  is time in hand, which is no reason to draw less; the kernel says the
+  clock in `/sys/class/kgsl/kgsl-3d0/gpuclk`), two steps when they took 112%;
+  a step up when for a second and a half the step above would have fitted
+  in 82% of it, taking half of a frame's time for its pixels.
+- **What the picture loses** is what a smaller `MW2_SCENE` loses, for the
+  seconds the chip is late and no others: at the whole size nothing is
+  changed, the copies are copies. Two frames of one view of Modern Warfare
+  2's Gulag with the game's clock all but stopped
+  (`MW2_SCENE_SHARE=70,2`, `timescale 0.001`, `MW2_DUMP_FRAMES`): the mean
+  difference of a channel between the whole scene and 70% of its width is
+  5.1 to 5.5 of 255, between two frames at one size 2.5 to 3.5 (the weapon
+  sways and the smoke drifts at that clock too).
+
+The log says at start-up what the scene may be drawn down to and at exit
+what share of the world's frames had each size; `MW2_REPORT_SECONDS` says it
+a second ([android.md](android.md#the-campaigns-slow-places-24-november-2026)).
+
 ## Detail at distance
 
 `MW2_LOD_BIAS=<1 to 8>` (`runtime/model_detail.cpp`, Modern Warfare 2's disc

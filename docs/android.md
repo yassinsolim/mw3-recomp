@@ -156,7 +156,7 @@ Compiling SPIR-V shaders and graphics pipelines on mobile drivers causes noticea
   All remaining gameplay pipelines are queued into `warmup::g_warmupQueue` and compiled asynchronously on a dedicated background thread (`tid 25205`) during menus and cutscenes without dropping frame rate.
 - **Auto-Flush on Pause / Lifecycle Changes**:
   Whenever the activity pauses, the surface is destroyed or memory is trimmed, `vk::renderer::SaveCaches()` writes the recorded pipelines and the driver's pipeline cache; a thread of its own also writes them every 10 s while something is new, so a game swiped away or killed keeps what it compiled.
-- **A first visit** (`MW2_ASYNC_PIPELINES`, on in the app): a pipeline never built is compiled by up to three threads on the performance cores while its draws are skipped; the renderer's own thread compiles none. On the AYN Thor with empty caches the surfaces of a first spawn are all there within about three seconds and no frame is held (the longest 68 to 83 ms in Seatown, Bakaara, Afghan and Survival); a second visit compiles nothing it drew before ([rendering.md](rendering.md)).
+- **A first visit** (`MW2_ASYNC_PIPELINES`, on in the app): a pipeline never built is compiled by up to six threads on the performance and the efficiency cores ([below](#a-first-visits-pipelines)) while its draws are skipped; the renderer's own thread compiles none. On the AYN Thor with empty caches the surfaces of a first spawn are all there within about three seconds and no frame is held (the longest 68 to 83 ms in Seatown, Bakaara, Afghan and Survival); a second visit compiles nothing it drew before ([rendering.md](rendering.md)).
 - **Signal Safety & Crash Guarding (`runtime/crash.cpp`)**:
   Bionic libc lacks `pthread_kill` validation for arbitrary guest thread IDs. Long-running compilation stages are protected with Android-specific signal guards (`#ifndef MW2_ANDROID`), preventing spurious `SIGABRT` crashes.
 
@@ -210,7 +210,7 @@ For devices with Qualcomm Adreno GPUs, Mesa **Turnip** drivers offer substantial
 
 ### Adreno 6xx (Snapdragon 865 class)
 
-Measured on the Retroid Pocket Flip 2 (Adreno 650, kernel 4.19, 60 Hz), in Modern Warfare 3's Survival (Resistance). The runtime reads the chip's name from `/sys/class/kgsl/kgsl-3d0/gpu_model` before Vulkan starts (`android::perf::Adreno6xx`) and does three things on that class:
+Measured on the Retroid Pocket Flip 2 (Adreno 650, kernel 4.19, 60 Hz), in Modern Warfare 3's Survival (Resistance). The runtime reads the chip's name from `/sys/class/kgsl/kgsl-3d0/gpu_model` before Vulkan starts (`android::perf::Adreno6xx`) and does these things on that class, and draws the scene smaller still while the chip is late with a frame (`MW2_SCENE_DYNAMIC`, [the campaigns' slow places](#the-campaigns-slow-places-24-november-2026)):
 
 - **No UBWC.** Turnip is started with `TU_DEBUG=noubwc` (added to whatever `MW2_DRIVER_ENV` gives). With Turnip's image compression on, the whole device hard-reset within a second of a level's world first being drawn: no kgsl fault in the kernel log, the power controller reporting a shutdown the SoC asked for (`kernel.panic_on_oops` is 1 and there is no pstore, so the kernel's last words are lost). It happened at every one of a dozen level starts, with Mesa 25.1.0 and 27.0.0 alike, with `sysmem`, with draw merging off and with multi-draw off, and at none of the eighteen since with `noubwc`. Which image class trips it was not narrowed down; frame time with and without it is the same. `MW2_ADRENO6_UBWC=1` leaves the compression on, to study the reset.
 - **The cap starts at the screen's rate.** Before the texel forms this chip drew Modern Warfare 3 at 25 frames a second with the cap at 60 (38 ms of GPU a frame at the console's sizes), so the cap used to start at 30 here. With them Survival runs at 58 and Black Tuesday at 56 under a cap of 60 (the table below), so both titles now start at the display's fastest rate like any other phone, 60 on the Flip 2 (`Prefs.fpsLimit`); FPS LIMIT 30 in the launcher still gives the console's pacing at half rate ([switches.md](switches.md), `MW2_FPS_LIMIT`).
@@ -229,6 +229,50 @@ Measured on the Retroid Pocket Flip 2 (Adreno 650, kernel 4.19, 60 Hz), in Moder
 Measured with the old 30 cap, 246 s of play: 29.6 frames a second, 7,246 frames shown, 152 of them (2.1%) a blank late, none early. That was before the texel forms; with them a cap of 60 is nearly held (the table below).
 
 Those numbers are from before a pixel shader's float constants became a uniform block on this class (below). With them the opening of Modern Warfare 3's Black Tuesday, cap at 60 and no shadows, went from 44.0 frames a second to 48.3 (22.0 ms of GPU a frame to 19.9); Survival was not measured again, and its defaults are unchanged.
+
+#### The campaigns' slow places (24 November 2026)
+
+The four campaigns on the Flip 2, `.f45` development builds, the app's defaults, `MW2_REPORT=1` with `MW2_REPORT_SECONDS=1` (a line a second: frames, frames on time, the chip's and the renderer's thread's time a frame), levels from the console (`devmap`), the player unhurt, one input script or a level's own ride. Logs and pictures: `perf-f45\` beside the repository. Three things made a level run at 40 to 50 frames a second there for seconds at a time:
+
+- **The chip, in a level's heaviest views.** Modern Warfare 2's flight to the Gulag draws 5,400 to 5,700 draws a frame for half a minute: 17 to 22 ms of GPU where the display gives 16.7 (the 832x480 scene 9.1 ms, the frame's own three passes 3.0, copies and clears between passes 1.5). A 640x368 scene took 3 ms off the worst of it. Modern Warfare 3's Iron Lady waits 14 to 20 ms a frame for the chip for two to three seconds after each shell lands. Now the scene is drawn smaller for as long as the chip is late (`MW2_SCENE_DYNAMIC`, on for this class; [rendering.md](rendering.md#the-scene-drawn-smaller-under-load)).
+- **A first visit's pipelines** (below): 41 to 45 frames a second for three to five seconds wherever a level cuts to a view it has not drawn before.
+- **The renderer's thread**, in Call of Duty 4's Charlie Don't Surf where the helicopters land: 13 to 18 ms a frame of it, 51 to 57 frames a second for a second at a time. Not changed.
+
+Not the heat: ten minutes of the Gulag held 60.0 frames a second with 95.8% of frames on time, the chip at 55 to 60 °C, the fastest core at 62 to 68 °C, and neither's clock was capped (670 MHz and 2.84 GHz throughout).
+
+| Flip 2, cap 60: frames a second / frames on time / stutters | before | now |
+|---|---|---|
+| Modern Warfare 2, the flight to the Gulag (36 s of it) | 57.7 / 67%, its worst seconds 46 | 60.1 / 87%, its worst seconds 54 |
+| the same level's first two minutes | 58.9 / 83.8% / 3 | 59.7 / 92.4% / 5 |
+| Team Player's recorded flight | 59.8 / 89.0% / 21 | 59.8 / 90.4% / 23 |
+| Modern Warfare 3, Iron Lady (two minutes, a shell every 12 s) | 58.3 / 83.6% / 116, 40 to 50 after each shell | 60.0 / 89.6% / 2 |
+| Mind the Gap, a first visit | 59.2 / 93.0% / 72, five seconds at 41 to 45 | 59.9 / 93.1% / 20, its worst second 56 |
+| Call of Duty 4, Crew Expendable | 59.9 / 93.5% / 18 (a first visit) | 60.0 / 95.3% / 8 |
+| Charlie Don't Surf | 59.4 / 92.8% / 56 | 57.6 and 56.9 / 91% / 59 and 21, each with one or two reloads of a checkpoint (a shot friend) of 1 to 3 s |
+| Advanced Warfare, Traffic, a first visit | 57.9 / 97.4% / 32, its first three seconds 31, 23 and 49 | 59.7 / 98.6% / 21, 56, 51 and 50 |
+| Seoul's drop pod, Fusion's flight in | 59.9 / 95.1%, 60.1 / 94.1% (their first 40 s) | 60.0 / 96.9% / 13, 59.9 / 97.3% / 5 (170 s each) |
+
+"Before" is the published build (`ec98da5`) but for the Gulag's, Team Player's and Iron Lady's rows, which are this build with `MW2_SCENE_DYNAMIC=0` (the published build's Gulag: 57.1 / 61% over the same 36 s, worst seconds 46). Eighteen more levels' openings were only walked through by the script, each once and as a first visit (Takedown, The Hornet's Nest, Of Their Own Accord, Wolverines, The Enemy of My Enemy, Whiskey Hotel, Loose Ends, Contingency, The Only Easy Day, No Russian, Second Sun; Hunter Killer, Bag and Drag, Scorched Earth, Goalpost, Persona Non Grata; War Pig, Shock and Awe): 58.8 to 59.9 frames a second, the seconds under 57 all at a cut to a new view (Second Sun, Goalpost and Persona Non Grata three to five of them at 35 to 48). What is further into those levels was not reached, and Cliffhanger's climb not at all. The scene was drawn smaller in 54% of the Gulag's frames (at 70% of its width in 37%), 36% of Iron Lady's, 11% of the ten minutes', and 3 to 13% of the others'; Traffic sat at 92% of its width throughout.
+
+On the AYN Thor (120 Hz, where the scene keeps its size) nothing moved: S.S.D.D. 118.5 frames a second and 86.6% on time before, 118.4 and 86.6% now; Modern Warfare 3's Mind the Gap 119.0 and 89.5%, 119.0 and 89.6%; Call of Duty 4's F.N.G. 119.0 and 89.1%, 119.0 and 88.7%.
+
+**The chip's time was read wrong.** The report's "graphics chip at work" counts each submission's time past the end of the one before, and once the chip's clock had been put back (once or twice a run on the Flip 2) it counted nothing until the clock had caught up with the old end: a minute at a stretch read 0.0 ms, and a run's average came out low (`gpu_time.cpp`; the report now says how often the clock stepped back). The scene's steps follow that time, so it had to be right.
+
+#### A first visit's pipelines
+
+A pipeline never built is compiled on threads of its own while its draws are skipped (`MW2_ASYNC_PIPELINES`). They were held to the performance cores, as the title's own threads are, and a Snapdragon 865 has three: two of them compiling left the title a core short. They now run on the performance and the efficiency cores alike, six of them (`MW2_COMPILE_THREADS`). Modern Warfare 3's Mind the Gap, caches emptied, where it cuts to the docks (about 300 pipelines):
+
+| Flip 2 | frames a second there | frames late for the title | the longest a surface was in coming |
+|---|---|---|---|
+| two threads, performance cores (before) | 41 to 45 for five seconds | 66 | 180 frames |
+| one thread, performance cores | 58 to 60 | 8 | 389 |
+| two threads, every core | 55 for three seconds | 22 | 297 |
+| four threads, every core | 58 to 60 | 6 | 261 |
+| six threads, every core (now) | 56 to 60 | 9 to 14 | 212 to 218 |
+
+On the AYN Thor the same first visit: 118.8 frames a second and 379 frames with three threads on the performance cores, 118.7 and 256 with six on every core; S.S.D.D.'s 579 frames and 349, at 118.6 and 118.2.
+
+**Left.** The Gulag's worst three seconds are still 54 to 55: at 70% of the scene's width the chip takes 18 ms there, most of it vertices. The frame's own passes (3.0 to 4.3 ms of 1280x720 a frame in every title) and the copies between passes (1.2 ms) were measured and not changed. One first visit of Mind the Gap read 13.2 ms of GPU a frame at the chip's fastest clock in a view that takes 8.9 (and kept the scene at 76% of its width for it); it did not happen again in five more.
 
 #### Modern Warfare 2 there: 60 frames a second
 

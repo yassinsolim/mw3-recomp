@@ -517,6 +517,7 @@ namespace vk::renderer::detail
         target.format = VkFormat(key.format);
         target.guestFormat = guestFormat;
         target.samples = HostSamples(key.samples);
+        target.stretches = Stretches(target.format, key.depth);
         if (target.format == VK_FORMAT_UNDEFINED) { Skip("render target format"); return nullptr; }
 
         // TRANSFER_DST because targets are cleared with transfer commands --
@@ -724,6 +725,9 @@ namespace vk::renderer::detail
         Record([begin = g.pass](VkCommandBuffer command) { begin(command); });
         g.passUnsure = false;
         g.currentScale = colour.scale;
+        g.currentShare = DrawnSmaller(colour)
+            ? float(colour.drawnWidth) * float(colour.drawnHeight) / (float(g.scene.width) * float(g.scene.height))
+            : 1.0f;
         // A query has to end in the instance it began in, and a boundary
         // still unsettled could close this one under it: it is settled now.
         if (g.guestCounting) ReleaseGate();

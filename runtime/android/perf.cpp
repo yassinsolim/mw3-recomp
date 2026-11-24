@@ -206,6 +206,27 @@ const char* android::perf::AdrenoModel()
 
 bool android::perf::Adreno6xx() { return std::strncmp(AdrenoModel(), "Adreno6", 7) == 0; }
 
+double android::perf::AdrenoClockShare()
+{
+    static const double most = [] {
+        double hz = 0;
+        if (FILE* file = std::fopen("/sys/class/kgsl/kgsl-3d0/max_gpuclk", "r"))
+        {
+            if (std::fscanf(file, "%lf", &hz) != 1) hz = 0;
+            std::fclose(file);
+        }
+        return hz;
+    }();
+    if (most <= 0) return 1.0;
+    double now = 0;
+    if (FILE* file = std::fopen("/sys/class/kgsl/kgsl-3d0/gpuclk", "r"))
+    {
+        if (std::fscanf(file, "%lf", &now) != 1) now = 0;
+        std::fclose(file);
+    }
+    return now > 0 && now < most ? now / most : 1.0;
+}
+
 // The instant-boot shader budget, sized for this device. A weak phone keeps
 // the conservative default (15 pipelines / 250 ms: sub-2-second boot); a
 // strong one compiles more up front and finishes warming sooner. Overridable

@@ -48,6 +48,10 @@ namespace report
     void ThreadEnded();
     // What the launcher's compile pass is to this run (shader_marker.h).
     void ShadersCompiled(std::string state);
+    // The share of its width the scene is drawn at, in percent, where it is
+    // drawn smaller under load (MW2_SCENE_DYNAMIC): MW2_REPORT_SECONDS says
+    // it beside each second's times. The renderer's thread.
+    void Scene(uint32_t percent);
     struct Timed
     {
         const Time time;

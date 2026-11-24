@@ -401,18 +401,31 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
             // A copy rather than a blit: depth cannot be filtered on the way
             // through, and a plain copy asks nothing of the format beyond being
             // transferable. Of the depth alone: the copy is sampled through a
-            // depth-only view, so its stencil is never read.
-            VkImageCopy copy{};
-            copy.srcSubresource = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1 };
-            copy.srcOffset = Scaled(rect.offset.x, rect.offset.y, 0, from->scale);
-            copy.dstSubresource = copy.srcSubresource;
-            copy.dstOffset = Scaled(int32_t(destX), int32_t(destY), 0, from->scale);
-            copy.extent = { width * from->scale, height * from->scale, 1 };
+            // depth-only view, so its stencil is never read. The scene's
+            // depth drawn smaller is stretched as its colour is, unfiltered.
             const VkImage intoImage = into.image;
-            Record([=](VkCommandBuffer command) {
-                vkCmdCopyImage(command, fromImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                               intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-            });
+            if (DrawnSmaller(*from))
+            {
+                const VkImageBlit blit = SceneBlit(*from, VK_IMAGE_ASPECT_DEPTH_BIT, rect.offset,
+                                                   { int32_t(destX), int32_t(destY) }, width, height);
+                Record([=](VkCommandBuffer command) {
+                    vkCmdBlitImage(command, fromImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
+                });
+            }
+            else
+            {
+                VkImageCopy copy{};
+                copy.srcSubresource = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1 };
+                copy.srcOffset = Scaled(rect.offset.x, rect.offset.y, 0, from->scale);
+                copy.dstSubresource = copy.srcSubresource;
+                copy.dstOffset = Scaled(int32_t(destX), int32_t(destY), 0, from->scale);
+                copy.extent = { width * from->scale, height * from->scale, 1 };
+                Record([=](VkCommandBuffer command) {
+                    vkCmdCopyImage(command, fromImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+                });
+            }
 
             RecordBarrier(into.image, kDepthAspects,
                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -496,17 +509,30 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
     else
     {
         const VkImage sourceImage = BeginReadingColour(*source, at, width, height);
-        VkImageCopy copy{};
-        copy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-        copy.srcOffset = Scaled(int32_t(destX), int32_t(destY), 0, source->scale);
-        copy.dstSubresource = copy.srcSubresource;
-        copy.dstOffset = copy.srcOffset;
-        copy.extent = { width * source->scale, height * source->scale, 1 };
         const VkImage intoImage = into.image;
-        Record([=](VkCommandBuffer command) {
-            vkCmdCopyImage(command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-        });
+        if (DrawnSmaller(*source))
+        {
+            // The part of the scene this frame drew, over the rectangle the
+            // title names (renderer_scene.cpp).
+            const VkImageBlit blit = SceneBlit(*source, VK_IMAGE_ASPECT_COLOR_BIT, at, at, width, height);
+            Record([=](VkCommandBuffer command) {
+                vkCmdBlitImage(command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+            });
+        }
+        else
+        {
+            VkImageCopy copy{};
+            copy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+            copy.srcOffset = Scaled(int32_t(destX), int32_t(destY), 0, source->scale);
+            copy.dstSubresource = copy.srcSubresource;
+            copy.dstOffset = copy.srcOffset;
+            copy.extent = { width * source->scale, height * source->scale, 1 };
+            Record([=](VkCommandBuffer command) {
+                vkCmdCopyImage(command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+            });
+        }
 #ifdef AW_TITLE
         if (source->format == VK_FORMAT_R32_SFLOAT && source->scale == 1)
             ReadLuminanceBack(sourceImage, r, destX, destY, width, height);

@@ -6,6 +6,7 @@
 //   renderer_draw.cpp         a draw: targets, state, bindings, the command
 //   renderer_targets.cpp      EDRAM surfaces as images, passes, framebuffers, clears
 //   renderer_resolve.cpp      resolves: to a texture, or the frame to the window
+//   renderer_scene.cpp        the scene drawn smaller while the graphics chip is late
 //   renderer_frame.cpp        command buffers, submission, frame slots, queries
 //   renderer_arena.cpp        what a draw reads copied into the frame arena
 //   renderer_pipelines.cpp    shaders, pipelines and the shader cache
@@ -28,6 +29,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <iterator>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -158,6 +160,14 @@ namespace vk::renderer::detail
         uint32_t rowsRead = 0;
         // The frame that clear happened in, for the pass trace.
         uint64_t depthClearedIn = UINT64_MAX;
+        // A surface of the scene's (renderer_scene.cpp): the part of it, from
+        // its first pixel, its contents were last drawn in, which is what a
+        // resolve stretches over the title's rectangle. 0 for any other.
+        uint32_t drawnWidth = 0, drawnHeight = 0;
+        // Whether the device stretches an image of this format into another
+        // (a blit, filtered for colour), which a resolve out of a scene's
+        // surface drawn smaller is.
+        bool stretches = false;
     };
 
     struct Shader
@@ -459,6 +469,9 @@ namespace vk::renderer::detail
         uint32_t guestQueryNext = 0;    // where the next bracket starts in the ring
         // The scale of the pass each query in the ring counted in.
         uint8_t guestQueryScale[kGuestQueryRing]{};
+        // And the share of the title's pixels that pass drew (the scene drawn
+        // smaller): a count is of that many of the title's.
+        float guestQueryShare[kGuestQueryRing]{};
         // Brackets submitted whose counts the GPU has not produced yet.
         struct PendingQuery
         {
@@ -585,6 +598,31 @@ namespace vk::renderer::detail
         // target that grows is replaced, and a pointer to it would dangle.
         uint32_t currentWidth = 0, currentHeight = 0, currentSamples = 1;
         uint32_t currentScale = 1;
+        float currentShare = 1.0f;
+
+        // MW2_SCENE_DYNAMIC (renderer_scene.cpp): the scene drawn in a part
+        // of its surfaces while the graphics chip is late with a frame.
+        struct Scene
+        {
+            // The shares of the scene's width and height it is drawn at.
+            static constexpr float kShares[] = { 1.0f, 0.92f, 0.84f, 0.76f, 0.70f };
+            static constexpr uint32_t kLevels = uint32_t(std::size(kShares));
+            bool on = false;
+            // MW2_SCENE_SHARE: no stepping, one step, or it and the whole
+            // scene in turn every so many frames.
+            bool stepping = true;
+            uint32_t fixed = 0, turn = 0;
+            uint32_t pitch = 0;             // of the scene's surfaces in EDRAM
+            uint32_t width = 0, height = 0; // the title's scene
+            // What this frame's scene is drawn as, and the step it is of.
+            uint32_t drawnWidth = 0, drawnHeight = 0, level = 0;
+            // The window being measured: the chip's busy time at its start,
+            // its frames so far, the frames still to pass before one starts,
+            // and how many windows in a row had room for the step above.
+            uint64_t busyAt = 0;
+            uint32_t frames = 0, settle = 0, calm = 0;
+            uint64_t framesAt[kLevels]{};
+        } scene;
 
         // So a frame is not overwritten while it is on screen.
         VkImage present[kPresentImages]{};
@@ -906,6 +944,23 @@ namespace vk::renderer::detail
     void ClearAliasedDepth(uint32_t fromTile);
     void ClearAliasedColour(uint32_t baseTile, uint32_t tilesPerRow, uint32_t rows, uint32_t packed);
     void ClearAfterResolve(const gpu::RegisterFile& r, const gpu::CopyControl& control);
+
+    // The scene drawn smaller (renderer_scene.cpp). Whether the device and
+    // the switches have it, decided once at start-up; a frame finished, which
+    // steps the share; a viewport and scissor of the title's taken to the
+    // part drawn; whether a target's contents are in a part of it; and the
+    // blit that stretches the title's rectangle out of that part.
+    bool StartScene();
+    bool Stretches(VkFormat format, bool depth);
+    void SceneFrame(bool world);
+    void SceneReport();
+    void ToDrawnScene(VkViewport& viewport, VkRect2D& scissor);
+    inline bool DrawnSmaller(const Target& target)
+    {
+        return target.drawnWidth && (target.drawnWidth != g.scene.width || target.drawnHeight != g.scene.height);
+    }
+    VkImageBlit SceneBlit(const Target& from, VkImageAspectFlags aspect, VkOffset2D at, VkOffset2D into,
+                          uint32_t width, uint32_t height);
 
     // Traditional render pass and framebuffer fallback for Vulkan 1.1 / Mali
     VkRenderPass GetRenderPass(VkFormat colourFormat, VkFormat depthFormat, VkSampleCountFlagBits samples);

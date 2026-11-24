@@ -244,6 +244,11 @@ namespace android::perf
     // half the display's rate in a level, and what follows from that
     // (docs/android.md) is decided by this.
     bool Adreno6xx();
+    // The Adreno's clock now as a share of its fastest (587 of 670 MHz is
+    // 0.88): its governor lowers the clock while the chip has time in hand,
+    // so a frame's time on the chip is that much longer than it need be.
+    // 1 where the kernel does not say.
+    double AdrenoClockShare();
 }
 
 #endif  // MW2_ANDROID

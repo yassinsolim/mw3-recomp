@@ -515,18 +515,20 @@ namespace vk::renderer::detail
         // consumer compiles none of them (PipelineWhenReady), so how long a
         // first visit's surfaces stay undrawn is how fast these get through
         // them: one thread took a first Seatown match's 440 pipelines at 25
-        // to 35 ms each, eleven seconds and more of them. All but one of the
-        // performance cores, which the title's own threads are on as well,
-        // and three at most; one where the driver takes one creation at a
-        // time anyway. MW2_COMPILE_THREADS=<n> says otherwise.
+        // to 35 ms each, eleven seconds and more of them. Where threads are
+        // held to cores (a phone), all but one of the performance and efficiency
+        // cores, six at most; elsewhere a quarter of the processor's
+        // threads, three at most; one where the driver takes one creation at
+        // a time anyway. MW2_COMPILE_THREADS=<n> says otherwise.
         uint32_t CompileThreads()
         {
             static const uint32_t threads = [] {
                 if (const uint64_t asked = env::Number("MW2_COMPILE_THREADS"))
                     return uint32_t(std::min<uint64_t>(asked, 8));
                 if (vk::pipeline::OneCreation()) return 1u;
-                const uint32_t cores = platform::CoreCount(platform::ThreadAffinityRole::PerformanceCore);
-                return std::clamp(cores ? cores - 1 : std::thread::hardware_concurrency() / 4, 1u, 3u);
+                if (const uint32_t cores = platform::CoreCount(platform::ThreadAffinityRole::SpareCore))
+                    return std::clamp(cores - 1, 1u, 6u);
+                return std::clamp(std::thread::hardware_concurrency() / 4, 1u, 3u);
             }();
             return threads;
         }
@@ -550,7 +552,17 @@ namespace vk::renderer::detail
             // one -- the little cores are busy too, and a lowered thread is
             // the last they run -- it held the consumer for as long. A ring
             // batch of a hundred dwords took up to three seconds that way.
-            platform::SetThreadAffinity(demanded ? platform::ThreadAffinityRole::PerformanceCore
+            //
+            // The pipelines draws wait for on the performance and the
+            // efficiency cores alike. Held to the performance cores, which
+            // the title's own threads are held to, two of them compiling a
+            // first visit's pipelines left the title a core short where a
+            // level cuts to a new view: Modern Warfare 3's Mind the Gap on a
+            // Retroid Pocket Flip 2 (three performance cores) ran at 41 to 45
+            // frames a second for five seconds there, 66 frames late, and
+            // with six threads on all seven cores at 58 to 60, 9 to 12 late,
+            // its surfaces 3.6 s in coming for 3.0 (docs/android.md).
+            platform::SetThreadAffinity(demanded ? platform::ThreadAffinityRole::SpareCore
                                                  : platform::ThreadAffinityRole::WorkerCore);
             LOGI("warmup: %s worker thread started", demanded ? "demand" : "scheduler");
             // Whether the pipeline in hand came off the warm-up's queue.

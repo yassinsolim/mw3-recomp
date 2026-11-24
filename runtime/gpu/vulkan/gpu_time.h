@@ -11,8 +11,9 @@
 namespace vk::gpu_time
 {
     // On the device and queue family every submission goes to, when the report
-    // is on and the family keeps time.
-    void Start(VkPhysicalDevice physical, VkDevice device, VkQueue queue, uint32_t family);
+    // is on or something else `wanted` the time (the scene's size follows it,
+    // renderer_scene.cpp), and the family keeps time.
+    void Start(VkPhysicalDevice physical, VkDevice device, VkQueue queue, uint32_t family, bool wanted);
     // With the device idle: what is left is counted first.
     void Stop();
     // Who a submission is from, so the report can say where the GPU's time
@@ -25,4 +26,6 @@ namespace vk::gpu_time
     // Adds to the report the time the GPU took over the submissions it has
     // finished since the last call. One thread at a time.
     void Collect();
+    // All the time collected so far, in nanoseconds; 0 when it is not kept.
+    uint64_t Busy();
 }

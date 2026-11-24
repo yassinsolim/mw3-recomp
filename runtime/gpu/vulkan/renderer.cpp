@@ -347,7 +347,7 @@ bool vk::renderer::Initialise()
     queries.queryCount = kGuestQueryRing;
     if (vkCreateQueryPool(g.device, &queries, nullptr, &g.guestQueries) != VK_SUCCESS)
         g.guestQueries = VK_NULL_HANDLE;
-    vk::gpu_time::Start(g.physical, g.device, g.queue, vk::pipeline::QueueFamily());
+    vk::gpu_time::Start(g.physical, g.device, g.queue, vk::pipeline::QueueFamily(), StartScene());
     StartPassTimes();
 
     VkFenceCreateInfo fence{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
@@ -632,6 +632,7 @@ void vk::renderer::Shutdown()
     vkDeviceWaitIdle(g.device);
     vk::gpu_time::Stop();
     StopPassTimes();
+    SceneReport();
     StopPreparing();
     vk::display::Shutdown();
     SaveCachesAtEnd();

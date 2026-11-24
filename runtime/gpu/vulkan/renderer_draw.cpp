@@ -603,6 +603,14 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     if (colourTarget->samples != depthTarget->samples) { Skip("sample counts differ"); return; }
     const uint32_t passWidth = std::min(colourTarget->width, depthTarget->width);
     const uint32_t passHeight = std::min(colourTarget->height, depthTarget->height);
+    // A surface of the scene's is drawn in this frame's part of it
+    // (renderer_scene.cpp), its depth with it: single-sampled ones that a
+    // resolve can stretch out of, at the title's own size.
+    const bool ofScene = g.scene.on && usePitch == g.scene.pitch && passScale == 1 &&
+                         colourTarget->samples == VK_SAMPLE_COUNT_1_BIT && colourTarget->stretches &&
+                         depthTarget->stretches;
+    colourTarget->drawnWidth = depthTarget->drawnWidth = ofScene ? g.scene.drawnWidth : 0;
+    colourTarget->drawnHeight = depthTarget->drawnHeight = ofScene ? g.scene.drawnHeight : 0;
     if (colourTarget->view != g.currentColour || depthTarget->view != g.currentDepth)
     {
         gpu::detail::SetCurrentDrawStage("Draw_BeginRendering");
@@ -958,7 +966,9 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
         bound.pipeline = built;
     }
 
-    // The title's pixels up to here, the images' from here.
+    // The title's pixels up to here, the images' from here: the part of the
+    // scene this frame draws, then the pass's scale.
+    if (ofScene && DrawnSmaller(*colourTarget)) ToDrawnScene(viewport, scissor);
     viewport.x *= float(passScale);
     viewport.y *= float(passScale);
     viewport.width *= float(passScale);
