@@ -30,7 +30,7 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Camos in a match | verified on the Thor: Gold chosen in Create a Class now spawns gold (the spawn check's weaponRank read was not covered before); Gold replaced by an original animated camo on the weapon in a match (keys in docs/textures.md) |
 | Voice chat | implemented (XamVoice*, PC SDL capture + T push-to-talk, Android AAudio + Talk button, off by default); compiled only, not run |
 | PC build | the mouse turns the view by an angle (110.0 degrees a thousand counts at sensitivity 5, measured with a scripted mouse) and points in Modern Warfare 3's menus; a System Link match on Seatown with six bots played to its end, the vote and the next map by script, 53 frames a second in play beside another game on the same GPU. Not yet tried with a hand or with real Windows input: the cursor's hiding and confinement, Alt+Tab, fullscreen, the wheel |
-| Settings in the game | verified on the Thor in all four titles, Modern Warfare 2 on the Flip 2 too: the app's menu over the game (touch, or Select and Start on a controller) changes resolution, sharpening, FPS limit, sun shadows, field of view, detail and texture memory under the running level; the on-screen controls stay off across restarts ([below](#the-menu-over-the-game-24-november-2026)) |
+| Settings in the game | verified on the Thor and the Flip 2 in all four titles: the app's menu over the game (touch, or Select and Start on a controller) changes resolution, sharpening, FPS limit, sun shadows, field of view, detail and texture memory under the running level; the on-screen controls stay off across restarts ([below](#the-menu-over-the-game-24-november-2026)) |
 | Profile and saves | profile and campaign saves written and resumed |
 
 ## 2026-11-16
@@ -844,6 +844,12 @@ and logs: `C:\Users\solim\mw3-android-work\out\gamemenu\`.
 - **By touch** (Modern Warfare 3's multiplayer, Thor): the Menu button, the
   Graphics row, the field of view's arrows, a touch beside the panel to
   close it.
+- **The Flip 2, the other three titles** (the same script, after the
+  table's Thor runs): Modern Warfare 3 reads 30, 45, 60 at those limits,
+  Call of Duty 4 61 at 45 as on the Thor and 31, 60 at the others, Advanced
+  Warfare 46, 30, 45, 60; the resolution, sharpening (the surface 1920x1080
+  while on), `sm_enable` and `cg_fov` changed in each as on the Thor
+  (`flip-<title>-sheet.png`).
 - **Not done**: the multiplayer of Modern Warfare 2, Call of Duty 4 and
   Advanced Warfare (the same activity and runtime calls; not run). No
   frame rate here is a measurement: the numbers are the app's own
