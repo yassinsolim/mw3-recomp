@@ -41,6 +41,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   loading screen is up: 413 of them in 5.7 s on a Retroid Pocket Flip 2
   where they took 39.9 s.
 
+### Changed
+- **The ring consumer's look-ups, measured on the AYN Thor**
+  ([ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#the-ring-consumer-profiled-on-the-ayn-thor-24-november-2026)).
+  The vertex ranges a frame slot keeps are two rows in the order of their
+  starts in place of trees, and the ranges met once a table; the shaders,
+  pipelines and shader loads asked for lately are found by their hash before
+  the maps are; an address' heap block is remembered by its megabyte. By
+  simpleperf the look-ups go from 9% of the consumer's time to 5% in Modern
+  Warfare 2's S.S.D.D.; the frame rate is what it was within what two runs
+  differ by (Team Player 82.2 to 83.9 frames a second before, 81.5 to 85.7
+  after), and the picture is the same.
+
 ## [v0.1.5] - 2026-11-23
 
 Modern Warfare 3's and Modern Warfare 2's v0.1.5, and Call of Duty 4's first

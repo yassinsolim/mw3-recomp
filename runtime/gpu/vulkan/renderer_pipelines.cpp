@@ -72,7 +72,7 @@ namespace vk::renderer::detail
     const Shader* ShaderFor(shader::Type type, uint64_t hash, const uint32_t* code, size_t words)
     {
         if (!code || !words) return nullptr;
-        auto& last = g.lastShader[type == shader::Type::Pixel];
+        auto& last = g.lastShader[type == shader::Type::Pixel][hash % State::kRecentShaders];
         if (last.shader && last.hash == hash) return last.shader;
         {
             std::lock_guard lock(g_shadersMutex);
@@ -818,6 +818,18 @@ namespace vk::renderer::detail
         TakeOptimisedPipelines();
         if (g.lastPipeline && g.lastPipelineSwaps == g.pipelinesOptimised && key == g.lastPipelineKey)
             return g.lastPipeline;
+        State::RecentPipeline& recent = g.recentPipelines[
+            ((key.vertexShader ^ std::rotl(key.pixelShader, 21) ^ key.blendControl ^ (uint64_t(key.colourMask) << 32) ^
+              (uint64_t(key.topology) << 40) ^ (uint64_t(key.colourFormat) << 44) ^ (uint64_t(key.samples) << 52)) *
+             0x9E3779B97F4A7C15ull) >> 57];
+        static_assert(State::kRecentPipelines == 1u << 7, "the place is the hash's top seven bits");
+        if (recent.pipeline && recent.swaps == g.pipelinesOptimised && recent.key == key)
+        {
+            g.lastPipelineKey = key;
+            g.lastPipeline = recent.pipeline;
+            g.lastPipelineSwaps = g.pipelinesOptimised;
+            return recent.pipeline;
+        }
 
         State::Awaited& awaited = g.awaited;
         // Read before the map is: a pipeline published after this is either
@@ -844,6 +856,7 @@ namespace vk::renderer::detail
                     g.lastPipelineKey = key;
                     g.lastPipeline = found->second;
                     g.lastPipelineSwaps = g.pipelinesOptimised;
+                    recent = { key, found->second, g.pipelinesOptimised };
                     return found->second;
                 }
             }

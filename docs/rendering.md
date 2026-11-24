@@ -286,6 +286,15 @@ start:
   than a sixteenth of the share, or when what is kept leaves a single draw no
   room.
 
+The ranges are looked up by every vertex fetch of every draw, so a slot
+holds them as two rows in the order of their starts, the starts by
+themselves (`keptStarts`, `kept`): a few kilobytes that stay in the nearest
+cache. The ranges met once and not yet copied are a table with one range in
+a place (`met`); a range another pushes out is met again, a frame later than
+it would have been. As trees (`std::map`) a window that is not kept walked
+three of them, a dozen nodes each scattered over the heap: 6 to 8% of the
+ring consumer on the AYN Thor, 3.5 to 4% since.
+
 Each of the three slots has its own, so a range is copied three times in all.
 On the Flip 2 the vertex data copied a frame went from 31 MB to 4 in Team
 Player (33 MB a frame drawn from kept copies), the ring consumer from 76% of

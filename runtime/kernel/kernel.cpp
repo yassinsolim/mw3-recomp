@@ -28,10 +28,15 @@ namespace
     //
     // The command processor asks this for every texture and vertex address,
     // millions of times a minute, and the heap's lock and map walk were a
-    // seventh of its thread on a phone. So each thread keeps its last few
-    // answers -- a live block, or the gap between two -- with the heap's
-    // generation they were read at; while the generation has not moved, the
-    // blocks have not, and the answer stands without the lock.
+    // seventh of its thread on a phone. So each thread keeps answers -- a
+    // live block, or the gap between two -- with the heap's generation they
+    // were read at; while the generation has not moved, the blocks have
+    // not, and the answer stands without the lock. An answer is kept by
+    // the address' megabyte, 64 of them: the title's vertex and index
+    // buffers are blocks of their own by the hundred, more than a few
+    // answers kept in turn hold (the lock and the walk were still 2% of the
+    // ring consumer in Team Player). One thread-local holds them all: on
+    // Android each thread-local read is a call.
     bool Covers(kernel::Heap& heap, uint32_t va)
     {
         struct Answer
@@ -41,13 +46,13 @@ namespace
             uint64_t from = 0, to = 0;   // [from, to)
             bool covered = false;
         };
-        constexpr uint32_t kKept = 8;
-        thread_local Answer kept[kKept];
-        thread_local uint32_t next = 0;
+        constexpr uint32_t kKept = 64;
+        struct Answers { Answer kept[kKept]; };
+        thread_local Answers answers;
+        Answer& kept = answers.kept[(va >> 20) % kKept];
 
         const uint64_t now = heap.generation.load(std::memory_order_acquire);
-        for (const Answer& a : kept)
-            if (a.heap == &heap && a.generation == now && va >= a.from && va < a.to) return a.covered;
+        if (kept.heap == &heap && kept.generation == now && va >= kept.from && va < kept.to) return kept.covered;
 
         std::lock_guard held(heap.lock);
         Answer a{ &heap, heap.generation.load(std::memory_order_relaxed), 0, uint64_t(UINT32_MAX) + 1, false };
@@ -60,7 +65,7 @@ namespace
             if (uint64_t(va) < blockEnd) { a.from = it->first; a.to = blockEnd; a.covered = true; }
             else a.from = blockEnd;
         }
-        kept[next++ % kKept] = a;
+        kept = a;
         return a.covered;
     }
 

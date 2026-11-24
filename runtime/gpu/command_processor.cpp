@@ -147,6 +147,11 @@ namespace
         // was read, byte-swapped and hashed at every load.
         struct Loaded { uint64_t stamp = 0, hash = 0; std::vector<uint32_t> code; };
         std::unordered_map<uint64_t, Loaded> loads;
+        // The entries of `loads` asked for lately, by their key: a frame's
+        // thousands of loads go round a few hundred, an entry stays where
+        // it is, and finding it in the map each time was a walk through
+        // memory for every one. A key is never 0: a load has a length.
+        struct { uint64_t key; Loaded* loaded; } recentLoads[256]{};
         std::unordered_set<uint64_t> shadersSeen;
 
         uint64_t swapsParsed = 0;         // PM4_XE_SWAP packets met
@@ -789,7 +794,10 @@ namespace
             const uint32_t sizeDwords = startSize & 0xFFFF;
             if (!va || !sizeDwords || sizeDwords > (64u << 10)) break;
             const uint32_t physical = addressType & ~3u;
-            State::Loaded& loaded = g.loads[uint64_t(physical) << 17 | uint64_t(sizeDwords) << 1 | (addressType & 1)];
+            const uint64_t key = uint64_t(physical) << 17 | uint64_t(sizeDwords) << 1 | (addressType & 1);
+            auto& recent = g.recentLoads[(key * 0x9E3779B97F4A7C15ull) >> 56];
+            if (recent.key != key) recent = { key, &g.loads[key] };
+            State::Loaded& loaded = *recent.loaded;
             const bool watched = va == guest::kPhysicalBase + physical && gpu::watch::Enabled();
             if (!(loaded.stamp && gpu::watch::Unwritten(physical, sizeDwords * 4, loaded.stamp)))
             {

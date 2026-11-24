@@ -684,6 +684,92 @@ not by any of the above. Pipeline libraries were tried again under Turnip
 54 MB of cache for one map, 2.1 GB of memory against 0.8, and links waiting up to 184 ms
 behind the optimiser; not made the default.
 
+## The ring consumer profiled on the AYN Thor (24 November 2026)
+
+Modern Warfare 2, `.dev` builds, Turnip v27.0.0-R2 at 120 Hz, performance
+mode, `MW2_REPORT=1`, pipelines cached. The scenes: S.S.D.D.'s opening
+(seconds 26 to 42 of `devmap trainer`), Team Player's three heavy views
+(`setviewpos`, ten seconds each), and a match on Rust with six bots
+(`map mp_rust`, `MW2_BOTS=6`).
+
+- **Where the build before stands.** S.S.D.D.'s opening 118.5 to 119.1
+  frames a second with 86 to 89% of the frames on time (the consumer 82 to
+  95% of its core, the GPU 7.2 ms a frame); Rust with bots 119.0 and 89 to
+  90% (the consumer 61 to 65%); Team Player's views 82.2 to 83.9 (the
+  consumer 96 to 97%, the GPU 9.9 ms). The 97 to 106 the opening had were
+  not met again: the device ran cooler than in the runs they come from
+  (the processor's zone 77 to 88 C here, 92 to 96 C then).
+- **The consumer's time, by simpleperf** (cpu-clock, 4 kHz, twelve to
+  fourteen seconds a scene; S.S.D.D. / Team Player / Rust, % of the
+  thread's samples):
+
+  | | S.S.D.D. | Team Player | Rust |
+  |---|---|---|---|
+  | vertex data copied (`CopyVertices`) | 18.3 | 12.9 | 7.6 |
+  | a draw's indices read, widened and stored (`WriteIndices`) | 13.3 | 14.2 | 11.1 |
+  | PM4 parsing and register writes | 9.6 | 11.1 | about 9 |
+  | texture look-ups and checks (`TexturesFor` and below) | about 9 | 11.5 | about 9 |
+  | kept vertex ranges looked up (`KeptWindow`) | 6.3 | 8.0 | 8.7 |
+  | the rest of a draw's state (`DrawInSlot` itself) | 5.1 | 5.6 | 6.0 |
+  | float constants | 5.0 | 5.6 | 5.3 |
+  | shader and pipeline look-ups, shader loads | about 4 | about 5 | about 6 |
+  | the memory watch's faults and protection changes | about 1 | about 2 | 1.5 |
+
+  A draw record's descriptors do not appear: sets 1 and 2 are bound once a
+  command buffer, and the Vulkan calls are the recorder thread's (24 to
+  29% of a core).
+- **What the time is.** Waiting for memory, not arithmetic. The indices'
+  cost is the read of their first lines, in memory the processor has not
+  been to this frame: with the widening and the store moved to another
+  thread the read alone cost what all three had. The copy of vertex data
+  runs at 6 GB a second into the arena's write-combined mapping. The PM4
+  stream is cold as well: reading a dozen packet headers ahead cost eight
+  times what a draw's own packet does.
+- **Kept**: the look-ups (changelog; [rendering.md](rendering.md#vertex-data-kept-without-the-shadow)).
+  `KeptWindow` 6.3% of the consumer to 3.9% in the opening, the shader
+  loads' map 1.1% to under 0.5%, the pipelines' map 1.0% to 0.6%. Frame
+  rates before and after, the two builds in turn: the opening 118.8 and
+  118.5, then 118.8, 118.6 and 118.9; Team Player 82.6 and 82.2, then 84.0,
+  83.0, 85.7, 83.1 and 81.5; Rust 119.0 both. No more than two runs of one
+  build differ by.
+- **Tried and not kept**, Team Player's views unless said:
+  - *The arena in memory the processor caches* (Turnip's cached, coherent
+    memory type): 70.7 frames a second for 82.6, the GPU 10.7 ms for 9.9.
+  - *A copy thread for every copy and the indices* (8,000 jobs a frame,
+    made before the title is told its draws are done and before the frame
+    is submitted): 71.6 while the consumer waited for a thread that slept;
+    83.0 once the consumer made what was left at a join itself; 85.0 with
+    the indices' ranges remembered while the watch says they are unwritten.
+    The thread took 75% of a core, most of it looking for work.
+  - *A copy thread for copies of 4 KB and more* (500 jobs a frame, nine
+    tenths of the bytes): 85.4 and 85.3 with it, 85.7 and 83.1 without in
+    the same build; in the opening the consumer 85 to 86% of its core for
+    92 to 93%, the frame rate and the share on time unchanged (118.8 and
+    87.2%; 119.0 and 88.2%), for 63 to 73% of a core. With the scene at
+    512x300, where the GPU is not near its limit, 89.6 with it and 86.7
+    without.
+  - *The next draw's indices asked of memory a draw ahead* (prefetch):
+    `WriteIndices` 13.3% to 12.3%, and finding the next draw's packet 7.5%.
+- **What holds Team Player at 83.** The consumer, on its core all the
+  time, and behind it the GPU at 9.9 ms: with a quarter of the scene's
+  pixels the views run 86.7. The title's main thread waits 45% of the time
+  for the swap before to be parsed, and 11% of it for the kernel
+  dispatcher's one lock in `NtSetEvent` (`kernel::Event::Set`), which
+  wakes its waiters while it holds it; not changed here.
+- **Not possible here**: huge pages for guest memory (the kernel has
+  transparent huge pages off).
+- **The picture.** Four fixed views of S.S.D.D., pixels the same to the
+  bit below the status line: 99.0, 99.7, 69.1 and 94.1% between the build
+  before and this one, 98.9, 99.7, 67.0 and 96.8% between two runs of the
+  build before.
+- **Other titles with it**, `.dev` builds on the Thor: Modern Warfare 3's
+  Survival on Resistance from the menus, first visit, 117.3 frames a second
+  and 84.1% on time (117.5 before, in the stutter runs above); Call of
+  Duty 4's Charlie Don't Surf 116.4 and 85.6% on its first visit, 118.2 and
+  86.0% on its second (117.7 and 87.2%; 117.4 and 86.5%). On the Retroid
+  Pocket Flip 2, Modern Warfare 2's S.S.D.D. opening at its limit of 60:
+  59.9 frames a second, 94.2% on time, the consumer 52% of its core.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

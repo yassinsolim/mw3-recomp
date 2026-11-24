@@ -133,7 +133,6 @@ namespace vk::renderer::detail
     constexpr uint32_t kKeptChunk = 64 * 1024;
     constexpr uint32_t kLargestBlock = 16u << 20;
     constexpr uint32_t kFrameOwn = 24u << 20;   // of a share, never given to kept copies
-    constexpr size_t kMetRanges = 32768;
     constexpr uint64_t kStaleFrames = 300;      // a range not drawn from for so long goes first
     constexpr uint32_t kRefreshPages = 64;      // more written than that, and the range is copied whole
 
@@ -250,6 +249,13 @@ namespace vk::renderer::detail
         return at;
     }
 
+    // Where a range that starts at `from` is remembered once met.
+    State::Slot::Met& MetAt(State::Slot& slot, uint32_t from)
+    {
+        return slot.met[(from * 0x9E3779B9u) >> 20];
+    }
+    static_assert(State::Slot::kMetRanges == 1u << 12, "the place is the hash's top twelve bits");
+
     // Where the slot's copy of the `bytes` at `physical` is in its share, made
     // now if it has none and has met the range before; UINT32_MAX when the
     // window is not one to keep, not yet, written since its copy was last
@@ -264,21 +270,22 @@ namespace vk::renderer::detail
         // The ranges that start at or below the window, nearest first: the
         // blocks lie apart, but a window kept alone lies over whatever is
         // around it.
-        auto range = slot.kept.upper_bound(physical);
-        for (uint32_t tries = 0; tries < 6 && range != slot.kept.begin(); tries++)
+        std::vector<uint32_t>& starts = slot.keptStarts;
+        size_t range = size_t(std::upper_bound(starts.begin(), starts.end(), physical) - starts.begin());
+        for (uint32_t tries = 0; tries < 6 && range; tries++)
         {
             --range;
-            State::Slot::Kept& kept = range->second;
+            State::Slot::Kept& kept = slot.kept[range];
             if (kept.end < end) continue;
             if (kept.frame != g.frames)
             {
-                Refresh(range->first, kept);
+                Refresh(starts[range], kept);
                 kept.frame = g.frames;
             }
             if (kept.endian != endian) return UINT32_MAX;
             if (!gpu::watch::Unwritten(physical, bytes, kept.stamp)) return UINT32_MAX;
             g.arenaReused[kArenaVertices] += bytes;
-            return kept.at + (physical - range->first);
+            return kept.at + (physical - starts[range]);
         }
         if (slot.keptLet != State::Slot::Let::None) return UINT32_MAX;
 
@@ -292,27 +299,24 @@ namespace vk::renderer::detail
             // Never narrower than what the slot has from there: a window
             // inside a range and one that runs past its end would take the
             // entry from each other in turn, each copying again.
-            const auto met = slot.met.find(from);
-            if (met != slot.met.end()) to = std::max(to, met->second.end);
-            const auto had = slot.kept.find(from);
-            if (had != slot.kept.end()) to = std::max(to, had->second.end);
+            State::Slot::Met& met = MetAt(slot, from);
+            const bool isMet = met.end && met.from == from;
+            if (isMet) to = std::max(to, met.end);
+            const auto had = std::lower_bound(starts.begin(), starts.end(), from);
+            if (had != starts.end() && *had == from) to = std::max(to, slot.kept[size_t(had - starts.begin())].end);
             // Met in an earlier frame, and not written since: watched then,
             // so the copy made now is of what the stamp stands for. Met in
             // this one, by another pass over the same geometry: not yet.
-            if (met != slot.met.end() && met->second.end == to &&
-                gpu::watch::Unwritten(from, to - from, met->second.stamp))
+            if (isMet && met.end == to && gpu::watch::Unwritten(from, to - from, met.stamp))
             {
-                if (met->second.frame == g.frames) return UINT32_MAX;
-                stamp = met->second.stamp;
+                if (met.frame == g.frames) return UINT32_MAX;
+                stamp = met.stamp;
                 break;
             }
             // The first meeting: watched from here on, and the draw copies.
             const uint64_t seen = gpu::watch::TrackSteady(from, to - from, CompletedSerial, g.frames);
             if (!seen) continue;
-            // The ranges of a ring nothing draws twice would be all the map
-            // held in the end.
-            if (slot.met.size() >= kMetRanges) slot.met.clear();
-            slot.met[from] = { to, seen, g.frames };
+            met = { from, to, seen, g.frames };
             return UINT32_MAX;
         }
         if (!stamp) return UINT32_MAX;
@@ -338,16 +342,26 @@ namespace vk::renderer::detail
         }
         // The ranges inside it have nothing it has not. Their places are
         // free once this frame is done: its draws may have named them.
-        for (auto inside = slot.kept.lower_bound(from); inside != slot.kept.end() && inside->first < to;)
+        const size_t first = size_t(std::lower_bound(starts.begin(), starts.end(), from) - starts.begin());
+        size_t stay = first, past = first;
+        for (; past < starts.size() && starts[past] < to; past++)
         {
-            if (inside->second.end > to) { ++inside; continue; }
-            slot.keptFreed.push_back({ inside->second.at, KeptSize(inside->first, inside->second.end) });
-            inside = slot.kept.erase(inside);
+            // A window kept alone that runs on past the range stays.
+            if (slot.kept[past].end > to)
+            {
+                starts[stay] = starts[past];
+                slot.kept[stay++] = slot.kept[past];
+                continue;
+            }
+            slot.keptFreed.push_back({ slot.kept[past].at, KeptSize(starts[past], slot.kept[past].end) });
         }
+        starts.erase(starts.begin() + stay, starts.begin() + past);
+        slot.kept.erase(slot.kept.begin() + stay, slot.kept.begin() + past);
         CopyVertices(ArenaAt(at), guest::Base() + guest::kPhysicalBase + from, to - from, endian);
         g.arenaWritten[kArenaVertices] += to - from;
-        slot.kept[from] = { to, at, stamp, g.frames, endian };
-        slot.met.erase(from);
+        starts.insert(starts.begin() + first, from);
+        slot.kept.insert(slot.kept.begin() + first, { to, at, stamp, g.frames, endian });
+        if (State::Slot::Met& met = MetAt(slot, from); met.from == from) met = {};
         return at + (physical - from);
     }
 
@@ -366,20 +380,31 @@ namespace vk::renderer::detail
         // them (vk::renderer::Draw); the slot starts again from none.
         uint32_t left = 0;
         if (slot.keptLet == State::Slot::Let::Stale)
-            for (auto range = slot.kept.begin(); range != slot.kept.end();)
+        {
+            size_t stay = 0;
+            for (size_t range = 0; range < slot.kept.size(); range++)
             {
-                if (g.frames - range->second.frame <= kStaleFrames) { ++range; continue; }
-                const uint32_t size = KeptSize(range->first, range->second.end);
-                LeaveSpare(slot, range->second.at, size);
+                const State::Slot::Kept& kept = slot.kept[range];
+                if (g.frames - kept.frame <= kStaleFrames)
+                {
+                    slot.keptStarts[stay] = slot.keptStarts[range];
+                    slot.kept[stay++] = kept;
+                    continue;
+                }
+                const uint32_t size = KeptSize(slot.keptStarts[range], kept.end);
+                LeaveSpare(slot, kept.at, size);
                 left += size;
-                range = slot.kept.erase(range);
             }
+            slot.keptStarts.resize(stay);
+            slot.kept.resize(stay);
+        }
         slot.keptLet = State::Slot::Let::None;
         if (left) g.keptStale++;
         if (left >= g.arenaSlotBytes / 16) return;
         if (slot.keptBytes) g.keptEmptied++;
+        slot.keptStarts.clear();
         slot.kept.clear();
-        slot.met.clear();
+        std::fill(std::begin(slot.met), std::end(slot.met), State::Slot::Met{});
         slot.keptSpare.clear();
         slot.keptBytes = 0;
     }

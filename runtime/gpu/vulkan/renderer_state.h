@@ -328,11 +328,23 @@ namespace vk::renderer::detail
             // its size, in `keptFreed` until the frame is done, and then in
             // `keptSpare`, by place, for the ranges that come. `keptLet`:
             // what the slot lets go of when it next begins a frame.
+            //
+            // Every vertex fetch of every draw looks its window up here, so
+            // the ranges are two rows in the order of their starts, the
+            // starts by themselves: a few kilobytes that stay in the
+            // processor's nearest cache and are searched there. As trees
+            // (std::map) each look-up walked a dozen nodes scattered over
+            // the heap, and a window that is not kept walked three of them:
+            // 6% of the ring consumer in Team Player on the AYN Thor. `met`
+            // is a table with one range in a place: a range another pushes
+            // out is met again, a frame later than it would have been.
             struct Kept { uint32_t end, at; uint64_t stamp, frame; uint32_t endian; };
-            struct Met { uint32_t end; uint64_t stamp, frame; };
+            struct Met { uint32_t from, end; uint64_t stamp, frame; };
             enum class Let : uint8_t { None, Stale, All };
-            std::map<uint32_t, Kept> kept;
-            std::map<uint32_t, Met> met;
+            static constexpr uint32_t kMetRanges = 4096;
+            std::vector<uint32_t> keptStarts;
+            std::vector<Kept> kept;
+            Met met[kMetRanges]{};
             std::map<uint32_t, uint32_t> keptSpare;
             std::vector<std::pair<uint32_t, uint32_t>> keptFreed;
             uint32_t keptBytes = 0;
@@ -473,6 +485,12 @@ namespace vk::renderer::detail
         PipelineKey lastPipelineKey{};
         VkPipeline lastPipeline = VK_NULL_HANDLE;
         uint64_t lastPipelineSwaps = 0;
+        // The pipelines found lately, by their key, for the draw whose key
+        // is not the last one's: good while no pipeline has been replaced
+        // by its optimised form since (pipelinesOptimised).
+        struct RecentPipeline { PipelineKey key{}; VkPipeline pipeline = VK_NULL_HANDLE; uint64_t swaps = 0; };
+        static constexpr uint32_t kRecentPipelines = 128;
+        RecentPipeline recentPipelines[kRecentPipelines];
         // MW2_ASYNC_PIPELINES: the pipelines draws are being skipped for
         // while the workers build them (PipelineWhenReady). The consumer's
         // alone.
@@ -496,10 +514,13 @@ namespace vk::renderer::detail
         };
         Awaited awaited;
         std::unordered_map<uint64_t, Shader> shaders;
-        // The last usable shader of each type ShaderFor answered with: draws
-        // come in runs with the same pair, and an entry stays where it is
-        // until the map is cleared.
-        struct { uint64_t hash; const Shader* shader; } lastShader[2]{};
+        // The usable shaders of each type ShaderFor answered with lately, by
+        // their hash: draws come in runs with the same pair, a pass goes
+        // round a few dozen pairs, and an entry stays where it is until the
+        // map is cleared. With the last one alone remembered, every change
+        // of shader took the lock and walked the map.
+        static constexpr uint32_t kRecentShaders = 64;
+        struct { uint64_t hash; const Shader* shader; } lastShader[2][kRecentShaders]{};
         // The state-only libraries: the input assembly for each topology, and
         // the output stage for each OutputKey.
         std::map<uint32_t, VkPipeline> inputLibraries;
