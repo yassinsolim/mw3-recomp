@@ -185,6 +185,23 @@
 // at its new place: buildings, faces and the drop pod drawn as coloured
 // noise from Seoul's first minute.
 #define T_Image_FlushMove      825A91F0
+// SaveMemory's commit, (save handle): a handle whose state (+2372) is 2,
+// waiting, becomes the committed one (3), its name goes to the profile and
+// EXE_CHECKPOINT_REACHED is printed; it answers 1, or 0 for any other state.
+// Reached from the script's CommitSave (sub_8239FA28 through sub_82374E38)
+// and from a request with flag 2 (sub_823C1FB8). Found from
+// XamContentCreateEx's callers upwards: sub_824E06F8 opens the package,
+// sub_823BFF60 writes the file, sub_823C1F50 is the committed save's write
+// and `savegame_lastcommit` (sub_825232C8) its command (checkpoint_save.cpp).
+#define T_SaveMemory_Commit    823C1E40
+// What finishes a queued save request, (request, save handle): flag 2 of the
+// request's word at +392 commits it (sub_823C1FB8) and flag 4 writes it to
+// the device (sub_823C1F50). The script's SaveGame gives 2, and 4 with it
+// when its fifth argument is set; a level's start gives 6 ("Start Level
+// Save", sub_8252A6F8); SaveGameNoCommit gives 1.
+#define T_G_FinishSaveRequest  82374DA8
+#define T_SAVE_REQUEST_FLAGS   392u
+#define T_SAVE_REQUEST_WRITE   4u
 
 // the D3D9 library (XDK 21256)
 // The one caller of VdSwap; 0.92 of MW3's sub_820A16E8.
