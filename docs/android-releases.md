@@ -61,19 +61,19 @@ Every run of the filter has to drop both, beside what it already drops:
 
     git filter-repo --invert-paths --path android/toolchain/build/ --path android/toolchain-probe/build/
 
-Advanced Warfare is not published: no public repository has it. Until one
-does, a run of the filter for another game's mirror also drops what is that
-title's alone, so that a mirror names no game its README does not
-(`aw/`, `ppc_aw/` and `ppc_aw_mp/` are git-ignored and refused by
-`tools/check_no_game_files.py`, so none of the game is in the history):
-
-    git filter-repo --invert-paths --path config/AW.toml --path config/AWMP.toml \
-        --path tools/check_aw_xex.py --path docs/AW-BRINGUP.md
-
 They are the project's own builds of free software, so nothing is disclosed
 if they slip through; a mirror with them is 80 MB heavier for ever and over
 GitHub's size warning. `tools/check_no_game_files.py` now refuses a tracked
-APK and any tracked file over 20 MB, so the tip of a branch cannot have one.
+APK and any tracked file over 20 MB, so the tip of a branch cannot have one;
+before a push, the filtered history is checked for any blob over 20 MB too.
+
+Advanced Warfare's source is in the three mirrors as code
+([AW-BRINGUP.md](AW-BRINGUP.md)): it has no repository of its own, no
+release and no workflow that builds it. What is the game's own never was in
+the history (`aw/`, `ppc_aw/` and `ppc_aw_mp/` are git-ignored and refused by
+`tools/check_no_game_files.py`), and the filter names them all the same:
+
+    git filter-repo --invert-paths --path aw/ --path-glob 'ppc_aw*'
 
 ## The camo packs release
 
