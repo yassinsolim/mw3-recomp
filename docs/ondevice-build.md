@@ -128,24 +128,25 @@ the checkout expects and with the PC build's.
 Modern Warfare 2's campaign (`default.xex`, 113 files of C++, 63 MB), built by
 the probe app with `-O2`, eight compiles at a time, no debug information:
 
-| | AYN Thor (Snapdragon 8 Gen 2, 16 GB, Android 13) | PC (i9, 32 threads) |
-|---|---|---|
-| analyse and recompile | 12 s | about 10 s |
-| compile | 70 to 73 s | about 50 s (`-O3 -g`) |
-| link | under 1 s | |
-| memory: all compilers together, at most | 1.5 GB | |
-| memory: the largest one compiler | 250 MB | |
-| `libmw2game.so` | 18.5 MB | 63 MB with debug information |
+| | AYN Thor (Snapdragon 8 Gen 2, 16 GB, Android 13) | Retroid Pocket Flip 2 (Snapdragon 865, 8 GB, Android 13) | PC (i9, 32 threads) |
+|---|---|---|---|
+| analyse and recompile | 12 s | 16 s | about 10 s |
+| compile | 70 to 73 s | 131 s | about 50 s (`-O3 -g`) |
+| link | under 1 s | 1 s | |
+| memory: all compilers together, at most | 1.5 GB | 1.5 GB | |
+| memory: the largest one compiler | 250 MB | 250 MB | |
+| memory the phone had left, at least | 11.6 GB | 3.9 GB | |
+| `libmw2game.so` | 18.5 MB | 18.5 MB | 63 MB with debug information |
 
 - The recompiled tree and the jump tables are the PC's, byte for byte (the
   three files `tools/genshared.py` writes aside, which the build writes itself).
-- The library's statement is `mw2 d5de1f8e8711`: the PC build's, and what an
-  app built from the checkout expects (`config/abi/mw2/`).
-- The library has the PC library's dynamic section and its dynamic symbol
-  table, all 55,932 symbols with their versions and bindings.
+- The library's statement is `mw2 d5de1f8e8711` on both: the PC build's, and
+  what an app built from the checkout expects (`config/abi/mw2/`).
+- The Thor's library has the PC library's dynamic section and its dynamic
+  symbol table, all 55,932 symbols with their versions and bindings.
 - Running the programs out of the toolchain package's library folder from
   another app, and `System.load` of a library that app had just linked into
-  its own files, both work on the Thor with SELinux enforcing.
+  its own files, both work on both devices as they are sold (Android 13).
 
 Found on the way, for whoever writes a build around the tools:
 
