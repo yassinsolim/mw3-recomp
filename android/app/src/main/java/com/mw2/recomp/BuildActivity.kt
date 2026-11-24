@@ -83,7 +83,9 @@ class BuildActivity : AppCompatActivity() {
     private val document = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         if (result.resultCode == Activity.RESULT_OK && uri != null) {
-            takeExecutables {
+            // The permission is kept: the image is offered to Install & Play.
+            DiscImage.keep(this, uri)
+            takeExecutables(uri.toString()) {
                 val descriptor = contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("the file could not be opened")
                 descriptor.use { FileInputStream(it.fileDescriptor).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
             }
@@ -93,11 +95,9 @@ class BuildActivity : AppCompatActivity() {
     private val browser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val path = result.data?.getStringExtra(FileBrowserActivity.EXTRA_PATH)
         if (result.resultCode == Activity.RESULT_OK && path != null) {
-            takeExecutables {
-                // A folder is one holding the disc's files; anything else an image of it.
-                if (File(path).isDirectory) GameBuild.takeFromGameFolder(this, path)
-                else FileInputStream(path).channel.use { image -> GameBuild.takeFromDiscImage(this, image) }
-            }
+            // A folder is one holding the disc's files; anything else an image of it.
+            if (File(path).isDirectory) takeExecutables(null) { GameBuild.takeFromGameFolder(this, path) }
+            else takeExecutables(path) { FileInputStream(path).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
         }
     }
 
@@ -195,6 +195,9 @@ class BuildActivity : AppCompatActivity() {
                 have = images.sortedBy { it.name }.any { image ->
                     try {
                         FileInputStream(image).channel.use { GameBuild.takeFromDiscImage(this, it) }
+                        // Known to be this game's now, which the launcher's
+                        // own search by name is not sure of.
+                        prefs.chosenImage = image.path
                         true
                     } catch (_: IOException) {
                         false
@@ -211,7 +214,8 @@ class BuildActivity : AppCompatActivity() {
         super.onPause()
     }
 
-    private fun takeExecutables(take: () -> Unit) {
+    /** Runs [take]; [image] is the disc image it reads, remembered for Install & Play when it was this game's. */
+    private fun takeExecutables(image: String?, take: () -> Unit) {
         taking = true
         thread(name = "build-executables") {
             val problem = try {
@@ -223,6 +227,7 @@ class BuildActivity : AppCompatActivity() {
             handler.post {
                 taking = false
                 executables = problem == null
+                if (problem == null && image != null) prefs.chosenImage = image
                 if (problem != null && !isFinishing) {
                     AlertDialog.Builder(this).setMessage(problem).setPositiveButton(R.string.close, null).show()
                 }
