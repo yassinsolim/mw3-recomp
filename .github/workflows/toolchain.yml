@@ -1,27 +1,39 @@
 # Builds the build tools' package, com.recomp.toolchain (docs/ondevice-build.md):
 # clang, lld and the recompiler for arm64 Android, from sources, as one APK
-# that a release publishes beside the apps (recomp-toolchain.apk). It holds
-# nothing of any game and needs none.
+# (recomp-toolchain.apk), and drafts the release the apps download it from
+# (docs/android-releases.md, The toolchain release). It holds nothing of any
+# game and needs none.
 #
 # Started by hand: the package changes only with tools/toolchain/versions.sh,
 # the recompiler's commit or its patch, and an hour of LLVM is not something
-# every tag should pay. The APK is the run's artifact; whoever makes the
-# release attaches it.
+# every tag should pay.
 #
-# Secrets: the release keystore, as android-release.yml has it. Without them
-# the APK is signed with the runner's debug key and is for testing only.
+# One release serves all three games' apps, in Modern Warfare 3's public
+# repository, where the camouflage packs' release is too: its tag is
+# toolchain-v<TOOLCHAIN_VERSION>, and it is a pre-release so that it is never
+# the repository's latest. It is a draft until the owner publishes it, and
+# setup/toolchain.json has to name the APK's SHA-256 before an app is
+# released: the job prints it. Anywhere else, and without the release
+# keystore, the APK is the run's artifact alone, signed with the runner's
+# debug key, for testing.
+#
+# Secrets: the release keystore, as android-release.yml has it.
 name: Build tools package
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   toolchain:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    env:
+      # As android-release.yml: the certificate every release is signed with.
+      # A toolchain signed with another could not be updated beside the apps'.
+      RELEASE_CERTIFICATE_SHA256: 3aad5c3b3e4817007c659eb0b03e4480184aff631d13e0badbaa15f47ab36e06
     steps:
       - uses: actions/checkout@v6
         with:
@@ -69,3 +81,63 @@ jobs:
         with:
           name: recomp-toolchain
           path: out/toolchain/recomp-toolchain.apk
+
+      - name: Draft the toolchain release
+        if: github.repository == 'yassinsolim/mw3-recomp'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk=out/toolchain/recomp-toolchain.apk
+          apksigner="$(ls "${ANDROID_HOME}"/build-tools/35.0.0/apksigner)"
+          signed="$("${apksigner}" verify --print-certs "${apk}" |
+            sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          echo "signed with ${signed}"
+          [ "${signed}" = "${RELEASE_CERTIFICATE_SHA256}" ]
+
+          . tools/toolchain/versions.sh
+          tag="toolchain-v${TOOLCHAIN_VERSION}"
+          # A published package is what apps already name by its hash: a
+          # change to it is a new TOOLCHAIN_VERSION, never a replacement.
+          state="$(gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if [ "${state}" = "false" ]; then
+            echo "${tag} is published already: raise TOOLCHAIN_VERSION (tools/toolchain/versions.sh)." >&2
+            exit 1
+          fi
+          if [ "${state}" = "true" ]; then
+            gh release delete "${tag}" --repo "${GITHUB_REPOSITORY}" --yes
+          fi
+
+          files="${RUNNER_TEMP}/release"
+          mkdir -p "${files}"
+          cp "${apk}" LICENSE THIRD_PARTY.md "${files}/"
+          hash="$(sha256sum "${apk}" | cut -d' ' -f1)"
+          echo "${hash}  recomp-toolchain.apk" > "${files}/recomp-toolchain.apk.sha256"
+          # Every notice the package carries, readable without unpacking an APK.
+          unzip -q -o "${apk}" assets/toolchain/data.zip -d "${RUNNER_TEMP}/apk"
+          unzip -q -o "${RUNNER_TEMP}/apk/assets/toolchain/data.zip" 'licences/*' -d "${RUNNER_TEMP}/notices"
+          (cd "${RUNNER_TEMP}/notices" && zip -q -r "${files}/recomp-toolchain-licences.zip" licences)
+          # The two recompiler programs are under the GPL-3.0 (they carry GNU
+          # binutils' PowerPC disassembler): their whole source as it was
+          # compiled, patch applied and submodules in, beside the binary.
+          xenon="$(git -C XenonRecomp rev-parse HEAD)"
+          tar --exclude=.git -czf "${files}/recomp-toolchain-recompiler-source.tar.gz" XenonRecomp
+
+          {
+            echo "The build tools the apps use for \"Build the game code\" on the device: a compiler (clang and lld ${LLVM_VERSION}) and the recompiler. The app downloads and installs this by itself; there is no need to fetch it by hand. It holds nothing of any game, has no screen and asks for no permission."
+            echo
+            echo "recomp-toolchain.apk SHA-256: ${hash}"
+            echo
+            echo "Licences: THIRD_PARTY.md (the section on the build tools' package) says what each part is and its licence; recomp-toolchain-licences.zip has every notice, as the package carries them."
+            echo
+            echo "Source, all of it:"
+            echo "- This package's build scripts and the recompiler's patch (GPL-3.0): https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA} (tools/toolchain, android/toolchain, patches/xenonrecomp-mw2.patch)"
+            echo "- The recompiler, XenonRecomp and XenonAnalyse, distributed under the GPL-3.0 because they include GNU binutils' PowerPC disassembler (thirdparty/disasm): https://github.com/hedge-dev/XenonRecomp/tree/${xenon} with the patch above. The complete source as compiled is attached: recomp-toolchain-recompiler-source.tar.gz"
+            echo "- clang, lld, libc++, libunwind and the compiler's runtime: https://github.com/llvm/llvm-project/releases/tag/llvmorg-${LLVM_VERSION}"
+            echo "- Android's C library headers and start-up objects: https://android.googlesource.com/platform/bionic/+/${BIONIC_COMMIT}"
+          } > "${RUNNER_TEMP}/notes.txt"
+
+          gh release create "${tag}" "${files}"/* \
+            --repo "${GITHUB_REPOSITORY}" --draft --prerelease --target "${GITHUB_SHA}" \
+            --title "Build tools ${TOOLCHAIN_VERSION} (for building the game code on the device)" \
+            --notes-file "${RUNNER_TEMP}/notes.txt"
+          echo "setup/toolchain.json: \"sha256\": \"${hash}\"" >> "${GITHUB_STEP_SUMMARY}"

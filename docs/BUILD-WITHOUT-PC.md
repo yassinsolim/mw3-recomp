@@ -5,9 +5,13 @@ own disc's two executables and installed beside the app as a package of its
 own ([game-library.md](game-library.md)). `setup\setup.cmd` makes it on a
 Windows PC. This page is for everyone else:
 
+- **On the device itself**: no PC and no account. The app's **Build the
+  game code** makes it from your disc image in a few minutes
+  ([ondevice-build.md](ondevice-build.md), and the README's quick start).
+  This is the way to take unless you have a reason for another.
 - **[A Linux PC](#a-linux-pc)**: one command, `bash setup/setup.sh`. Tested
   on Ubuntu 24.04.
-- **[No PC at all](#no-pc-at-all-github-builds-it-for-you)**: your phone and
+- **[GitHub builds it](#no-pc-at-all-github-builds-it-for-you)**: your phone and
   a free GitHub account; GitHub builds the package in a **private**
   repository of your own. Not available yet: see the note there.
 

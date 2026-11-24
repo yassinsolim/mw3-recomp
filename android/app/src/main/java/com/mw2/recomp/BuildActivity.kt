@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.security.MessageDigest
 import kotlin.concurrent.thread
 
 /**
@@ -66,8 +67,16 @@ class BuildActivity : AppCompatActivity() {
     /** A build was running when this screen last looked: its end is news to say. */
     private var sawRunning = false
 
-    /** Read when the screen comes to the front and when a build ends, not on every tick: they are files. */
+    /**
+     * The package this app builds with; one of another version is said, and
+     * replaced by the download. These are read when the screen comes to the
+     * front and when a build ends, not on every tick: they are files.
+     */
     private var toolchain: Toolchain? = null
+    private var otherToolchain = false
+
+    /** The launcher offers this screen only in an app that has a build kit (GameBuild.offered). */
+    private val kit: GameBuild.Kit by lazy { checkNotNull(GameBuild.kit(this)) { "this app has no build kit" } }
     private var wanted: List<GameBuild.KitTitle> = emptyList()
     private var outdated = false
 
@@ -97,9 +106,17 @@ class BuildActivity : AppCompatActivity() {
 
     private val downloadDone = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) != toolchainDownload) return
-            installToolchain(toolchainDownload)
-            toolchainDownload = -1
+            val id = toolchainDownload
+            if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) != id) return
+            // Hashing 43 MB is not for the main thread; the screen says
+            // "downloading" until the file is known to be the release's.
+            thread(name = "build-toolchain-check") {
+                val whole = toolchainArrived(id)
+                handler.post {
+                    toolchainDownload = -1
+                    if (whole) installToolchain(id) else toolchainFailed()
+                }
+            }
         }
     }
 
@@ -219,7 +236,9 @@ class BuildActivity : AppCompatActivity() {
 
     // ---- the toolchain package --------------------------------------------------
 
-    private fun toolchainPage(): Uri = Uri.parse("https://github.com/${BuildConfig.UPDATE_REPO}/releases/latest")
+    private fun toolchainPage(): Uri = Uri.parse(kit.toolchainPage)
+
+    private fun toolchainFile(): File = File(getExternalFilesDir(null), kit.toolchainAsset)
 
     private fun downloadToolchain() {
         if (!packageManager.canRequestPackageInstalls()) {
@@ -234,16 +253,50 @@ class BuildActivity : AppCompatActivity() {
         try {
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             // Into the app's own folder: no permission, and gone with the app.
-            File(getExternalFilesDir(null), TOOLCHAIN_FILE).delete()
-            val request = DownloadManager.Request(Uri.parse("https://github.com/${BuildConfig.UPDATE_REPO}/releases/latest/download/$TOOLCHAIN_FILE"))
+            toolchainFile().delete()
+            val request = DownloadManager.Request(Uri.parse(BuildConfig.TOOLCHAIN_URL.ifEmpty { kit.toolchainDownload }))
                 .setTitle(getString(R.string.build_toolchain_name))
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-                .setDestinationInExternalFilesDir(this, null, TOOLCHAIN_FILE)
+                .setDestinationInExternalFilesDir(this, null, kit.toolchainAsset)
                 .setAllowedOverMetered(true)
             toolchainDownload = manager.enqueue(request)
         } catch (_: Exception) {
             openToolchainPage()
         }
+    }
+
+    /**
+     * Whether download [id] ended well and brought the file the app's list
+     * names (setup/toolchain.json): anything else, a page of a proxy or a
+     * package of another release, is deleted and never shown to the installer.
+     */
+    private fun toolchainArrived(id: Long): Boolean {
+        val file = toolchainFile()
+        val whole = try {
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val succeeded = manager.query(DownloadManager.Query().setFilterById(id)).use { cursor ->
+                cursor.moveToFirst() &&
+                    cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_SUCCESSFUL
+            }
+            succeeded && sha256(file) == kit.toolchainHash
+        } catch (_: Exception) {
+            false
+        }
+        if (!whole) file.delete()
+        return whole
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 16)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun installToolchain(id: Long) {
@@ -255,13 +308,17 @@ class BuildActivity : AppCompatActivity() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION),
             )
         } catch (_: Exception) {
-            if (isFinishing) return
-            AlertDialog.Builder(this)
-                .setMessage(R.string.build_toolchain_failed)
-                .setPositiveButton(R.string.open_page) { _, _ -> openToolchainPage() }
-                .setNegativeButton(R.string.cancel, null)
-                .show()
+            toolchainFailed()
         }
+    }
+
+    private fun toolchainFailed() {
+        if (isFinishing) return
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.build_toolchain_failed, kit.toolchainAsset))
+            .setPositiveButton(R.string.open_page) { _, _ -> openToolchainPage() }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun openToolchainPage() {
@@ -279,7 +336,9 @@ class BuildActivity : AppCompatActivity() {
     }
 
     private fun reload() {
-        toolchain = Toolchain.find(this)
+        val installed = Toolchain.find(this)
+        toolchain = installed?.takeIf { kit.takes(it) }
+        otherToolchain = installed != null && toolchain == null
         wanted = GameBuild.wanted(this)
         outdated = GameBuild.outdated(this)
     }
@@ -302,6 +361,7 @@ class BuildActivity : AppCompatActivity() {
             when {
                 toolchain != null -> getString(R.string.build_have_toolchain, toolchain.version)
                 toolchainDownload != -1L -> getString(R.string.build_toolchain_downloading)
+                otherToolchain -> getString(R.string.build_other_toolchain, kit.toolchainVersion)
                 else -> getString(R.string.build_need_toolchain)
             },
         )
@@ -369,10 +429,5 @@ class BuildActivity : AppCompatActivity() {
                 .setCancelable(false)
                 .show()
         }
-    }
-
-    companion object {
-        /** The toolchain package's name among the assets of the app's release. */
-        const val TOOLCHAIN_FILE = "recomp-toolchain.apk"
     }
 }

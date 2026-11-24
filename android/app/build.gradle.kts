@@ -115,6 +115,10 @@ android {
         // against a server of its own (docs/android-releases.md); empty for
         // GitHub's list of UPDATE_REPO's.
         buildConfigField("String", "UPDATE_API", "\"${setting("MW2_UPDATE_API") ?: ""}\"")
+        // Where the toolchain package is fetched from, for a build that tests
+        // the download against the same server; empty for the release
+        // setup/toolchain.json names. The file's SHA-256 is that list's either way.
+        buildConfigField("String", "TOOLCHAIN_URL", "\"${setting("MW2_TOOLCHAIN_URL") ?: ""}\"")
 
         ndk {
             // The guest's address space is 4 GiB reserved in one mapping, so
@@ -548,7 +552,10 @@ kitGames.forEach { (game, kit) ->
     val copied = kit.titles.map { "config/${it.toml}" } + kit.extraSources + listOf("runtime/mmio_hook.h", "cmake/game_library.list")
     val hashed = copied + kit.titles.flatMap { title ->
         listOf("kernel_imports.list", "ppc_config.h", "switch_tables.sha256").map { "config/abi/${title.library}/$it" }
-    } + listOf("setup/setup.ps1", "patches/xenonrecomp-mw2.patch", "tools/genshared.py", "XenonRecomp/XenonUtils/ppc_context.h")
+    } + listOf(
+        "setup/setup.ps1", "setup/toolchain.json", "patches/xenonrecomp-mw2.patch", "tools/genshared.py",
+        "XenonRecomp/XenonUtils/ppc_context.h",
+    )
     val task = tasks.register("gameBuildKit${game.replaceFirstChar { it.uppercase() }}") {
         inputs.files(hashed.map { File(repositoryRoot, it) })
         inputs.file("build.gradle.kts")
@@ -585,12 +592,25 @@ kitGames.forEach { (game, kit) ->
                         "memory-hook $memoryHook\n",
                 )
             }
+            // The release the toolchain package is published in and the file
+            // it must be (setup/toolchain.json, docs/android-releases.md): the
+            // app downloads only that, and takes a file with no other hash.
+            val toolchain = groovy.json.JsonSlurper().parseText(kitText("setup/toolchain.json")) as Map<*, *>
+            val toolchainRelease = toolchain["release"] as Map<*, *>
+            val toolchainHash = toolchain["sha256"] as String
+            if (!Regex("[0-9a-f]{64}").matches(toolchainHash)) {
+                throw GradleException("setup/toolchain.json has no SHA-256 for ${toolchain["asset"]}: draft the toolchain release first")
+            }
             File(root, "kit.json").writeText(
                 kitJson(
                     mapOf(
                         "game" to game, "folder" to kit.folder,
                         "recompiler" to mapOf("commit" to commit, "patchSha256" to patch),
                         "memoryHookSha256" to memoryHook,
+                        "toolchain" to mapOf(
+                            "repo" to toolchainRelease["repo"], "tag" to toolchainRelease["tag"],
+                            "asset" to toolchain["asset"], "version" to toolchain["version"], "sha256" to toolchainHash,
+                        ),
                         "extraSources" to kit.extraSources,
                         "inTextTables" to kit.inTextTables,
                         // CMakeLists.txt (ppc_recomp) and the NDK's own defaults, as a

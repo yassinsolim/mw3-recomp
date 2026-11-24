@@ -63,6 +63,21 @@ object GameBuild {
         val folder: String = json.getString("folder")
         val recompilerCommit: String = json.getJSONObject("recompiler").getString("commit")
         val recompilerPatch: String = json.getJSONObject("recompiler").getString("patchSha256")
+
+        /** The toolchain package this app is built for, and where it is published (setup/toolchain.json). */
+        val toolchainVersion: String = json.getJSONObject("toolchain").getString("version")
+        val toolchainHash: String = json.getJSONObject("toolchain").getString("sha256")
+        val toolchainAsset: String = json.getJSONObject("toolchain").getString("asset")
+        private val toolchainRelease: String =
+            "https://github.com/${json.getJSONObject("toolchain").getString("repo")}/releases"
+        private val toolchainTag: String = json.getJSONObject("toolchain").getString("tag")
+        val toolchainPage: String = "$toolchainRelease/tag/$toolchainTag"
+        val toolchainDownload: String = "$toolchainRelease/download/$toolchainTag/$toolchainAsset"
+
+        /** Whether [toolchain] is the package this app's game code is built with. */
+        fun takes(toolchain: Toolchain): Boolean = toolchain.version == toolchainVersion &&
+            toolchain.recompilerCommit == recompilerCommit && toolchain.recompilerPatch == recompilerPatch
+
         val compile: List<String> = strings(json, "compile")
         val link: List<String> = strings(json, "link")
         val extraSources: List<String> = strings(json, "extraSources")
@@ -602,9 +617,7 @@ object GameBuild {
     private fun build(context: Context, measures: Measures, lap: (String) -> Unit) {
         val kit = kit(context) ?: throw Failure("this app has no build kit")
         val toolchain = Toolchain.find(context) ?: throw Failure(context.getString(R.string.build_toolchain_missing))
-        if (toolchain.recompilerCommit != kit.recompilerCommit || toolchain.recompilerPatch != kit.recompilerPatch) {
-            throw Failure(context.getString(R.string.build_toolchain_other))
-        }
+        if (!kit.takes(toolchain)) throw Failure(context.getString(R.string.build_toolchain_other))
         val root = root(context)
         val titles = wanted(context)
 

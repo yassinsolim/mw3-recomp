@@ -21,16 +21,18 @@ The Android app on the [releases](https://github.com/yassinsolim/mw3-recomp/rele
 page is not the whole game: it carries no game code and no game files. Both
 come from your own disc, in two steps, and the app says which is still to do:
 
-1. **On a PC:** `setup\setup.cmd` builds the game code from your disc image
-   and installs it, with the app, on the device over USB
-   ([Quick start](#quick-start-windows)).
-2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
+1. **Build the game code.** On the device itself, with no PC: the app's
+   **Build the game code** makes it from your disc image in a few minutes
+   ([on the device](#quick-start-on-the-device-no-pc)).
+   Or on a PC: `setup\setup.cmd` builds it and installs it, with the app, on the
+   device over USB ([Windows](#quick-start-windows), [Linux](#no-windows-pc)).
+2. **Install & Play.** Open the app and choose **INSTALL & PLAY**. It finds
    your disc image (`.iso`) in `Download`, on the device or its memory card,
    and plays from it where it is: nothing is copied
    ([Install on Android](#install-on-android)).
 
-An app installed by itself, without step 1, says "Step 1 is not done" and
-cannot start the game.
+An app installed by itself says which step is still to do, and its first
+screen leads to building on the device.
 
 ## Status
 
@@ -76,9 +78,13 @@ game code as your own package. It shares every renderer fix made since
   made for (the USA/Europe disc and one other packaging of the campaign;
   [tools/check_mw3_xex.py](tools/check_mw3_xex.py)). Others are refused rather
   than built wrong.
-- A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
-  free (60 GB with the Windows game). A first build takes one to several
-  hours. With a Linux PC, see [No Windows PC](#no-windows-pc).
+- No PC, to build on the device: about 1 GB free beside the image while it
+  builds. Tried on a Snapdragon 8 Gen 2 with 16 GB and a Snapdragon 865 with
+  8 GB, both on Android 13.
+- To build on a PC instead, or for the Windows game: a Windows 10 or 11 PC
+  (64-bit) with 16 GB of memory or more and about 40 GB free (60 GB with the
+  Windows game). A first build takes one to several hours. With a Linux PC,
+  see [No Windows PC](#no-windows-pc).
 - For Android: a 64-bit phone or handheld with Android 10 or later and
   Vulkan, with room for the ~8 GB disc image on its own storage or on a memory
   card. The game plays from the image; copying its files into the app
@@ -87,20 +93,31 @@ game code as your own package. It shares every renderer fix made since
 - For the Windows game: a GPU with Vulkan and a processor from 2011 or later
   (x86-64-v2).
 
-## Quick start (Android only, no PC)
+## Quick start (on the device, no PC)
 
-1. Install the app from the [latest release](../../releases/latest) and copy
-   your disc image (`.iso`) to the device's Download folder.
-2. Open the app, choose **Install & Play** for the game files, then **Build
-   the game code**: it finds the executables, offers to install the toolchain
-   package (once, about 45 MB) and builds. Keep the charger connected; three
-   to fifteen minutes depending on the device, and you may leave the app.
-3. Play. Details: [docs/ondevice-build.md](docs/ondevice-build.md).
+Install the app, tap Build, choose your `.iso`:
+
+1. Install the app from the [latest release](../../releases/latest) and open
+   it. It names the two steps; choose **Build on this device**.
+2. **Choose the disc image with the Files app**: your `.iso`, on the device
+   or its memory card. It is only read, and one in the Download folder is
+   found by itself.
+3. **Download and install the toolchain package**: the compiler, once, a
+   download of 43 MB. Android asks twice: to let the app install a package,
+   and to install it.
+4. **Build**. Keep the charger connected and leave the app if you like: about 5 minutes on a
+   Snapdragon 8 Gen 2, 8 on a Snapdragon 865.
+5. Back in the launcher, **INSTALL & PLAY** plays Modern Warfare 3 from the same image
+   where it lies.
+
+How it works, what was measured, and what the build does when the device is
+hot or short of memory: [docs/ondevice-build.md](docs/ondevice-build.md).
 
 ## Quick start (Windows)
 
-Step 1 of the [two](#two-steps-to-play): the game code, built on the PC and
-installed on the phone. Step 2, on the phone, is
+Step 1 of the [two](#two-steps-to-play) done on a PC instead of the device:
+the game code, built on the PC and installed on the phone. It is also the
+way to the Windows game. Step 2, on the phone, is
 [Install on Android](#install-on-android).
 
 1. Get the code: `git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`
@@ -303,8 +320,8 @@ The pipeline by hand, and desktop runs on Linux:
 | errors about long paths or spaces | move the folder to a short path such as `C:\mw3` |
 | `adb` says *unauthorized* | unlock the phone and accept the USB debugging prompt |
 | the app says the game files are missing | do step 2 of *Install on Android* |
-| the app says the game code is not on this device | run `setup\setup.cmd` with the phone connected: it builds and installs it (without a Windows PC: [No Windows PC](#no-windows-pc)) |
-| the app says the game code does not match this version | on the PC: `git pull`, then `setup\setup.cmd -GameOnly` with the phone connected |
+| the app says the game code is not on this device | in the app, **Build the game code** ([on the device](#quick-start-on-the-device-no-pc)); or run `setup\setup.cmd` with the phone connected: it builds and installs it ([Linux](#no-windows-pc)) |
+| the app says the game code does not match this version | in the app, **Build the game code** builds it again (no disc image is asked for); or on the PC: `git pull`, then `setup\setup.cmd -GameOnly` with the phone connected |
 | black screen or crashes on a non-Qualcomm phone | untested hardware; the app's **Log** screen says what happened |
 | friends do not see your game | everyone on the same relay, same version; the host must have **started** the match |
 

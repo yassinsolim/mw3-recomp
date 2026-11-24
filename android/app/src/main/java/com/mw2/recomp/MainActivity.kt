@@ -517,9 +517,9 @@ class MainActivity : AppCompatActivity() {
             showDetail(getString(R.string.setup_title), setupSteps(gameCode, gameFiles))
             detailIsSetup = true
         }
-        // The dialog is for the step done away from the device, which
-        // nothing on this screen can do: with the game code here, the card
-        // and the Install & Play button say the rest.
+        // The dialog is for the step a new player does not expect, making
+        // the game code, and leads to doing it here: with the game code on
+        // the device, the card and the Install & Play button say the rest.
         if (setupExplained || gameCode) return
         setupExplained = true
         explainSetup(gameCode, gameFiles)
@@ -539,9 +539,9 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.setup_title)
             .setMessage(setupSteps(gameCode, gameFiles) + "\n\n" + getString(R.string.setup_guide_where, setupGuide()))
             .setNegativeButton(R.string.close, null)
-            .setPositiveButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
-        if (!gameFiles) {
-            dialog.setNeutralButton(R.string.install_game) { _, _ -> install() }
+            .setNeutralButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
+        if (GameBuild.offered(this)) {
+            dialog.setPositiveButton(R.string.setup_build_here) { _, _ -> startActivity(Intent(this, BuildActivity::class.java)) }
         }
         dialog.show()
     }

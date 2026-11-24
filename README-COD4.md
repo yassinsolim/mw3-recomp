@@ -28,15 +28,17 @@ The app on the [releases](https://github.com/yassinsolim/cod4-recomp/releases)
 page is not the whole game: it carries no game code and no game files. Both
 come from your own disc, in two steps, and the app says which is still to do:
 
-1. **On a PC:** `setup\setup.cmd -Game cod4` builds the game code from your
-   disc image and installs it, with the app, on the device over USB
-   ([Setup](#setup-windows)).
-2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
+1. **Build the game code.** On the device itself, with no PC: the app's
+   **Build the game code** makes it from your disc image in a few minutes
+   ([on the device](#setup-on-the-device-no-pc)).
+   Or on a PC: `setup\setup.cmd -Game cod4` builds it and installs it, with the app, on the
+   device over USB ([Windows](#setup-windows), [Linux](#setup-without-a-windows-pc)).
+2. **Install & Play.** Open the app and choose **INSTALL & PLAY**. It finds
    your disc image (`.iso`) in `Download`, on the device or its memory card,
    and plays from it where it is: nothing is copied.
 
-An app installed by itself, without step 1, says "Step 1 is not done" and
-cannot start the game.
+An app installed by itself says which step is still to do, and its first
+screen leads to building on the device.
 
 ## Status
 
@@ -87,8 +89,11 @@ What has been checked and how, and what is still open:
   `.iso` (7.8 GB). The build checks the two executables on it and accepts the
   one disc build it was made for (USA/Europe, 2007); anything else is refused
   rather than built wrong.
-- A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
-  free. With a Linux PC, see
+- No PC, to build on the device: about 1 GB free beside the image while it
+  builds. Tried on a Snapdragon 8 Gen 2 with 16 GB and a Snapdragon 865 with
+  8 GB, both on Android 13.
+- To build on a PC instead: a Windows 10 or 11 PC (64-bit) with 16 GB of
+  memory or more and about 40 GB free. With a Linux PC, see
   [Setup without a Windows PC](#setup-without-a-windows-pc).
 - A 64-bit Android phone or handheld with Android 8 or later and Vulkan, with
   room for the 7.8 GB disc image on its own storage or on a memory card. The
@@ -97,15 +102,28 @@ What has been checked and how, and what is still open:
 
 ## Setup on the device (no PC)
 
-The app's **Build the game code** builds the game code on the device, as
-for the other two games ([docs/ondevice-build.md](docs/ondevice-build.md));
-for Call of Duty 4 it has not been tried on a device yet, so the PC setup
-below is the tested route.
+Install the app, tap Build, choose your `.iso`:
+
+1. Install the app from the [latest release](../../releases/latest) and open
+   it. It names the two steps; choose **Build on this device**.
+2. **Choose the disc image with the Files app**: your `.iso`, on the device
+   or its memory card. It is only read, and one in the Download folder is
+   found by itself.
+3. **Download and install the toolchain package**: the compiler, once, a
+   download of 43 MB. Android asks twice: to let the app install a package,
+   and to install it.
+4. **Build**. Keep the charger connected and leave the app if you like: about 2 minutes on a
+   Snapdragon 8 Gen 2, 4 on a Snapdragon 865.
+5. Back in the launcher, **INSTALL & PLAY** plays Call of Duty 4 from the same image
+   where it lies.
+
+How it works, what was measured, and what the build does when the device is
+hot or short of memory: [docs/ondevice-build.md](docs/ondevice-build.md).
 
 ## Setup (Windows)
 
-Step 1 of the [two](#two-steps-to-play), on the PC, and then step 2 on the
-phone:
+Step 1 of the [two](#two-steps-to-play) done on a PC instead of the device,
+and then step 2 on the phone:
 
 1. Get the code: `git clone https://github.com/yassinsolim/cod4-recomp.git C:\cod4`
    (a short path without spaces).
@@ -162,9 +180,10 @@ updates**, shows what changed and installs it over itself. Your game files,
 saves and game code stay as they are.
 
 Now and then an update changes how the game is recompiled. The app then says
-that the game code on the phone does not match it: on the PC, `git pull`, then
-`setup\setup.cmd -Game cod4 -GameOnly` with the phone connected. That takes
-minutes; game files and saves are kept
+that the game code on the phone does not match it. Built on the device:
+**Build the game code** builds it again, with no disc image asked for. Built
+on a PC: `git pull`, then `setup\setup.cmd -Game cod4 -GameOnly` with the phone
+connected. Either takes minutes; game files and saves are kept
 ([docs/game-library.md](docs/game-library.md)).
 
 ## Multiplayer
