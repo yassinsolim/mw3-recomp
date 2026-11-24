@@ -268,6 +268,21 @@ uint32_t apu::audio::RegisterClient(uint32_t callback, uint32_t callbackContext)
         if (c.inUse) continue;
         c.callback = callback;
         c.context = callbackContext;
+#ifdef AW_TITLE
+        // This XAudio2 (XDK 21256) registers a callback that starts by loading
+        // its object from where its argument points (`lwz r3,0(r3)`), and the
+        // context it registers is not such a place: what stands there is the
+        // object's table of functions. So the driver hands the callback the
+        // address of a word that holds the context, as Xenia's does for every
+        // title. Handed the context itself, the mixer waited for ever on an
+        // "event" read out of that table, and no frame was ever submitted.
+        // The earlier titles' callbacks are served the context as it is.
+        if (const uint32_t cell = kernel::AllocateGuest(4, 4))
+        {
+            *GuestPtr<be32>(cell) = callbackContext;
+            c.context = cell;
+        }
+#endif
         // The first callback only once the registering call has returned and
         // the title has finished setting its object up.
         c.next = Clock::now() + std::chrono::milliseconds(100);

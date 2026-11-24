@@ -3,7 +3,8 @@
 has no case for (docs/AW-BRINGUP.md, "Recompiling").
 
 Advanced Warfare's executables use twelve such instructions at 415 places
-each. The recompiler reports every one ("Unrecognized instruction at
+each, and a kind of `vupkd3d128` (the unpacking of half floats) for which the
+recompiler writes a trap without a word; those are found in the image. The recompiler reports every one ("Unrecognized instruction at
 0x........: <mnemonic>") and writes nothing for it; this reads that report,
 decodes each instruction from the image and appends to the title's
 configuration a hook that calls the runtime's function for it
@@ -102,11 +103,34 @@ DECODERS = {
     "mulhd": mulhd, "lvehx": lvehx, "bdnzt": bdnzt,
 }
 
+def vupkd3d(address, x):
+    """vupkd3d128 vD,vB,type*4: the recompiler has three of the seven kinds of
+    packed vertex data and writes a trap for the others, which it does not
+    report. The two these executables have besides are half floats."""
+    kind = ((x >> 16) & 0x1F) >> 2
+    d = ((x >> 21) & 31) | ((x & 0xC) << 3)
+    b = ((x >> 11) & 31) | ((x & 3) << 5)
+    name = {3: "PpcVupkd3dHalf2", 5: "PpcVupkd3dHalf4"}[kind]
+    if d == b:
+        raise SystemExit(f"{address:08X}: vupkd3d128 in place, for which the runtime has no form")
+    return (name, [f"v{d}", f"v{b}"]), None
+
+
 report = re.findall(r"Unrecognized instruction at 0x([0-9A-Fa-f]+): (\S+)", open(sys.argv[1]).read())
 if not report:
     raise SystemExit(f"{sys.argv[1]} reports no unrecognised instruction")
+found = [(int(a, 16), m) for a, m in report]
+# The unpacks that end in a trap, found in the image by their encoding: major
+# opcode 6, extended opcode 0x7F0, a kind above 2 (kinds 4 and 6 would be
+# refused below: no function for them).
+for start, size in title.code(img):
+    for address in range(start, start + size - 3, 4):
+        x = word(address)
+        if (x & 0xFC0007F0) == 0x180007F0 and ((x >> 16) & 0x1F) >> 2 > 2:
+            found.append((address, "vupkd3d128"))
+DECODERS["vupkd3d128"] = vupkd3d
 counts, hooks = {}, []
-for address, mnemonic in sorted((int(a, 16), m) for a, m in report):
+for address, mnemonic in sorted(found):
     if mnemonic not in DECODERS:
         raise SystemExit(f"{address:08X}: {mnemonic} has no function in runtime/recomp/ppc_extra_instructions.cpp")
     (name, registers), target = DECODERS[mnemonic](address, word(address))

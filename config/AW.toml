@@ -102,7 +102,7 @@ functions = [
 # earlier titles use and no others):
 # bdnzt (2), lvehx (4), mulhd (1), vaddsws (2), vcmpgtsb (6), vmaxuh (12),
 # vminsw (296), vminuh (12), vpkuhus128 (1), vpkuwus128 (1), vsububm (6),
-# vsubuwm (72).
+# vsubuwm (72), vupkd3d128 (4).
 # Each is replaced by a function of the runtime
 # (runtime/recomp/ppc_extra_instructions.cpp) and stepped over, which leaves
 # the recompiler, and with it the other titles' game-library statements, as it
@@ -114,6 +114,30 @@ name = "PpcMulhd"
 address = 0x82451AF8
 registers = ["r10", "r11", "r8"]
 jump_address = 0x82451AFC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf2"
+address = 0x82492E4C
+registers = ["v61", "v62"]
+jump_address = 0x82492E50
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x825A01FC
+registers = ["v127", "v62"]
+jump_address = 0x825A0200
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x825A266C
+registers = ["v55", "v57"]
+jump_address = 0x825A2670
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x825B7AD4
+registers = ["v59", "v60"]
+jump_address = 0x825B7AD8
 
 [[midasm_hook]]
 name = "PpcVpkuwus_abb"

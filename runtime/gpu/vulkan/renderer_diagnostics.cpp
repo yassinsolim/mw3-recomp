@@ -958,6 +958,11 @@ void vk::renderer::Report()
     if (g.resolveImagesMade)
         LOGI("renderer: %llu resolve destination images made (each after the first costs"
              " a device wait)", (unsigned long long)g.resolveImagesMade);
+    if (g.luminanceWrites)
+        LOGI("renderer: the scene's luminance was written back %llu times, %.1f frames after its"
+             " resolve on average, with no wait",
+             (unsigned long long)g.luminanceWrites,
+             double(g.luminanceFramesLate) / double(g.luminanceWrites));
     if (g.frames)
     {
         // Per frame, because the arena is per frame: what matters is whether a

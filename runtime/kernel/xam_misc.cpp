@@ -133,14 +133,16 @@ PPC_FUNC(__imp__XamGetLocaleEx)
     ctx.r3.u64 = std::min(kUnitedStates, ctx.r4.u32);
 }
 
-// XamUserGetDeviceContext(user, unused, context*): the device a signed-in
-// player's controller is, for the voice and vibration calls that take one.
-PPC_FUNC(__imp__XamUserGetDeviceContext)
-{
-    if (auto* context = GuestPtr<be32>(ctx.r5.u32)) *context = 0;
-    ctx.r3.u64 = ctx.r3.u32 < 4 ? 0 : 0x80070490u;   // S_OK, or "element not found" for no such player
-}
-
 // XamBackgroundDownloadSetMode: how eagerly the dashboard downloads behind the
 // title. There is no dashboard and nothing to download.
 PPC_FUNC(__imp__XamBackgroundDownloadSetMode) { ctx.r3.u64 = 0; }
+
+// The system lowering the game's sound under voice chat ("ducking"), which
+// XAudio2 sets up as it starts: nothing chats here, so it is off and its
+// figures are zero.
+PPC_FUNC(__imp__XAudioEnableDucker)           { ctx.r3.u64 = 0; }
+PPC_FUNC(__imp__XAudioGetDuckerLevel)         { ctx.r3.u64 = 0; }
+PPC_FUNC(__imp__XAudioGetDuckerThreshold)     { ctx.r3.u64 = 0; }
+PPC_FUNC(__imp__XAudioGetDuckerAttackTime)    { ctx.r3.u64 = 0; }
+PPC_FUNC(__imp__XAudioGetDuckerHoldTime)      { ctx.r3.u64 = 0; }
+PPC_FUNC(__imp__XAudioGetDuckerReleaseTime)   { ctx.r3.u64 = 0; }

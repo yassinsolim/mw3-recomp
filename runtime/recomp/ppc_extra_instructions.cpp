@@ -101,6 +101,39 @@ void PpcVpkuwus_abb(PPCVRegister& d, PPCVRegister& a)
     Store(d, simde_mm_packus_epi32(limited, limited));
 }
 
+// vupkd3d128 vD,vB,12 and 20: the packed vertex formats of two and of four
+// half floats, for which the recompiler writes a trap. The halves are the last
+// two (four) halfwords of vB; two give (x, y, 0, 1). As D3D's own conversion on
+// this console has it, an exponent of all ones is a number like any other, not
+// an infinity.
+namespace
+{
+    float HalfToFloat(uint16_t half)
+    {
+        uint32_t mantissa = half & 0x3FF, exponent = (half >> 10) & 0x1F;
+        if (exponent == 0)
+        {
+            if (mantissa == 0) return (half & 0x8000) ? -0.0f : 0.0f;
+            exponent = 1;
+            while (!(mantissa & 0x400)) { mantissa <<= 1; exponent--; }
+            mantissa &= 0x3FF;
+        }
+        const uint32_t bits = (uint32_t(half & 0x8000) << 16) | ((exponent + 112) << 23) | (mantissa << 13);
+        float value;
+        __builtin_memcpy(&value, &bits, sizeof value);
+        return value;
+    }
+}
+void PpcVupkd3dHalf2(PPCVRegister& d, PPCVRegister& b)
+{
+    const float x = HalfToFloat(b.u16[1]), y = HalfToFloat(b.u16[0]);
+    d.f32[3] = x; d.f32[2] = y; d.f32[1] = 0.0f; d.f32[0] = 1.0f;
+}
+void PpcVupkd3dHalf4(PPCVRegister& d, PPCVRegister& b)
+{
+    for (int i = 0; i < 4; i++) d.f32[i] = HalfToFloat(b.u16[i]);
+}
+
 // lvehx vD,0,rB: the halfword at rB into its place in vD, the rest undefined.
 // As the recompiler does for lvewx, the whole aligned vector is loaded.
 void PpcLvehx(PPCVRegister& d, PPCRegister& b)

@@ -6,12 +6,16 @@
 #include "texture_cache.h"
 #include "texture_formats.h"
 #include "../texture.h"
+#include "../../guest.h"
+#include "../../kernel/physical.h"
 #include "../../frame_rate.h"
 #include "../../log.h"
 #include "../../report.h"
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <vector>
 
 #ifdef MW2_HAVE_VULKAN
 
@@ -154,12 +158,138 @@ namespace vk::renderer::detail
     }
 }
 
+#ifdef AW_TITLE
+namespace vk::renderer::detail
+{
+    // Advanced Warfare's exposure is worked out by the processor: each frame
+    // the scene's luminance is drawn down to 16x16 texels of one float,
+    // resolved, and the title reads the texture's memory for the next frame's
+    // exposure. A resolve here fills a Vulkan image and guest memory keeps its
+    // zeroes, a scene the title takes for pitch dark and opens the exposure
+    // all the way for. So that one resolve, and no other (the frame's are
+    // megabytes), is also copied into a buffer the host can read and written
+    // to the destination once the GPU has finished the submission it went
+    // out in. Nothing waits for it: the title gets the luminance a frame or
+    // two late (the report says how late), which an adaptation spread over
+    // many frames does not show.
+    constexpr uint32_t kLuminanceFormat = 36;       // k_32_FLOAT
+    constexpr uint32_t kLuminanceTexels = 1024;     // the most one copy holds
+    constexpr uint32_t kLuminanceCopies = 16;       // two a frame, a few frames in flight
+
+    struct LuminanceCopy
+    {
+        uint32_t destination = 0, pitch = 0, x = 0, y = 0, width = 0, height = 0, endian = 0;
+        uint32_t place = 0;         // which of the buffer's kLuminanceCopies
+        uint32_t slot = 0;
+        uint64_t serial = 0, frame = 0;
+    };
+    std::vector<LuminanceCopy> g_luminanceCopies;
+
+    bool MakeLuminanceBack()
+    {
+        if (g.luminanceBack) return g.luminanceBackMapped != nullptr;
+        const VkDeviceSize bytes = VkDeviceSize(kLuminanceCopies) * kLuminanceTexels * 4;
+        VkBufferCreateInfo info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        info.size = bytes;
+        info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        if (vkCreateBuffer(g.device, &info, nullptr, &g.luminanceBack) != VK_SUCCESS) return false;
+        VkMemoryRequirements needs{};
+        vkGetBufferMemoryRequirements(g.device, g.luminanceBack, &needs);
+        const VkMemoryPropertyFlags visible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        uint32_t type = FindMemory(needs.memoryTypeBits, visible | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+        if (type == UINT32_MAX) type = FindMemory(needs.memoryTypeBits, visible);
+        VkMemoryAllocateInfo allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        allocate.allocationSize = needs.size;
+        allocate.memoryTypeIndex = type;
+        void* mapped = nullptr;
+        if (type == UINT32_MAX ||
+            vkAllocateMemory(g.device, &allocate, nullptr, &g.luminanceBackMemory) != VK_SUCCESS ||
+            vkBindBufferMemory(g.device, g.luminanceBack, g.luminanceBackMemory, 0) != VK_SUCCESS ||
+            vkMapMemory(g.device, g.luminanceBackMemory, 0, bytes, 0, &mapped) != VK_SUCCESS)
+        {
+            LOGW("renderer: no buffer to read the scene's luminance back into; the exposure stays open");
+            return false;
+        }
+        g.luminanceBackMapped = static_cast<const uint8_t*>(mapped);
+        return true;
+    }
+
+    // Writes the copies the GPU has finished where their resolves were sent.
+    // The texture is tiled, as every resolve destination is, and its dwords
+    // are in the order the destination asked for.
+    void DeliverLuminance()
+    {
+        size_t kept = 0;
+        for (const LuminanceCopy& copy : g_luminanceCopies)
+        {
+            if (!SubmissionFinished(copy.slot, copy.serial)) { g_luminanceCopies[kept++] = copy; continue; }
+            uint8_t* texture = guest::Base() + kernel::FromPhysical(copy.destination);
+            const uint8_t* from = g.luminanceBackMapped + size_t(copy.place) * kLuminanceTexels * 4;
+            for (uint32_t y = 0; y < copy.height; y++)
+                for (uint32_t x = 0; x < copy.width; x++)
+                {
+                    uint32_t texel;
+                    std::memcpy(&texel, from + (size_t(y) * copy.width + x) * 4, 4);
+                    switch (copy.endian)
+                    {
+                    case 1: texel = ((texel & 0x00FF00FFu) << 8) | ((texel >> 8) & 0x00FF00FFu); break;
+                    case 2: texel = __builtin_bswap32(texel); break;
+                    case 3: texel = (texel << 16) | (texel >> 16); break;
+                    default: break;
+                    }
+                    std::memcpy(texture + gpu::TiledOffset2D(int32_t(copy.x + x), int32_t(copy.y + y),
+                                                             copy.pitch, 2), &texel, 4);
+                }
+            if (!g.luminanceWrites)
+                LOGI("renderer: the scene's luminance (%ux%u floats) is written back to %08X for the title's"
+                     " exposure", copy.width, copy.height, copy.destination);
+            g.luminanceWrites++;
+            g.luminanceFramesLate += g.frames - copy.frame;
+        }
+        g_luminanceCopies.resize(kept);
+    }
+
+    // Called with `image` readable (TRANSFER_SRC_OPTIMAL), in the resolve's
+    // own copy. A copy with no place free in the buffer is left out: the
+    // title keeps the luminance it last got.
+    void ReadLuminanceBack(VkImage image, const gpu::RegisterFile& r, uint32_t x, uint32_t y,
+                           uint32_t width, uint32_t height)
+    {
+        const gpu::CopyDestInfo info{ r[gpu::RB_COPY_DEST_INFO] };
+        const gpu::CopyDestPitch pitch{ r[gpu::RB_COPY_DEST_PITCH] };
+        if (info.Format() != kLuminanceFormat || width * height > kLuminanceTexels || !MakeLuminanceBack())
+            return;
+        uint32_t place = 0;
+        const auto taken = [&](const LuminanceCopy& copy) { return copy.place == place; };
+        while (place < kLuminanceCopies &&
+               std::any_of(g_luminanceCopies.begin(), g_luminanceCopies.end(), taken))
+            place++;
+        if (place == kLuminanceCopies) return;
+        VkBufferImageCopy region{};
+        region.bufferOffset = VkDeviceSize(place) * kLuminanceTexels * 4;
+        region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        region.imageOffset = { int32_t(x), int32_t(y), 0 };
+        region.imageExtent = { width, height, 1 };
+        const VkBuffer buffer = g.luminanceBack;
+        Record([=](VkCommandBuffer command) {
+            vkCmdCopyImageToBuffer(command, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+        });
+        g_luminanceCopies.push_back({ r[gpu::RB_COPY_DEST_BASE] & ~0xFFFu, pitch.Pitch(), x, y, width, height,
+                                      info.Endian(), place, g.slot, g.submissionSerial + 1, g.frames });
+    }
+}
+#endif
+
 using namespace vk::renderer::detail;
 
 void vk::renderer::Resolve(const gpu::RegisterFile& r)
 {
     Stopwatch watch(g.resolveNanoseconds);
     if (!g.device) return;
+#ifdef AW_TITLE
+    DeliverLuminance();
+#endif
     g.resolveEpoch++;
     const gpu::CopyControl control{ r[gpu::RB_COPY_CONTROL] };
     VkRect2D rect{};
@@ -375,6 +505,10 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
             vkCmdCopyImage(command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                            intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
         });
+#ifdef AW_TITLE
+        if (source->format == VK_FORMAT_R32_SFLOAT && source->scale == 1)
+            ReadLuminanceBack(sourceImage, r, destX, destY, width, height);
+#endif
         EndReadingColour(*source);
     }
     RecordBarrier(into.image, VK_IMAGE_ASPECT_COLOR_BIT,

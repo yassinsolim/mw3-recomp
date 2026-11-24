@@ -53,6 +53,7 @@ namespace
         PM4_DRAW_INDX_2         = 0x36,
         PM4_SET_CONSTANT        = 0x2D,
         PM4_SET_CONSTANT2       = 0x55,
+        PM4_SET_SHADER_CONSTANTS = 0x56,
         PM4_IM_LOAD             = 0x27,
         PM4_IM_LOAD_IMMEDIATE   = 0x2B,
         PM4_INVALIDATE_STATE    = 0x3B,
@@ -92,6 +93,7 @@ namespace
         case PM4_DRAW_INDX_2:         return "DRAW_INDX_2";
         case PM4_SET_CONSTANT:        return "SET_CONSTANT";
         case PM4_SET_CONSTANT2:       return "SET_CONSTANT2";
+        case PM4_SET_SHADER_CONSTANTS: return "SET_SHADER_CONSTANTS";
         case PM4_IM_LOAD:             return "IM_LOAD";
         case PM4_IM_LOAD_IMMEDIATE:   return "IM_LOAD_IMMEDIATE";
         case PM4_INVALIDATE_STATE:    return "INVALIDATE_STATE";
@@ -864,6 +866,11 @@ namespace
             break;
         }
 
+        // SET_SHADER_CONSTANTS is the same packet under a later number: the
+        // D3D9 of Advanced Warfare's XDK writes a draw's constants with it
+        // (seventeen dwords, an offset and a matrix), where the earlier
+        // titles' never did. Taken as Xenia takes it.
+        case PM4_SET_SHADER_CONSTANTS:
         case PM4_SET_CONSTANT2:
         {
             // The offset is already an absolute register.

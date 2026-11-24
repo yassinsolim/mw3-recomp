@@ -589,6 +589,13 @@ namespace vk::renderer::detail
         VkBuffer readBack = VK_NULL_HANDLE;
         VkDeviceMemory readBackMemory = VK_NULL_HANDLE;
         const uint8_t* readBackMapped = nullptr;
+        // The scene's luminance copied out for the title to read (Advanced
+        // Warfare, renderer_resolve.cpp); how many reached guest memory and
+        // how many frames after their resolves, in all.
+        VkBuffer luminanceBack = VK_NULL_HANDLE;
+        VkDeviceMemory luminanceBackMemory = VK_NULL_HANDLE;
+        const uint8_t* luminanceBackMapped = nullptr;
+        uint64_t luminanceWrites = 0, luminanceFramesLate = 0;
         VkDeviceMemory presentMemory[kPresentImages]{};
         uint32_t presentIndex = 0;
         // The frame each image last held, which the window must have taken
@@ -925,6 +932,10 @@ namespace vk::renderer::detail
     // asked (NoteCompleted, at the start of every submission's recording).
     uint64_t CompletedSerial();
     void NoteCompleted();
+    // Whether the GPU has finished the submission of that serial, which went
+    // out in that frame slot: the slot has moved on to a later one (BeginFrame
+    // waited for it first), or its fence says so.
+    bool SubmissionFinished(uint32_t slot, uint64_t serial);
     // Destroying an image the GPU may still use.
     void RetireBeforeDestroy();
     // Until the GPU has finished the submission a slot holds, if it holds one.

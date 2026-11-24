@@ -256,6 +256,18 @@ PPC_FUNC(__imp__XamUserGetXUID)
     ctx.r3.u64 = X_ERROR_SUCCESS;
 }
 
+// XamUserGetDeviceContext(user, unused, context*): the device a signed-in
+// player's controller is, which the title keeps beside the player and takes
+// input and vibration by. The player's own number for one who is signed in,
+// and a failure with zero for anybody else: answered "device 0" for all four,
+// Advanced Warfare's campaign took its menus' input from the last of them.
+PPC_FUNC(__imp__XamUserGetDeviceContext)
+{
+    const bool signedIn = WhoIs(ctx.r3.u32).state != 0;
+    if (auto* context = GuestPtr<be32>(ctx.r5.u32)) *context = signedIn ? ctx.r3.u32 : 0u;
+    ctx.r3.u64 = signedIn ? 0u : 0x8007048Fu;   // S_OK, or "the device is not connected"
+}
+
 PPC_FUNC(__imp__XamUserGetName)
 {
     const Who who = WhoIs(ctx.r3.u32);

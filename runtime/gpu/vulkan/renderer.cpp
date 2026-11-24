@@ -682,6 +682,11 @@ void vk::renderer::Shutdown()
     g.readBack = VK_NULL_HANDLE;
     g.readBackMemory = VK_NULL_HANDLE;
     g.readBackMapped = nullptr;
+    if (g.luminanceBack) vkDestroyBuffer(g.device, g.luminanceBack, nullptr);
+    if (g.luminanceBackMemory) vkFreeMemory(g.device, g.luminanceBackMemory, nullptr);
+    g.luminanceBack = VK_NULL_HANDLE;
+    g.luminanceBackMemory = VK_NULL_HANDLE;
+    g.luminanceBackMapped = nullptr;
     for (State::Slot& slot : g.slots)
         for (VkBufferView view : { slot.arenaTexels, slot.arenaTexelWords })
             if (view) vkDestroyBufferView(g.device, view, nullptr);

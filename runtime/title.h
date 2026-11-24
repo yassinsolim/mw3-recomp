@@ -101,6 +101,10 @@
 // MW3's sub_8228CA48 instruction for instruction: (localClientNum, text) with
 // the "p<digit> " client prefix parse.
 #define T_Cbuf_AddText         82408B70
+// The Lua library's error function, luaL_error: the variadic function with the
+// most callers in the executable (874, all in the interpreter's library); it
+// formats into the state, adds where the script was, and raises.
+#define T_Lua_Error            8214C1F0
 
 // the D3D9 library (XDK 21256)
 // The one caller of VdSwap; 0.92 of MW3's sub_820A16E8.
@@ -1706,7 +1710,11 @@
 // service tells copies apart by; and the four letters that mark what this
 // build's copies send each other, so another title's copies on the same
 // network or relay are not heard.
-#if defined(COD4_TITLE)
+#if defined(AW_TITLE)
+#define T_TITLE_ID             0x41560914u
+#define T_NET_TAG              "AW1"
+#define T_NET_NAME             "awrecomp"
+#elif defined(COD4_TITLE)
 #define T_TITLE_ID             0x415607E6u
 #define T_NET_TAG              "CD4"
 #define T_NET_NAME             "cod4recomp"

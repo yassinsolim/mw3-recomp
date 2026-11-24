@@ -85,6 +85,12 @@ namespace
         int descriptor = -1;
         uint64_t position = 0;
         std::mutex lock;
+        // A folder being listed (NtQueryDirectoryFile): what it holds that the
+        // first call's pattern names, and how far the calls have got.
+        struct Listed { std::string name; uint64_t size = 0; bool directory = false; };
+        std::vector<Listed> listing;
+        size_t listed = 0;
+        bool listingRead = false;
 
         const char* TypeName() const override { return "file"; }
         ~FileObject() override
@@ -342,6 +348,23 @@ namespace
         const Mount at = DeviceOf(device);
         const bool writable = at.writable;
         const fs::path& root = at.root;
+
+#ifdef AW_TITLE
+        // The root of a content package, opened as a folder to list it:
+        // Advanced Warfare reads what an installed package holds that way
+        // (docs/AW-BRINGUP.md). For this title only: the earlier ones were
+        // told there is no such folder, and went on.
+        if (relative.empty() && at.root.empty() && at.volume && (options & FILE_DIRECTORY_FILE) && disposition == FILE_OPEN)
+        {
+            auto f = std::make_shared<FileObject>();
+            f->volume = at.volume;
+            f->isDirectory = true;
+            information = FILE_OPENED;
+            handleOut = InsertHandle(f);
+            if (TraceFiles()) LOGK("open %s -> the root of %s (to list)", guestPath.c_str(), at.volume->Name().c_str());
+            return X_STATUS_SUCCESS;
+        }
+#endif
 
         fs::path resolved;
         bool existed = false;
@@ -737,6 +760,104 @@ PPC_FUNC(__imp__NtSetInformationFile)
 
     if (iosb) { iosb->status = X_STATUS_SUCCESS; iosb->information = 0; }
     ctx.r3.u64 = X_STATUS_SUCCESS;
+}
+
+namespace
+{
+    // A file name against a pattern of FindFirstFile's: `*` is any run of
+    // characters and `?` any one, letters in either case.
+    bool MatchesPattern(const char* pattern, const char* name)
+    {
+        if (!*pattern) return !*name;
+        if (*pattern == '*')
+        {
+            for (;; name++)
+            {
+                if (MatchesPattern(pattern + 1, name)) return true;
+                if (!*name) return false;
+            }
+        }
+        if (!*name) return false;
+        if (*pattern != '?' && std::tolower(uint8_t(*pattern)) != std::tolower(uint8_t(*name))) return false;
+        return MatchesPattern(pattern + 1, name + 1);
+    }
+
+    // What a folder holds: a package's root from the package, a folder of the
+    // host's from the host.
+    void ReadListing(FileObject& folder, const std::string& pattern)
+    {
+        folder.listingRead = true;
+        folder.listing.clear();
+        folder.listed = 0;
+        auto wanted = [&](const std::string& name) { return pattern.empty() || MatchesPattern(pattern.c_str(), name.c_str()); };
+        if (folder.volume)
+        {
+            for (const std::string& name : folder.volume->RootFiles())
+                if (const ReadVolume::Entry* entry = folder.volume->Find(name); entry && wanted(name))
+                    folder.listing.push_back({ name, entry->size, entry->directory });
+            return;
+        }
+        std::error_code ec;
+        for (const auto& entry : fs::directory_iterator(folder.path, ec))
+        {
+            const std::string name = entry.path().filename().string();
+            if (!wanted(name)) continue;
+            std::error_code entryError;
+            const bool directory = entry.is_directory(entryError);
+            folder.listing.push_back({ name, directory ? 0 : uint64_t(entry.file_size(entryError)), directory });
+        }
+    }
+}
+
+// NtQueryDirectoryFile(handle, event, apc routine, apc context, status block,
+// information, length, name pattern, restart): FindFirstFile and FindNextFile.
+// One FILE_DIRECTORY_INFORMATION a call -- { next entry, index, four times,
+// size, allocated size, attributes, name length, name } -- which is as much
+// as the console's own FindNextFile asks for.
+PPC_FUNC(__imp__NtQueryDirectoryFile)
+{
+    constexpr uint32_t X_STATUS_NO_MORE_FILES = 0x80000006u, X_STATUS_NO_SUCH_FILE = 0xC000000Fu,
+                       X_STATUS_INVALID_HANDLE_ = 0xC0000008u, X_STATUS_INFO_LENGTH_MISMATCH = 0xC0000004u;
+    constexpr uint32_t kNameOffset = 0x40;
+    auto folder = std::dynamic_pointer_cast<FileObject>(LookupHandle(ctx.r3.u32));
+    auto* iosb = GuestPtr<XIoStatusBlock>(ctx.r7.u32);
+    const uint32_t information = ctx.r8.u32, length = ctx.r9.u32;
+    const bool restart = kernel::StackArgument(ctx, 8) != 0;
+
+    uint32_t status = X_STATUS_SUCCESS, written = 0;
+    if (!folder || !folder->isDirectory) status = X_STATUS_INVALID_HANDLE_;
+    else if (!information || length < kNameOffset) status = X_STATUS_INFO_LENGTH_MISMATCH;
+    else
+    {
+        std::lock_guard held(folder->lock);
+        const bool first = !folder->listingRead || restart;
+        if (first)
+        {
+            std::string pattern;
+            if (auto* name = GuestPtr<XAnsiString>(ctx.r10.u32); name && uint32_t(name->pointer) && uint16_t(name->length))
+                pattern.assign(GuestPtr<char>(uint32_t(name->pointer)), uint16_t(name->length));
+            ReadListing(*folder, pattern);
+        }
+        if (folder->listed >= folder->listing.size())
+            status = first ? X_STATUS_NO_SUCH_FILE : X_STATUS_NO_MORE_FILES;
+        else if (const auto& entry = folder->listing[folder->listed]; kNameOffset + entry.name.size() > length)
+            status = X_STATUS_INFO_LENGTH_MISMATCH;
+        else
+        {
+            std::memset(GuestPtr<uint8_t>(information), 0, kNameOffset);
+            *GuestPtr<be32>(information + 0x04) = uint32_t(folder->listed);
+            *GuestPtr<be64>(information + 0x28) = entry.size;
+            *GuestPtr<be64>(information + 0x30) = (entry.size + 0xFFF) & ~uint64_t(0xFFF);
+            *GuestPtr<be32>(information + 0x38) = entry.directory ? 0x10u : 0x80u;   // DIRECTORY / NORMAL
+            *GuestPtr<be32>(information + 0x3C) = uint32_t(entry.name.size());
+            std::memcpy(GuestPtr<char>(information + kNameOffset), entry.name.data(), entry.name.size());
+            written = kNameOffset + uint32_t(entry.name.size());
+            folder->listed++;
+        }
+    }
+    if (iosb) { iosb->status = status; iosb->information = written; }
+    if (TraceFiles()) LOGK("list handle %08X -> status %08X, %u bytes", ctx.r3.u32, status, written);
+    ctx.r3.u64 = status;
 }
 
 PPC_FUNC(__imp__NtFlushBuffersFile)

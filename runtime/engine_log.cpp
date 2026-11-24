@@ -91,6 +91,18 @@ GUEST_HOOK(T_Com_Error)
     GUEST_ORIG(T_Com_Error)(ctx, base);
 }
 
+#ifdef T_Lua_Error
+// Advanced Warfare's menus are Lua (Havok Script, linked in), and the
+// interpreter raises every error of a script or of its own library through
+// one function, (state, format, ...), which leaves by longjmp. The engine
+// shows none of them; a menu that stops answering usually said why here.
+GUEST_HOOK(T_Lua_Error)
+{
+    LOGE("Lua error from %08X: %s", (uint32_t)ctx.lr, Format(ctx, ctx.r4.u32).c_str());
+    GUEST_ORIG(T_Lua_Error)(ctx, base);
+}
+#endif
+
 #if MW2_DIAGNOSTICS
 #ifdef T_Com_Printf
 // Com_Printf(channel, format, ...): viewpos answers through it, so it is the

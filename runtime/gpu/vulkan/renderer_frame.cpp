@@ -521,22 +521,27 @@ namespace vk::renderer::detail
     }
 }
 
+namespace vk::renderer::detail
+{
+    bool SubmissionFinished(uint32_t slotIndex, uint64_t serial)
+    {
+        // Still in the command buffer being recorded.
+        if (serial > g.submissionSerial) return false;
+        const State::Slot& slot = g.slots[slotIndex];
+        if (slot.serial != serial || !slot.inFlight) return true;
+        // Queued, and not yet handed to the GPU by the recorder thread.
+        return vk::record::Done(slot.queuedAt) &&
+               vkGetFenceStatus(g.device, slot.fence) == VK_SUCCESS;
+    }
+}
+
 using namespace vk::renderer::detail;
 
 namespace
 {
-    // Whether the GPU has finished the submission a bracket went out in: its
-    // slot has moved on to a later one (BeginFrame waited for it first), or
-    // the slot's fence says so.
     bool Finished(const State::PendingQuery& query)
     {
-        // Still in the command buffer being recorded.
-        if (query.serial > g.submissionSerial) return false;
-        const State::Slot& slot = g.slots[query.slot];
-        if (slot.serial != query.serial || !slot.inFlight) return true;
-        // Queued, and not yet handed to the GPU by the recorder thread.
-        return vk::record::Done(slot.queuedAt) &&
-               vkGetFenceStatus(g.device, slot.fence) == VK_SUCCESS;
+        return SubmissionFinished(query.slot, query.serial);
     }
 
     void Read(State::PendingQuery& query)
