@@ -702,3 +702,104 @@ launch data (`MW2_LAUNCH_DATA`, hexadecimal) the menu is EXO SURVIVAL
 shoots at nothing in particular); Exo Survival chosen in the campaign's own
 menu and handed over (the launch data was written by hand); Exo Survival
 under Xbox LIVE; any of this section on a device.
+
+## Frame rate on the two devices (24 November 2026)
+
+`.awp` development builds with `MW2_REPORT=1`, the same input script in every
+run (`MW2_INPUT_SCRIPT`), the levels by `devmap`. Logs and pictures are in
+`perf-aw\` beside the repository. Each cell is frames a second / the share of
+frames within 1.05 display periods of the one before / GPU ms a frame /
+stutters a minute.
+
+**Seoul's drop pod** (150 s, the same cinematic every run; warm caches):
+
+| | AYN Thor, 120 Hz | Retroid Pocket Flip 2, 60 Hz |
+|---|---|---|
+| As merged (`f33419e`), whole level, textures as noise | 118.2 / 87.6% / 3.9 / 51 | 58.7 / 77.5% / 14.0 / 45 |
+| The pool's moves made, nothing else | 118.8 / 89.8% / 5.9 / 25 | 57.8 / 75.1% / 15.3 / 92 (the console's 1024x600 scene) |
+| Now | 118.4 to 118.9 / 88 to 90% / 5.8 / 25 to 53 | 59.6 / 94.9% / 12.9 / 7 |
+| A first visit (pipeline caches emptied) | 117.3 / 87.2% / 5.8 / 94, 486 pipelines compiled, none at a draw | 58.4 / 76.3% / 10.0 / 68 (as merged) |
+
+**Other scenarios, now** (the Flip's rows are from before the display paced
+it at 60, so their on-time share is the console's pacing's):
+
+| | AYN Thor | Flip 2 |
+|---|---|---|
+| Seoul to its rooftop (330 s) | 118.2 / 88.4% / 5.1 / 50 | not run again |
+| Fusion: the briefing, the flight in, the landing (260 s) | 107.9 / 73.7% / 5.5 / 354 | 59.9 / 78.0% / 12.5 / 21 |
+| Multiplayer, Retreat, Team Deathmatch with 6 bots, hosted (150 s) | 119.0 / 89.8% / 3.8 / 14 | 59.8 / 81.3% / 6.5 / 41 |
+| The same, first visit | 118.6 / 90.2%, 576 pipelines compiled | 59.1 / 81.4%, 534 |
+
+The Flip's "now" row of the pod was run as `MW2_FPS_LIMIT=61`, which is the
+display's pacing at 60, before that became this title's own at 60; the build
+that has it as the default was run on the Thor only.
+
+An idle screen on the Thor measures 119.0 and 88.6%, so 88 to 90% is what
+that share reads at 120 there.
+
+**What was kept, each measured by itself:**
+
+- **The streamed images' pool moves** (`T_Image_FlushMove`, found by the
+  campaign's work): the picture. The pool moves 6.5 blocks a frame for as
+  long as a level runs (251,612 blocks, 2.4 GB, in 334 s on the Thor), a
+  memory export on the console and a `memmove` at its draw here. What it
+  costs: 400 texture signings and 100 uploads a second, 0.4 ms of the
+  renderer's thread a frame of the 3 it works. An image that followed its
+  block instead of being read again would save that; not done, since no
+  scenario is held back by that thread.
+- **An 832x480 scene on an Adreno 6xx** (`MW2_SCENE`, `T_R_SetVidConfigOfSizes`
+  in both executables: this engine writes the console's sizes where its
+  renderer starts, so the scene is put into what `R_SetVidConfig` is handed).
+  Flip 2, the pod: 57.8 a second, 75.1% on time, 15.3 ms of GPU and 92
+  stutters a minute at the console's 1024x600; 59.5, 80.4%, 13.2 ms and 14
+  with it. The scene is half that frame's GPU time (6.6 ms of 13.2).
+- **The display's pacing at 60 on a 60 Hz display**, this title only
+  (`frame_rate::Mode`). Flip 2, the pod: 79.4% of frames on time and 8
+  stutters a minute under the console's pacing, 94.9% and 7 under the
+  display's, 59.6 a second both ways. The multiplayer under the console's
+  pacing has the same 81% at 6.5 ms of GPU a frame, so it is not the GPU.
+- **No sun shadows above 60** (the rule Modern Warfare 3 has, which this
+  title's build takes; `sm_enable` is in the executable and takes the
+  shadow passes out). Thor, the pod, caches warm: 114.4 a second, 78.0% on
+  time, 6.8 ms and 166 stutters a minute with them; 118.8, 89.8%, 5.9 ms and
+  25 without. `MW2_SHADOWS=1`, or the app's Sun shadows, keeps them.
+- **The arena as texels** (already the default under Turnip). Thor, the pod,
+  `MW2_VERTEX_TEXELS=0 MW2_PIXEL_TEXELS=0` after a run to fill the cache:
+  116.5 a second, 78.4% on time, 6.8 ms; with them 118.8, 89.8%, 5.9 ms.
+- **Pipelines**: compiled on the workers and kept, as for the other titles. A
+  second run of a scenario compiles 0 to 4 (65 in a bot match, whose views
+  differ), none at a draw in any run.
+
+**What was tried and left out:**
+
+- `r_postfx_enable 0`: 1.7 ms of the Flip's 13.2, and another picture (no
+  grading, no bloom). `r_dof_enable 0`: 1.3 ms; the title's own depth of
+  field goes. Neither is a default.
+- The luminance write-back: the 16x16 resolve is 0.00 ms of GPU a frame and
+  nothing waits for it; nothing to gain.
+- The title's main thread let onto the fastest core beside the ring
+  consumer (Fusion on the Thor): 103.5 a second and 59.1% on time against
+  107.9 and 73.7%.
+- The job system's one-millisecond poll shortened to 250 and to 100
+  microseconds (Fusion on the Thor): 108.3 and 108.4 a second, 73.4% and
+  73.8%: no different.
+
+**The picture.** A frame of Seoul's rooftop with the game's clock slowed
+fifty times (`timescale 0.02`), on Windows, mean difference of a channel
+against a first run: 7.7 for a second run of the same settings (drones and
+debris pass through the view), 8.7 with the 832x480 scene, 18.6 without the
+sun's shadows (a drone fills a sixth of that frame; the buildings are lit as
+before). `perf-aw\caps\pc_still_sheet.jpg`, `fix_thor_sheet.jpg` (the Thor
+after the pool's moves) against `noise0.jpg` (before).
+
+**Open.**
+
+- Fusion at 120 on the Thor is 108 a second: 1,192 of its 1,525 late frames
+  have the title presenting late, with no thread of the title above 60% of
+  a core and a flat profile (simpleperf: 64% in the recompiled code, the
+  busiest function 5.8%). At 60 it holds.
+- A release-signed build was not measured, nor the Flip's other scenarios
+  under the display's pacing: one pod run there has it.
+- On the Flip the two full-frame passes after the scene are 3.1 ms and the
+  copies between passes 2.0 ms of 13.2.
+

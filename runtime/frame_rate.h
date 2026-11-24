@@ -2,7 +2,8 @@
 // MW2_FPS_LIMIT: how many frames a second the title draws at most.
 //
 // Unset or 60 is the console's pacing: D3D retires a frame at the guest's
-// blank and the title's own limiter (com_maxfps) is at its 60. 30 is the
+// blank and the title's own limiter (com_maxfps) is at its 60 (Advanced
+// Warfare on a 60 Hz display excepted: Mode). 30 is the
 // console's pacing too, a frame held for two of the guest's blanks, which is
 // D3D's own half-rate interval (d3d_hooks.cpp): every frame is as long as the
 // last, where a limiter counting 33 ms against blanks 33.3 ms apart shows a
@@ -74,11 +75,25 @@ namespace frame_rate
     // display's rate is the display's too: an AYN Thor whose system setting
     // holds the panel at 60 was drawn 125 frames a second under the limit of
     // 120 it starts at, to show 60 of them at uneven steps of the game's time.
+    //
+    // Advanced Warfare at the console's 60 is the display's as well, where
+    // the display runs at 60: retired at the guest's blank, a fifth of this
+    // title's frames come a millisecond or more after they are due, whatever
+    // the GPU has left (a multiplayer match at 6.5 ms of GPU a frame as much
+    // as the campaign at 13). Seoul's drop pod on a Retroid Pocket Flip 2:
+    // 79% of the frames within 1.05 periods of the one before under the
+    // console's pacing, 95% under the display's, 59.6 a second either way.
+    // The half rate stays the console's, and so does 60 on a faster display,
+    // which would show every frame the title can make.
     inline Pacing Mode()
     {
-        if (Console()) return kByConsole;
         const double hz = DisplayHz();
         const uint32_t limit = Limit();
+#if defined(AW_TITLE)
+        if (limit == kConsole && hz > 0 && double(limit) >= 0.97 * hz && double(limit) <= 1.03 * hz)
+            return kByDisplay;
+#endif
+        if (Console()) return kByConsole;
         return limit && hz > 0 && double(limit) >= 0.97 * hz ? kByDisplay : kByLimiter;
     }
 

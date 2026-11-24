@@ -91,8 +91,10 @@ namespace
     // too, which the ring consumer has no time for above 60 a second: on an
     // AYN Thor (Adreno 740) under a limit of 120 Survival ran at 107 with 39%
     // of its frames on time, and at 114.5 with 80% without them, so unset is
-    // off for that title under Android wherever the limit is above 60. On
-    // everywhere else. Said once the title presents, when its console takes
+    // off for that title under Android wherever the limit is above 60, and
+    // for Advanced Warfare, whose build is that title's kind: Seoul's drop
+    // pod there ran at 114.4 with 78% on time with them and 118.8 with 90%
+    // without. On everywhere else. Said once the title presents, when its console takes
     // commands.
     const char* WhyNoShadows()
     {
