@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What the aw flavour says in place of the MW2 app's wording: the
+         game's name, which game setup is told to build, and the campaign's
+         entry without Special Ops, which this game does not have. -->
+    <string name="wordmark">ADVANCED WARFARE</string>
+    <string name="wordmark_recompiled">AW RECOMPILED</string>
+    <string name="title_campaign">CAMPAIGN</string>
+    <string name="setup_command">setup\\setup.cmd -Game aw</string>
+    <string name="game_code_missing">Step 1 is not done: the game code is not on this device. It is made from your own discs.\nOn your PC, run setup\\setup.cmd -Game aw with this device connected over USB.</string>
+    <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game aw -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
+</resources>

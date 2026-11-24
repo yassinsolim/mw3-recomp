@@ -15,13 +15,17 @@ plugins {
 //                             jniLibs folders are, and nothing else: all of
 //                             the folder is packaged; setup/setup.ps1 gives it
 //   -Pgame=mw2                Modern Warfare 2's package (com.mw2.recomp.game),
-//   -Pgame=cod4               Call of Duty 4's (com.cod4.recomp.game);
+//   -Pgame=cod4               Call of Duty 4's (com.cod4.recomp.game),
+//   -Pgame=aw                 Advanced Warfare's (com.aw.recomp.game);
 //                             Modern Warfare 3's without it
 //   -PappSuffix=.dev          as android/app/build.gradle.kts: the package a
 //                             development build of the app looks for
 val gameLibraries = (findProperty("gameLibraries") as String?)?.let { file(it) }
 val game = (findProperty("game") as String?) ?: "mw3"
-val gameNames = mapOf("mw3" to "Modern Warfare 3", "mw2" to "Modern Warfare 2", "cod4" to "Modern Warfare (Call of Duty 4)")
+val gameNames = mapOf(
+    "mw3" to "Modern Warfare 3", "mw2" to "Modern Warfare 2", "cod4" to "Modern Warfare (Call of Duty 4)",
+    "aw" to "Advanced Warfare",
+)
 if (game !in gameNames) throw GradleException("-Pgame must be one of ${gameNames.keys.joinToString()}, not '$game'")
 val appSuffix = (findProperty("appSuffix") as String?).orEmpty()
 

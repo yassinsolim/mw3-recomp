@@ -216,9 +216,11 @@ class InstallActivity : AppCompatActivity() {
     private fun useSource(image: String) {
         source = image
         sourceText.text = getString(R.string.chosen, DiscImage.label(this, image))
-        // A folder of extracted files has no image to play from.
+        // A folder of extracted files has no image to play from, and
+        // Advanced Warfare's two discs are copied: the install disc's
+        // packages have to be files, and one image cannot stand for both.
         val folder = !DiscImage.isDocument(image) && File(image).isDirectory
-        linkMode.isEnabled = !folder
+        linkMode.isEnabled = !folder && !Title.isAw
         if (folder) copyMode.isChecked = true else linkMode.isChecked = true
         begin.isEnabled = NativeBridge.isLoaded()
     }
@@ -460,6 +462,22 @@ class InstallActivity : AppCompatActivity() {
             if (isTu6() && !safelyInstalled(target)) {
                 startTuUpdate(target)
                 return
+            }
+            // Advanced Warfare is installed from two images, in either
+            // order: after one, the screen asks for the other.
+            if (Title.isAw) {
+                val other = when {
+                    !safelyInstalled(target) -> R.string.aw_game_disc_needed
+                    Title.installDiscMissing(target.absolutePath) -> R.string.aw_install_disc_needed
+                    else -> null
+                }
+                if (other != null) {
+                    progressText.text = getString(other)
+                    source = ""
+                    sourceText.text = ""
+                    begin.isEnabled = false
+                    return
+                }
             }
             installedDone(target)
         } else {

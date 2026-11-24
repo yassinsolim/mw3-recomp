@@ -49,7 +49,7 @@ namespace fs = std::filesystem;
 // version -- has other code at other addresses, so it is not run.
 namespace
 {
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
     constexpr const char* kXex = "default_mp.xex";
     constexpr const char* kSha256 = MW2_XEX_SHA256_MP;
 #else
@@ -161,7 +161,10 @@ namespace
 #ifdef MW2_ANDROID
     struct Title { const char* xex; const char* sha256; const char* disc; };
 #ifdef MW3_TITLE
-#ifdef COD4_TITLE
+#if defined(AW_TITLE)
+    constexpr uint32_t kTitleId = 0x41560914;
+    constexpr const char* kTitleName = "Call of Duty: Advanced Warfare";
+#elif defined(COD4_TITLE)
     constexpr uint32_t kTitleId = 0x415607E6;
     constexpr const char* kTitleName = "Call of Duty 4: Modern Warfare";
 #else
@@ -183,7 +186,7 @@ namespace
     // neither checked nor copied.
     constexpr bool kEveryTitleNeeded = false;
     constexpr Title kTitles[] = {
-#if defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
+#if defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
 #else
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
@@ -254,20 +257,48 @@ namespace
         return endsWith(".ff") || endsWith(".pak") || endsWith(".bik") || endsWith(".bikbe") || lower == "nxeart";
     }
 
-    // Call of Duty 4's high mips: the top mip of each streamed texture, a file
-    // each in the disc's highmip folder, which the title opens as
-    // D:\highmip\<name>.hi. Without them it draws the lower mips.
-    constexpr const char* kHighMipFolder = "highmip";
-    bool IsHighMip(const std::string& name)
+    // The one folder of the disc a title reads besides its root, and the
+    // files of it that are the game's. Call of Duty 4's high mips: the top mip
+    // of each streamed texture, a file each in the disc's highmip folder,
+    // which the title opens as D:\highmip\<name>.hi; without them it draws
+    // the lower mips. Advanced Warfare's language: the fastfiles, sound packs
+    // and movies it opens as D:\english\<name>, and does not start without.
+#ifdef AW_TITLE
+    constexpr const char* kDiscFolder = "english";
+#else
+    constexpr const char* kDiscFolder = "highmip";
+#endif
+    bool IsFolderFile(const std::string& name)
     {
         std::string lower = name;
         for (char& c : lower) c = char(std::tolower(uint8_t(c)));
-        const std::string prefix = std::string(kHighMipFolder) + "/";
+        const std::string prefix = std::string(kDiscFolder) + "/";
         if (lower.size() <= prefix.size() + 3 || lower.compare(0, prefix.size(), prefix) != 0) return false;
         const std::string file = lower.substr(prefix.size());
-        return file.find_first_of("/\\:") == std::string::npos && file != "." && file != ".." &&
-               file.compare(file.size() - 3, 3, ".hi") == 0;
+        if (file.find_first_of("/\\:") != std::string::npos || file == "." || file == "..") return false;
+#ifdef AW_TITLE
+        return IsGameFile(file);
+#else
+        return file.compare(file.size() - 3, 3, ".hi") == 0;
+#endif
     }
+
+#ifdef AW_TITLE
+    // The install disc's two content packages, which lie in the image where
+    // a console's hard disk has them after the install, and go beside the
+    // game folder, where the runtime looks for a title's installed content
+    // (runtime/kernel/content.cpp).
+    constexpr const char* kPackagePath = "content/0000000000000000/41560914/00000002/";
+    constexpr const char* kPackageFolder = "dlc";
+    bool IsPackage(const std::string& name)
+    {
+        std::string lower = name;
+        for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+        const size_t prefix = std::strlen(kPackagePath);
+        return lower.size() > prefix && lower.compare(0, prefix, kPackagePath) == 0 &&
+               lower.find_first_of("/\\:", prefix) == std::string::npos;
+    }
+#endif
 
     struct Progress
     {
@@ -284,10 +315,136 @@ namespace
                                               [](char a, char b) { return std::tolower(uint8_t(a)) == b; });
     }
 
+    // What an install copies: a file of the source and where it goes.
+    struct Wanted
+    {
+        const install::Source::File* file = nullptr;
+        fs::path to;
+    };
+
+    // Whether the file is at `to` already, byte for byte.
+    bool AlreadyThere(install::Source& source, const install::Source::File& file, const fs::path& to)
+    {
+        std::error_code ec;
+        if (!fs::is_regular_file(to, ec) || fs::file_size(to, ec) != file.size) return false;
+        std::ifstream in(to, std::ios::binary);
+        std::vector<char> bufDisk(64 << 10), bufSrc(64 << 10);
+        for (uint64_t at = 0; at < file.size; at += bufDisk.size())
+        {
+            const size_t checkLen = size_t(std::min<uint64_t>(bufDisk.size(), file.size - at));
+            if (!in.read(bufDisk.data(), checkLen) || size_t(in.gcount()) != checkLen ||
+                !source.Read(file, at, bufSrc.data(), checkLen) ||
+                std::memcmp(bufDisk.data(), bufSrc.data(), checkLen) != 0)
+                return false;
+        }
+        return true;
+    }
+
+    // Copies what is not there yet, each file under a .part name until it is whole.
+    bool Copy(install::Source& source, const fs::path& from, const std::vector<Wanted>& wanted,
+              const fs::path& folder, Progress& progress, std::string& error)
+    {
+        std::error_code ec;
+        uint64_t needed = 0;
+        std::vector<const Wanted*> copy;
+        for (const Wanted& item : wanted)
+        {
+            if (AlreadyThere(source, *item.file, item.to)) continue;
+            copy.push_back(&item);
+            needed += item.file->size;
+        }
+        {
+            std::lock_guard lock(progress.lock);
+            progress.total = needed;
+        }
+        const auto space = fs::space(folder, ec);
+        if (!ec && space.available < needed)
+        {
+            char text[160];
+            std::snprintf(text, sizeof(text), "Not enough disk space: %.1f GB needed, %.1f GB free.",
+                          needed / 1e9, space.available / 1e9);
+            error = text;
+            return false;
+        }
+
+        std::vector<uint8_t> buffer(8 << 20);
+        for (const Wanted* item : copy)
+        {
+            const install::Source::File* file = item->file;
+            {
+                std::lock_guard lock(progress.lock);
+                progress.file = file->name;
+            }
+            const fs::path to = item->to, partial = fs::path(to) += ".part";
+
+            struct PartCleaner
+            {
+                fs::path target;
+                bool disarmed = false;
+                ~PartCleaner()
+                {
+                    if (!disarmed && !target.empty())
+                    {
+                        std::error_code ec;
+                        fs::remove(target, ec);
+                    }
+                }
+            } cleaner{ partial };
+
+            std::ofstream out(partial, std::ios::binary | std::ios::trunc);
+            if (!out) { error = "Cannot write " + Utf8(fs::absolute(partial)); return false; }
+            for (uint64_t at = 0; at < file->size;)
+            {
+                if (progress.cancel) { out.close(); error = "cancelled"; return false; }
+                const size_t take = size_t(std::min<uint64_t>(buffer.size(), file->size - at));
+                if (!source.Read(*file, at, buffer.data(), take))
+                {
+                    out.close();
+                    error = "Could not read " + file->name + " from " + Utf8(from) + ".";
+                    return false;
+                }
+                out.write(reinterpret_cast<const char*>(buffer.data()), std::streamsize(take));
+                if (!out)
+                {
+                    out.close();
+                    error = "Could not write " + Utf8(fs::absolute(partial)) + " (disk full?).";
+                    return false;
+                }
+                at += take;
+                std::lock_guard lock(progress.lock);
+                progress.done += take;
+            }
+            out.close();
+            fs::rename(partial, to, ec);
+            if (ec) { error = "Cannot rename " + Utf8(partial) + ": " + ec.message(); return false; }
+            cleaner.disarmed = true;
+        }
+        return true;
+    }
+
     bool Install(const fs::path& from, Progress& progress, std::string& error, bool link)
     {
         auto source = install::Source::Open(from, error);
         if (!source) return false;
+
+#ifdef AW_TITLE
+        // The install disc, told by its packages: they are all it gives, and
+        // its executable is the installer's, which no title here is.
+        {
+            const fs::path packages = fs::path(g_gameFolder).parent_path() / kPackageFolder;
+            std::vector<Wanted> wanted;
+            for (const auto& file : source->DeepFiles())
+                if (IsPackage(file.name))
+                    wanted.push_back({ &file, packages / install::FromUtf8(file.name.substr(std::strlen(kPackagePath))) });
+            if (!wanted.empty())
+            {
+                std::error_code ec;
+                fs::create_directories(packages, ec);
+                if (ec) { error = "Cannot create " + Utf8(fs::absolute(packages)) + ": " + ec.message(); return false; }
+                return Copy(*source, from, wanted, packages, progress, error);
+            }
+        }
+#endif
 
         std::vector<const install::Source::File*> files;
         for (const Title& title : kTitles)
@@ -324,7 +481,7 @@ namespace
             if (link ? IsArt(file.name) : IsGameFile(file.name)) files.push_back(&file);
         if (!link)
             for (const auto& file : source->FolderFiles())
-                if (IsHighMip(file.name)) files.push_back(&file);
+                if (IsFolderFile(file.name)) files.push_back(&file);
         for (const Title& title : kTitles)
             if (const auto* file = source->Find(title.xex)) files.push_back(file);
 
@@ -333,115 +490,28 @@ namespace
         fs::create_directories(folder, ec);
         if (ec) { error = "Cannot create " + Utf8(fs::absolute(folder)) + ": " + ec.message(); return false; }
 
-        uint64_t needed = 0;
-        std::vector<const install::Source::File*> copy;
+        std::vector<Wanted> wanted;
         const fs::path canonicalFolder = folder.lexically_normal();
-        const fs::path highMipFolder = (folder / kHighMipFolder).lexically_normal();
+        const fs::path discFolder = (folder / kDiscFolder).lexically_normal();
         for (const auto* file : files)
         {
-            // One file in the game folder, or one in its highmip folder: a
-            // name with any other path in it is not copied.
-            const bool highMip = IsHighMip(file->name);
+            // One file in the game folder, or one in its folder of the disc's
+            // (kDiscFolder): a name with any other path in it is not copied.
+            const bool inFolder = IsFolderFile(file->name);
             if (file->name.empty() || file->name == "." || file->name == ".." ||
                 file->name.find('\\') != std::string::npos ||
-                (!highMip && file->name.find('/') != std::string::npos))
+                (!inFolder && file->name.find('/') != std::string::npos))
                 continue;
             const fs::path to = (folder / install::FromUtf8(file->name)).lexically_normal();
-            if (to.parent_path() != (highMip ? highMipFolder : canonicalFolder)) continue;
-            if (highMip)
+            if (to.parent_path() != (inFolder ? discFolder : canonicalFolder)) continue;
+            if (inFolder)
             {
-                fs::create_directories(highMipFolder, ec);
-                if (ec) { error = "Cannot create " + Utf8(fs::absolute(highMipFolder)) + ": " + ec.message(); return false; }
+                fs::create_directories(discFolder, ec);
+                if (ec) { error = "Cannot create " + Utf8(fs::absolute(discFolder)) + ": " + ec.message(); return false; }
             }
-
-            if (fs::is_regular_file(to, ec) && fs::file_size(to, ec) == file->size)
-            {
-                if (file->size == 0) continue;
-                bool match = true;
-                std::ifstream in(to, std::ios::binary);
-                std::vector<char> bufDisk(64 << 10), bufSrc(64 << 10);
-                for (uint64_t at = 0; at < file->size; at += bufDisk.size())
-                {
-                    const size_t checkLen = size_t(std::min<uint64_t>(bufDisk.size(), file->size - at));
-                    if (!in.read(bufDisk.data(), checkLen) || size_t(in.gcount()) != checkLen ||
-                        !source->Read(*file, at, bufSrc.data(), checkLen) ||
-                        std::memcmp(bufDisk.data(), bufSrc.data(), checkLen) != 0)
-                    {
-                        match = false;
-                        break;
-                    }
-                }
-                if (match) continue;
-            }
-            copy.push_back(file);
-            needed += file->size;
+            wanted.push_back({ file, folder / install::FromUtf8(file->name) });
         }
-        {
-            std::lock_guard lock(progress.lock);
-            progress.total = needed;
-        }
-        const auto space = fs::space(folder, ec);
-        if (!ec && space.available < needed)
-        {
-            char text[160];
-            std::snprintf(text, sizeof(text), "Not enough disk space: %.1f GB needed, %.1f GB free.",
-                          needed / 1e9, space.available / 1e9);
-            error = text;
-            return false;
-        }
-
-        std::vector<uint8_t> buffer(8 << 20);
-        for (const auto* file : copy)
-        {
-            {
-                std::lock_guard lock(progress.lock);
-                progress.file = file->name;
-            }
-            const fs::path to = folder / install::FromUtf8(file->name), partial = fs::path(to) += ".part";
-
-            struct PartCleaner
-            {
-                fs::path target;
-                bool disarmed = false;
-                ~PartCleaner()
-                {
-                    if (!disarmed && !target.empty())
-                    {
-                        std::error_code ec;
-                        fs::remove(target, ec);
-                    }
-                }
-            } cleaner{ partial };
-
-            std::ofstream out(partial, std::ios::binary | std::ios::trunc);
-            if (!out) { error = "Cannot write " + Utf8(fs::absolute(partial)); return false; }
-            for (uint64_t at = 0; at < file->size;)
-            {
-                if (progress.cancel) { out.close(); error = "cancelled"; return false; }
-                const size_t take = size_t(std::min<uint64_t>(buffer.size(), file->size - at));
-                if (!source->Read(*file, at, buffer.data(), take))
-                {
-                    out.close();
-                    error = "Could not read " + file->name + " from " + Utf8(from) + ".";
-                    return false;
-                }
-                out.write(reinterpret_cast<const char*>(buffer.data()), std::streamsize(take));
-                if (!out)
-                {
-                    out.close();
-                    error = "Could not write " + Utf8(fs::absolute(partial)) + " (disk full?).";
-                    return false;
-                }
-                at += take;
-                std::lock_guard lock(progress.lock);
-                progress.done += take;
-            }
-            out.close();
-            fs::rename(partial, to, ec);
-            if (ec) { error = "Cannot rename " + Utf8(partial) + ": " + ec.message(); return false; }
-            cleaner.disarmed = true;
-        }
-        return true;
+        return Copy(*source, from, wanted, folder, progress, error);
     }
 
     std::mutex g_installLock;
@@ -708,9 +778,9 @@ uint64_t install::CopiedFiles(const fs::path& from, bool remove)
     for (const auto& file : source->Files())
         if (IsGameFile(file.name) && !IsArt(file.name)) count(file);
     for (const auto& file : source->FolderFiles())
-        if (IsHighMip(file.name)) count(file);
-    // The folder of high mips goes when it is left empty, and only then.
-    if (remove) fs::remove(g_gameFolder / kHighMipFolder, ec);
+        if (IsFolderFile(file.name)) count(file);
+    // The disc's folder goes when it is left empty, and only then.
+    if (remove) fs::remove(g_gameFolder / kDiscFolder, ec);
     if (remove) LOGI("install: removed %.1f GB of copies of the disc image's files", bytes / 1e9);
 #else
     (void)from; (void)remove;
@@ -747,7 +817,7 @@ bool install::CompileShaders(const std::string& device, const std::string& why)
         return false;
     }
     LOGI("shaders: %s The launcher compiles them for device %s, then starts the game.", why.c_str(), device.c_str());
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
     const char* title = "multiplayer";
 #else
     const char* title = "campaign";

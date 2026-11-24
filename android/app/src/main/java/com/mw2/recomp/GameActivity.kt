@@ -1024,9 +1024,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
             labels.add(getString(R.string.join_game) to { _: android.content.DialogInterface -> pickNetworkPeer() })
         }
         // Modern Warfare 2's stat cheats write that game's stats file
-        // (MpCheatsData's offsets): Call of Duty 4's is laid out differently,
-        // so its multiplayer is not offered them.
-        if (isMw2Multiplayer && !Title.isCod4) {
+        // (MpCheatsData's offsets): Call of Duty 4's and Advanced Warfare's
+        // are laid out differently, so their multiplayer is not offered them.
+        if (isMw2Multiplayer && !Title.isCod4 && !Title.isAw) {
             labels.add(getString(R.string.max_rank) to { _: android.content.DialogInterface -> runCheat(R.string.max_rank, Cheats::maxRank) })
             labels.add(getString(R.string.unlock_all) to { _: android.content.DialogInterface -> runCheat(R.string.unlock_all, Cheats::unlockEverything) })
             labels.add(getString(R.string.prestige_up) to { _: android.content.DialogInterface -> runCheat(R.string.prestige_up, Cheats::prestigeUp) })

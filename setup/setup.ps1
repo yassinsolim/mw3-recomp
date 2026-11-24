@@ -2,7 +2,8 @@
 .SYNOPSIS
 Builds Modern Warfare 3 for Android (APK) and/or Windows from your own disc image;
 with -Game mw2, Modern Warfare 2 for Android from that game's disc image; with
--Game cod4, Call of Duty 4: Modern Warfare for Android and/or Windows from its.
+-Game cod4, Call of Duty 4: Modern Warfare for Android and/or Windows from its;
+with -Game aw, Call of Duty: Advanced Warfare from its two (docs/AW-BRINGUP.md).
 
 .DESCRIPTION
 One command for a Windows PC: setup\setup.cmd (or this script). It
@@ -23,20 +24,26 @@ One command for a Windows PC: setup\setup.cmd (or this script). It
      asked. The app is the published one, downloaded from the project's
      releases: it contains none of the game, finds the game code you built
      beside it, and updates itself from then on (docs/game-library.md).
-Everything it makes is in the git-ignored out\, mw3\ (mw2\, cod4\), ppc_*\ and
+Everything it makes is in the git-ignored out\, mw3\ (mw2\, cod4\, aw\), ppc_*\ and
 XenonRecomp\ folders: it contains code made from your copy of the game and is
 for your own devices only. Never upload or share it.
 Re-runnable: finished steps are skipped. A first run takes one to several
 hours and about 40 GB of disk (60 GB with the Windows game).
 
 .PARAMETER Game
-mw3 (default), mw2 or cod4. Modern Warfare 2 is built for Android only, as
+mw3 (default), mw2, cod4 or aw. Modern Warfare 2 is built for Android only, as
 Modern Warfare 3 is: the game code from the disc's own executables (no title
 update), and the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
 Call of Duty 4 (docs/COD4-BRINGUP.md) is built for Android and Windows as
 Modern Warfare 3 is, with the published app (com.cod4.recomp).
+Advanced Warfare (docs/AW-BRINGUP.md) is built for Android and Windows, with
+an app built here (com.aw.recomp: none is published, so -Dev is implied).
 .PARAMETER Iso
 The disc image. Asked for when not given.
+.PARAMETER InstallIso
+Advanced Warfare's second disc, the install disc, whose two content packages
+the game mounts as a console does after installing them to its hard disk.
+Asked for when they are not yet in aw\install.
 .PARAMETER Title
 both (default), sp (campaign and Special Ops) or mp (multiplayer): which
 Windows executables to build. The Android app always holds both.
@@ -96,8 +103,9 @@ setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Install
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('mw3', 'mw2', 'cod4')][string]$Game = 'mw3',
+    [ValidateSet('mw3', 'mw2', 'cod4', 'aw')][string]$Game = 'mw3',
     [string]$Iso,
+    [string]$InstallIso,
     [ValidateSet('both', 'sp', 'mp')][string]$Title,
     [ValidateSet('android', 'pc', 'both')][string]$Build,
     [switch]$Install,
@@ -174,7 +182,8 @@ $AnalyseExe = Join-Path $Xenon 'build\XenonAnalyse\XenonAnalyse.exe'
 # configs and tables carry that in their names (tools/title.py).
 $Mw2 = $Game -eq 'mw2'
 $Cod4 = $Game -eq 'cod4'
-$GameName = if ($Mw2) { 'Modern Warfare 2' } elseif ($Cod4) { 'Call of Duty 4: Modern Warfare' } else { 'Modern Warfare 3' }
+$Aw = $Game -eq 'aw'
+$GameName = if ($Mw2) { 'Modern Warfare 2' } elseif ($Cod4) { 'Call of Duty 4: Modern Warfare' } elseif ($Aw) { 'Call of Duty: Advanced Warfare' } else { 'Modern Warfare 3' }
 $Disc = "$Game/tu0"
 # Name is what the build calls the title (MW2_TITLE), Lib its library's name
 # (CMakeLists.txt, MW2_LIBRARY_NAME).
@@ -192,6 +201,13 @@ $Titles = if ($Mw2) { @{
             Tables = 'cod4_switch_tables.toml'; Files = 76; Jump = 181; Stepped = 9 }
     mp = @{ Name = 'cod4mp'; Lib = 'cod4mp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_cod4_mp'; Toml = 'COD4MP.toml'
             Tables = 'cod4mp_switch_tables.toml'; Files = 77; Jump = 179; Stepped = 9 }
+} } elseif ($Aw) { @{
+    # Stepped: 415 instructions of twelve kinds in each executable, which the
+    # configuration steps over (config/AW.toml, tools/extra_instructions.py).
+    sp = @{ Name = 'aw'; Lib = 'aw'; Label = 'campaign'; Xex = 'default'; Ppc = 'ppc_aw'; Toml = 'AW.toml'
+            Tables = 'aw_switch_tables.toml'; Files = 207; Jump = 210; Stepped = 415 }
+    mp = @{ Name = 'awmp'; Lib = 'awmp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_aw_mp'; Toml = 'AWMP.toml'
+            Tables = 'awmp_switch_tables.toml'; Files = 204; Jump = 230; Stepped = 415 }
 } } else { @{
     sp = @{ Name = 'mw3'; Lib = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
             Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
@@ -276,11 +292,13 @@ function Test-Tree($t) {
 
 # Whether an extracted executable is a disc build this port supports, as one
 # line of text; throws when it is not. Modern Warfare 3's builds are listed by
-# tools/check_mw3_xex.py and Call of Duty 4's by tools/check_cod4_xex.py;
+# tools/check_mw3_xex.py, Call of Duty 4's by tools/check_cod4_xex.py and
+# Advanced Warfare's by tools/check_aw_xex.py;
 # Modern Warfare 2 has the one disc (CMakeLists.txt, MW2_XEX_SHA256_SP/MP).
 function Test-Xex($python, $t) {
     $xexRel = "$Disc/$($t.Xex).xex"
     if ($Cod4) { return Exec $python @('tools/check_cod4_xex.py', $xexRel) -Cwd $Repo }
+    if ($Aw) { return Exec $python @('tools/check_aw_xex.py', $xexRel) -Cwd $Repo }
     if (-not $Mw2) { return Exec $python @('tools/check_mw3_xex.py', $xexRel) -Cwd $Repo }
     $sha = Sha256Of (Join-Path $Repo $xexRel)
     if ($sha -ne $t.Sha) { throw "${xexRel}: SHA-256 $sha is not the Modern Warfare 2 disc's ($($t.Sha))" }
@@ -586,6 +604,8 @@ $TestCopy = $Instance -gt 1
 $Split = $ForAndroid -and -not $TestCopy
 if (($GameOnly -or $Dev -or $Suffix) -and -not $Split) { throw '-GameOnly, -Dev and -Suffix are for the Android app.' }
 if ($GameOnly -and $Dev) { throw '-GameOnly leaves the app alone; -Dev builds it. Choose one.' }
+# Advanced Warfare has no published app: the one built here is the only one.
+if ($Aw -and $Split -and -not $GameOnly) { $Dev = $true }
 if ($Suffix -and -not ($GameOnly -or $Dev)) { throw '-Suffix goes with -Dev or -GameOnly: the published app has the one name.' }
 $AppPackage = "com.$Game.recomp$Suffix"
 # The Windows game is an executable for each title asked for. The Android app
@@ -595,7 +615,7 @@ $PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
 $Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
 
 # Call of Duty 4's Windows game has a folder of its own beside Modern Warfare 3's.
-$PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } else { 'pc' })
+$PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } elseif ($Aw) { 'pc-aw' } else { 'pc' })
 $needIso = ($ForPc -and -not (Test-Path (Join-Path $PcFolder 'game\default.xex'))) -or
            @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
 while ($needIso -and -not ($Iso -and (Test-Path -LiteralPath $Iso -PathType Leaf))) {
@@ -604,6 +624,20 @@ while ($needIso -and -not ($Iso -and (Test-Path -LiteralPath $Iso -PathType Leaf
     $Iso = (Read-Host "Path to your $GameName disc image (.iso; you can drag the file into this window)").Trim().Trim('"')
 }
 if ($Iso) { $Iso = (Resolve-Path -LiteralPath $Iso).Path }
+# Advanced Warfare's install disc holds two content packages, which a console
+# copies to its hard disk before the game disc will start; here they are read
+# out of the image once, into the git-ignored aw\install, and mounted from
+# there (docs/AW-BRINGUP.md).
+$InstallFolder = Join-Path $Repo 'aw\install'
+$InstallPackages = @('41560914051BF3C0', '4156091407406280')
+$needInstallIso = $Aw -and -not $GameOnly -and
+                  @($InstallPackages | Where-Object { -not (Get-ChildItem -Recurse -File -Filter $_ $InstallFolder -ErrorAction SilentlyContinue) }).Count -gt 0
+while ($needInstallIso -and -not ($InstallIso -and (Test-Path -LiteralPath $InstallIso -PathType Leaf))) {
+    if ($InstallIso) { Warn "no file at $InstallIso" }
+    if (-not $Interactive) { throw 'Give the install disc''s image with -InstallIso <path>.' }
+    $InstallIso = (Read-Host "Path to the image of $GameName's install disc (.iso)").Trim().Trim('"')
+}
+if ($InstallIso) { $InstallIso = (Resolve-Path -LiteralPath $InstallIso).Path }
 
 New-Item -ItemType Directory -Force $Tc, $Dl, $Out, $Logs | Out-Null
 
@@ -671,6 +705,12 @@ if ($ForAndroid) {
 }
 
 # ---- 3. the executables, out of the disc image -------------------------------
+if ($needInstallIso) {
+    Step 'copy the two content packages from the install disc''s image (read-only; 4 GB)'
+    Exec $Python @('tools/xdvdfs.py', $InstallIso, $InstallFolder, 'content/0000000000000000/41560914/00000002/') -Cwd $Repo -Log 'extract_install_packages.log' -Quiet
+    $missing = @($InstallPackages | Where-Object { -not (Get-ChildItem -Recurse -File -Filter $_ $InstallFolder -ErrorAction SilentlyContinue) })
+    if ($missing.Count) { throw "that image has no package $($missing -join ', '): is it $GameName's install disc?" }
+}
 foreach ($key in @($Keys)) {
     $t = $Titles[$key]
     $xexRel = "$Disc/$($t.Xex).xex"
@@ -777,7 +817,7 @@ foreach ($key in @($Keys)) {
         # Call of Duty 4 has a kind of jump table the analyser does not
         # recognise. Its own alone: the other games' tables are part of what
         # their game code is checked against, and stay as the analyser writes them.
-        if ($Cod4) { Exec $Python @('tools/intext_switch_tables.py') -Cwd $Repo -Log "$($t.Name)_intext_tables.log" -Quiet }
+        if ($Cod4 -or $Aw) { Exec $Python @('tools/intext_switch_tables.py') -Cwd $Repo -Log "$($t.Name)_intext_tables.log" -Quiet }
         # XenonRecomp crashes, rather than complaining, when its output directory is missing.
         if (Test-Path $ppcDir) { Remove-Item -Recurse -Force $ppcDir }
         New-Item -ItemType Directory $ppcDir | Out-Null
@@ -920,6 +960,8 @@ if ($ForAndroid) {
         # multiplayer's library as well (cmake/android.cmake, MW2_BOTH_TITLES).
         $apps = if ($TestCopy) {
             @(@{ Label = "multiplayer test copy $Instance"; Task = 'assembleMw3mpTu0Debug'; Variant = 'mw3mpTu0'; Apk = "mw3mp$Instance-debug.apk"; Package = "com.mw3.recomp.mp$Instance" })
+        } elseif ($Aw) {
+            @(@{ Label = 'app, without the game code'; Task = 'assembleAwTu0Debug'; Variant = 'awTu0'; Apk = "aw$Suffix-debug.apk"; Package = $AppPackage })
         } elseif ($Cod4) {
             @(@{ Label = 'app, without the game code'; Task = 'assembleCod4Tu0Debug'; Variant = 'cod4Tu0'; Apk = "cod4$Suffix-debug.apk"; Package = $AppPackage })
         } elseif ($Mw2) {
@@ -987,8 +1029,13 @@ if ($ForPc) {
         if (-not $name) { $name = $own }
         if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
         $online = "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`n"
-        # Call of Duty 4 has nothing to unlock, and a log of its own name.
-        $settings = if ($Cod4) { $online + "MW2_LOG_FILE=cod4.log`n" } else { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n" }
+        # Call of Duty 4 and Advanced Warfare have nothing to unlock, and a
+        # log of their own name. Advanced Warfare has no relay to play
+        # through yet, and is told where the install disc's packages are
+        # rather than given a copy of their 4 GB.
+        $settings = if ($Cod4) { $online + "MW2_LOG_FILE=cod4.log`n" }
+                    elseif ($Aw) { "MW2_FULLSCREEN=0`nMW2_LOG_FILE=aw.log`nMW2_DLC_DIR=$InstallFolder`n" }
+                    else { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n" }
         [IO.File]::WriteAllText($envFile, $settings)
     }
 }
@@ -1030,7 +1077,7 @@ if ($ForAndroid -and $Apks.Count) {
             # multiplayer (Title.home); an app cannot read another's folder on
             # a current Android, adb can. Never over saves already there, and
             # the old app and its files are left as they are.
-            if ($Split -and -not $Suffix -and -not $Cod4) {
+            if ($Split -and -not $Suffix -and -not $Cod4 -and -not $Aw) {
                 $files = "/sdcard/Android/data/$AppPackage/files"
                 $oldApps = if ($Mw2) {
                     @(@{ Package = 'cod.modern.warfare2.sp'; Home = $files; Label = 'campaign' },
@@ -1049,6 +1096,18 @@ if ($ForAndroid -and $Apks.Count) {
                     } catch { Warn "could not look for the old $($old.Label) app's saves: $($_.Exception.Message)" }
                 }
             }
+            # Advanced Warfare's install disc: its packages go beside the game
+            # folder, where the runtime looks for a title's installed content
+            # (runtime/kernel/content.cpp). Files of the same size are skipped.
+            if ($Aw -and -not $GameOnly) {
+                Step 'adb push the install disc''s packages (4 GB) to the app''s dlc folder'
+                $dlc = "/sdcard/Android/data/$AppPackage/files/dlc"
+                Exec $Adb @('-s', $serial, 'shell', "mkdir -p $dlc") | Out-Null
+                foreach ($package in @(Get-ChildItem -Recurse -File $InstallFolder)) {
+                    $there = "$(Exec $Adb @('-s', $serial, 'shell', "stat -c %s $dlc/$($package.Name) 2>/dev/null || echo 0"))".Trim()
+                    if ($there -ne "$($package.Length)") { Exec $Adb @('-s', $serial, 'push', $package.FullName, "$dlc/$($package.Name)") | Out-Null }
+                }
+            }
         }
         if ($Iso -and ($PushIso -or (Ask 'Copy the disc image to the phone''s Download folder for the app''s installer (7-8 GB, several minutes)?' $false))) {
             Step 'adb push the disc image to /sdcard/Download/'
@@ -1064,4 +1123,4 @@ if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
-else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } elseif ($Cod4) { 'docs\COD4-BRINGUP.md' } else { 'README.md' })." }
+else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } elseif ($Cod4) { 'docs\COD4-BRINGUP.md' } elseif ($Aw) { 'docs\AW-BRINGUP.md' } else { 'README.md' })." }

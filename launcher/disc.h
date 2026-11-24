@@ -44,6 +44,11 @@ namespace install
         // one (highmip/). Apart from Files(), so that what takes the root's
         // files by name never meets a path.
         virtual const std::vector<File>& FolderFiles() const = 0;
+        // The files further down than that, each named by its whole path
+        // ("<folder>/<folder>/<file>"): the content packages of Advanced
+        // Warfare's install disc, which lie where a console's hard disk has
+        // them (content/0000000000000000/<title>/00000002/).
+        virtual const std::vector<File>& DeepFiles() const = 0;
         // Reads `size` bytes of `file` from `offset` into `out`.
         virtual bool Read(const File& file, uint64_t offset, void* out, size_t size) = 0;
 

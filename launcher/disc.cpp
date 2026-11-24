@@ -67,13 +67,14 @@ namespace
                 error = "the disc image is cut short";
                 return false;
             }
-            Walk(root, "", files_);
+            Walk(root, "", 0);
             if (files_.empty()) { error = "the disc image has no files"; return false; }
             return true;
         }
 
         const std::vector<File>& Files() const override { return files_; }
         const std::vector<File>& FolderFiles() const override { return folderFiles_; }
+        const std::vector<File>& DeepFiles() const override { return deepFiles_; }
 
         bool Read(const File& file, uint64_t offset, void* out, size_t size) override
         {
@@ -135,9 +136,12 @@ namespace
         // { left u16, right u16, sector u32, size u32, attributes u8, name length u8, name }.
         // The root's files are what nearly every title reads; the files of
         // the root's own folders are kept apart, each named "<folder>/<file>"
-        // (FolderFiles), and nothing deeper is read.
-        void Walk(const std::vector<uint8_t>& dir, const std::string& folder, std::vector<File>& files)
+        // (FolderFiles), and those of folders further down apart again, by
+        // their whole paths (DeepFiles), to kDeepest folders below the root.
+        static constexpr int kDeepest = 5;
+        void Walk(const std::vector<uint8_t>& dir, const std::string& folder, int depth)
         {
+            std::vector<File>& files = depth == 0 ? files_ : depth == 1 ? folderFiles_ : deepFiles_;
             std::vector<uint32_t> pending{ 0 }, seen;
             while (!pending.empty())
             {
@@ -161,9 +165,9 @@ namespace
 
                 if (attributes & 0x10)   // a directory
                 {
-                    if (!folder.empty() || size == 0 || size > 32 * 1024 * 1024) continue;
+                    if (depth >= kDeepest || size == 0 || size > 32 * 1024 * 1024) continue;
                     std::vector<uint8_t> table(size);
-                    if (ReadAt(offset, table.data(), table.size())) Walk(table, name + "/", folderFiles_);
+                    if (ReadAt(offset, table.data(), table.size())) Walk(table, folder + name + "/", depth + 1);
                     continue;
                 }
                 files.push_back({ folder + name, size, offset });
@@ -173,7 +177,7 @@ namespace
         std::FILE* file_ = nullptr;
         uint64_t base_ = 0;
         uint64_t imageSize_ = 0;
-        std::vector<File> files_, folderFiles_;
+        std::vector<File> files_, folderFiles_, deepFiles_;
     };
 
     // A disc already extracted: the files at the top of the folder, and apart
@@ -191,11 +195,14 @@ namespace
                     files_.push_back({ Utf8(entry.path().filename()), entry.file_size(ec), 0 });
                 else if (entry.is_directory(ec))
                 {
-                    const std::string folder = Utf8(entry.path().filename()) + "/";
                     std::error_code inner;
-                    for (const auto& file : fs::directory_iterator(entry.path(), inner))
-                        if (file.is_regular_file(inner))
-                            folderFiles_.push_back({ folder + Utf8(file.path().filename()), file.file_size(inner), 0 });
+                    for (auto file = fs::recursive_directory_iterator(entry.path(), inner);
+                         !inner && file != fs::recursive_directory_iterator(); file.increment(inner))
+                    {
+                        if (!file->is_regular_file(inner)) continue;
+                        const std::string name = Utf8(fs::relative(file->path(), path, inner).generic_string());
+                        (file.depth() == 0 ? folderFiles_ : deepFiles_).push_back({ name, file->file_size(inner), 0 });
+                    }
                 }
             }
             if (ec || files_.empty()) { error = "cannot read the folder " + Utf8(path); return false; }
@@ -204,6 +211,7 @@ namespace
 
         const std::vector<File>& Files() const override { return files_; }
         const std::vector<File>& FolderFiles() const override { return folderFiles_; }
+        const std::vector<File>& DeepFiles() const override { return deepFiles_; }
 
         bool Read(const File& file, uint64_t offset, void* out, size_t size) override
         {
@@ -220,7 +228,7 @@ namespace
 
     private:
         fs::path root_;
-        std::vector<File> files_, folderFiles_;
+        std::vector<File> files_, folderFiles_, deepFiles_;
         std::ifstream stream_;
         std::string open_;
     };

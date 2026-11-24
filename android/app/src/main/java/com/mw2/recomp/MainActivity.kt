@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
             else info.versionCode
             val tu = BuildConfig.MW2_TU.uppercase()
             discVersion = when {
-                Title.isMw3 || Title.isCod4 -> "DISC VERSION"
+                Title.isMw3 || Title.isCod4 || Title.isAw -> "DISC VERSION"
                 isTu6() -> "TITLE UPDATE 6"
                 else -> "DISC VERSION 1.0.557"
             }
@@ -571,7 +571,15 @@ class MainActivity : AppCompatActivity() {
         // accepts either, preferring lean.
         // (TU6 installs from the same disc; the update applies after.)
         val isMp = Title.MULTIPLAYER.carried
-        val candidateIsos = if (Title.isCod4) {
+        val candidateIsos = if (Title.isAw) {
+            // The game disc: the install disc's packages are copied beside
+            // the game folder by setup (docs/AW-BRINGUP.md).
+            listOf(
+                File("/sdcard/Download/aw.iso"),
+                File("/sdcard/Download/Call of Duty - Advanced Warfare (USA, Europe) (En,Fr,De,Es,It,Pl,Ru) (Game Disc).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "aw.iso"),
+            )
+        } else if (Title.isCod4) {
             listOf(
                 File("/sdcard/Download/cod4.iso"),
                 File("/sdcard/Download/Call of Duty 4 - Modern Warfare (USA, Europe).iso"),
@@ -618,7 +626,7 @@ class MainActivity : AppCompatActivity() {
      * install alone does not end in a game.
      */
     private fun launch(title: Title) {
-        if (title.installed(prefs.gameDirectory)) {
+        if (title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory)) {
             startGame(title)
             return
         }

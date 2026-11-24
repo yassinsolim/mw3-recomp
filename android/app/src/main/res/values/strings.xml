@@ -85,6 +85,8 @@
     <string name="chosen">Source:\n%1$s</string>
     <string name="installing">%1$s  (%2$d%%)</string>
     <string name="install_done">The game files are installed.</string>
+    <string name="aw_install_disc_needed">The game disc is installed. Now choose the image of the second disc, the install disc: the game needs its files too.</string>
+    <string name="aw_game_disc_needed">The install disc is copied. Now choose the image of the game disc.</string>
     <string name="install_failed">The install did not finish:\n%1$s</string>
     <string name="install_cancelled">Cancelled. What was copied is kept, so starting again carries on from there.</string>
     <string name="install_running_warning">The install is still running. Leaving now stops it; it can be carried on later.</string>

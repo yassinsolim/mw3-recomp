@@ -206,7 +206,7 @@ namespace
 
     const char* TitleExecutable()
     {
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP)
+#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
         return "default_mp.xex";
 #else
         return "default.xex";

@@ -61,6 +61,21 @@ enum class Title(val library: String, val executable: String) {
          */
         val isCod4: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.cod4.")
 
+        /** com.aw.recomp*, Call of Duty: Advanced Warfare, which goes the same way. */
+        val isAw: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.aw.")
+
+        /**
+         * Advanced Warfare is two discs: whether the install disc's two
+         * content packages, which the game mounts as a console does from its
+         * hard disk, are still to be copied beside the game folder
+         * (runtime/install/install.cpp, runtime/kernel/content.cpp).
+         */
+        fun installDiscMissing(gameDirectory: String): Boolean {
+            if (!isAw || gameDirectory.isEmpty()) return false
+            val packages = File(File(gameDirectory).absoluteFile.parentFile, "dlc")
+            return !listOf("41560914051BF3C0", "4156091407406280").all { File(packages, it).isFile }
+        }
+
         /**
          * Whether this app's multiplayer has bots (runtime/bots.cpp): the
          * disc executables of both Modern Warfare games and of Call of Duty 4

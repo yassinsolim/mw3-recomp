@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Advanced Warfare's emblem: the project's reticle ring and ticks around a
+     chevron, so it never reads as the other apps' one, two or three bars on
+     the same home screen. Same geometry rules as the main one: everything
+     sits inside the adaptive icon's 66 dp safe circle. The ring and ticks
+     take icon_accent (violet for this title, build.gradle.kts). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- the ring -->
+    <path
+        android:pathData="M54,27a27,27 0,1 1,0 54a27,27 0,1 1,0 -54z"
+        android:strokeColor="@color/icon_accent"
+        android:strokeWidth="3.2"
+        android:fillColor="#00000000" />
+    <!-- the ticks: north, south, west, east, each crossing the ring -->
+    <path
+        android:fillColor="@color/icon_accent"
+        android:pathData="M52.4,22h3.2v9h-3.2z M52.4,77h3.2v9h-3.2z M22,52.4h9v3.2h-9z M77,52.4h9v3.2h-9z" />
+    <!-- the chevron, centred, its apex up -->
+    <path
+        android:fillColor="#ECEFF2"
+        android:pathData="M54,42l13,21h-5.5l-7.5,-12l-7.5,12h-5.5z" />
+</vector>
