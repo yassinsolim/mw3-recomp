@@ -347,8 +347,8 @@ What they share that changed, and why it does not reach them:
   the sound callback's context, the kernel's variables, the luminance
   write-back: none of the six imports the first, and the rest are compiled
   for `AW_TITLE` alone.
-- PM4 `0x56`: no other title's stream has the packet (it was logged as
-  unknown, and never was).
+- PM4 `0x56`: none of the six runs' streams has the packet (their reports
+  count every opcode).
 - The installer's copy loop (`runtime/install/install.cpp`, Android only)
   and `launcher/disc.cpp`: Call of Duty 4's app built from this branch
   (`com.cod4.recomp.aw`) copy-installed that game on the Thor from its disc

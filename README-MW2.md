@@ -1,187 +1,171 @@
 # MW2 Recompiled: Modern Warfare 2 on Android
 
-*Call of Duty: Modern Warfare 2* (2009) for the Xbox 360, turned into a native
-Android app: the campaign, Special Ops and the multiplayer in one. The
-console's PowerPC code is translated ahead of time into C++ by
-[XenonRecomp](https://github.com/hedge-dev/XenonRecomp) and compiled for your
-phone or handheld, with a runtime that stands in for the console: its kernel,
-the GPU (drawn with Vulkan), audio and controllers. It is not an emulator, and
-there is no streaming.
+A native Android port of *Call of Duty: Modern Warfare 2*, recompiled from
+**your own Xbox 360 disc**: the campaign, Special Ops and multiplayer in one
+app. It is not an emulator and nothing is streamed: the console's code is
+translated ahead of time by [XenonRecomp](https://github.com/hedge-dev/XenonRecomp)
+and compiled for your device, with a small runtime standing in for the console
+(Vulkan graphics, audio, controllers).
 
-> **You need your own copy of the game.** This repository contains no game
-> data, no executables and no code made from them. You supply a disc image
-> (`.iso`) of your own Xbox 360 *Modern Warfare 2* disc; the build reads it on
-> your PC and everything made from it stays on your own devices. **Never upload
-> or share the game code package, the extracted files or the generated code**
-> (`out/`, `mw2/`, `ppc_tu0/`, `ppc_mp_tu0/`): they contain the game.
+> **Unofficial fan project.** Not affiliated with or endorsed by Activision or
+> Microsoft. This repository contains no game data, no executables and no code
+> made from them. You bring your own disc image; everything built from it stays
+> on your own devices. **Never upload or share the game code package, the
+> extracted files or the generated code**: they contain the game.
 
-This is the same code as [mw3-recomp](https://github.com/yassinsolim/mw3-recomp),
-which does this for *Modern Warfare 3* and builds for Windows as well; the two
-repositories differ only in which app their releases carry.
-
-## Two steps to play
-
-The app on the [releases](https://github.com/yassinsolim/mw2-recomp/releases)
-page is not the whole game: it carries no game code and no game files. Both
-come from your own disc, in two steps, and the app says which is still to do:
-
-1. **On a PC:** `setup\setup.cmd -Game mw2` builds the game code from your
-   disc image and installs it, with the app, on the device over USB
-   ([Setup](#setup-windows)).
-2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
-   your disc image (`.iso`) in `Download`, on the device or its memory card,
-   and plays from it where it is: nothing is copied.
-
-An app installed by itself, without step 1, says "Step 1 is not done" and
-cannot start the game.
-
-## Status
-
-The game is the disc's own version (1.0.557, no title update). Measured on two
-handhelds with the driver the app brings (Turnip, Mesa 27.0.0), touch controls
-and the app's defaults; the numbers are frames a second from the game's own
-report. Other hardware is untested.
-
-| | AYN Thor (Snapdragon 8 Gen 2, Adreno 740) | Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650) |
-|---|---|---|
-| Frame rate cap (the app's default) | 60 | 30, without the sun's shadows |
-| Installing the game files from the disc image, in the app | works | works |
-| Campaign: S.S.D.D. | 60.0 | 29.5 |
-| Campaign: Team Player | 57 to 58 (52 on the first visit) | 30.0 (28.5 on the first visit) |
-| Campaign: Cliffhanger, start | 59.0 | 20.5 |
-| Campaign: No Russian, start | 58.7 | 29.7 |
-| Campaign: Takedown, start | 56.9 | 28.0 |
-| Campaign: Of Their Own Accord, start | 57.8 | 29.1 |
-| Campaign: The Only Easy Day... Was Yesterday, start | 54.7 | 28.2 |
-| Multiplayer: Terminal | 59.9 (53 on the first visit) | 30.0 (27 on the first visit) |
-| Multiplayer: Rust | 59.4 | 29.6 |
-| Special Ops: The Pit, started from the menus | not run | plays |
-| Multiplayer: six bots in a match the device hosts (Terminal) | join, fight and score; 119 to 120 on the 120 Hz screen | not run |
-| Split screen, two devices in one match | not tested | not tested |
-| The game's own menu from one title to the other | campaign to multiplayer works | multiplayer to campaign works |
-| See-through walls, garbage surfaces, vertex explosions | none seen | none seen |
-
-What to expect:
-
-- **The first visit to a level is slower** while its graphics pipelines are
-  compiled: a lower frame rate, now and then a frame of a second or more as
-  the level starts, and a surface missing for a moment. Later visits use what
-  was compiled.
-- **A Snapdragon 865 class device plays at 30**, not 60, and not evenly: about
-  a fifth of the frames come a screen refresh late, and Cliffhanger's opening
-  runs at 20. The app turns the sun's shadows off there to hold 30.
-- **Qualcomm devices use the bundled Turnip driver.** With the phone's own
-  driver (GRAPHICS DRIVER in the app) walls and surfaces are missing for the
-  first minutes of every level, which is what earlier Android ports of this
-  game were known for ([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md)).
-- Title update 6 is not in this app.
+Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
+(also builds for Windows) · [Call of Duty 4](https://github.com/yassinsolim/cod4-recomp)
 
 ## What you need
 
-- Your own Xbox 360 *Modern Warfare 2* disc, dumped to an `.iso`. The build
-  checks the two executables on it and accepts the one disc build it was made
-  for (1.0.557); anything else is refused rather than built wrong.
-- A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
-  free. With a Linux PC, see
-  [Setup without a Windows PC](#setup-without-a-windows-pc).
-- A 64-bit Android phone or handheld with Android 8 or later and Vulkan, with
-  room for the 7.3 GB disc image on its own storage or on a memory card. The
-  game plays from the image; copying its files into the app instead (about
-  7 GB more) is a choice.
+- **Your own *Modern Warfare 2* disc as an `.iso`** (about 7.3 GB). Normal PC
+  disc drives can't read Xbox 360 discs, so the dump has to come from a drive
+  that can. Only the disc's own version (1.0.557) is accepted; any other is
+  refused rather than built wrong.
+- **An Android 10 or newer device with a Snapdragon 865 or better**, 8 GB of
+  RAM recommended. Tested: AYN Thor and Retroid Pocket Flip 2. Mali GPUs from
+  the G57 up are untested; Mali G52 and G76 (and older) are not supported.
+- **About 8 GB free** for the disc image, on the device or an SD card, plus
+  about 1 GB while the game code is built.
 
-## Setup on the device (no PC)
+## Quick start (no PC)
 
-1. Install the app from the [latest release](../../releases/latest) and copy
-   your disc image (`.iso`) to the device's Download folder.
-2. Open the app, choose **Install & Play** for the game files, then **Build
-   the game code**: it finds the executables, offers to install the toolchain
-   package (once, about 45 MB) and builds. Keep the charger connected; three
-   to fifteen minutes depending on the device, and you may leave the app.
-3. Play. Details: [docs/ondevice-build.md](docs/ondevice-build.md).
+1. Install the APK from [Releases](https://github.com/yassinsolim/mw2-recomp/releases/latest)
+   and open it.
+2. Tap **Build on this device** and pick your `.iso` with the Files app (it is
+   only read). The app downloads its build tools once (43 MB); Android asks
+   twice to allow installing them.
+3. Tap **Build** and wait about **3 to 6 minutes** (3 min on the AYN Thor,
+   5 and a half on the Flip 2). You can leave the app or lock the screen; it carries
+   on. Keep the device charging: the build uses every core.
+4. Tap **Install & Play**. The game plays straight from the same `.iso`;
+   nothing is copied.
+5. Play: **Campaign · Special Ops** or **Multiplayer**, with the touch overlay
+   or a Bluetooth/USB controller.
 
-## Setup (Windows)
+The app updates itself. When an update needs the game code made again it
+says so; tap **Build the game code** (no disc image is asked for).
 
-Step 1 of the [two](#two-steps-to-play), on the PC, and then step 2 on the
-phone:
+<details>
+<summary><b>Other ways to install</b></summary>
 
-1. Get the code: `git clone https://github.com/yassinsolim/mw2-recomp.git C:\mw2`
-   (a short path without spaces).
-2. Connect the phone over USB with USB debugging on, and run
+- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/mw2-recomp.git C:\mw2`,
+  a short path without spaces), connect the phone over USB with USB debugging
+  on, and run
 
-       setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Install -PushIso
+  ```
+  setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Install -PushIso
+  ```
 
-3. On the phone: open **CoD: Modern Warfare 2**, choose **INSTALL & PLAY**. It
-   finds the disc image in `Download` (on a memory card too) and plays from
-   it: the campaign, Special Ops and the multiplayer read their files out of
-   the image, so keep it there. **Choose Another Source** names an image
-   anywhere else, or copies the files into the app instead
-   ([docs/android.md](docs/android.md#the-game-files)).
+  It downloads what it needs into `.toolchain\` (only Microsoft's C++ Build
+  Tools are installed system-wide, with your leave), builds `out\mw2-game.apk`
+  and installs it with the app. After an app update that needs new game code:
+  `git pull`, then `setup\setup.cmd -Game mw2 -GameOnly`. `-Check` lists what
+  it would do and changes nothing.
+- **Linux PC** (tested on Ubuntu 24.04, WSL2 included), with the phone
+  connected over USB:
 
-The script downloads the tools it needs into `.toolchain\` (each pinned and
-checked by SHA-256; only Microsoft's C++ Build Tools are installed
-system-wide, with your leave), reads the executables out of your disc image
-(read-only), checks them, recompiles them and builds
-`out\mw2-game.apk`: the game code (`com.mw2.recomp.game`), made from your
-disc, with no screen of its own. It is yours alone: never share it.
+  ```sh
+  git clone https://github.com/yassinsolim/mw2-recomp.git && cd mw2-recomp
+  bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso --install --push-iso
+  ```
 
-The app itself (`com.mw2.recomp`) is downloaded from this repository's
-[releases](https://github.com/yassinsolim/mw2-recomp/releases). It contains
-none of the game and finds the game code you built beside it. If no release
-can be downloaded, setup builds the app on your PC instead and says so; that
-copy does not update itself.
-
-Useful options: `-Check` (lists what is there and what would be downloaded,
-changes nothing), `-GameOnly` (build and install the game code only),
-`-Dev` (build the app here), `-Device <serial>` (which phone), `-Yes` (ask
-nothing). Running setup again is safe: finished steps are skipped.
-
-## Setup without a Windows PC
-
-- **A Linux PC** (tested on Ubuntu 24.04, WSL2 included), one command, with
-  the phone connected over USB:
-
-      git clone https://github.com/yassinsolim/mw2-recomp.git && cd mw2-recomp
-      bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso --install --push-iso
-
-  It fetches its tools into `.toolchain/`, builds `out/mw2-game.apk`,
-  downloads the published app and installs both. It runs as many compilers
-  as the free memory holds, so an old PC is slower, not stuck;
   `--game-only` rebuilds the game code after an update.
+- **GitHub builds it for you** (no PC, a private repository of your own): not
+  available yet.
 
-Step by step, with what an old PC should expect:
-[docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+Every way, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+How the on-device build works and what was measured:
+[docs/ondevice-build.md](docs/ondevice-build.md).
 
-## Updates
+</details>
 
-The app looks for a newer release when it starts and from **Check for
-updates**, shows what changed and installs it over itself. Your game files,
-saves and game code stay as they are.
+## What works
 
-Now and then an update changes how the game is recompiled. The app then says
-that the game code on the phone does not match it: on the PC, `git pull`, then
-`setup\setup.cmd -Game mw2 -GameOnly` with the phone connected. That takes
-minutes; game files and saves are kept
-([docs/game-library.md](docs/game-library.md)).
+Measured on an AYN Thor (Snapdragon 8 Gen 2, 120 Hz) and a Retroid Pocket
+Flip 2 (Snapdragon 865, 60 Hz) with the app's defaults. Other hardware is
+untested.
 
-## Multiplayer
+| | | Measured |
+|---|---|---|
+| Campaign | ✅ | Thor: S.S.D.D. 116 FPS, Team Player 102; Flip: S.S.D.D. 60, Team Player 53 to 59 |
+| Special Ops | ✅ | The Pit plays on the Flip; not run on the Thor |
+| Multiplayer: System Link | ✅ | Thor and Flip in one match, 119 and 60 FPS; Rust 119 and 60 |
+| Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch, Thor and Flip, 119 and 60 FPS |
+| Bots in matches your device hosts | ✅ | 0 to 17; six on Terminal on the Thor: 119 to 120 FPS |
+| Split screen | ❔ | not tested |
+| Title update 6 | ❌ | not in this app |
 
-**MULTIPLAYER → SYSTEM LINK** in the game: one player creates a game, the
-others find it in the list. The app's Settings → Network chooses how players
-reach each other: **Online** (through the project's relay), **LAN** (your own
-network only) or off. Everyone needs this same version of the game; it does
-not play with consoles on Xbox LIVE.
+Sources and methods: [docs/android.md](docs/android.md),
+[docs/multiplayer.md](docs/multiplayer.md),
+[docs/MW2-ANDROID.md](docs/MW2-ANDROID.md).
 
-**Bots.** On the app's start screen, tap **Bots** (under **Multiplayer**) and
-choose how many (up to 17) and how good; the entry then reads
-`BOTS · 6 · REGULAR`. Start **Multiplayer**, then **System Link → Create Game
-→ Start Game** (or a private match): the bots join the matches *your* device
-hosts, pick a team and a class, fight and score, and leave to make room when
-a player joins. They do nothing in a match somebody else hosts. In a match,
-the app's pause menu has **Bots in my matches** to change the number without
-leaving; **Settings → Multiplayer** has the same settings and **All bots
-against the players**. The maps have no routes for them, so they feel their
-way round walls and are easier to find on a small map
-([docs/multiplayer.md](docs/multiplayer.md#bots-and-unlocks)).
+## Tips
+
+- **Playing from the ISO.** The game reads its files out of the `.iso` where it
+  lies, on the device or an SD card, so keep it there. **Settings → Files**
+  copies the game into the app instead (about 7 GB more) and moves it back.
+- **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
+  in Android, or the refresh-rate tile in the quick settings. The dual-screen
+  assistant can turn it off again after a restart.
+- **Map packs (DLC), experimental.** Copy a package from your own console into
+  `Android/data/com.mw2.recomp/files/dlc/` or a `dlc` folder beside the `.iso`.
+  Only a test package has been tried (it played Rust), never a real map pack,
+  and packs made for later game versions may not load:
+  [docs/dlc.md](docs/dlc.md).
+- **Bots.** Tap **Bots** under Multiplayer, then **System Link → Create Game →
+  Start Game**; bots only join matches your device hosts. They have no
+  routes on the maps, so they feel their way round walls.
+- **Settings** are on the app's start screen: network, multiplayer, files,
+  graphics. In a game, the pause menu has **Edit controls**.
+- **Online** play goes through the project's relay at `mw3.yassin.app:3074`,
+  which sees your IP address like any game server
+  ([docs/relay.md](docs/relay.md)). **LAN** plays on your own WiFi only.
+- **Use the bundled graphics driver** (the default on Qualcomm). With the
+  phone's own one, walls and surfaces are missing for the first minutes of
+  every level.
+- The first visit to a level is slower while its graphics are compiled:
+  expect some stutter and now and then a surface missing for a moment. Later
+  visits reuse what was compiled.
+
+## Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
+| "The game code does not match this version" | After an update: tap **Build the game code** again |
+| "…is not a version of the game this app supports" | The `.iso` is another game or not the disc's own version (1.0.557) |
+| The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
+| Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
+| Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
+| Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
+| `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\mw2`; accept the USB debugging prompt on the phone |
+
+Bug reports are welcome with the log (the app's **Log** screen).
+
+<details>
+<summary><b>For developers</b></summary>
+
+This is the same code as [mw3-recomp](https://github.com/yassinsolim/mw3-recomp);
+the repositories differ only in which app their releases carry.
+
+- How it works: [docs/MW2-ANDROID.md](docs/MW2-ANDROID.md),
+  [docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md),
+  [docs/runtime.md](docs/runtime.md), [docs/rendering.md](docs/rendering.md),
+  [docs/multiplayer.md](docs/multiplayer.md),
+  [docs/building.md](docs/building.md).
+- The app and the game code are two packages, checked against each other when
+  the game starts: [docs/game-library.md](docs/game-library.md). The app
+  carries no game code; `tools/check_runtime_apk.py` refuses one that does.
+- Asset-free tests: `cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON && cmake --build build-tests && ctest --test-dir build-tests`
+- Releasing: [docs/android-releases.md](docs/android-releases.md). Changes:
+  [CHANGELOG.md](CHANGELOG.md).
+- `tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
+  refuses commits that carry game data. Never commit or publish anything from
+  `mw2/`, `ppc_*/`, `out/` or a build folder.
+
+</details>
 
 ## Credits
 
@@ -190,14 +174,16 @@ This port stands on the work of others:
 - [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled) by Paul
   Combal and contributors: the runtime, the recompilation pipeline, the relay
   and the online play all of this grew from
-- [mw2-android](https://github.com/OpenPort-Labs/mw2-android), the original
-  Android port by Player124413 and OpenPort-Labs, and its fork
+- mw2-android, the original Android port by Player124413 and OpenPort-Labs
+  (its repository no longer answers), and its fork
   [flavinxs0/mw2-android](https://github.com/flavinxs0/mw2-android) by
   flavinxs0 and contributors: the Android layer
 - [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) (hedge-dev): the
   PowerPC recompiler
 - [Xenia](https://github.com/xenia-project/xenia): the reference for the
   console's behaviour, and its FFmpeg branch's XMA decoder
+- [LLVM](https://github.com/llvm/llvm-project) (clang and lld in the on-device
+  build tools) and [AOSP bionic](https://android.googlesource.com/platform/bionic)'s headers
 - [libadrenotools](https://github.com/bylaws/libadrenotools) and
   [Mesa Turnip](https://gitlab.freedesktop.org/mesa/mesa) (builds by
   [StevenMXZ](https://github.com/StevenMXZ/Adreno-Tools-Drivers)): the
@@ -206,8 +192,9 @@ This port stands on the work of others:
   renderer and Android work since, the app that updates itself and the game
   code as a package of its own
 
-The full list and the licences: [README.md](README.md#credits),
-[THIRD_PARTY.md](THIRD_PARTY.md).
+The full list of credits
+([mw3-recomp's README](https://github.com/yassinsolim/mw3-recomp#credits))
+and the licences: [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Licence
 

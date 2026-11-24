@@ -250,6 +250,14 @@ class Prefs(context: Context) {
             store.edit().putString(KEY_DISC_IMAGE, value).commit()
         }
 
+    /**
+     * The disc image the player chose on the build screen, as [discImage]
+     * names one: Install & Play offers it, so an image is chosen once.
+     */
+    var chosenImage: String
+        get() = store.getString(KEY_CHOSEN_IMAGE, "") ?: ""
+        set(value) = store.edit().putString(KEY_CHOSEN_IMAGE, value).apply()
+
     /** The folder the file browser last showed, so it opens where it left off. */
     var lastBrowsed: String
         get() = store.getString(KEY_LAST_BROWSED, "") ?: ""
@@ -520,6 +528,7 @@ class Prefs(context: Context) {
         private const val KEY_BUNDLED_DRIVER_DIR = "bundledDriverDirectory"
         private const val KEY_GAME_DIR = "gameDirectory"
         private const val KEY_DISC_IMAGE = "discImage"
+        private const val KEY_CHOSEN_IMAGE = "chosenImage"
         private const val KEY_LAST_BROWSED = "lastBrowsed"
         private const val KEY_WELCOME = "seenWelcome"
         private const val KEY_AUTO_LAUNCH = "autoLaunch"

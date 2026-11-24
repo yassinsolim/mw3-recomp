@@ -110,6 +110,11 @@ About nine minutes on 32 threads, eight of them LLVM. The result is
 `out/toolchain/recomp-toolchain.apk`, signed with `MW2_KEYSTORE` when the
 environment has it, as the app's release is.
 
+The published package is CI's: `.github/workflows/toolchain.yml` runs the
+same script on a GitHub runner (45 minutes on four threads, measured), signs
+with the release key and drafts the release the apps download from
+([android-releases.md](android-releases.md#the-toolchain-release)).
+
 ### Trying it on a device
 
 What an adb shell may run says nothing of what an app may, so there is a test
@@ -170,10 +175,15 @@ is there and offers the one button for what is missing:
    it is read). Each is kept only if its SHA-256 is a build the app supports,
    so an image of another game is passed over.
 2. **The toolchain package.** Found through the package manager
-   (`Toolchain.kt`); when it is missing the app downloads
-   `recomp-toolchain.apk` from the latest release of its own repository and
-   hands it to the system's install prompt. A package whose recompiler is not
-   the app's (`toolchain.json`, `recompiler`) is refused before anything runs.
+   (`Toolchain.kt`). When it is missing the app downloads
+   `recomp-toolchain.apk` from the release `setup/toolchain.json` names (one
+   release for all three games, the list being part of the build kit),
+   compares the file's SHA-256 with the list's and only then hands it to the
+   system's install prompt; a file that is anything else is deleted. A
+   package of another version, or whose recompiler is not the app's
+   (`toolchain.json`: `version`, `recompiler`), is not used: the screen says
+   so and offers the download, which replaces it, and a build refuses it
+   before anything runs.
 3. **The build** (`GameBuild.kt`), in a foreground service
    (`GameBuildService.kt`) with a wake lock and a notification: unpack the
    toolchain's data (once), then for each title analyse, recompile, write the
@@ -249,13 +259,49 @@ libraries in place:
 | hottest CPU sensor / board sensor | 93 °C / 57 °C | 92 °C / 58 °C | 90 °C / 59 °C (skin) |
 | Android's thermal status | none | none | none |
 
-On the Thor the app had no game package: Modern Warfare 2 went from the
-Build button to the game's main menu on the library built there, and Modern
-Warfare 3 to its opening film; the build ran on unchanged with the app in the
-background. On the Flip 2 the build was run and the libraries' statements
-checked; the game was not started there.
+The other builds, whole, from the app's own report:
 
-Not yet tried on a device: Call of Duty 4 (its kit and `InTextTables.kt` are
-in the app; the statement check will say whether the tables come out as the
-script's), the download-and-install of the toolchain from a release (there
-is none yet), and Android versions other than 13.
+| | AYN Thor | Retroid Pocket Flip 2 (8 GB) |
+|---|---|---|
+| Call of Duty 4 (151 files) | 2 min 12 s (recompile 11 s + 11 s, compile 54 s + 57 s) | 3 min 49 s (14 s + 14 s, 99 s + 101 s) |
+| Modern Warfare 3 | 4 min 40 s | 8 min 2 s (21 s + 23 s, 211 s + 226 s), a few seconds of it with fewer compilers |
+
+**Played on what was built**, with no game package installed:
+
+- Call of Duty 4, whose jump tables `InTextTables.kt` adds: the statement
+  check passed on both devices, F.N.G. loads and is walked at 119 frames a
+  second on the Thor and 60 on the Flip 2, and the Thor hosted a System Link
+  match on Backlot from `libcod4mpgame.so`.
+- Modern Warfare 2: the main menu and a System Link match on Afghan (Thor);
+  S.S.D.D. on the Flip 2 from the image on its memory card.
+- Modern Warfare 3: its opening film (Thor), a System Link match on Seatown
+  (Flip 2).
+
+**The toolchain from its release.** With no toolchain installed, the app
+downloaded the release's own APK (CI's, signed with the release key) from a
+server standing in for GitHub (`MW2_TOOLCHAIN_URL`), Android asked to allow
+the app to install packages and then to install it, and the build went on
+from there, on both devices. An APK with another hash, served under the
+same name, was deleted and said to have "not arrived whole".
+
+**Memory and heat, made to happen.** On the Flip 2 during a build:
+
+- Another program taking 1.7 GB left 1.3 GB free: the screen said
+  "fewer: memory is short", seven compilers ran, then eight again.
+- The same taking 4.4 GB left 0.4 GB: Android ended the app's process with
+  its compilers; the service started again by itself and the build carried
+  on from the files it had, to the end. The report then has only the part
+  after the restart.
+- Modern Warfare 3's own app started beside it and played its opening film
+  at 60 frames a second while eight compilers ran, 3.1 GB free.
+- The battery's temperature reported as 47 °C (`dumpsys battery set temp`):
+  four compilers, "fewer: the device is hot"; as 51 °C on the Thor: one;
+  back to eight when it was put back.
+
+**The disc image, chosen once.** With no image in Download, the build screen's
+**Choose the disc image with the Files app** took one from the Flip 2's
+memory card (`ROMs/xbox360/`), with no storage permission asked; the app
+keeps the permission to that document, and the launcher's Install & Play
+then played from the same image without asking again.
+
+Not tried: Android versions other than 13, and devices other than these two.

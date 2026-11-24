@@ -91,10 +91,10 @@ android {
         // whose versionCode is at or below the installed one. The release
         // workflows set MW2_VERSION_CODE from the tag (v1.2.3 is 10203,
         // docs/android-releases.md); this is what a build without one carries.
-        // 106: v0.1.6, over 105 (v0.1.5), 104, 103, 102, 101, 100 and 16
+        // 107: v0.1.7, over 106 (v0.1.6), 105, 104, 103, 102, 101, 100 and 16
         // (v0.0.2-alpha). Call of Duty 4's releases count from v0.1.0 (100)
         // in a repository of their own.
-        versionCode = setting("MW2_VERSION_CODE")?.toIntOrNull() ?: 106
+        versionCode = setting("MW2_VERSION_CODE")?.toIntOrNull() ?: 107
         // Which build this is, carried inside the apk. "The wrong apk" has
         // cost more than one evening, and every time the only way to settle
         // it was to guess. The launcher shows this and Android's app info
@@ -102,7 +102,7 @@ android {
         // that made it without downloading anything twice.
         // The release the build is from, which is what a report has to say to
         // be acted on. It was "1.0" -- a number no release ever had.
-        versionName = "${setting("MW2_VERSION_NAME") ?: "0.1.6"} " +
+        versionName = "${setting("MW2_VERSION_NAME") ?: "0.1.7"} " +
             "(${setting("MW2_BUILD_SHA") ?: "local"})"
         buildConfigField("String", "BUILD_SHA", "\"${setting("MW2_BUILD_SHA") ?: "local"}\"")
         buildConfigField("String", "BUILD_STAMP", "\"${setting("MW2_BUILD_STAMP") ?: "unstamped"}\"")
@@ -117,6 +117,10 @@ android {
         // against a server of its own (docs/android-releases.md); empty for
         // GitHub's list of UPDATE_REPO's.
         buildConfigField("String", "UPDATE_API", "\"${setting("MW2_UPDATE_API") ?: ""}\"")
+        // Where the toolchain package is fetched from, for a build that tests
+        // the download against the same server; empty for the release
+        // setup/toolchain.json names. The file's SHA-256 is that list's either way.
+        buildConfigField("String", "TOOLCHAIN_URL", "\"${setting("MW2_TOOLCHAIN_URL") ?: ""}\"")
 
         ndk {
             // The guest's address space is 4 GiB reserved in one mapping, so
@@ -596,7 +600,10 @@ kitGames.forEach { (game, kit) ->
     val copied = kit.titles.map { "config/${it.toml}" } + kit.extraSources + listOf("runtime/mmio_hook.h", "cmake/game_library.list")
     val hashed = copied + kit.titles.flatMap { title ->
         listOf("kernel_imports.list", "ppc_config.h", "switch_tables.sha256").map { "config/abi/${title.library}/$it" }
-    } + listOf("setup/setup.ps1", "patches/xenonrecomp-mw2.patch", "tools/genshared.py", "XenonRecomp/XenonUtils/ppc_context.h")
+    } + listOf(
+        "setup/setup.ps1", "setup/toolchain.json", "patches/xenonrecomp-mw2.patch", "tools/genshared.py",
+        "XenonRecomp/XenonUtils/ppc_context.h",
+    )
     val task = tasks.register("gameBuildKit${game.replaceFirstChar { it.uppercase() }}") {
         inputs.files(hashed.map { File(repositoryRoot, it) })
         inputs.file("build.gradle.kts")
@@ -633,12 +640,25 @@ kitGames.forEach { (game, kit) ->
                         "memory-hook $memoryHook\n",
                 )
             }
+            // The release the toolchain package is published in and the file
+            // it must be (setup/toolchain.json, docs/android-releases.md): the
+            // app downloads only that, and takes a file with no other hash.
+            val toolchain = groovy.json.JsonSlurper().parseText(kitText("setup/toolchain.json")) as Map<*, *>
+            val toolchainRelease = toolchain["release"] as Map<*, *>
+            val toolchainHash = toolchain["sha256"] as String
+            if (!Regex("[0-9a-f]{64}").matches(toolchainHash)) {
+                throw GradleException("setup/toolchain.json has no SHA-256 for ${toolchain["asset"]}: draft the toolchain release first")
+            }
             File(root, "kit.json").writeText(
                 kitJson(
                     mapOf(
                         "game" to game, "folder" to kit.folder,
                         "recompiler" to mapOf("commit" to commit, "patchSha256" to patch),
                         "memoryHookSha256" to memoryHook,
+                        "toolchain" to mapOf(
+                            "repo" to toolchainRelease["repo"], "tag" to toolchainRelease["tag"],
+                            "asset" to toolchain["asset"], "version" to toolchain["version"], "sha256" to toolchainHash,
+                        ),
                         "extraSources" to kit.extraSources,
                         "inTextTables" to kit.inTextTables,
                         // CMakeLists.txt (ppc_recomp) and the NDK's own defaults, as a

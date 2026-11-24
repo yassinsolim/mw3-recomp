@@ -93,6 +93,49 @@ A pack that is replaced gets its new SHA-256 in `setup/camo-packs.json`
 before the app is released: an app carries the list it was built with, and
 refuses a download that does not match it.
 
+## The toolchain release
+
+The build tools' package for **Build the game code**
+([ondevice-build.md](ondevice-build.md)) is one APK for all three games, so
+it has one release, in Modern Warfare 3's public repository beside the camo
+packs: `toolchain-v<N>`, where N is `TOOLCHAIN_VERSION` in
+`tools/toolchain/versions.sh`. `setup/toolchain.json` names the repository,
+the tag, the asset (`recomp-toolchain.apk`), the version and the APK's
+SHA-256; every app carries that list in its build kit, downloads from
+
+    https://github.com/yassinsolim/mw3-recomp/releases/download/toolchain-v<N>/recomp-toolchain.apk
+
+and hands the file to Android's installer only when its SHA-256 is the
+list's. An installed package of another version is not used: the app says so
+and offers the download, which replaces it.
+
+1. In `yassinsolim/mw3-recomp`: Actions, **Build tools package**, Run
+   workflow (`toolchain.yml`; about an hour, nearly all of it LLVM). It builds
+   the APK from sources, refuses one not signed with the release key, and
+   drafts the pre-release with `recomp-toolchain.apk`, its `.sha256`,
+   `LICENSE`, `THIRD_PARTY.md`, `recomp-toolchain-licences.zip` (every notice
+   the package carries) and `recomp-toolchain-recompiler-source.tar.gz`. The
+   notes link each part's source at its exact commit.
+2. Put the SHA-256 the run prints into `setup/toolchain.json`, and release
+   the apps from that commit or a later one. An app cannot be built while the
+   file has no hash.
+3. Publish the toolchain release **before or with** the apps that name it:
+   until then their download gets a 404 and the app shows the release page
+   instead.
+
+It is a pre-release for the camo packs' reason: setup takes the app from the
+repository's latest release. A published toolchain release is never
+replaced, since apps name its file by hash: what changes the package
+(`versions.sh`, the recompiler's commit or patch) raises `TOOLCHAIN_VERSION`,
+which is a new tag, and the workflow refuses to draft over a published one.
+
+**The GPL.** `libXenonRecomp.so` and `libXenonAnalyse.so` include GNU
+binutils' PowerPC disassembler, so they are distributed under the GPL-3.0
+([THIRD_PARTY.md](../THIRD_PARTY.md)). Their complete source as compiled
+(XenonRecomp at the pinned commit, submodules in, `patches/xenonrecomp-mw2.patch`
+applied) is an asset of the same release, and the build scripts are this
+repository at the commit the release's notes name.
+
 ## Trying the update without publishing
 
 A debug build can be pointed at a list of releases served from the PC:
@@ -107,3 +150,14 @@ Install the older build, start it, and it offers the newer one. Only a debug
 build may ask a server without TLS; signed again with the release key
 (`apksigner sign`), it stands in for the published app, and the newer one
 can then be a release's own APK.
+
+The toolchain download is tried the same way, before its release is
+published: build the debug app with
+
+    set MW2_TOOLCHAIN_URL=http://127.0.0.1:8765/recomp-toolchain.apk
+
+and give the server the drafted release's APK
+(`gh release download toolchain-v<N> -R yassinsolim/mw3-recomp -p recomp-toolchain.apk`)
+as `--toolchain recomp-toolchain.apk`. The app still takes only a file with
+the SHA-256 in `setup/toolchain.json`, so this proves the hash in the list is
+the draft's.

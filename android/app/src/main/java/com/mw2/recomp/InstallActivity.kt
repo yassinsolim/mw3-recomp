@@ -183,7 +183,9 @@ class InstallActivity : AppCompatActivity() {
         })
 
         val initial = intent.getStringExtra(EXTRA_INITIAL_PATH)
-        if (!initial.isNullOrEmpty() && File(initial).exists()) {
+        // A path the launcher found, or the document the player chose on
+        // the build screen, which the launcher has opened once already.
+        if (!initial.isNullOrEmpty() && (DiscImage.isDocument(initial) || File(initial).exists())) {
             useSource(initial)
             if (intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
                 start()

@@ -51,7 +51,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var detailText: TextView
     private lateinit var versionTag: TextView
     private lateinit var directLaunchSwitch: androidx.appcompat.widget.SwitchCompat
-    private var detectedIsoFile: File? = null
+    /** The disc image Install & Play would use: a path, or the document the player chose for the build. */
+    private var detectedImage: String? = null
 
     /** When the artwork on screen was taken from the disc's package; 0 while it is the haze. */
     @Volatile
@@ -424,8 +425,11 @@ class MainActivity : AppCompatActivity() {
         // An install made by the campaign's app of old has every game file
         // but the multiplayer's executable.
         val missing = Title.carried.filterNot { it.installed(gameDirectory) }
-        // A disc to install from is looked for only while something is missing.
-        detectedIsoFile = if (missing.isEmpty()) null else findDisc()
+        // A disc to install from is looked for only while something is
+        // missing. The one the build screen took the executables from comes
+        // first: it is known to be this game's (another game's image in
+        // Download was offered here once), and it is chosen once that way.
+        detectedImage = if (missing.isEmpty()) null else chosenImage() ?: findDisc()?.absolutePath
         refreshSecondEntry(gameDirectory)
         refreshBotsEntry()
         // The app is published without the game's code: the files alone do
@@ -465,10 +469,11 @@ class MainActivity : AppCompatActivity() {
             // starts the game itself: coming back here from that run is a
             // Quit, and must not start the game a second time.
             hasAutoLaunched = true
-            if (detectedIsoFile != null) {
+            val image = detectedImage
+            if (image != null) {
                 play.isEnabled = true
                 play.text = "⚡ INSTALL & PLAY"
-                status.text = getString(R.string.status_disc_found, detectedIsoFile!!.name)
+                status.text = getString(R.string.status_disc_found, DiscImage.label(this, image).substringAfterLast('/'))
                 installButton.visibility = android.view.View.VISIBLE
                 installButton.text = "Choose Another Source"
             } else {
@@ -517,9 +522,9 @@ class MainActivity : AppCompatActivity() {
             showDetail(getString(R.string.setup_title), setupSteps(gameCode, gameFiles))
             detailIsSetup = true
         }
-        // The dialog is for the step done away from the device, which
-        // nothing on this screen can do: with the game code here, the card
-        // and the Install & Play button say the rest.
+        // The dialog is for the step a new player does not expect, making
+        // the game code, and leads to doing it here: with the game code on
+        // the device, the card and the Install & Play button say the rest.
         if (setupExplained || gameCode) return
         setupExplained = true
         explainSetup(gameCode, gameFiles)
@@ -539,9 +544,9 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.setup_title)
             .setMessage(setupSteps(gameCode, gameFiles) + "\n\n" + getString(R.string.setup_guide_where, setupGuide()))
             .setNegativeButton(R.string.close, null)
-            .setPositiveButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
-        if (!gameFiles) {
-            dialog.setNeutralButton(R.string.install_game) { _, _ -> install() }
+            .setNeutralButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
+        if (GameBuild.offered(this)) {
+            dialog.setPositiveButton(R.string.setup_build_here) { _, _ -> startActivity(Intent(this, BuildActivity::class.java)) }
         }
         dialog.show()
     }
@@ -555,12 +560,21 @@ class MainActivity : AppCompatActivity() {
         startActivity(
             Intent(this, InstallActivity::class.java).apply {
                 putExtra(InstallActivity.EXTRA_TITLE, title.name)
-                detectedIsoFile?.let {
-                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, it.absolutePath)
+                detectedImage?.let {
+                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, it)
                     putExtra(InstallActivity.EXTRA_AUTO_START, true)
                 }
             },
         )
+    }
+
+    /** The image chosen on the build screen, while it can still be read. */
+    private fun chosenImage(): String? {
+        val image = prefs.chosenImage
+        if (image.isEmpty()) return null
+        val source = DiscImage.source(this, image) ?: return null
+        DiscImage.close(source)
+        return image
     }
 
     /** A disc image where players usually leave one, or null. */

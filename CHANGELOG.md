@@ -5,17 +5,6 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
-- **Build the game code on the device itself**
-  ([docs/ondevice-build.md](docs/ondevice-build.md)): no PC and no GitHub.
-  The launcher's **Build the game code** takes the disc's two executables
-  from the installed game files or a disc image (one in Download is found by
-  itself), installs the toolchain package from the release, and recompiles,
-  compiles and links in the background with a progress bar, the time left,
-  pause and carry on. About 3 minutes for Modern Warfare 2 on an AYN Thor,
-  5 for Modern Warfare 3, 5 and a half for Modern Warfare 2 on a Retroid
-  Pocket Flip 2 (8 GB). The library is loaded from the app's own storage; a
-  game package built on a PC still works. After an update that needs new
-  game code the same entry builds it again, with no disc image.
 - **Call of Duty: Advanced Warfare, started**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)): titles `aw` and `awmp`, for
   Windows and Android (`com.aw.recomp`, built by `setup\setup.cmd -Game aw
@@ -28,6 +17,135 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   and Safe Area screens want an adjustment (a direction) before they take A.
   `tools/check_aw_xex.py`, `tools/extra_instructions.py`,
   `tools/ctr_branch_extents.py`.
+
+### Fixed
+- `NtCreateSemaphore` read its counts from the registers of Windows' call,
+  which has an access mask this console's has not (Modern Warfare 3 imports
+  it too).
+
+## [v0.1.7] - 2026-11-24
+
+Modern Warfare 3's and Modern Warfare 2's v0.1.7 and Call of Duty 4's
+v0.1.2, from the same commit.
+
+### Highlights
+Each game's release notes, in plain text.
+
+Modern Warfare 3, v0.1.7
+
+- No PC needed: build the game code on your device in about 5 to 8 minutes.
+  Install the app, choose Build on this device, pick your disc image (.iso)
+  with the Files app, and tap Build. The app fetches the compiler once (43
+  MB), then works in the background with a progress bar: you can pause it,
+  use other apps or lock the screen. Measured: 4 min 40 s on an AYN Thor
+  (Snapdragon 8 Gen 2), 8 min on a Retroid Pocket Flip 2 (Snapdragon 865, 8
+  GB). A PC still works as before (setup.cmd, or setup.sh on Linux).
+- Play straight from the disc image. Install & Play no longer copies 7 GB:
+  the game reads its files out of the .iso where it lies, on the device or
+  on an SD card, and is ready in a second. Loading takes the same time as
+  from copied files. Copying is still a choice, and Settings, Files moves an
+  installed game either way.
+- The image is chosen once: Install & Play uses the one you picked for the
+  build.
+- Your own map packs (experimental): the multiplayer lists and mounts the
+  downloadable content packages you copy from your own console into a dlc
+  folder. Tried with test packages only; no real map pack yet.
+- The start screen names the two steps of setting up, says which is done,
+  and leads to the first.
+- A hot device or one short of memory builds with fewer compilers instead of
+  stopping; a build Android interrupts carries on by itself.
+
+The game package built for v0.1.0 to v0.1.6 still fits: nothing to build
+again.
+
+Modern Warfare 2, v0.1.7
+
+- No PC needed: build the game code on your device in about 3 to 6 minutes.
+  Install the app, choose Build on this device, pick your disc image (.iso)
+  with the Files app, and tap Build. The app fetches the compiler once (43
+  MB), then works in the background with a progress bar: you can pause it,
+  use other apps or lock the screen. Measured: 3 min on an AYN Thor
+  (Snapdragon 8 Gen 2), 5 min 30 s on a Retroid Pocket Flip 2 (Snapdragon
+  865, 8 GB). A PC still works as before (setup.cmd, or setup.sh on Linux).
+- Play straight from the disc image. Install & Play no longer copies 7 GB:
+  the game reads its files out of the .iso where it lies, on the device or
+  on an SD card, and is ready in a second. Loading takes the same time as
+  from copied files. Copying is still a choice, and Settings, Files moves an
+  installed game either way.
+- The image is chosen once: Install & Play uses the one you picked for the
+  build.
+- Your own map packs (experimental): the multiplayer lists and mounts the
+  downloadable content packages you copy from your own console into a dlc
+  folder. A test package played Rust; no real map pack has been tried yet.
+- The start screen names the two steps of setting up, says which is done,
+  and leads to the first.
+- A hot device or one short of memory builds with fewer compilers instead of
+  stopping; a build Android interrupts carries on by itself.
+
+The game package built for v0.1.0 to v0.1.6 still fits: nothing to build
+again.
+
+Call of Duty 4, v0.1.2
+
+- No PC needed: build the game code on your device in about 2 to 4 minutes.
+  Install the app, choose Build on this device, pick your disc image (.iso)
+  with the Files app, and tap Build. The app fetches the compiler once (43
+  MB), then works in the background with a progress bar: you can pause it,
+  use other apps or lock the screen. Measured: 2 min 12 s on an AYN Thor
+  (Snapdragon 8 Gen 2), 3 min 49 s on a Retroid Pocket Flip 2 (Snapdragon
+  865, 8 GB). A PC still works as before (setup.cmd, or setup.sh on Linux).
+- Play straight from the disc image. Install & Play no longer copies 7 GB:
+  the game reads its files out of the .iso where it lies, on the device or
+  on an SD card, and is ready in a second. Loading takes the same time as
+  from copied files. Copying is still a choice, and Settings, Files moves an
+  installed game either way.
+- The image is chosen once: Install & Play uses the one you picked for the
+  build.
+- Your own map packs (experimental): the multiplayer lists and mounts the
+  downloadable content packages you copy from your own console into a dlc
+  folder. Tried with test packages only; no real map pack yet.
+- The start screen names the two steps of setting up, says which is done,
+  and leads to the first.
+- A hot device or one short of memory builds with fewer compilers instead of
+  stopping; a build Android interrupts carries on by itself.
+
+The game package built for v0.1.0 and v0.1.1 still fits: nothing to build
+again.
+
+### Added
+- **Build the game code on the device itself**
+  ([docs/ondevice-build.md](docs/ondevice-build.md)): no PC and no GitHub,
+  for all three games. The launcher's two steps lead with **Build on this
+  device**; the build screen takes the disc's two executables from a disc
+  image chosen with the Files app (on the device or a memory card, no
+  storage permission), from one in Download or from the installed game
+  files, installs the toolchain package from its release, and recompiles,
+  compiles and links in the background with a progress bar, the time left,
+  pause and carry on. Whole builds: Modern Warfare 2 in 3 minutes on an AYN
+  Thor and 5 and a half on a Retroid Pocket Flip 2 (8 GB), Modern Warfare 3
+  in 4 min 40 s and 8, Call of Duty 4 in 2 min 12 s and 3 min 49 s. Played
+  on what was built: Call of Duty 4's F.N.G. on both devices, and a System
+  Link match hosted in each game. The library is loaded from the app's own
+  storage; a game package built on a PC still works. After an update that
+  needs new game code the same entry builds it again, with no disc image.
+  - **The toolchain package has a release of its own**
+    ([docs/android-releases.md](docs/android-releases.md#the-toolchain-release)):
+    `toolchain.yml` builds `recomp-toolchain.apk` from sources on a GitHub
+    runner (45 minutes), signs it with the release key and drafts the
+    pre-release `toolchain-v1` in Modern Warfare 3's public repository, with
+    the licences, every notice and the recompiler's whole source (it is
+    under the GPL-3.0). `setup/toolchain.json` names the release, the
+    version and the APK's SHA-256; an app downloads that file, hands it to
+    Android's installer only when the hash is the list's, and uses only a
+    package of that version. `MW2_TOOLCHAIN_URL` and
+    `tools/serve_test_release.py --toolchain` try it before it is published.
+  - The disc image is chosen once: the one the build took the executables
+    from is what Install & Play offers, a document on a memory card
+    included.
+  - Memory and heat were made to happen on the Flip 2: with 1.3 GB free the
+    build ran seven compilers and then eight again; with 0.4 GB Android
+    ended it and it started again by itself and finished; at a reported
+    47 °C it ran four, at 51 °C one.
 - **Building the game code without a Windows PC**
   ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
   - `setup/setup.sh`: setup for Linux, for all three games
@@ -93,10 +211,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - **The two steps of setting up, said first.** The app is published without
   the game's code, and a player who installed it alone ran Install & Play and
   only then read "The game code is not on this device". The launcher now
-  shows both steps with which is done (1. on a PC, setup builds the game code
-  from your disc and installs it over USB; 2. on the device, Install & Play),
-  in a dialog at the start while the game code is missing, with a button to
-  the README's new **Two steps to play** section, which each of the three
+  shows both steps with which is done (1. build the game code, on the device
+  or on a PC; 2. Install & Play), in a dialog at the start while the game
+  code is missing, with **Build on this device** and a button to the
+  README's new **Two steps to play** section, which each of the three
   READMEs now opens with.
 - The file browser lists a memory card at the top of the device's storage.
 
@@ -107,9 +225,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   with the NDK and run on an arm64 Android device.
 
 ### Fixed
-- `NtCreateSemaphore` read its counts from the registers of Windows' call,
-  which has an access mask this console's has not (Modern Warfare 3 imports
-  it too).
+- Install & Play offered another game's disc image when it was the only one
+  in Download (Modern Warfare 3's, to Modern Warfare 2's app): the image
+  the build screen checked comes first.
+- "1 compilers at once".
 
 ## [v0.1.6] - 2026-11-24
 

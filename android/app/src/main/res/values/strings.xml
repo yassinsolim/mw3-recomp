@@ -317,11 +317,12 @@
     <!-- the two steps of setting up, said before either is started (MainActivity.showSetupSteps) -->
     <string name="setup_title">TWO STEPS TO PLAY</string>
     <string name="setup_command">setup\\setup.cmd</string>
-    <string name="setup_steps">1. ON A PC (%1$s): run %3$s with this device connected over USB. It builds the game code from your own disc and installs it here.\n2. ON THIS DEVICE (%2$s): Install &amp; Play, which reads the game files from your disc image (.iso).</string>
+    <string name="setup_steps">1. BUILD THE GAME CODE (%1$s): on this device, with no PC: choose \"Build the game code\" and your disc image (.iso); it takes a few minutes. Or on a PC: run %3$s with this device connected over USB.\n2. INSTALL &amp; PLAY (%2$s): plays from your disc image (.iso) where it lies, also on an SD card.</string>
+    <string name="setup_build_here">Build on this device</string>
     <string name="setup_done">done</string>
     <string name="setup_todo">to do</string>
     <string name="setup_guide">Open the guide</string>
-    <string name="setup_guide_where">The app alone is not the game: it carries no game code and no game files, and both come from your own disc. The guide has every command:\n%1$s</string>
+    <string name="setup_guide_where">The app alone is not the game: it carries no game code and no game files, and both come from your own disc. The guide has both ways, and every command for a PC:\n%1$s</string>
     <string name="stats_line">%1$.0f fps   %2$d MB textures   %3$d×%4$d</string>
 
     <!-- the run's own notification, which is there so the process is not the
@@ -353,17 +354,18 @@
     <string name="build_detail">The game code is made from your own disc and is in no download. This device can make it itself, with no PC: it takes the disc\'s two executables, a compiler package installed once, and some minutes of work that goes on in the background.</string>
     <string name="build_code_missing">The game code is not on this device yet: it is made from your own disc.\nChoose \"Build the game code\" to make it here, or run setup\\setup.cmd on a PC with this device connected over USB.</string>
     <string name="build_code_outdated">This update of the app needs the game code built again.\nChoose \"Build the game code\": your game files and saves are kept.</string>
-    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs the disc\'s two executables, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build takes about five to fifteen minutes depending on the device; it carries on while you use other apps, and from where it was if it is interrupted.</string>
+    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs the disc\'s two executables, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build took two to eight minutes on the devices it was measured on, by game and device, and takes longer on a slower or hot one; it carries on while you use other apps, and from where it was if it is interrupted.</string>
     <string name="build_have_executables">1. The game\'s executables: found, and a version this app supports.</string>
     <string name="build_taking_executables">1. The game\'s executables: reading them from the disc image…</string>
     <string name="build_need_executables">1. The game\'s executables: not here yet. Choose the disc image (.iso) of your own copy; it is only read. One in the Download folder is found by itself.</string>
     <string name="build_have_toolchain">2. The toolchain package: installed (%1$s).</string>
     <string name="build_toolchain_downloading">2. The toolchain package: downloading… Android asks whether to install it when it has arrived.</string>
     <string name="build_need_toolchain">2. The toolchain package: not installed.</string>
+    <string name="build_other_toolchain">2. The toolchain package: the one installed is for another version of this app. This one needs version %1$s: the download replaces it.</string>
     <string name="build_pick_image">Choose the disc image with the Files app</string>
     <string name="build_get_toolchain">Download and install the toolchain package</string>
     <string name="build_toolchain_name">Toolchain for building the game code</string>
-    <string name="build_toolchain_failed">The toolchain package could not be downloaded. Open the release page and install recomp-toolchain.apk from there.</string>
+    <string name="build_toolchain_failed">The toolchain package did not arrive whole, so nothing was installed. Try again, or open the release page and install %1$s from there.</string>
     <string name="build_begin">Build</string>
     <string name="build_again">Build again for this version of the app</string>
     <string name="build_pause">Pause</string>
@@ -380,9 +382,9 @@
     <string name="build_step_link">Linking the %1$s</string>
     <string name="build_left_soon">, about a minute left</string>
     <string name="build_left_minutes">, about %1$d min left</string>
-    <string name="build_jobs">%1$d compilers at once; battery %2$.0f °C</string>
-    <string name="build_jobs_memory">%1$d compilers at once (fewer: memory is short); battery %2$.0f °C</string>
-    <string name="build_jobs_heat">%1$d compilers at once (fewer: the device is hot); battery %2$.0f °C</string>
+    <string name="build_jobs">Compilers at once: %1$d; battery %2$.0f °C</string>
+    <string name="build_jobs_memory">Compilers at once: %1$d (fewer: memory is short); battery %2$.0f °C</string>
+    <string name="build_jobs_heat">Compilers at once: %1$d (fewer: the device is hot); battery %2$.0f °C</string>
     <string name="build_done">The game code is built.</string>
     <string name="build_done_explained">The game code is built and ready: the game starts from the launcher.</string>
     <string name="build_failed">The build of the game code stopped</string>

@@ -1,338 +1,166 @@
 # MW3 Recompiled: Modern Warfare 3 on Android and PC
 
-*Call of Duty: Modern Warfare 3* (2011) for the Xbox 360, turned into a native
-Android app and a native Windows game. The console's PowerPC code is
-translated ahead of time into C++ by
+A native Android (and Windows PC) port of *Call of Duty: Modern Warfare 3*,
+recompiled from **your own Xbox 360 disc**. It is not an emulator and nothing
+is streamed: the console's code is translated ahead of time by
 [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) and compiled for your
-phone or PC, with a runtime that stands in for the console: its kernel, the
-GPU (drawn with Vulkan), audio and controllers. It is not an emulator, and
-there is no streaming.
+device, with a small runtime standing in for the console (Vulkan graphics,
+audio, controllers).
 
-> **You need your own copy of the game.** This repository contains no game
-> data, no executables and no code made from them. You supply a disc image
-> (`.iso`) of your own Xbox 360 *Modern Warfare 3* disc; the build reads it on
-> your PC and everything made from it stays on your own devices. **Never upload
-> or share the APKs, the Windows game, the extracted files or the generated
-> code** (`out/`, `mw3/`, `ppc_mw3*/`): they contain the game.
+> **Unofficial fan project.** Not affiliated with or endorsed by Activision or
+> Microsoft. This repository contains no game data, no executables and no code
+> made from them. You bring your own disc image; everything built from it stays
+> on your own devices. **Never upload or share the APKs, the extracted files or
+> the generated code**: they contain the game.
 
-## Two steps to play
-
-The Android app on the [releases](https://github.com/yassinsolim/mw3-recomp/releases)
-page is not the whole game: it carries no game code and no game files. Both
-come from your own disc, in two steps, and the app says which is still to do:
-
-1. **On a PC:** `setup\setup.cmd` builds the game code from your disc image
-   and installs it, with the app, on the device over USB
-   ([Quick start](#quick-start-windows)).
-2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
-   your disc image (`.iso`) in `Download`, on the device or its memory card,
-   and plays from it where it is: nothing is copied
-   ([Install on Android](#install-on-android)).
-
-An app installed by itself, without step 1, says "Step 1 is not done" and
-cannot start the game.
-
-## Status
-
-Tested mostly on one Android device (an AYN Thor: Snapdragon 8 Gen 2,
-Adreno 740, Android 13) and one Windows PC. Other hardware is untested.
-
-| | Android | Windows |
-|---|---|---|
-| Campaign | plays (Black Tuesday at about 58 FPS) | builds; not yet tested on Windows |
-| Special Ops Survival | plays at about 60 FPS | builds; not yet tested on Windows |
-| Multiplayer, split screen | plays (Seatown at 60 FPS) | not tested |
-| Multiplayer online, System Link over the relay | works (Android to PC tested) | works (joined an Android host) |
-| Xbox LIVE menu (Find Match, served by this project, not Microsoft or Activision) | signs in, lists playlists, opens a public lobby; a full match not yet tested | two copies matched through Find Match |
-| Bots in your matches (the launcher's **Bots** entry, 0 to 17) | join, fight and score | same (`MW2_BOTS`) |
-| Voice chat (off by default; push-to-talk) | built, not yet tested | built, not yet tested |
-| Everything unlocked in multiplayer, with fifteen custom classes | yes, chosen camos show in matches | yes |
-| Extra camouflages below Gold in multiplayer ([camo packs](#camo-packs)) | works | works |
-| Custom skins (texture replacement, animated) | works | should work, not tested |
-| Audio | works | not checked |
-| Controls | touch overlay, Bluetooth/USB controllers | controller, keyboard and mouse |
-| Saves and profile | work | not checked |
-
-The detailed log is [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md).
-
-*Modern Warfare 2*, which this port grew from, builds from its own disc the
-same way (`setup\setup.cmd -Game mw2`, Android only): one app with the
-campaign, Special Ops and the multiplayer that updates itself from
-[mw2-recomp](https://github.com/yassinsolim/mw2-recomp)'s releases, and the
-game code as your own package. It shares every renderer fix made since
-([docs/MW2-ANDROID.md](docs/MW2-ANDROID.md), [README-MW2.md](README-MW2.md)):
-
-| Modern Warfare 2 (disc version) | AYN Thor | Retroid Pocket Flip 2 (Snapdragon 865) |
-|---|---|---|
-| Campaign | plays (S.S.D.D. at 60 FPS, Team Player at about 57) | plays at 30 FPS |
-| Multiplayer, System Link | plays (Terminal and Rust at 60 FPS) | plays at 30 FPS |
-| Special Ops | not tested | The Pit plays |
-| Split screen, two devices in a match, title update 6 | not tested | not tested |
+Other games: [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
+[Call of Duty 4](https://github.com/yassinsolim/cod4-recomp)
 
 ## What you need
 
-- Your own Xbox 360 *Modern Warfare 3* disc, dumped to an `.iso`. The build
-  checks the executables on it and accepts only the disc builds it has been
-  made for (the USA/Europe disc and one other packaging of the campaign;
-  [tools/check_mw3_xex.py](tools/check_mw3_xex.py)). Others are refused rather
-  than built wrong.
-- A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
-  free (60 GB with the Windows game). A first build takes one to several
-  hours. With a Linux PC, see [No Windows PC](#no-windows-pc).
-- For Android: a 64-bit phone or handheld with Android 10 or later and
-  Vulkan, with room for the ~8 GB disc image on its own storage or on a memory
-  card. The game plays from the image; copying its files into the app
-  instead (about 7 GB more) is a choice. Qualcomm (Adreno) devices get a
-  bundled Turnip driver; others use their own driver and are untested.
-- For the Windows game: a GPU with Vulkan and a processor from 2011 or later
-  (x86-64-v2).
+- **Your own *Modern Warfare 3* disc as an `.iso`** (about 8 GB). Normal PC
+  disc drives can't read Xbox 360 discs, so the dump has to come from a drive
+  that can. The USA/Europe disc and one other packaging of the campaign are
+  accepted; any other is refused rather than built wrong.
+- **An Android 10 or newer device with a Snapdragon 865 or better**, 8 GB of
+  RAM recommended. Tested: AYN Thor and Retroid Pocket Flip 2. Mali GPUs from
+  the G57 up are untested; Mali G52 and G76 (and older) are not supported.
+- **About 8 GB free** for the disc image, on the device or an SD card, plus
+  about 1 GB while the game code is built.
 
-## Quick start (Android only, no PC)
+## Quick start (no PC)
 
-1. Install the app from the [latest release](../../releases/latest) and copy
-   your disc image (`.iso`) to the device's Download folder.
-2. Open the app, choose **Install & Play** for the game files, then **Build
-   the game code**: it finds the executables, offers to install the toolchain
-   package (once, about 45 MB) and builds. Keep the charger connected; three
-   to fifteen minutes depending on the device, and you may leave the app.
-3. Play. Details: [docs/ondevice-build.md](docs/ondevice-build.md).
+1. Install the APK from [Releases](https://github.com/yassinsolim/mw3-recomp/releases/latest)
+   and open it.
+2. Tap **Build on this device** and pick your `.iso` with the Files app (it is
+   only read). The app downloads its build tools once (43 MB); Android asks
+   twice to allow installing them.
+3. Tap **Build** and wait about **5 to 8 minutes** (4 min 40 s on the AYN
+   Thor, 8 min on the Flip 2). You can leave the app or lock the screen; it carries
+   on. Keep the device charging: the build uses every core.
+4. Tap **Install & Play**. The game plays straight from the same `.iso`;
+   nothing is copied.
+5. Play: **Campaign · Special Ops** or **Multiplayer**, with the touch overlay
+   or a Bluetooth/USB controller.
 
-## Quick start (Windows)
+The app updates itself. When an update needs the game code made again it
+says so; tap **Build the game code** (no disc image is asked for).
 
-Step 1 of the [two](#two-steps-to-play): the game code, built on the PC and
-installed on the phone. Step 2, on the phone, is
-[Install on Android](#install-on-android).
+<details>
+<summary><b>Other ways to install</b></summary>
 
-1. Get the code: `git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`
-   (or **Code → Download ZIP** and unpack it). A short path without spaces,
-   such as `C:\mw3`, avoids path-length trouble.
-2. Double-click `setup\setup.cmd` (or run it from a terminal).
-3. Answer its questions: Android and/or PC, which part for PC (campaign,
-   multiplayer or both), and where your `.iso` is.
-
-That is all. The script downloads the tools it needs into `.toolchain\` (a
-JDK, the Android SDK and NDK, LLVM, CMake, Ninja, and Python and Git if you
-have none; each pinned and checked by SHA-256), reads the executables out of
-your disc image (read-only), checks them, recompiles them and builds:
-
-- `out\mw3-game.apk`: the game code for Android (`com.mw3.recomp.game`), made
-  from your disc: the campaign's, Special Ops' and the multiplayer's. It has
-  no screen of its own and is yours alone: never share it.
-- `out\pc\`: the Windows game, if you asked for it
-
-and downloads the Android app itself (`com.mw3.recomp`) from this project's
-[releases](https://github.com/yassinsolim/mw3-recomp/releases). The app
-contains none of the game; it finds the game code you built beside it, and
-**updates itself** from then on: it looks for a newer release when it starts
-(and from **Check for updates**), shows what changed, and installs it over
-itself. Your game files, saves and game code stay as they are
-([docs/game-library.md](docs/game-library.md)).
-
-The one thing it cannot fetch by itself is Microsoft's C++ Build Tools, which
-the recompiler is built with. If they are missing it offers to install them
-with `winget` (about 3 GB, needs administrator rights); otherwise install
-[Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/)
-with **Desktop development with C++** and run setup again.
-
-Useful options (`setup\setup.cmd -<option>`):
-
-| option | what it does |
-|---|---|
-| `-Check` | read-only: lists what is present and what would be downloaded, changes nothing |
-| `-Iso <path>` | the disc image, instead of being asked |
-| `-Title both\|sp\|mp` | which executable(s) for PC (the Android app always holds both) |
-| `-Build android\|pc\|both` | what to build |
-| `-Install` | install the APK on the connected phone without asking |
-| `-PushIso` | also copy the disc image to the phone's Download folder |
-| `-Recomp` | recompile again (setup does so by itself when an update changed the recompiler or its configuration) |
-| `-GameOnly` | Android: build and install the game code only, and leave the app alone |
-| `-Dev` | Android: build the app here instead of downloading the published one (`-Suffix .dev` puts it beside that one) |
-| `-Yes` | ask nothing, take the defaults |
-
-Running it again is safe: finished steps are skipped.
-
-**After an update of the app**, nothing is needed most of the time. Now and
-then an update changes how the game is recompiled, and the app then says that
-the game code on the phone does not match it: on the PC, `git pull`, then
-`setup\setup.cmd -GameOnly` with the phone connected. It rebuilds the game
-code (minutes, not hours) and installs it; game files and saves are kept.
-
-## Install on Android
-
-1. **The game code and the app.** With the phone connected over USB and
-   [USB debugging](https://developer.android.com/studio/debug/dev-options)
-   on, setup offers to install both. Or copy the two APKs to the phone and
-   open each (allow installing from that app when Android asks). A phone
-   that still has an app built on a PC by an earlier setup: Android will not
-   put the published app over it (they are signed with different keys), so
-   setup offers to replace it, keeping the game files and saves; the app's
-   settings start afresh.
-2. **The game files.** Copy your `.iso` to the phone's `Download` folder, or
-   to a memory card's (setup can do the first: `-PushIso`, or answer yes).
-   Open the app and choose **INSTALL & PLAY**: it finds the image, checks both
-   executables and plays from the image where it is. Nothing is copied but
-   the two executables, so it is ready in a second and the image has to stay
-   there. An image anywhere else: **Choose Another Source**, then **Choose
-   with the Files app** (no permission needed) or **Browse the phone's
-   storage**. The same screen can copy the files into the app instead (about
-   7 GB), after which the image is not needed, and **Settings → Files →
-   Change where the game is read from** switches between the two later
-   ([docs/android.md](docs/android.md#the-game-files)). From then on the
-   app's start screen shows the game's own artwork, read from your disc's
-   files on the phone: the app is published without it.
-3. **Play.** Tap **Campaign · Special Ops** or **Multiplayer**. The game's
-   own menu entries that go from one to the other work too: the app restarts
-   the game with the other half. The on-screen pad can be edited from the
-   pause menu (**Edit controls**); a Bluetooth or USB controller works too.
-
-Coming from the two separate apps: the new app installs over the campaign app
-and keeps its saves and game files; run **Install the game files** once more
-so the multiplayer's executable is copied too (only what is missing is
-copied). Setup copies the old multiplayer app's profile and rank across over
-USB when it installs; after that the old "CoD: MW3 Multiplayer" app can be
-uninstalled, which frees its copy of the game files.
-
-## Play on PC
-
-Start `out\pc\Multiplayer.cmd` or `out\pc\Campaign.cmd`. Settings live in
-`out\pc\.env`, one `NAME=value` a line (all of them:
-[docs/switches.md](docs/switches.md)); setup writes one with your player name,
-the public relay and a 1280×720 window (`MW2_FULLSCREEN=1` for full screen,
-F8 toggles it). The log is `out\pc\mw3.log`.
-
-## Camo packs
-
-The multiplayer lists extra camouflages below Gold in Create a Class, each
-under its own name, beside the game's own: no pack replaces a camouflage of
-the game's or of another pack. Pick one like any other; it shows on your
-weapon in a match (other players see Gold).
-
-| pack | by | how you get it |
-|---|---|---|
-| MW3 Recomp Originals (13 animated) | this project | comes with the game |
-| [Solid Colours](https://forum.plutonium.pw/topic/27407/release-solid-colours-camo-pack) (13) | Sloth | fetched by setup, or the app's *Get the project's packs* |
-| [Bubble Gum](https://forum.plutonium.pw/topic/28668/release-bubble-gum-camo) | Sloth | fetched the same way |
-| [Interstellar](https://forum.plutonium.pw/topic/34225/release-mwiii-interstellar-camo), [Exclusion Zone](https://forum.plutonium.pw/topic/27811/release-mwr-exclusion-zone-camo), [Classic Camos](https://forum.plutonium.pw/topic/27905/release-classic-camos-pack) (12) | Sloth | download it from his thread, then add it yourself |
-| [Diamond](https://forum.plutonium.pw/topic/19998/release-diamond-camo-for-all-weapons-mw3) | jdhruv | download it from his thread, then add it yourself |
-
-**Add any PC camo pack** (a Plutonium MW3 camouflage mod):
-
-- *On the phone*: Settings → Multiplayer → Camo packs → **Add a pack from a
-  file**, and pick the `.zip` you downloaded (or its `.iwi` files). The same
-  screen shows every pack with its previews, author and link, switches a
-  pack off, and has **Animate Gold-type camos (Sloth's style)**, the moving
-  look of Sloth's
-  [Animated Camos Mod](https://forum.plutonium.pw/topic/32870/release-client-side-animated-camos-mod).
-- *With setup*: put the downloads (`.zip`, `.rar`, `.7z`, `.iwd` or loose
-  `.iwi`, as they are) in `setup\camo-packs\`, or run
-  `setup\setup.cmd -CamoPacks <folder>`.
-
-How it works, the pack format and whose each pack's artwork is:
-[docs/textures.md](docs/textures.md#camouflage-packs).
-
-## Online play
-
-The multiplayer meets other players through a small relay server, which
-carries the game's **System Link** traffic across the internet. A public one
-runs at **`mw3.yassin.app:3074`** (UDP) and is the default: the Android app's
-Settings → Network is **Online** with that address, and the PC's `.env` has
-`MW2_NETWORK=server` and `MW2_SERVER=mw3.yassin.app:3074`.
-
-- In the game choose **MULTIPLAYER → SYSTEM LINK**. One player creates a game
-  and **starts the match**; it then appears in everyone else's list.
-- **Xbox LIVE does not work** (see Status). Use System Link.
-- Play with copies built from the same version of this repository; different
-  versions may refuse each other or misbehave.
-- The relay sees your IP address, like any game server. It needs no account
-  or password. **LAN** in the app's settings (or `MW2_NETWORK=lan`) plays on
-  your own network only.
-- You can run your own relay: [docs/relay.md](docs/relay.md).
-
-## Bots and unlocks (multiplayer)
-
-- **Bots.** On the app's start screen, tap **Bots** (under **Multiplayer**)
-  and choose how many and how good; the entry then reads `BOTS · 6 · REGULAR`.
-  Start **Multiplayer**, then **System Link → Create Game → Start Game** (or a
-  private match): the bots join the matches *your* device hosts, and leave
-  to make room when a player joins. They do nothing in a match somebody else
-  hosts. In a match, the app's pause menu has **Bots in my matches** to change
-  the number without leaving. The same settings and the rest (all bots
-  against the players, map vote, match options) are in **Settings →
-  Multiplayer**. On the PC: `MW2_BOTS=6` in `.env`. Modern Warfare 2's
-  multiplayer has the same bots ([README-MW2.md](README-MW2.md#multiplayer)).
-- **Everything unlocked.** On by default (**Settings → Multiplayer → Unlock
-  all camos and items**; `MW2_UNLOCK_ALL=1` on the PC): every weapon,
-  attachment, proficiency, camouflage, reticle, perk, piece of equipment,
-  death streak and strike package streak, every title and emblem, and
-  fifteen custom classes, from rank 1. It is your copy reading your stats as
-  unlocked: nothing is written to them, and your rank, prestige and weapon
-  levels stay what you earned. Other players see the class you built; a
-  match hosted by a copy without the switch gives you only what your real
-  levels allow. Prestige Mode and its double experience are left as earned
-  ([details](docs/MW3-MP-BRINGUP.md#everything-unlocked)).
-
-## No Windows PC
-
-- **A Linux PC** (tested on Ubuntu 24.04, WSL2 included), one command:
+- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`,
+  a short path without spaces), double-click `setup\setup.cmd` and answer its
+  questions (Android and/or PC, where your `.iso` is). It downloads what it
+  needs into `.toolchain\`, builds `out\mw3-game.apk` and installs it with the
+  app on a phone connected over USB with USB debugging on. For the Windows game
+  too, choose PC: start `out\pc\Campaign.cmd` or `out\pc\Multiplayer.cmd`
+  (settings in `out\pc\.env`, all of them in [docs/switches.md](docs/switches.md)).
+  Microsoft's C++ Build Tools are needed; setup offers to install them.
+  After an app update that needs new game code: `git pull`, then
+  `setup\setup.cmd -GameOnly`. `-Check` lists what it would do and changes
+  nothing.
+- **Linux PC** (tested on Ubuntu 24.04, WSL2 included):
 
   ```sh
   git clone https://github.com/yassinsolim/mw3-recomp.git && cd mw3-recomp
   bash setup/setup.sh --iso ~/Downloads/MW3.iso
   ```
 
-  It fetches its tools into `.toolchain/`, builds the game code
-  (`out/mw3-game.apk`), downloads the published app and offers to install
-  both on a phone connected over USB. It builds for Android only, runs as
-  many compilers as the free memory holds (an old PC is slower, not stuck),
-  and `--game-only` rebuilds the game code after an update. Its first run
-  for Modern Warfare 2 took under three minutes on a fast PC.
+  Android only. `--game-only` rebuilds the game code after an update.
+- **GitHub builds it for you** (no PC, a private repository of your own): not
+  available yet.
 
-Step by step, with what an old PC should expect:
-[docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
-The pipeline by hand, and desktop runs on Linux:
-[docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#build-wsl2-ubuntu-2404),
-[docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md).
+Every way, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+How the on-device build works and what was measured:
+[docs/ondevice-build.md](docs/ondevice-build.md).
+
+</details>
+
+## What works
+
+Measured on an AYN Thor (Snapdragon 8 Gen 2, 120 Hz) and a Retroid Pocket
+Flip 2 (Snapdragon 865, 60 Hz) with the app's defaults. Other hardware is
+untested.
+
+| | | Measured |
+|---|---|---|
+| Campaign and Special Ops | ✅ | Black Tuesday 118 FPS on the Thor, 60 on the Flip; Survival 118 and 60 |
+| Multiplayer: System Link | ✅ | Thor and Flip in one match, 119 and 60 FPS |
+| Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Free-for-all, Thor and Flip, 119 and 60 FPS |
+| Bots in matches your device hosts | ✅ | 0 to 17; they join, fight and score |
+| Everything unlocked, and extra camos | ✅ | chosen camos show in matches |
+| Windows PC | ⚠️ | multiplayer joined an Android host; campaign not tested there |
+| Voice chat | ❔ | built, not tested |
+
+Sources and methods: [docs/android.md](docs/android.md),
+[docs/multiplayer.md](docs/multiplayer.md).
+
+## Tips
+
+- **Playing from the ISO.** The game reads its files out of the `.iso` where it
+  lies, on the device or an SD card, so keep it there. **Settings → Files**
+  copies the game into the app instead (about 7 GB more) and moves it back.
+- **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
+  in Android, or the refresh-rate tile in the quick settings. The dual-screen
+  assistant can turn it off again after a restart.
+- **Map packs (DLC), experimental.** Copy a package from your own console into
+  `Android/data/com.mw3.recomp/files/dlc/` or a `dlc` folder beside the `.iso`.
+  Only tried with test packages, never a real map pack:
+  [docs/dlc.md](docs/dlc.md).
+- **Custom camos.** **Settings → Multiplayer → Camo packs** adds a pack from a
+  file or fetches the project's: [docs/textures.md](docs/textures.md#camouflage-packs).
+- **Bots.** Tap **Bots** under Multiplayer, then **System Link → Create Game →
+  Start Game**; bots only join matches your device hosts.
+- **Settings** are on the app's start screen: network, multiplayer, files,
+  graphics. In a game, the pause menu has **Edit controls**.
+- **Online** play goes through the project's relay at `mw3.yassin.app:3074`,
+  which sees your IP address like any game server
+  ([docs/relay.md](docs/relay.md)). **LAN** plays on your own WiFi only.
+- The first visit to a level may stutter while its graphics are compiled;
+  later visits reuse what was.
 
 ## Troubleshooting
 
-| problem | what to do |
+| Problem | What to do |
 |---|---|
-| "Unsupported MW3 executable" | your disc is a build this port has not been made for; only the ones in `tools/check_mw3_xex.py` are accepted |
-| setup stops at the C++ Build Tools | install them by hand (see Quick start) and run setup again |
-| the build fails or the PC runs out of memory | close other programs and run setup again; it carries on where it stopped. Logs are in `out\logs\` |
-| errors about long paths or spaces | move the folder to a short path such as `C:\mw3` |
-| `adb` says *unauthorized* | unlock the phone and accept the USB debugging prompt |
-| the app says the game files are missing | do step 2 of *Install on Android* |
-| the app says the game code is not on this device | run `setup\setup.cmd` with the phone connected: it builds and installs it (without a Windows PC: [No Windows PC](#no-windows-pc)) |
-| the app says the game code does not match this version | on the PC: `git pull`, then `setup\setup.cmd -GameOnly` with the phone connected |
-| black screen or crashes on a non-Qualcomm phone | untested hardware; the app's **Log** screen says what happened |
-| friends do not see your game | everyone on the same relay, same version; the host must have **started** the match |
+| "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
+| "The game code does not match this version" | After an update: tap **Build the game code** again |
+| "…is not a version of the game this app supports" | The `.iso` is another game or a disc build this port was not made for ([accepted builds](tools/check_mw3_xex.py)) |
+| The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
+| Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
+| Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
+| Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
+| `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\mw3`; accept the USB debugging prompt on the phone |
 
-Bug reports are welcome with the log (the app's **Log** screen, or
-`out\pc\mw3.log`). Read it first: it can name files and folders on your
-machine.
+Bug reports are welcome with the log (the app's **Log** screen).
 
-## For developers
+<details>
+<summary><b>For developers</b></summary>
 
-How the port works and how it was brought up:
-[docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md),
+The port: [docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md),
 [docs/MW3-BRINGUP.md](docs/MW3-BRINGUP.md),
 [docs/MW3-MP-BRINGUP.md](docs/MW3-MP-BRINGUP.md),
 [docs/runtime.md](docs/runtime.md), [docs/rendering.md](docs/rendering.md),
 [docs/audio.md](docs/audio.md), [docs/multiplayer.md](docs/multiplayer.md),
-[docs/building.md](docs/building.md). Guest addresses per title are in
+[docs/building.md](docs/building.md),
+[docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md),
+[docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md). Guest addresses are in
 `runtime/title.h`; recompiler settings in `config/MW3.toml` and
-`config/MW3MP.toml`. The asset-free tests run with
-`cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON && cmake --build build-tests && ctest --test-dir build-tests`.
+`config/MW3MP.toml`.
 
-The Android app and the game code are two packages, checked against each
-other when the game starts: [docs/game-library.md](docs/game-library.md).
-Releasing the app: [docs/android-releases.md](docs/android-releases.md).
+- The app and the game code are two packages, checked against each other when
+  the game starts: [docs/game-library.md](docs/game-library.md). The app
+  carries no game code; `tools/check_runtime_apk.py` refuses one that does.
+- Asset-free tests: `cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON && cmake --build build-tests && ctest --test-dir build-tests`
+- Releasing: [docs/android-releases.md](docs/android-releases.md). Changes:
+  [CHANGELOG.md](CHANGELOG.md).
+- `tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
+  refuses commits that carry game data. Never commit or publish anything from
+  `mw3/`, `ppc_*/`, `out/` or a build folder.
 
-`tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
-refuses commits that carry game data, and `tools/check_runtime_apk.py`
-refuses an APK that carries recompiled code. Never commit or publish anything
-from `mw3/`, `ppc_*/`, `out/` or a build folder.
+</details>
 
 ## Credits
 
@@ -343,13 +171,15 @@ This port stands on the work of others:
   and the online play this grew from
 - [mw3recomp](https://github.com/the-drk/mw3recomp) by DrK: the MW3 desktop
   bring-up
-- [mw2-android](https://github.com/OpenPort-Labs/mw2-android) and its fork
+- mw2-android (OpenPort-Labs; its repository no longer answers) and its fork
   [flavinxs0/mw2-android](https://github.com/flavinxs0/mw2-android)
   (GuruMachanica, flavinxs0 and contributors): the Android layer
 - [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) (hedge-dev): the
   PowerPC recompiler
 - [Xenia](https://github.com/xenia-project/xenia): the reference for the
   console's behaviour, and its FFmpeg branch's XMA decoder
+- [LLVM](https://github.com/llvm/llvm-project) (clang and lld in the on-device
+  build tools) and [AOSP bionic](https://android.googlesource.com/platform/bionic)'s headers
 - [OpenAssetTools](https://github.com/Laupetin/OpenAssetTools) and
   [pc2xbox360mw2ools](https://github.com/slanginbeans/pc2xbox360mw2ools): zone
   structure definitions
@@ -368,7 +198,7 @@ This port stands on the work of others:
   (SadSlothXL) for Solid Colours, Bubble Gum, Interstellar, Exclusion Zone,
   Classic Camos and the Animated Camos Mod whose look the Animate option
   follows, and [jdhruv](https://forum.plutonium.pw/user/jdhruv) for Diamond
-  ([Camo packs](#camo-packs))
+  (threads and licences: [docs/textures.md](docs/textures.md#camouflage-packs))
 
 Their licences: [THIRD_PARTY.md](THIRD_PARTY.md).
 
