@@ -17,11 +17,37 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   and Safe Area screens want an adjustment (a direction) before they take A.
   `tools/check_aw_xex.py`, `tools/extra_instructions.py`,
   `tools/ctr_branch_extents.py`.
+- **Advanced Warfare's stepped-over instructions, checked.** The twelve
+  instructions and the two half-float unpacks its configuration replaces by
+  calls (`runtime/recomp/ppc_extra_instructions.cpp`) are compared with
+  their definitions, element order included, by
+  `tests/ppc_extra_instructions_test.cpp`: cases worked out by hand, every
+  half float there is, and random sweeps against a model written in the
+  console's terms. All fourteen are as defined (run on x86-64, with and
+  without optimisation); none needed a change.
+- `setup/setup.sh` builds Advanced Warfare on Linux (`--game aw`; with
+  `--install-iso` the install disc's two packages are read out of its image
+  and copied to the phone).
+- `MW2_AUDIO_DUMP=<file.wav>` writes the title's mix as it submits it, for
+  checking the sound of a run nobody listened to
+  ([docs/switches.md](docs/switches.md)).
 
 ### Fixed
 - `NtCreateSemaphore` read its counts from the registers of Windows' call,
   which has an access mask this console's has not (Modern Warfare 3 imports
   it too).
+- **Advanced Warfare: textures drawn as coloured noise.** The title's pool
+  of streamed images moves a block by having the GPU copy it, which the
+  renderer does not do; the copy is now made as it is for the earlier
+  titles (`T_Image_FlushMove`, `runtime/image_move.cpp`). Buildings, faces
+  and the drop pod of the first level were wrong from its first minute.
+- **Setup no longer installs on a phone nobody chose.** With more than one
+  phone connected, a run that asks nothing (`-Yes` / `--yes`, or no
+  keyboard) and names none (`-Device` / `--device`) took whichever adb
+  listed first, and for Advanced Warfare copied 4 GB to it. It now installs
+  on none, says the build is ready and prints the command for each phone.
+  With somebody at the keyboard, or one phone, nothing changes
+  (`setup/setup.ps1`, `setup/setup.sh`).
 
 ## [v0.1.7] - 2026-11-24
 

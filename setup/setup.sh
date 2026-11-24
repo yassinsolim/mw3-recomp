@@ -47,7 +47,9 @@ usage: bash setup/setup.sh [options]
                         online" writes)
   --install             install on the connected phone without asking
   --device <serial>     the phone to install on (`adb devices`), when more
-                        than one is connected
+                        than one is connected. Without it you are asked
+                        about the first; with --yes nothing is installed
+                        and the command for each phone is printed
   --push-iso            also copy the disc image to the phone's Download folder
   --game-only           build and install the game code only; leave the app alone
   --dev                 build the app here instead of downloading the published one
@@ -64,6 +66,8 @@ EOF
 
 GAME=mw3; ISO=; INSTALL_ISO=; XEX_DIR=; INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
 SUFFIX=; RECOMP=0; JOBS=; SDK=; TC=; CHECK=0; YES=0
+# As given, for the command printed when no phone was chosen (step 6).
+ARGS=("$@")
 # -Device, as setup.ps1 spells it, is taken too.
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -271,6 +275,23 @@ fetch() {   # fetch <file> <url> <sha256>
 devices() {   # the connected phones, a line each: <serial> <device|unauthorized>
     [ -x "$ADB" ] || return 0
     "$ADB" devices 2> /dev/null | awk '$2 == "device" || $2 == "unauthorized" { print $1, $2 }'
+}
+
+# Which of the connected phones the APKs go on: the one --device names, or
+# the only one there is. With several and none named, somebody at the
+# keyboard is warned and asked about the first; a run that asks nothing
+# (--yes, or no terminal) gets none, because it would be a phone nobody
+# chose: such a run, with two phones on one PC, put an app and 4 GB on the
+# one adb listed first.
+install_device() {   # install_device <ready serial...>: prints the serial, or nothing
+    local candidate
+    for candidate in "$@"; do
+        if [ "$candidate" = "$DEVICE" ]; then echo "$candidate"; return 0; fi
+    done
+    if [ $# -gt 1 ] && [ "$INTERACTIVE" = 0 ]; then return 0; fi
+    if [ -n "$DEVICE" ]; then warn "no phone with the serial $DEVICE is connected; using $1"; fi
+    if [ $# -gt 1 ]; then warn "more than one phone connected; using $1 (--device <serial> chooses)"; fi
+    echo "$1"
 }
 
 # ---- 0. preflight ------------------------------------------------------------
@@ -661,16 +682,25 @@ for line in "${found[@]}"; do
         *) ready+=("${line% *}") ;;
     esac
 done
+serial=
+[ ${#ready[@]} = 0 ] || serial=$(install_device "${ready[@]}")
 if [ ${#ready[@]} = 0 ]; then
     note 'No phone connected with USB debugging on; install the APKs later (copy them to the phone and open each, or run setup again with it connected).'
+elif [ -z "$serial" ]; then
+    # The command this run was, with the choice it lacked: what is built is
+    # skipped the second time, so it goes straight to the phone.
+    again=(); skip=0
+    for arg in "${ARGS[@]}"; do
+        if [ "$skip" = 1 ]; then skip=0; continue; fi
+        case "$arg" in
+            --install) ;;
+            --device|-Device) skip=1 ;;
+            *) again+=("$(printf '%q' "$arg")") ;;
+        esac
+    done
+    warn "the build is ready and was NOT installed: ${#ready[@]} phones are connected and $(if [ -n "$DEVICE" ]; then echo "none of them is $DEVICE"; else echo 'none was chosen'; fi), and this run asks nothing. To install it, run one of:"
+    for candidate in "${ready[@]}"; do note "bash setup/setup.sh ${again[*]} --install --device $candidate"; done
 else
-    serial=
-    for candidate in "${ready[@]}"; do [ "$candidate" = "$DEVICE" ] && serial=$candidate; done
-    if [ -z "$serial" ]; then
-        serial=${ready[0]}
-        [ -n "$DEVICE" ] && warn "no phone with the serial $DEVICE is connected; using $serial"
-        [ -z "$DEVICE" ] && [ ${#ready[@]} -gt 1 ] && warn "more than one phone connected; using $serial (--device <serial> chooses)"
-    fi
     if [ "$INSTALL" = 1 ] || ask "Install on $serial now?" y; then
         for item in "${APKS[@]}"; do
             read -r apk package data <<< "$item"

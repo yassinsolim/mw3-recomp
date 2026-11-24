@@ -78,10 +78,13 @@ Read-only: report which prerequisites are present and what would be
 downloaded or installed, then stop. Nothing is written.
 .PARAMETER Yes
 Ask nothing: take the defaults (both titles, Android only) and the switches
-given. Licence terms of the Android SDK are accepted on your behalf.
+given. Licence terms of the Android SDK are accepted on your behalf. With
+more than one phone connected and no -Device, nothing is installed: the
+build is made and the command for each phone is printed.
 .PARAMETER Device
 The phone to install on, by its adb serial (`adb devices`), when more than
-one is connected.
+one is connected. Without it you are asked about the first; a run that asks
+nothing (-Yes) installs on none.
 .PARAMETER Toolchain
 Where the tools go (default: .toolchain\ in the repository).
 .PARAMETER CamoPacks
@@ -383,6 +386,20 @@ function Get-Devices {
     $ErrorActionPreference = $old
     @($lines | Where-Object { $_ -match '^(\S+)\s+(device|unauthorized)$' } | ForEach-Object {
         $parts = $_ -split '\s+'; @{ Serial = $parts[0]; State = $parts[1] } })
+}
+
+# Which of the connected phones the APKs go on: the one -Device names, or the
+# only one there is. With several and none named, somebody at the keyboard is
+# warned and asked about the first; a run that asks nothing (-Yes, or no
+# keyboard) gets none, because it would be a phone nobody chose: such a run,
+# with two phones on one PC, put an app and 4 GB on the one adb listed first.
+function Select-InstallDevice([object[]]$ready, [string]$device, [bool]$interactive) {
+    $chosen = @($ready | Where-Object { $_.Serial -eq $device })
+    if ($chosen.Count) { return $chosen[0].Serial }
+    if ($ready.Count -gt 1 -and -not $interactive) { return $null }
+    if ($device) { Warn "no phone with the serial $device is connected; using $($ready[0].Serial)" }
+    if ($ready.Count -gt 1) { Warn "more than one phone connected; using $($ready[0].Serial) (-Device <serial> chooses)" }
+    return $ready[0].Serial
 }
 
 # Installs one of step 5's packages on the phone. Android replaces an app only
@@ -1045,13 +1062,19 @@ if ($ForAndroid -and $Apks.Count) {
     $devices = @(Get-Devices)
     $ready = @($devices | Where-Object { $_.State -eq 'device' })
     if (@($devices | Where-Object { $_.State -eq 'unauthorized' }).Count) { Warn 'a phone is connected but has not allowed USB debugging: accept the prompt on its screen.' }
+    $serial = if ($ready.Count) { Select-InstallDevice $ready $Device $Interactive }
     if ($ready.Count -eq 0) {
         Note 'No phone connected with USB debugging on; install the APKs later (README, "Install on Android").'
+    } elseif (-not $serial) {
+        # The command this run was, with the choice it lacked: what is built
+        # is skipped the second time, so it goes straight to the phone.
+        $again = @($PSBoundParameters.GetEnumerator() | Where-Object { $_.Key -notin 'Install', 'Device' } | ForEach-Object {
+            if ($_.Value -is [switch]) { if ($_.Value) { "-$($_.Key)" } }
+            elseif ("$($_.Value)" -match '\s') { "-$($_.Key) `"$($_.Value)`"" }
+            else { "-$($_.Key) $($_.Value)" } }) -join ' '
+        Warn "the build is ready and was NOT installed: $($ready.Count) phones are connected and $(if ($Device) { "none of them is $Device" } else { 'none was chosen' }), and this run asks nothing. To install it, run one of:"
+        foreach ($phone in $ready) { Note "setup\setup.cmd $again -Install -Device $($phone.Serial)" }
     } else {
-        $chosen = @($ready | Where-Object { $_.Serial -eq $Device })
-        if ($Device -and -not $chosen.Count) { Warn "no phone with the serial $Device is connected; using $($ready[0].Serial)" }
-        $serial = if ($chosen.Count) { $chosen[0].Serial } else { $ready[0].Serial }
-        if ($ready.Count -gt 1 -and -not $chosen.Count) { Warn "more than one phone connected; using $serial (-Device <serial> chooses)" }
         if ($Install -or (Ask "Install on $serial now?" $true)) {
             foreach ($item in $Apks) { Install-Package $serial $item }
             # The camouflage packs that are not in the published app, which
