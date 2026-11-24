@@ -686,6 +686,9 @@ PPC_FUNC(__imp__NetDll_connect)
         return;
     }
 #if defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
+    if (online::Trace())
+        LOGI("net-trace: socket %u refused a connection to %08x:%u", ctx.r4.u32, ntohl(addr.sin_addr.s_addr),
+             unsigned(ntohs(UnshiftPort(addr.sin_port))));
     { t_lastError = 10061; ctx.r3.u64 = uint32_t(-1); return; }
 #endif
     if (online::Get()) { t_lastError = 10061; ctx.r3.u64 = uint32_t(-1); return; }

@@ -119,6 +119,16 @@
 #define T_MATCHRULES_BOT_DIFFICULTY 0x21u
 #define T_MATCHRULES_BOT_LIMIT      0x23u
 
+// Unlocks (aw_unlock_all.cpp, MW2_UNLOCK_ALL). The four users of
+// "mp/unlocktable.csv" at 823C9D30..823CA2B8 are the menu's item checks (the
+// Lua IsItemUnlocked, sub_82719128, in the table at 82060238, calls the last
+// with a controller and an item's name); each finds the row and calls
+// T_Unlock_RowLockedForController(controller, table, row), which fetches the
+// controller's stats and calls T_Unlock_RowLocked(controller, stats, table,
+// row, int* needed). Both answer 0 for an item that can be used.
+#define T_Unlock_RowLocked              82495080
+#define T_Unlock_RowLockedForController 82496258
+
 // The server's patience (aw_server.cpp). sv_timeout (8208F288) and
 // sv_connectTimeout (8208F294) are registered in sub_8240A938, the one user
 // of either name, with 10 and 40 for defaults (0 to 1800), and the two

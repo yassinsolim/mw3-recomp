@@ -1,0 +1,60 @@
+// What Find Match offers Advanced Warfare on a relay, in the title's playlist
+// format (docs/relay.md, "Playlists"). Written for this project: the maps and
+// the script game types are the disc's own names, nothing else is the
+// publisher's. Raise `version` when the file changes.
+//
+// Playlists are numbered from 1: the title's menu never lists playlist 0.
+// None is `ranked`: a ranked match asks Xbox LIVE for arbitration, which
+// nothing answers.
+version 1
+
+gametype tdm
+name english "Team Deathmatch"
+abbrv english "TDM"
+script war
+teambased
+
+gametype ffa
+name english "Free-for-all"
+abbrv english "FFA"
+script dm
+
+playlist 1
+name english "Team Deathmatch"
+description english "Two teams. The first to the score limit wins."
+minparty 1
+maxparty 6
+rule party_minplayers 2
+mp_refraction,tdm,1
+mp_lab2,tdm,1
+mp_comeback,tdm,1
+mp_laser2,tdm,1
+mp_detroit,tdm,1
+mp_greenband,tdm,1
+mp_levity,tdm,1
+mp_instinct,tdm,1
+mp_recovery,tdm,1
+mp_venus,tdm,1
+mp_prison,tdm,1
+mp_solar,tdm,1
+mp_terrace,tdm,1
+
+playlist 2
+name english "Free-for-all"
+description english "Every player for themselves."
+minparty 1
+maxparty 8
+rule party_minplayers 2
+mp_refraction,ffa,1
+mp_lab2,ffa,1
+mp_comeback,ffa,1
+mp_laser2,ffa,1
+mp_detroit,ffa,1
+mp_greenband,ffa,1
+mp_levity,ffa,1
+mp_instinct,ffa,1
+mp_recovery,ffa,1
+mp_venus,ffa,1
+mp_prison,ffa,1
+mp_solar,ffa,1
+mp_terrace,ffa,1

@@ -94,23 +94,18 @@ const char* online::Name()
 // DemonWare lobby is answered here (demonware.h). On lan it is not, unless
 // asked (MW2_LIVE=1): its players meet in System Link, which either service
 // carries to everyone it reaches. MW2_LIVE=0 keeps it signed out on a relay.
-// Advanced Warfare's multiplayer is never signed in: its Xbox LIVE menu wants
-// services nothing here answers (docs/AW-BRINGUP.md), and its players meet in
-// System Link.
+// Advanced Warfare's multiplayer is signed in on the same terms: its logon
+// to the publisher's servers and its matchmaking are answered there too.
 bool online::Live()
 {
     static const bool live = [] {
-#if defined(AW_TITLE_MP)
-        return false;
-#else
         auto* service = Get();
-#if defined(MW3_TITLE_MP)
+#if defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
         const bool wanted = env::Text("MW2_LIVE") ? env::Flag("MW2_LIVE")
                                                   : g_name && std::strcmp(g_name, "server") == 0;
         if (!wanted) return false;
 #endif
         return service && service->Lobbies();
-#endif
     }();
     return live;
 }

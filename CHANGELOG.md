@@ -25,6 +25,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   half float there is, and random sweeps against a model written in the
   console's terms. All fourteen are as defined (run on x86-64, with and
   without optimisation); none needed a change.
+- **Advanced Warfare's Xbox LIVE menu, on a relay.** Its logon to the
+  publisher's servers (one HTTPS request through XHttp, answered inside the
+  game), the lobby, the playlists (`relay/playlists_aw.info`: Team
+  Deathmatch and Free-for-all on the disc's thirteen maps) and its
+  matchmaking, which lists and finds sessions through the relay's listings.
+  Seen with two copies on Windows through `mw3.yassin.app`: Find Match into
+  one match, and a private match joined by invitation. The relay needs no
+  change. `MW2_UNLOCK_ALL` answers its item check again, which applies
+  under Live. Exo Survival starts from launch data (the mode the campaign's
+  menu hands over) and was played by one copy and by two through the relay,
+  round 1 only. Nothing of this was run on a device
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)).
 - `setup/setup.sh` builds Advanced Warfare on Linux (`--game aw`; with
   `--install-iso` the install disc's two packages are read out of its image
   and copied to the phone).

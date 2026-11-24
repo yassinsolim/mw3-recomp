@@ -1,5 +1,6 @@
 #pragma once
-// A stand-in for the DemonWare lobby service of MW3's multiplayer.
+// A stand-in for the DemonWare lobby service of MW3's multiplayer, and of
+// Advanced Warfare's.
 //
 // Beside Xbox LIVE, MW3 logs on to its publisher's servers: the lobby service
 // keeps the player's rank and classes ("mpdata"), hands out the playlists and
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <string>
 
 namespace online::demonware
 {
@@ -29,10 +31,14 @@ namespace online::demonware
     // that is never routed; no host socket uses it) and the lobby's port.
     constexpr uint32_t kLspService = 0x415607E9;
     constexpr uint32_t kServerAddress = 0xC6120001;
+#if defined(AW_TITLE_MP)
+    constexpr uint16_t kLobbyPort = 1027;
+#else
     constexpr uint16_t kLobbyPort = 1020;
+#endif
 
-    // Whether there is a lobby to log on to: MW3's multiplayer, signed in to
-    // Live (online::Live()).
+    // Whether there is a lobby to log on to: MW3's multiplayer or Advanced
+    // Warfare's, signed in to Live (online::Live()).
     bool Served();
 
     // One stream to the lobby, as the title's socket sees it.
@@ -50,4 +56,11 @@ namespace online::demonware
     };
     // The player logged on, and the folder players' files are kept in.
     std::shared_ptr<Lobby> Connect(uint64_t xuid, const std::filesystem::path& files);
+
+    // A request to one of the publisher's web servers (kernel/xhttp.cpp), from
+    // the player with that XUID: its reply, or false for a server nothing
+    // here stands in for. Advanced Warfare's multiplayer logs on with one,
+    // before it connects to the lobby.
+    bool Http(const std::string& host, const std::string& path, const std::string& body, uint64_t xuid,
+              std::string& reply);
 }

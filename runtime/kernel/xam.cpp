@@ -558,7 +558,11 @@ namespace
                 for (const auto& [id, value] : g_searchedNumbers) listing.numbers.push_back({ id, value });
             }
         }
+#if !defined(AW_TITLE_MP)
+        // Advanced Warfare lists its sessions with its publisher's servers,
+        // whose stand-in tells the service (online/demonware.cpp).
         service->List(best ? &listing : nullptr);
+#endif
         service->InGame(playing);
     }
 

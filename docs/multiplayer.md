@@ -420,7 +420,8 @@ The title update's playlists are named `playlists.patch2`, the disc's
 `playlists.info`; both come from the relay ([relay.md](relay.md#playlists)), or
 on Steam from the game (below). A relay that has none for the title leaves
 each copy the list its release was built with (`relay/playlists.info`,
-`relay/playlists_mw3.info`, `relay/playlists_cod4.info`), as on Steam: the
+`relay/playlists_mw3.info`, `relay/playlists_cod4.info`,
+`relay/playlists_aw.info`), as on Steam: the
 relay lets only copies of one release meet, so they have the same bytes. The
 table's walk stops at the first playlist with no entries, so numbering starts at 0.
 
@@ -585,7 +586,11 @@ Modern Warfare 3's only. Advanced Warfare's multiplayer has bots of its own,
 which the same switches set through its lobby's rules (`runtime/aw_bots.cpp`,
 11 at most; [AW-BRINGUP.md](AW-BRINGUP.md#the-multiplayer)): seen on Windows,
 the Thor and the Flip 2 in System Link, hosted and joined over the local
-network and through the relay.
+network and through the relay. Signed in to Live on a relay, its Find Match
+and an invited private match were seen between two copies on Windows; it
+finds matches through its publisher's matchmaking, which the DemonWare
+stand-in answers from the relay's listings, and Exo Survival starts by
+launch data ([AW-BRINGUP.md](AW-BRINGUP.md#xbox-live-and-exo-survival-24-november-2026-windows)).
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a

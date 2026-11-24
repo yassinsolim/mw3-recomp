@@ -146,3 +146,33 @@ PPC_FUNC(__imp__XAudioGetDuckerThreshold)     { ctx.r3.u64 = 0; }
 PPC_FUNC(__imp__XAudioGetDuckerAttackTime)    { ctx.r3.u64 = 0; }
 PPC_FUNC(__imp__XAudioGetDuckerHoldTime)      { ctx.r3.u64 = 0; }
 PPC_FUNC(__imp__XAudioGetDuckerReleaseTime)   { ctx.r3.u64 = 0; }
+
+// What Advanced Warfare's multiplayer asks before it logs on to its
+// publisher's servers (online/demonware.h, kernel/xhttp.cpp).
+
+// XamQueryLiveHiveA(name, buffer, size, overlapped): a setting of the Live
+// environment the console is in. The title asks for "activeservices" and
+// looks in it for the names of Live's two test environments; an answer naming
+// neither is the retail one, so the answer is empty.
+PPC_FUNC(__imp__XamQueryLiveHiveA)
+{
+    if (auto* value = GuestPtr<char>(ctx.r4.u32); value && ctx.r5.u32) value[0] = 0;
+    if (ctx.r6.u32) CompleteOverlapped(ctx.r6.u32, X_ERROR_SUCCESS);
+    ctx.r3.u64 = 0;
+}
+
+// XAuthStartup: the library that fetches Live's tokens for web services.
+PPC_FUNC(__imp__XampXAuthStartup) { ctx.r3.u64 = 0; }
+
+// XamGetToken(user, url, its length, token out, overlapped): Live's token for
+// a web service, which the title would send with its HTTPS request. No
+// request leaves this process, so the answer is Live's own for an address
+// that wants no token: the title reads the extended error 0x80070428 as
+// "XSTS token not required" (821BA674) and sends its request without one.
+PPC_FUNC(__imp__XamGetToken)
+{
+    constexpr uint32_t kFunctionFailed = 1627, kNoTokenNeeded = 0x80070428, kPending = 997;
+    if (!ctx.r7.u32) { ctx.r3.u64 = kFunctionFailed; return; }
+    CompleteOverlappedEx(ctx.r7.u32, kFunctionFailed, kNoTokenNeeded, 0);
+    ctx.r3.u64 = kPending;
+}

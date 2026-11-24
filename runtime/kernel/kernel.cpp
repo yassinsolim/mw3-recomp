@@ -515,7 +515,7 @@ PPCFunc* kernel::GuestFunction(uint32_t address)
 }
 
 void kernel::CallGuest(const PPCContext& caller, uint32_t address,
-                       uint32_t a0, uint32_t a1, uint32_t a2)
+                       uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4)
 {
     PPCFunc* fn = GuestFunction(address);
     if (!fn) { LOGW("CallGuest: no recompiled function at %08X", address); return; }
@@ -528,6 +528,8 @@ void kernel::CallGuest(const PPCContext& caller, uint32_t address,
     ctx.r3.u32  = a0;
     ctx.r4.u32  = a1;
     ctx.r5.u32  = a2;
+    ctx.r6.u32  = a3;
+    ctx.r7.u32  = a4;
     // The caller's code keeps its own idea of the float mode (whether
     // denormals flush: on for vector code, off for scalar) and only switches
     // when it thinks the mode differs. The console keeps the two in separate

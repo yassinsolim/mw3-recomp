@@ -2,6 +2,11 @@
 // bdLobbyService, read in the disc's default_mp.xex (the addresses below are
 // its), and what each task of the menu is answered with.
 //
+// Advanced Warfare's multiplayer has a later build of the same library and
+// speaks the same protocol, unencrypted too, to port 1027: what differs is
+// under AW_TITLE_MP, with that executable's addresses (a logon over HTTPS
+// first, the player's files under other task numbers, and matchmaking).
+//
 // The stream. The title opens with eight bytes, the little-endian words 200
 // and the largest message it takes, and from then on both sides send
 // messages: a little-endian length, a byte that says whether the rest is
@@ -32,7 +37,7 @@
 #include "demonware.h"
 #include "service.h"
 #include "../env.h"
-#include "../kernel/durable.h"
+#include "../kernel/kernel.h"
 #include "../log.h"
 
 #include "playlists_data.h"   // generated: the playlists this release was built with
@@ -42,6 +47,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -56,7 +62,8 @@ namespace
     using Bytes = std::vector<uint8_t>;
 
     // bdByteBuffer's type bytes.
-    constexpr uint8_t kBool = 1, kUByte8 = 3, kUInt16 = 6, kUInt32 = 8, kUInt64 = 10, kString = 16, kBlob = 19;
+    constexpr uint8_t kBool = 1, kUByte8 = 3, kUInt16 = 6, kInt32 = 7, kUInt32 = 8, kUInt64 = 10, kFloat32 = 13,
+                      kString = 16, kBlob = 19;
 
     // bdLobbyErrorCode.
     constexpr uint32_t kNoError = 0, kResultExceedsBuffer = 100, kParamParseError = 106, kNoFile = 1000,
@@ -118,6 +125,9 @@ namespace
             if (Is(kUInt64)) Take(b, sizeof b);
             return uint64_t(Little32(b)) | (uint64_t(Little32(b + 4)) << 32);
         }
+        // A signed word and a float's bits, as written.
+        uint32_t Int32Bits() { return Word(kInt32); }
+        uint32_t Float32Bits() { return Word(kFloat32); }
         // Text of fewer than `size` characters, which must end inside the
         // message.
         std::string String(size_t size)
@@ -140,6 +150,12 @@ namespace
         }
 
     private:
+        uint32_t Word(uint8_t type)
+        {
+            uint8_t b[4]{};
+            if (Is(type)) Take(b, sizeof b);
+            return Little32(b);
+        }
         uint8_t Byte()
         {
             uint8_t value = 0;
@@ -170,6 +186,8 @@ namespace
         void Bool(bool value) { Byte(kBool); Byte(value ? 1 : 0); }
         void UByte8(uint8_t value) { Byte(kUByte8); Byte(value); }
         void UInt32(uint32_t value) { Byte(kUInt32); Little(value, 4); }
+        void Int32Bits(uint32_t value) { Byte(kInt32); Little(value, 4); }
+        void Float32Bits(uint32_t value) { Byte(kFloat32); Little(value, 4); }
         void UInt64(uint64_t value) { Byte(kUInt64); Little(value, 8); }
         void String(const std::string& text)
         {
@@ -203,6 +221,10 @@ namespace
         uint32_t results = 0;
         Writer objects;
         std::string note;   // for the trace: what the task named
+        // The online service's search the results are those of, once it has
+        // them (FinishSearch): the reply waits for it, and every later one
+        // behind it.
+        uint32_t search = 0;
     };
 
     // ---- bdStorage (service 10) --------------------------------------------
@@ -528,6 +550,14 @@ namespace
         case 6: ListPublisherFiles(in, answer); break;
         case 7: GetPublisherFile(in, answer); break;
         case 8: UpdateFile(player, in, answer); break;
+#if defined(AW_TITLE_MP)
+        // Advanced Warfare's library has the player's files under later
+        // numbers (upload 821C4128, get 821C42A0, list 821C43E0), each with
+        // a context name first, which is empty.
+        case 10: in.String(kNameSize); UploadFile(player, in, answer); break;
+        case 12: in.String(kNameSize); GetFile(player, in, answer); break;
+        case 13: in.String(kNameSize); ListFiles(player, in, answer); break;
+#endif
         default: break;
         }
     }
@@ -542,6 +572,232 @@ namespace
         answer.results = 1;
     }
 
+#if defined(AW_TITLE_MP)
+    // ---- bdMatchMaking (service 138) ---------------------------------------
+    //
+    // Advanced Warfare finds its public matches here, not by XSessionSearch:
+    // a host creates a session (task 1, 821AF470), updates it as its lobby
+    // changes (2, 821AF5B0) and deletes it (3, 821AF6F8), and a player
+    // looking for one asks for those that match a query (16, 821AF978).
+    //
+    // A session is what the console's has (the host's XNADDR, and the
+    // session's id and key in the title's part), a game type, how many it
+    // takes, and fifteen words of the title's (its class is read at 827A9810;
+    // the title fills them where it sets the console's contexts and
+    // properties, 827AD1C8, 827ACE70, 8234F7C8 and 827ACEF0 for the first
+    // four): the playlist, a rule of it, the protocol and the map packs,
+    // which a query names too and which must be the same; the public slots
+    // still open, which a query asks at least so many of; then what the
+    // publisher's servers weighed a match by (where the host is, its skill),
+    // with the private slots and how many are taken among them.
+    //
+    // The sessions are the online service's listings (service.h), so the
+    // players of one relay find each other. A listing is 60 bytes the service
+    // does not read and four counts: the id, the key and eight of the words
+    // are the bytes, the slots are the counts, and what a query compares are
+    // its numbers. The host's address is not carried: the service says who
+    // listed a session, and that is the address (kernel/net.cpp).
+    constexpr size_t kAddressSize = 36, kSessionIdSize = 8, kKeySize = 16, kWords = 15;
+    constexpr size_t kPlaylist = 0, kMapPacks = 3, kOpenPublic = 4, kPrivateSlots = 10, kPrivateTaken = 11;
+    // The words a listing's bytes hold, in their order.
+    constexpr size_t kCarried[] = { 5, 6, 7, 8, 9, 12, 13, 14 };
+    static_assert(kSessionIdSize + kKeySize + 4 * std::size(kCarried) <= online::kSessionInfoSize);
+    // The number a listing has its game type under, after the words a query names.
+    constexpr uint32_t kGameTypeNumber = uint32_t(kMapPacks) + 1;
+    constexpr size_t kMostFound = 50;   // the results the title has room for (82805000)
+
+    struct MatchSession
+    {
+        uint8_t address[kAddressSize]{};
+        uint32_t gameType = 0, maxPlayers = 0, numPlayers = 0;
+        uint32_t words[kWords]{};
+        uint8_t key[kKeySize]{}, id[kKeySize]{};   // the id is 8 bytes of the 16 the title sends
+
+        // The title's part: six signed words, two unsigned, two floats, two
+        // signed, the key, the id and three unsigned.
+        bool ReadTitlePart(Reader& in)
+        {
+            for (size_t i = 0; i < kWords - 3; i++)
+                words[i] = i == 6 || i == 7 ? in.UInt32() : i == 8 || i == 9 ? in.Float32Bits() : in.Int32Bits();
+            const Bytes keyBytes = in.Blob(kKeySize), idBytes = in.Blob(kKeySize);
+            for (size_t i = kWords - 3; i < kWords; i++) words[i] = in.UInt32();
+            if (!in.Ok() || keyBytes.size() != kKeySize || idBytes.size() != kKeySize) return false;
+            std::memcpy(key, keyBytes.data(), kKeySize);
+            std::memcpy(id, idBytes.data(), kKeySize);
+            return true;
+        }
+        // (address, game type, slots, the title's part), as tasks 1 and 2 send it.
+        bool Read(Reader& in)
+        {
+            const Bytes addressBytes = in.Blob(kAddressSize);
+            gameType = in.UInt32();
+            maxPlayers = in.UInt32();
+            const Bytes part = in.Blob(kLargestMessage);
+            if (!in.Ok() || addressBytes.size() != kAddressSize) return false;
+            std::memcpy(address, addressBytes.data(), kAddressSize);
+            Reader inner(part.data(), part.size());
+            return ReadTitlePart(inner);
+        }
+        // As a result of a search (bdMatchMakingInfo, 821AEC10, then 827A9810).
+        void Write(Writer& to) const
+        {
+            to.Blob(Bytes(address, address + kAddressSize));
+            to.Blob(Bytes(id, id + kSessionIdSize));
+            to.UInt32(gameType);
+            to.UInt32(maxPlayers);
+            to.UInt32(numPlayers);
+            for (size_t i = 0; i < kWords - 3; i++)
+            {
+                if (i == 6 || i == 7) to.UInt32(words[i]);
+                else if (i == 8 || i == 9) to.Float32Bits(words[i]);
+                else to.Int32Bits(words[i]);
+            }
+            to.Blob(Bytes(key, key + kKeySize));
+            to.Blob(Bytes(id, id + kKeySize));
+            for (size_t i = kWords - 3; i < kWords; i++) to.UInt32(words[i]);
+        }
+    };
+
+    // The session this copy lists, and what its last search asked for.
+    std::mutex g_matchLock;
+    bool g_listing = false;
+    MatchSession g_listed, g_sought;
+
+    void ListSession(const MatchSession* session)
+    {
+        auto* service = online::Get();
+        if (!service || !service->Matchmaking()) return;
+        if (!session) { service->List(nullptr); return; }
+        online::SessionListing listing;
+        std::memcpy(listing.session, session->id, kSessionIdSize);
+        std::memcpy(listing.session + kSessionIdSize, session->key, kKeySize);
+        uint8_t* at = listing.session + kSessionIdSize + kKeySize;
+        for (const size_t word : kCarried)
+            for (int shift = 0; shift < 32; shift += 8) *at++ = uint8_t(session->words[word] >> shift);
+        const uint32_t open = session->words[kOpenPublic], taken = session->words[kPrivateTaken];
+        listing.openPublic = open;
+        listing.filledPublic = session->maxPlayers - std::min(session->maxPlayers, open);
+        listing.openPrivate = session->words[kPrivateSlots] - std::min(session->words[kPrivateSlots], taken);
+        listing.filledPrivate = taken;
+        for (size_t i = kPlaylist; i <= kMapPacks; i++) listing.numbers.push_back({ uint32_t(i), session->words[i] });
+        listing.numbers.push_back({ kGameTypeNumber, session->gameType });
+        service->List(&listing);
+    }
+
+    // Tasks 1 and 2: (context, [session id,] session). The result of the
+    // first is the session's id, which the second names: the console's.
+    void ListMatch(bool created, Reader& in, Answer& answer)
+    {
+        in.String(kNameSize);
+        if (!created) in.Blob(kSessionIdSize);
+        MatchSession session;
+        if (!session.Read(in)) { answer.error = kParamParseError; return; }
+        {
+            std::lock_guard g(g_matchLock);
+            g_listed = session;
+            g_listing = true;
+        }
+        ListSession(&session);
+        if (!created) return;
+        answer.objects.Blob(Bytes(session.id, session.id + kSessionIdSize));
+        answer.results = 1;
+    }
+
+    void UnlistMatch()
+    {
+        {
+            std::lock_guard g(g_matchLock);
+            g_listing = false;
+        }
+        ListSession(nullptr);
+    }
+
+    // Task 16: (context, query, a spare, the most results, then the query's
+    // numbers: the playlist, its rule, the protocol, the map packs, the
+    // slots needed, and what the publisher's servers weighed by). The
+    // sessions wanted are of this copy's own game type, the multiplayer's or
+    // Exo Survival's, which its own session says.
+    void FindMatches(Reader& in, Answer& answer)
+    {
+        in.String(kNameSize);
+        in.UInt32();
+        in.UInt32();
+        const uint32_t most = in.UInt32();
+        MatchSession sought;
+        for (size_t i = kPlaylist; i <= kOpenPublic; i++) sought.words[i] = in.Int32Bits();
+        auto* service = online::Get();
+        if (!in.Ok()) { answer.error = kParamParseError; return; }
+        if (!service || !service->Matchmaking()) return;
+        online::SessionSearch search;
+        search.room = sought.words[kOpenPublic];
+        search.most = uint32_t(std::min(size_t(most), kMostFound));
+        for (size_t i = kPlaylist; i <= kMapPacks; i++) search.wants.push_back({ uint32_t(i), sought.words[i], false });
+        {
+            std::lock_guard g(g_matchLock);
+            if (g_listing)
+            {
+                sought.gameType = g_listed.gameType;
+                search.wants.push_back({ kGameTypeNumber, sought.gameType, false });
+            }
+            g_sought = sought;
+        }
+        kernel::ForgetSessionLags();
+        answer.search = service->Search(search);
+    }
+
+    // The sessions a search found, as the title's results; false while the
+    // service has no answer yet.
+    bool FinishSearch(Answer& answer)
+    {
+        auto* service = online::Get();
+        std::vector<online::SessionFound> found;
+        if (service && !service->SearchResults(answer.search, found)) return false;
+        MatchSession sought;
+        {
+            std::lock_guard g(g_matchLock);
+            sought = g_sought;
+        }
+        for (const auto& one : found)
+        {
+            MatchSession session = sought;
+            kernel::TitleXnAddr(session.address);
+            kernel::SetXnAddrPeer(session.address, one.host);
+            std::memcpy(session.id, one.session, kSessionIdSize);
+            std::memcpy(session.key, one.session + kSessionIdSize, kKeySize);
+            const uint8_t* at = one.session + kSessionIdSize + kKeySize;
+            for (const size_t word : kCarried)
+            {
+                session.words[word] = Little32(at);
+                at += 4;
+            }
+            session.words[kOpenPublic] = one.openPublic;
+            session.maxPlayers = one.openPublic + one.filledPublic;
+            session.numPlayers = one.filledPublic;
+            session.words[kPrivateSlots] = one.openPrivate + one.filledPrivate;
+            session.words[kPrivateTaken] = one.filledPrivate;
+            session.Write(answer.objects);
+            answer.results++;
+            kernel::NoteSessionLag(one.session, one.lag);
+        }
+        LOGI("dw: the search found %u sessions", answer.results);
+        return true;
+    }
+
+    void MatchMaking(uint8_t task, Reader& in, Answer& answer)
+    {
+        switch (task)
+        {
+        case 1: ListMatch(true, in, answer); break;
+        case 2: ListMatch(false, in, answer); break;
+        case 3: UnlistMatch(); break;
+        case 16: FindMatches(in, answer); break;
+        default: break;
+        }
+    }
+#else
+    bool FinishSearch(Answer&) { return true; }
+#endif
+
     const char* ServiceName(uint8_t service)
     {
         switch (service)
@@ -553,7 +809,7 @@ namespace
         case 10: return "storage";
         case 12: return "title utilities";
         case 15: return "key archive";
-        case 21: return "matchmaking";
+        case 21: return "matchmaking (the older)";
         case 23: return "counter";
         case 27: return "dml";
         case 28: return "group";
@@ -564,6 +820,8 @@ namespace
         case 65: return "user groups";
         case 67: return "event log";
         case 68: return "rich presence";
+        case 80: return "marketplace";
+        case 138: return "matchmaking";
         default: return "unknown";
         }
     }
@@ -578,6 +836,9 @@ namespace
         {
         case 10: Storage(player, task, in, answer); break;
         case 12: TitleUtilities(task, in, answer); break;
+#if defined(AW_TITLE_MP)
+        case 138: MatchMaking(task, in, answer); break;
+#endif
         default: break;
         }
     }
@@ -600,6 +861,7 @@ namespace
         size_t Receive(uint8_t* out, size_t room) override
         {
             std::lock_guard g(lock_);
+            Answered();
             const size_t got = std::min(room, out_.size());
             std::memcpy(out, out_.data(), got);
             out_.erase(out_.begin(), out_.begin() + ptrdiff_t(got));
@@ -609,6 +871,7 @@ namespace
         bool Readable() override
         {
             std::lock_guard g(lock_);
+            Answered();
             return !out_.empty();
         }
 
@@ -670,33 +933,50 @@ namespace
             Reader in(bytes + 2, size - 2);
             const uint8_t task = in.UByte8();
             if (!in.Ok()) { HangUp("sent a task with no number"); return; }
-            const size_t parameters = in.Left();
-            Answer answer;
-            Serve(player_, service, task, in, answer);
+            Waiting& waiting = waiting_.emplace_back();
+            waiting.service = service;
+            waiting.task = task;
+            waiting.parameters = in.Left();
+            Serve(player_, service, task, in, waiting.answer);
+            Answered();
+        }
 
-            Writer reply;
-            reply.Byte(kTaskReply);
-            reply.UInt64(++transaction_);
-            reply.UInt32(answer.error);
-            if (answer.error == kNoError)
+        // Replies to the tasks whose answers are there, in the order the
+        // tasks came: the title takes them in that order, so one that waits
+        // for the online service holds back those behind it.
+        void Answered()
+        {
+            while (!waiting_.empty())
             {
-                reply.UByte8(task);
-                reply.UInt32(answer.results);
-                if (answer.results)
+                Waiting& waiting = waiting_.front();
+                Answer& answer = waiting.answer;
+                if (answer.search && !FinishSearch(answer)) return;
+                Writer reply;
+                reply.Byte(kTaskReply);
+                reply.UInt64(++transaction_);
+                reply.UInt32(answer.error);
+                if (answer.error == kNoError)
                 {
+                    reply.UByte8(waiting.task);
                     reply.UInt32(answer.results);
-                    reply.Append(answer.objects);
+                    if (answer.results)
+                    {
+                        reply.UInt32(answer.results);
+                        reply.Append(answer.objects);
+                    }
                 }
-            }
-            Reply(reply);
-            if (Traced())
-            {
-                // What the task named is the title's text: only its plain characters are logged.
-                for (char& c : answer.note)
-                    if (c < 0x20 || c > 0x7E) c = '?';
-                LOGI("dw: %s (%u) task %u%s%s, %zu bytes: error %u, %u results, reply of %zu bytes",
-                     ServiceName(service), service, task, answer.note.empty() ? "" : " ", answer.note.c_str(),
-                     parameters, answer.error, answer.results, reply.Written().size());
+                Reply(reply);
+                if (Traced())
+                {
+                    // What the task named is the title's text: only its plain characters are logged.
+                    for (char& c : answer.note)
+                        if (c < 0x20 || c > 0x7E) c = '?';
+                    LOGI("dw: %s (%u) task %u%s%s, %zu bytes: error %u, %u results, reply of %zu bytes",
+                         ServiceName(waiting.service), waiting.service, waiting.task, answer.note.empty() ? "" : " ",
+                         answer.note.c_str(), waiting.parameters, answer.error, answer.results,
+                         reply.Written().size());
+                }
+                waiting_.pop_front();
             }
         }
 
@@ -708,17 +988,130 @@ namespace
             out_.insert(out_.end(), payload.Written().begin(), payload.Written().end());
         }
 
+        // A task that came, and its answer.
+        struct Waiting
+        {
+            uint8_t service = 0, task = 0;
+            size_t parameters = 0;
+            Answer answer;
+        };
+
         const Player player_;
         std::mutex lock_;
         Bytes in_, out_;
+        std::deque<Waiting> waiting_;
         bool greeted_ = false, closed_ = false;
         uint64_t transaction_ = 0;
     };
 }
 
+#if defined(AW_TITLE_MP)
+namespace
+{
+    // ---- the auth server ---------------------------------------------------
+    //
+    // Advanced Warfare logs on over HTTPS first (bdAuthXenon, 821C6310): a
+    // JSON object with the task (0x2A), a seed, the DemonWare title id and
+    // the console's proof of who the player is. The reply (821C6718) is the
+    // task plus one, the code 700, the seed, two tickets in base64 and, in a
+    // JSON text of its own, the player's DemonWare id.
+    //
+    // The client ticket is 128 bytes (bdAuthTicket, 821D9FB0): its magic
+    // number, a type, the title id, when it was issued and when it runs out,
+    // a licence, the player's id and name, and the key the lobby connection
+    // is encrypted with. The server encrypts it with a key the console's
+    // proof gives both sides; the title takes one whose magic number reads
+    // as it is without decrypting it (821C6A2C), and that is what it gets.
+    constexpr uint32_t kAuthTask = 0x2A, kAuthorised = 700, kTicketMagic = 0xEFBDADDE;
+    constexpr size_t kTicketSize = 128, kTicketName = 64, kSessionKeySize = 24;
+
+    std::string Base64(const uint8_t* bytes, size_t size)
+    {
+        static constexpr char kDigits[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string text;
+        for (size_t at = 0; at < size; at += 3)
+        {
+            const size_t left = size - at;
+            const uint32_t three = (uint32_t(bytes[at]) << 16) | (left > 1 ? uint32_t(bytes[at + 1]) << 8 : 0) |
+                                   (left > 2 ? bytes[at + 2] : 0);
+            text += kDigits[three >> 18];
+            text += kDigits[(three >> 12) & 63];
+            text += left > 1 ? kDigits[(three >> 6) & 63] : '=';
+            text += left > 2 ? kDigits[three & 63] : '=';
+        }
+        return text;
+    }
+
+    // The number a JSON object of the title's has under a name; the title
+    // writes its numbers bare (bdJSONSerializer, 82205DA0).
+    bool JsonNumber(const std::string& json, const char* name, uint32_t& value)
+    {
+        const std::string key = std::string("\"") + name + "\"";
+        size_t at = json.find(key);
+        if (at == std::string::npos) return false;
+        at = json.find_first_not_of(": \t\"", at + key.size());
+        if (at == std::string::npos || json[at] < '0' || json[at] > '9') return false;
+        value = uint32_t(std::strtoul(json.c_str() + at, nullptr, 10));
+        return true;
+    }
+
+    std::string Authorise(const std::string& request, uint64_t xuid)
+    {
+        uint32_t task = 0, seed = 0, title = 0;
+        if (!JsonNumber(request, "auth_task", task) || !JsonNumber(request, "iv_seed", seed) ||
+            !JsonNumber(request, "title_id", title) || task != kAuthTask)
+        {
+            LOGW("dw: the title's logon is not one the auth server knows");
+            return "{\"code\":701}";
+        }
+        uint8_t ticket[kTicketSize]{};
+        size_t at = 0;
+        const auto little = [&](uint64_t value, size_t size) {
+            for (size_t i = 0; i < size; i++) ticket[at++] = uint8_t(value >> (8 * i));
+        };
+        const uint32_t now = uint32_t(std::time(nullptr));
+        little(kTicketMagic, 4);
+        little(0, 1);                    // the type: a user's
+        little(title, 4);
+        little(now, 4);
+        little(now + 24 * 60 * 60, 4);
+        little(0, 8);                    // the licence
+        little(xuid, 8);
+        if (auto* service = online::Get())
+            std::snprintf(reinterpret_cast<char*>(ticket + at), kTicketName, "%s", service->LocalName().c_str());
+        at += kTicketName + kSessionKeySize;   // the key: zeros, for a connection that is not encrypted
+        const uint8_t serverTicket[kTicketSize]{};
+
+        char reply[1024];
+        std::snprintf(reply, sizeof reply,
+                      "{\"auth_task\":%u,\"code\":%u,\"iv_seed\":%u,\"client_ticket\":\"%s\","
+                      "\"server_ticket\":\"%s\",\"extra_data\":\"{\\\"dpi\\\":\\\"%llu\\\"}\"}",
+                      task + 1, kAuthorised, seed, Base64(ticket, sizeof ticket).c_str(),
+                      Base64(serverTicket, sizeof serverTicket).c_str(), static_cast<unsigned long long>(xuid));
+        LOGI("dw: the title logged on to the auth server");
+        return reply;
+    }
+}
+#endif
+
+bool online::demonware::Http(const std::string& host, const std::string& path, const std::string& body,
+                             uint64_t xuid, std::string& reply)
+{
+#if defined(AW_TITLE_MP)
+    if (Served() && host.starts_with("aw-xbox360-auth3.") && path == "/auth/")
+    {
+        reply = Authorise(body, xuid);
+        return true;
+    }
+#else
+    (void)host; (void)path; (void)body; (void)xuid; (void)reply;
+#endif
+    return false;
+}
+
 bool online::demonware::Served()
 {
-#if defined(MW3_TITLE_MP)
+#if defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
     return online::Live();
 #else
     return false;

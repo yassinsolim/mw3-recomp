@@ -76,7 +76,7 @@ Read by every build; see [multiplayer.md](multiplayer.md).
 | switch | effect |
 |---|---|
 | `MW2_NETWORK=none\|lan\|server\|steam` | the online service; `none` (default) keeps system link on this machine, `steam` is lan when Steam is not running. The launcher's NETWORK entry sets it, and the Android multiplayer apps' Settings. MW3's multiplayer has none, lan and server |
-| `MW2_LIVE=0\|1` | MW3's multiplayer: signed in to Xbox LIVE through the service. On by default with `server`, where the Xbox LIVE menu offers the relay's playlists and Find Game, and the title's DemonWare lobby is answered inside the game (`runtime/online/demonware.h`); off by default with `lan`. System Link works either way |
+| `MW2_LIVE=0\|1` | MW3's multiplayer and Advanced Warfare's: signed in to Xbox LIVE through the service. On by default with `server`, where the Xbox LIVE menu offers the relay's playlists and Find Game, and the title's DemonWare lobby is answered inside the game (`runtime/online/demonware.h`); off by default with `lan`. System Link works either way |
 | `MW2_SERVER=<host>[:<port>]` | server: the relay's address (port 3074 when none is given) |
 | `MW2_SERVER_PASSWORD=<text>` | server: the password the relay asks for |
 | `MW2_NAME=<name>` | lan and server: the player's name, instead of his profile's; the name of the first profile when it is made |

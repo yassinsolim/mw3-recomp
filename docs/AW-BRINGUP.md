@@ -475,8 +475,11 @@ State on 24 November 2026: a System Link match is hosted with the title's
 own bots on Windows, the AYN Thor and the Retroid Pocket Flip 2, and joined
 by another copy over the local network and through the relay
 (`mw3.yassin.app:3074`): two copies on Windows, and the Thor and the Flip 2
-in one match, each hosting in turn. Xbox LIVE, Exo Survival and Combat
-Readiness Program are open.
+in one match, each hosting in turn. On Windows two copies also meet by Xbox
+LIVE's Find Match and by an invitation to a private match, both through the
+relay, and Exo Survival is played by one copy and by two ("Xbox LIVE and Exo
+Survival", below). Neither was run on a device; Combat Readiness Program is
+open.
 
 ### What the executable has (derived, from `default_mp.pe`)
 
@@ -521,9 +524,9 @@ Start Game (the party's `go <map> <game type>` to every member).
   the Ethernet link before System Link or Xbox LIVE opens; it is up when an
   online service started, as for Modern Warfare 3. The title's two sockets
   (port 1000, the voice and data protocol, and port 1001, UDP) are the
-  service's; with none they stay on the loopback. The copy is not signed in
-  to Live: choosing Xbox LIVE asks `XamQueryLiveHiveA` and `XHttp`, which
-  nothing answers, and the title says its service is not available.
+  service's; with none they stay on the loopback. On a relay the copy is
+  signed in to Live (`MW2_LIVE`, as Modern Warfare 3's): see "Xbox LIVE and
+  Exo Survival".
 - **Bots** (`runtime/aw_bots.cpp`). `MW2_BOTS`, `MW2_BOT_SKILL`,
   `MW2_BOT_TEAMS` and the console's `bots` line write the lobby's own bot
   rules (the smaller half friendly, the rest enemy, connect type
@@ -537,16 +540,20 @@ Start Game (the party's `go <map> <game type>` to every member).
   source waits for a silent player in its match as long as the title waits
   for one connecting: `sv_timeout` is given `sv_connectTimeout`'s 40 seconds
   as the server's dvars are registered. Why is below ("Why a join was lost").
-- **Unlocks: nothing.** In System Link, Create a Class lists every weapon
+- **Unlocks** (`runtime/aw_unlock_all.cpp`, `MW2_UNLOCK_ALL`, which the app
+  sets). In System Link, Create a Class lists every weapon
   and all seventeen attachments of a rank 1 profile without a padlock
-  (`pc-mp` runs, 24 November); a hook on the item check was written, found
-  to have nothing to do there, and taken out. On the Flip 2, from a profile
+  (`pc-mp` runs, 24 November), so the hook on the item check has nothing to
+  do there. On the Flip 2, from a profile
   the app had just made (rank 1), Create a Class shows ten custom classes,
   each already filled (ASM1 with three attachments, four perks, Exo Stim,
   Semtex, a UAV and two wildcards) under a Pick 13 bar at 13/13, and
   Primary Weapons lists its submachine guns (KF5, MP11, ASM1, SN6, SAC3,
   AMR9) with no padlock (`flip-mp-pick13-*`). Under Xbox LIVE the check
-  applies, and that menu is not reachable.
+  applies: without the switch a rank 1 player's Primary Weapons has a
+  padlock on all but the first assault rifle
+  (`pc-mp-findmatch-relay-copy-b-sheet.png`). The hook is back in for that;
+  **it was not run under Live after it went back in.**
 
 ### Seen on Windows (RTX 5080, two copies on one PC, `MW2_NETWORK=lan`)
 
@@ -631,5 +638,67 @@ lobby through the relay ("Waiting for host to start game").
 
 **Open:** whether a bot leaves when a third player needs its place (the
 scripts' `fill_open`, not seen with a full team); a join by a copy that is
-silent for twenty seconds or more (above); Xbox LIVE; Exo Survival and
-Combat Readiness Program (not opened).
+silent for twenty seconds or more (above); Combat Readiness Program (not
+opened).
+
+### Xbox LIVE and Exo Survival (24 November 2026, Windows)
+
+**What the title asks, and what answers.** Signed in to Live, choosing Xbox
+LIVE logs on to the publisher's DemonWare servers, in this order (the state
+machine at `822F5388`, one state a step):
+
+| Step | The title's | Answered by |
+|---|---|---|
+| Which Live environment | `XamQueryLiveHiveA("activeservices")`, searched for `.part.xboxlive.com` and `.cert.xboxlive.com` (`822F4B68`) | `kernel/xam_misc.cpp`: empty, the retail one |
+| The logon | one HTTPS POST of JSON to `aw-xbox360-auth3.prod.demonware.net/auth/` through XHttp (`bdXHTTP`, the thread at `821BAA18`; `bdAuthXenon` `821C6310`, the reply read at `821C6718`), after asking Live for a token (`XamGetToken`) | `kernel/xhttp.cpp`, a request answered in the process; `online/demonware.cpp` writes the reply: task 0x2B, code 700, a client ticket the title takes undecrypted because its magic number reads as it is (`821C6A2C`), and `{"dpi": ...}` |
+| Where the lobby is | `XOnlineGetServiceInfo(0x415607E9)`, the title server `S1 - DW ATVI LSP` (`822F5190`) | as Modern Warfare 3's, `kernel/xam.cpp` |
+| The lobby | one TCP stream to port 1027, Modern Warfare 3's protocol, not encrypted | `online/demonware.cpp` |
+| The playlists | `playlists.aggr` (storage task 7), then `social.cfg`, `mm.cfg`, the message of the day | `relay/playlists_aw.info` unless the relay has a file; the others as Modern Warfare 3's or "no such file" |
+| The player's files | `metplayerdata` and `mpdata` (storage tasks 12, 10, 13: get `821C42A0`, upload `821C4128`, list `821C43E0`, each with a context name first) | kept under `saves/online/user/<xuid>/` |
+| A public match | matchmaking, service 138: create 1 (`821AF470`), update 2, delete 3, find 16 (`821AF978`); **not** `XSessionSearch` | the online service's listings (`online/demonware.cpp`, "bdMatchMaking") |
+| The line to a host | `XNetQosLookup` | from the search, as for the other titles |
+
+A session the title lists is the console's (the host's XNADDR, id and key),
+a game type (2 for the multiplayer, 5 for Exo Survival: the table at
+`820598E0`), the slots, and fifteen words that mirror the contexts and
+properties it sets (playlist, protocol, map packs, open slots, where the
+host is). A relay's listing is 60 bytes and four counts, so the id, the key
+and eight words are the bytes, the slots the counts, and the host's address
+is rebuilt from who listed it. A search finds sessions of the same playlist,
+rule, protocol and map packs and of the searcher's own game type, with at
+least the open slots it asks. **The relay needs no change and has nothing to
+deploy**: it has no playlists for this title, so each copy uses the file its
+release was built with.
+
+Not answered: every other task (the marketplace's, counters, groups, stats,
+content streaming) succeeds with no results; dedicated servers (task 5).
+
+**Seen**, two copies on one PC through `mw3.yassin.app`, driven by
+`MW2_INPUT_SCRIPT`; evidence in `private-captures\aw\`:
+
+| | Seen | Evidence |
+|---|---|---|
+| Find Match | Team Deathmatch and Free-for-all listed; both copies choose Team Deathmatch six seconds apart; the second finds the first's lobby (`dw: the search found 1 sessions`), "Match beginning in", Retreat loads, both scoreboards list `pcA` and `pcB` on opposite teams with the same clock | `pc-mp-findmatch-relay-copy-*` |
+| Private Match by invitation | the host opens Private Match and the friends screen (the title's own `xshowfriendslist`; F6 or the app's pause menu do the same), which invites everyone heard; the other copy (`MW2_LAN_ACCEPT=1`) accepts from the Xbox LIVE menu, the host starts, both play Retreat | `pc-mp-private-invite-copy-*` |
+| Private Match by "join session" (`MW2_LAN_JOIN`) | refused by the title: "This friend's game or party session is private; you can only join from an invitation message" | not kept |
+| The title's own Friends screen | "You have no Xbox Live friends": the friends enumeration (`XFriendsCreateEnumerator`, message `00058020`, `82194348`) is answered empty | not kept |
+
+**Exo Survival** is the same executable in another mode. The mode is a word
+of the launch data (`XamLoaderGetLaunchData`, 0x3F8 bytes read at
+`823522C0`: the first word 11, the mode at +0x3D8; 4 is Exo Survival in the
+table at `820598E0`, and no mode is the multiplayer, `82487968`). The
+campaign's main menu writes it and starts this executable; the app and the
+Windows build carry launch data across already. `StartSurvival` and the
+`startSurvival` command do nothing in this executable. Started with that
+launch data (`MW2_LAUNCH_DATA`, hexadecimal) the menu is EXO SURVIVAL
+(CO-OP) with Xbox Live, Local Play and System Link.
+
+| | Seen | Evidence |
+|---|---|---|
+| One player, System Link, Bio Lab | the Exo choice, "Survive", round 1's enemies, one kill for 100 points, the player's death and the After Action Report | `pc-survival-solo-round1-*` |
+| Two players, System Link through the relay | the second copy joins the lobby, both choose an Exo and play round 1; "Survivors lost" lists both | `pc-survival-relay-two-players-copy-*` |
+
+**Not seen:** a round survived (the player is driven by timed input and
+shoots at nothing in particular); Exo Survival chosen in the campaign's own
+menu and handed over (the launch data was written by hand); Exo Survival
+under Xbox LIVE; any of this section on a device.

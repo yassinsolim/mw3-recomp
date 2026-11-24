@@ -68,7 +68,7 @@ namespace kernel
 
     // Borrows the caller's stack below its frame.
     void CallGuest(const PPCContext& caller, uint32_t address,
-                   uint32_t a0 = 0, uint32_t a1 = 0, uint32_t a2 = 0);
+                   uint32_t a0 = 0, uint32_t a1 = 0, uint32_t a2 = 0, uint32_t a3 = 0, uint32_t a4 = 0);
 
     // User APCs. The title issues asynchronous reads and does its accounting in a
     // completion routine, which NT delivers only when the issuing thread enters an
