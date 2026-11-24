@@ -123,3 +123,38 @@ analyse, recompile, the shared header, the statement, every compile, the
 link), and compares the statement of the library with what an app built from
 the checkout expects and with the PC build's.
 
+### What was measured
+
+Modern Warfare 2's campaign (`default.xex`, 113 files of C++, 63 MB), built by
+the probe app with `-O2`, eight compiles at a time, no debug information:
+
+| | AYN Thor (Snapdragon 8 Gen 2, 16 GB, Android 13) | PC (i9, 32 threads) |
+|---|---|---|
+| analyse and recompile | 12 s | about 10 s |
+| compile | 70 to 73 s | about 50 s (`-O3 -g`) |
+| link | under 1 s | |
+| memory: all compilers together, at most | 1.5 GB | |
+| memory: the largest one compiler | 250 MB | |
+| `libmw2game.so` | 18.5 MB | 63 MB with debug information |
+
+- The recompiled tree and the jump tables are the PC's, byte for byte (the
+  three files `tools/genshared.py` writes aside, which the build writes itself).
+- The library's statement is `mw2 d5de1f8e8711`: the PC build's, and what an
+  app built from the checkout expects (`config/abi/mw2/`).
+- The library has the PC library's dynamic section and its dynamic symbol
+  table, all 55,932 symbols with their versions and bindings.
+- Running the programs out of the toolchain package's library folder from
+  another app, and `System.load` of a library that app had just linked into
+  its own files, both work on the Thor with SELinux enforcing.
+
+Found on the way, for whoever writes a build around the tools:
+
+- A build must be in the foreground. A background app's processes are kept to
+  three small cores (`/dev/cpuset/background/cpus` is `0-2` on the Thor).
+- Ask for eight compiles by number: `nproc` says 6 in a shell on the Thor.
+- The phone's shell is mksh with toybox: `hash` is a command of the shell's
+  (a function of that name is never called), `grep` has no `\b`, `xargs -P`
+  works.
+- The debug information is what makes the PC's compile heavy (a gigabyte a
+  compiler). Without it a phone of 8 GB has room for eight compilers.
+
