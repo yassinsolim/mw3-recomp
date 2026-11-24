@@ -1,0 +1,71 @@
+# Builds the build tools' package, com.recomp.toolchain (docs/ondevice-build.md):
+# clang, lld and the recompiler for arm64 Android, from sources, as one APK
+# that a release publishes beside the apps (recomp-toolchain.apk). It holds
+# nothing of any game and needs none.
+#
+# Started by hand: the package changes only with tools/toolchain/versions.sh,
+# the recompiler's commit or its patch, and an hour of LLVM is not something
+# every tag should pay. The APK is the run's artifact; whoever makes the
+# release attaches it.
+#
+# Secrets: the release keystore, as android-release.yml has it. Without them
+# the APK is signed with the runner's debug key and is for testing only.
+name: Build tools package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install the NDK the package is built with
+        run: |
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;28.2.13676358" "platforms;android-35" "build-tools;35.0.0"
+          sudo apt-get install -y --no-install-recommends ninja-build
+
+      - name: Fetch the recompiler
+        run: bash android/fetch_deps.sh
+
+      - name: The release keystore
+        env:
+          MW3_KEYSTORE_BASE64: ${{ secrets.MW3_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${MW3_KEYSTORE_BASE64}" ]; then
+            printf '%s' "${MW3_KEYSTORE_BASE64}" | base64 --decode > "${RUNNER_TEMP}/release.jks"
+            echo "MW2_KEYSTORE=${RUNNER_TEMP}/release.jks" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Build the package
+        env:
+          NDK: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          MW2_KEYSTORE_PASSWORD: ${{ secrets.MW3_KEYSTORE_PASSWORD }}
+          MW2_KEY_ALIAS: ${{ secrets.MW3_KEY_ALIAS }}
+          MW2_KEY_PASSWORD: ${{ secrets.MW3_KEY_PASSWORD }}
+        run: |
+          echo "sdk.dir=${ANDROID_HOME}" > android/local.properties
+          bash tools/toolchain/build.sh "${RUNNER_TEMP}/toolchain"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recomp-toolchain
+          path: out/toolchain/recomp-toolchain.apk
