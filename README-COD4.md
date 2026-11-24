@@ -1,212 +1,169 @@
 # CoD4 Recompiled: Call of Duty 4: Modern Warfare on Android
 
-*Call of Duty 4: Modern Warfare* (2007) for the Xbox 360, turned into a native
-Android app: the campaign and the multiplayer in one. The console's PowerPC
-code is translated ahead of time into C++ by
-[XenonRecomp](https://github.com/hedge-dev/XenonRecomp) and compiled for your
-phone or handheld, with a runtime that stands in for the console: its kernel,
-the GPU (drawn with Vulkan), audio and controllers. It is not an emulator, and
-there is no streaming.
+A native Android port of *Call of Duty 4: Modern Warfare*, recompiled from
+**your own Xbox 360 disc**: the campaign and multiplayer in one app. It is not
+an emulator and nothing is streamed: the console's code is translated ahead of
+time by [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) and compiled
+for your device, with a small runtime standing in for the console (Vulkan
+graphics, audio, controllers). It is the newest of the three ports and the
+least played: expect rough edges.
 
-> **You need your own copy of the game.** This repository contains no game
-> data, no executables and no code made from them. You supply a disc image
-> (`.iso`) of your own Xbox 360 *Call of Duty 4: Modern Warfare* disc; the
-> build reads it on your PC and everything made from it stays on your own
-> devices. **Never upload or share the game code package, the extracted files
-> or the generated code** (`out/`, `cod4/`, `ppc_cod4/`, `ppc_cod4_mp/`): they
-> contain the game.
+> **Unofficial fan project.** Not affiliated with or endorsed by Activision or
+> Microsoft. This repository contains no game data, no executables and no code
+> made from them. You bring your own disc image; everything built from it stays
+> on your own devices. **Never upload or share the game code package, the
+> extracted files or the generated code**: they contain the game.
 
-This is the same code as [mw3-recomp](https://github.com/yassinsolim/mw3-recomp)
-(*Modern Warfare 3*) and [mw2-recomp](https://github.com/yassinsolim/mw2-recomp)
-(*Modern Warfare 2*); the three repositories differ only in which app their
-releases carry. Call of Duty 4 is the newest of the three and the least
-played: expect rough edges.
-
-## Two steps to play
-
-The app on the [releases](https://github.com/yassinsolim/cod4-recomp/releases)
-page is not the whole game: it carries no game code and no game files. Both
-come from your own disc, in two steps, and the app says which is still to do:
-
-1. **Build the game code.** On the device itself, with no PC: the app's
-   **Build the game code** makes it from your disc image in a few minutes
-   ([on the device](#setup-on-the-device-no-pc)).
-   Or on a PC: `setup\setup.cmd -Game cod4` builds it and installs it, with the app, on the
-   device over USB ([Windows](#setup-windows), [Linux](#setup-without-a-windows-pc)).
-2. **Install & Play.** Open the app and choose **INSTALL & PLAY**. It finds
-   your disc image (`.iso`) in `Download`, on the device or its memory card,
-   and plays from it where it is: nothing is copied.
-
-An app installed by itself says which step is still to do, and its first
-screen leads to building on the device.
-
-## Status
-
-The game is the disc's own version (no title update). Measured on two
-handhelds with the driver the app brings (Turnip, Mesa 27.0.0), touch controls
-and the app's defaults, on 23 November 2026; the numbers are frames a second
-from the game's own report over 150 to 190 seconds of play. Other hardware is
-untested.
-
-| | AYN Thor (Snapdragon 8 Gen 2, Adreno 740, 120 Hz) | Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650, 60 Hz) |
-|---|---|---|
-| Frame rate cap (the app's default) | 120, the screen's | 60, the screen's |
-| Installing the game files from the disc image, in the app | works | works |
-| Opening movies, title screen, main menu | 119 | 60 |
-| Campaign: F.N.G. | 119.0 | 60.0 |
-| Campaign: Crew Expendable | 119.0 | 59.9 |
-| Campaign: Charlie Don't Surf | 117.4 (117.7 on the first visit) | 59.5 (59.1 on the first visit) |
-| Multiplayer: Crash, a System Link match the device hosts | 119.1 | 60.0 |
-| Multiplayer: the two devices in one System Link match (Backlot), through the project's relay | both spawn and play, ten minutes to the time limit | both spawn and play |
-| Multiplayer: Xbox LIVE Find Match (Team Deathmatch), the two devices through the project's relay | 119, six and a half minutes in the match | 60 |
-| Multiplayer: Xbox LIVE Find Match (Free-for-all), and a private match joined from the pause menu, the two devices through the project's relay | 119 | 60 |
-| Checkpoints: saved, and loaded by Resume Game | works on Windows; not checked on Android | not checked |
-| Bots in the matches the device hosts (the launcher's **Bots** entry) | not run | join, fight and score: six on Crash for a ten-minute match, 60 |
-| Split screen; invitations on Xbox LIVE | not tested | not tested |
-
-What to expect:
-
-- **Charlie Don't Surf stutters where the helicopters land**: 30 to 70 late
-  frames in that half minute on both devices. The rest of the level, and the
-  other levels measured, hold the screen's rate.
-- **The first visit to a level compiles its graphics pipelines**: now and
-  then a late frame as the level starts. Later visits use what was compiled.
-- **Only three campaign levels and two multiplayer maps have been played**
-  for more than a few minutes. The others load from the same code and have
-  not been checked one by one.
-- **Qualcomm devices use the bundled Turnip driver.** Mali and other graphics
-  chips are untested with this game.
-- The sun's shadows are off above 60 frames a second, as in the *Modern
-  Warfare 3* app: with them the AYN Thor drops to 114 to 115 with hundreds of
-  late frames.
-
-What has been checked and how, and what is still open:
-[docs/COD4-BRINGUP.md](docs/COD4-BRINGUP.md).
+Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
+(also builds for Windows) · [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp)
 
 ## What you need
 
-- Your own Xbox 360 *Call of Duty 4: Modern Warfare* disc, dumped to an
-  `.iso` (7.8 GB). The build checks the two executables on it and accepts the
-  one disc build it was made for (USA/Europe, 2007); anything else is refused
-  rather than built wrong.
-- No PC, to build on the device: about 1 GB free beside the image while it
-  builds. Tried on a Snapdragon 8 Gen 2 with 16 GB and a Snapdragon 865 with
-  8 GB, both on Android 13.
-- To build on a PC instead: a Windows 10 or 11 PC (64-bit) with 16 GB of
-  memory or more and about 40 GB free. With a Linux PC, see
-  [Setup without a Windows PC](#setup-without-a-windows-pc).
-- A 64-bit Android phone or handheld with Android 8 or later and Vulkan, with
-  room for the 7.8 GB disc image on its own storage or on a memory card. The
-  game plays from the image; copying its files into the app instead (about
-  7 GB more) is a choice.
+- **Your own *Call of Duty 4: Modern Warfare* disc as an `.iso`** (about
+  7.8 GB). Normal PC disc drives can't read Xbox 360 discs, so the dump has to
+  come from a drive that can. Only the USA/Europe disc (2007) is accepted; any
+  other is refused rather than built wrong.
+- **An Android 10 or newer device with a Snapdragon 865 or better**, 8 GB of
+  RAM recommended. Tested: AYN Thor and Retroid Pocket Flip 2. Mali GPUs from
+  the G57 up are untested; Mali G52 and G76 (and older) are not supported.
+- **About 8 GB free** for the disc image, on the device or an SD card, plus
+  about 1 GB while the game code is built.
 
-## Setup on the device (no PC)
+## Quick start (no PC)
 
-Install the app, tap Build, choose your `.iso`:
+1. Install the APK from [Releases](https://github.com/yassinsolim/cod4-recomp/releases/latest)
+   and open it.
+2. Tap **Build on this device** and pick your `.iso` with the Files app (it is
+   only read). The app downloads its build tools once (43 MB); Android asks
+   twice to allow installing them.
+3. Tap **Build** and wait about **2 to 4 minutes** (2 min 12 s on the AYN
+   Thor, 3 min 49 s on the Flip 2). You can leave the app or lock the screen;
+   it carries on. Keep the device charging: the build uses every core.
+4. Tap **Install & Play**. The game plays straight from the same `.iso`;
+   nothing is copied.
+5. Play: **Campaign** or **Multiplayer**, with the touch overlay or a
+   Bluetooth/USB controller.
 
-1. Install the app from the [latest release](../../releases/latest) and open
-   it. It names the two steps; choose **Build on this device**.
-2. **Choose the disc image with the Files app**: your `.iso`, on the device
-   or its memory card. It is only read, and one in the Download folder is
-   found by itself.
-3. **Download and install the toolchain package**: the compiler, once, a
-   download of 43 MB. Android asks twice: to let the app install a package,
-   and to install it.
-4. **Build**. Keep the charger connected and leave the app if you like: about 2 minutes on a
-   Snapdragon 8 Gen 2, 4 on a Snapdragon 865.
-5. Back in the launcher, **INSTALL & PLAY** plays Call of Duty 4 from the same image
-   where it lies.
+The app updates itself. When an update needs the game code made again it
+says so; tap **Build the game code** (no disc image is asked for).
 
-How it works, what was measured, and what the build does when the device is
-hot or short of memory: [docs/ondevice-build.md](docs/ondevice-build.md).
+<details>
+<summary><b>Other ways to install</b></summary>
 
-## Setup (Windows)
+- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/cod4-recomp.git C:\cod4`,
+  a short path without spaces), connect the phone over USB with USB debugging
+  on, and run
 
-Step 1 of the [two](#two-steps-to-play) done on a PC instead of the device,
-and then step 2 on the phone:
+  ```
+  setup\setup.cmd -Game cod4 -Iso "D:\Games\CoD4.iso" -Install -PushIso
+  ```
 
-1. Get the code: `git clone https://github.com/yassinsolim/cod4-recomp.git C:\cod4`
-   (a short path without spaces).
-2. Connect the phone over USB with USB debugging on, and run
+  It downloads what it needs into `.toolchain\` (only Microsoft's C++ Build
+  Tools are installed system-wide, with your leave), builds `out\cod4-game.apk`
+  and installs it with the app. `-Build pc` or `-Build both` makes the Windows
+  game as well, in `out\pc-cod4`. After an app update that needs new game
+  code: `git pull`, then `setup\setup.cmd -Game cod4 -GameOnly`. `-Check` lists
+  what it would do and changes nothing.
+- **Linux PC** (tested on Ubuntu 24.04, WSL2 included), with the phone
+  connected over USB:
 
-       setup\setup.cmd -Game cod4 -Iso "D:\Games\CoD4.iso" -Install -PushIso
+  ```sh
+  git clone https://github.com/yassinsolim/cod4-recomp.git && cd cod4-recomp
+  bash setup/setup.sh --game cod4 --iso ~/Downloads/CoD4.iso --install --push-iso
+  ```
 
-3. On the phone: open **CoD 4: Modern Warfare**, choose **INSTALL & PLAY**. It
-   finds the disc image in `Download` (on a memory card too) and plays from
-   it: the campaign and the multiplayer read their files out of the image,
-   so keep it there. **Choose Another Source** names an image anywhere else,
-   or copies the files into the app instead
-   ([docs/android.md](docs/android.md#the-game-files)).
-
-The script downloads the tools it needs into `.toolchain\` (each pinned and
-checked by SHA-256; only Microsoft's C++ Build Tools are installed
-system-wide, with your leave), reads the executables out of your disc image
-(read-only), checks them, recompiles them and builds
-`out\cod4-game.apk`: the game code (`com.cod4.recomp.game`), made from your
-disc, with no screen of its own. It is yours alone: never share it.
-
-The app itself (`com.cod4.recomp`) is downloaded from this repository's
-[releases](https://github.com/yassinsolim/cod4-recomp/releases). It contains
-none of the game and finds the game code you built beside it. If no release
-can be downloaded, setup builds the app on your PC instead and says so; that
-copy does not update itself.
-
-Useful options: `-Check` (lists what is there and what would be downloaded,
-changes nothing), `-GameOnly` (build and install the game code only),
-`-Dev` (build the app here), `-Device <serial>` (which phone), `-Yes` (ask
-nothing), `-Build pc` or `-Build both` (the Windows game as well, in
-`out\pc-cod4`). Running setup again is safe: finished steps are skipped.
-
-## Setup without a Windows PC
-
-- **A Linux PC** (tested on Ubuntu 24.04, WSL2 included), one command, with
-  the phone connected over USB:
-
-      git clone https://github.com/yassinsolim/cod4-recomp.git && cd cod4-recomp
-      bash setup/setup.sh --game cod4 --iso ~/Downloads/CoD4.iso --install --push-iso
-
-  It fetches its tools into `.toolchain/`, builds `out/cod4-game.apk`,
-  downloads the published app and installs both. It runs as many compilers
-  as the free memory holds, so an old PC is slower, not stuck;
   `--game-only` rebuilds the game code after an update.
+- **GitHub builds it for you** (no PC, a private repository of your own): not
+  available yet.
 
-Step by step, with what an old PC should expect:
-[docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+Every way, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+How the on-device build works and what was measured:
+[docs/ondevice-build.md](docs/ondevice-build.md).
 
-## Updates
+</details>
 
-The app looks for a newer release when it starts and from **Check for
-updates**, shows what changed and installs it over itself. Your game files,
-saves and game code stay as they are.
+## What works
 
-Now and then an update changes how the game is recompiled. The app then says
-that the game code on the phone does not match it. Built on the device:
-**Build the game code** builds it again, with no disc image asked for. Built
-on a PC: `git pull`, then `setup\setup.cmd -Game cod4 -GameOnly` with the phone
-connected. Either takes minutes; game files and saves are kept
-([docs/game-library.md](docs/game-library.md)).
+Measured on 23 November 2026 on an AYN Thor (Snapdragon 8 Gen 2, 120 Hz) and a
+Retroid Pocket Flip 2 (Snapdragon 865, 60 Hz) with the app's defaults. Other
+hardware is untested.
 
-## Multiplayer
+| | | Measured |
+|---|---|---|
+| Campaign | ✅ | F.N.G. 119 FPS on the Thor, 60 on the Flip; Crew Expendable 119 and 60; Charlie Don't Surf 117 and 59.5 |
+| Multiplayer: System Link | ✅ | Thor and Flip in one match on Backlot, 119 and 60 FPS; Crash 119 and 60 |
+| Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch and Free-for-all, Thor and Flip, 119 and 60 FPS |
+| Bots in matches your device hosts | ✅ | six on Crash on the Flip for ten minutes, 60 FPS; not run on the Thor |
+| Checkpoints on Android | ❔ | work on Windows; not checked on Android |
+| Split screen, Xbox LIVE invitations | ❔ | not tested |
 
-The app's Settings → Network chooses how players reach each other: **Online**
-(through the project's relay, the default), **LAN** (your own network only)
-or off.
+Only three campaign levels and two multiplayer maps have been played for more
+than a few minutes; the rest load from the same code but were not checked one
+by one. Charlie Don't Surf stutters where the helicopters land. What has been
+checked and what is open: [docs/COD4-BRINGUP.md](docs/COD4-BRINGUP.md).
 
-- **MULTIPLAYER → XBOX LIVE → FIND MATCH**, with Online: the relay puts the
-  players who search together. Team Deathmatch and Free-for-all on the
-  disc's sixteen maps.
-- **MULTIPLAYER → SYSTEM LINK**, with Online or LAN: one player creates a
-  game, the others find it in the list.
+## Tips
 
-Everyone needs this same version of the game; it does not play with consoles
-on Xbox LIVE.
+- **Playing from the ISO.** The game reads its files out of the `.iso` where it
+  lies, on the device or an SD card, so keep it there. **Settings → Files**
+  copies the game into the app instead (about 7 GB more) and moves it back.
+- **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
+  in Android, or the refresh-rate tile in the quick settings. The dual-screen
+  assistant can turn it off again after a restart.
+- **Map packs (DLC), experimental.** Copy a package from your own console into
+  `Android/data/com.cod4.recomp/files/dlc/` or a `dlc` folder beside the
+  `.iso`. Never tried with a real map pack, not even the Variety Map Pack:
+  [docs/dlc.md](docs/dlc.md).
+- **Bots.** Tap **Bots** under Multiplayer, then host a **System Link** game;
+  bots only join matches your device hosts.
+- **Settings** are on the app's start screen: network, multiplayer, files,
+  graphics. In a game, the pause menu has **Edit controls**.
+- **Online** play goes through the project's relay at `mw3.yassin.app:3074`,
+  which sees your IP address like any game server
+  ([docs/relay.md](docs/relay.md)). **LAN** plays on your own WiFi only.
+- **Sun shadows** are off above 60 FPS: with them the Thor drops to 114 to 115
+  with many late frames.
+- The first visit to a level may stutter while its graphics are compiled;
+  later visits reuse what was.
 
-**Bots.** On the start screen, tap **Bots** (under **Multiplayer**) and
-choose how many and how good; the entry then reads `BOTS · 6 · REGULAR`.
-Then start Multiplayer and host a System Link game: the bots join the
-matches *your* device hosts, pick a team and a class, fight and score, and
-leave to make room when a player joins. The app's pause menu changes their
-number in a match.
+## Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
+| "The game code does not match this version" | After an update: tap **Build the game code** again |
+| "…is not a version of the game this app supports" | The `.iso` is another game or not the USA/Europe disc this port was made for |
+| The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
+| Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
+| Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
+| Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
+| `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\cod4`; accept the USB debugging prompt on the phone |
+
+Bug reports are welcome with the log (the app's **Log** screen).
+
+<details>
+<summary><b>For developers</b></summary>
+
+This is the same code as [mw3-recomp](https://github.com/yassinsolim/mw3-recomp);
+the repositories differ only in which app their releases carry.
+
+- How it works: [docs/COD4-BRINGUP.md](docs/COD4-BRINGUP.md),
+  [docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md),
+  [docs/runtime.md](docs/runtime.md), [docs/rendering.md](docs/rendering.md),
+  [docs/multiplayer.md](docs/multiplayer.md),
+  [docs/building.md](docs/building.md).
+- The app and the game code are two packages, checked against each other when
+  the game starts: [docs/game-library.md](docs/game-library.md). The app
+  carries no game code; `tools/check_runtime_apk.py` refuses one that does.
+- Asset-free tests: `cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON && cmake --build build-tests && ctest --test-dir build-tests`
+- Releasing: [docs/android-releases.md](docs/android-releases.md). Changes:
+  [CHANGELOG.md](CHANGELOG.md).
+- `tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
+  refuses commits that carry game data. Never commit or publish anything from
+  `cod4/`, `ppc_*/`, `out/` or a build folder.
+
+</details>
 
 ## Credits
 
@@ -215,14 +172,16 @@ This port stands on the work of others:
 - [mw2-recompiled](https://github.com/PaulCombal/mw2-recompiled) by Paul
   Combal and contributors: the runtime, the recompilation pipeline, the relay
   and the online play all of this grew from
-- [mw2-android](https://github.com/OpenPort-Labs/mw2-android), the original
-  Android port by Player124413 and OpenPort-Labs, and its fork
+- mw2-android, the original Android port by Player124413 and OpenPort-Labs
+  (its repository no longer answers), and its fork
   [flavinxs0/mw2-android](https://github.com/flavinxs0/mw2-android) by
   flavinxs0 and contributors: the Android layer
 - [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) (hedge-dev): the
   PowerPC recompiler
 - [Xenia](https://github.com/xenia-project/xenia): the reference for the
   console's behaviour, and its FFmpeg branch's XMA decoder
+- [LLVM](https://github.com/llvm/llvm-project) (clang and lld in the on-device
+  build tools) and [AOSP bionic](https://android.googlesource.com/platform/bionic)'s headers
 - [libadrenotools](https://github.com/bylaws/libadrenotools) and
   [Mesa Turnip](https://gitlab.freedesktop.org/mesa/mesa) (builds by
   [StevenMXZ](https://github.com/StevenMXZ/Adreno-Tools-Drivers)): the
@@ -233,7 +192,9 @@ This port stands on the work of others:
   renderer and Android work since, the app that updates itself and the game
   code as a package of its own
 
-The full list and the licences: [THIRD_PARTY.md](THIRD_PARTY.md).
+The full list of credits
+([mw3-recomp's README](https://github.com/yassinsolim/mw3-recomp#credits))
+and the licences: [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Licence
 
