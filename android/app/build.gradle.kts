@@ -532,7 +532,8 @@ class KitGame(
     val inTextTables: Boolean = false,
 )
 // The executables' hashes are setup/setup.ps1's (Modern Warfare 2),
-// tools/check_mw3_xex.py's and tools/check_cod4_xex.py's.
+// tools/check_mw3_xex.py's, tools/check_cod4_xex.py's and
+// tools/check_aw_xex.py's.
 val kitGames = mapOf(
     "mw2" to KitGame(
         "mw2/tu0",
@@ -563,6 +564,18 @@ val kitGames = mapOf(
                 "COD4MP.toml", "cod4mp_switch_tables.toml", "ppc_cod4_mp", listOf("COD4_TITLE=1", "COD4_TITLE_MP=1", "MW3_TITLE=1")),
         ),
         // The two instructions the configuration replaces by calls (CMakeLists.txt).
+        listOf("runtime/recomp/ppc_extra_instructions.cpp"),
+        inTextTables = true,
+    ),
+    "aw" to KitGame(
+        "aw/tu0",
+        listOf(
+            KitTitle("aw", "default.xex", listOf("a8b1e99c27d6d03a0b0700e6eada1e7d24ee4b194e3c9fa844f16c25f8376a73"),
+                "AW.toml", "aw_switch_tables.toml", "ppc_aw", listOf("AW_TITLE=1", "MW3_TITLE=1")),
+            KitTitle("awmp", "default_mp.xex", listOf("3ef96359f96ee7994e43de70f56a9c2a019d5b841f11318ca2dffdb717b265f8"),
+                "AWMP.toml", "awmp_switch_tables.toml", "ppc_aw_mp", listOf("AW_TITLE=1", "AW_TITLE_MP=1", "MW3_TITLE=1")),
+        ),
+        // The instructions the configuration replaces by calls (CMakeLists.txt).
         listOf("runtime/recomp/ppc_extra_instructions.cpp"),
         inTextTables = true,
     ),

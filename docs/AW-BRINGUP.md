@@ -302,8 +302,13 @@ the game files were pushed with adb and the packages by setup.
 
 The app gives this title the other games' start-up commands (`com_maxfps 0`,
 `r_vsync 0`, `sm_enable 0`, `cg_fov 85`); what each does here was not looked
-at. The app's on-device build of the game code (the build kit) has no entry
-for this title, and `setup/setup.sh` (Linux) does not know it.
+at. The app carries the build kit for this title (the game code built on the
+device, [ondevice-build.md](ondevice-build.md)): `InTextTables.kt` now does
+what the script does (every section of code, the `addi` form) and writes
+the script's tables to the byte for both of this title's executables and
+both of Call of Duty 4's (**verified** on this PC, in a unit test against
+the script's output); the build itself was **not run** on a device.
+`setup/setup.sh` (Linux) does not know this title.
 
 ### The other titles
 
@@ -315,12 +320,44 @@ prints the same extents as `android`'s, byte for byte (26, 32, 11, 22, 34,
 36). No input of their game-library statements differs: the recompiler
 patch, `tools/genshared.py`, `runtime/mmio_hook.h`, their configurations and
 `config/abi/` are untouched, and `setup/setup.ps1` still names the same
-recompiler commit. **Not built**: none of the other titles was compiled from
-this branch. What they share that changed: `NtCreateSemaphore` and
-`XamUserGetDeviceContext` (above), the installer's copy loop
-(`runtime/install/install.cpp`, restructured, Android only),
-`launcher/disc.cpp` (reads folders deeper than one into a list of their
-own), `SubmissionFinished` taken out of the occlusion queries' check.
+recompiler commit. Call of Duty 4's game code built from this branch states
+what the published app expects (`cod4 94ec5f58a992`, `cod4mp a4c71519c558`).
+
+**Built and run** from this branch, on Windows, each from an empty profile
+for 50 to 95 s at 60 presents a second with no unimplemented import reached
+(`pc-regress-six-titles-from-aw.png`, `pc-regress-mw3-mw2-campaign-menus.png`):
+
+| | Reached |
+|---|---|
+| mw3 | its setup screens, the main menu, the CAMPAIGN menu |
+| mw3mp | the multiplayer menu and its "no network connection" notice |
+| mw2 | Brightness, the margins, the content notice (the main menu is one answer further; not pressed) |
+| mw2mp | the multiplayer menu and its sign-in notice |
+| cod4 | the main menu, New Game, F.N.G. in play |
+| cod4mp | the Xbox LIVE menu |
+
+With the same input, the builds made before this branch (`out\pc\mw3.exe`,
+the cod4 branch's MW2) stop where these do.
+
+What they share that changed, and why it does not reach them:
+
+- `NtCreateSemaphore`: only Modern Warfare 3's executables import it; both
+  ran (above). Its arguments were read in MW3's executable.
+- `XamUserGetDeviceContext`, `NtQueryDirectoryFile` over a package's root,
+  the sound callback's context, the kernel's variables, the luminance
+  write-back: none of the six imports the first, and the rest are compiled
+  for `AW_TITLE` alone.
+- PM4 `0x56`: no other title's stream has the packet (it was logged as
+  unknown, and never was).
+- The installer's copy loop (`runtime/install/install.cpp`, Android only)
+  and `launcher/disc.cpp`: Call of Duty 4's app built from this branch
+  (`com.cod4.recomp.aw`) copy-installed that game on the Thor from its disc
+  image, 115 files and the 2,480 of `highmip/`, 6.4 GB, and started
+  (`thor-cod4-from-aw-after-copy-install.png`). Modern Warfare 2's and 3's
+  apps were **not** built from it; they take the same path without a
+  folder of the disc's.
+- `SubmissionFinished` is the occlusion queries' check under a name of its
+  own; Call of Duty 4, the one title with queries, ran on both.
 
 ## The first run's screens
 
@@ -336,9 +373,10 @@ continue" (`continue_message_visible`) only once the brightness has been
 changed (`brightness_updated`), by left or right; A then goes on to Safe Area
 Adjustment (`boot_screen_margins`), which went on to the main menu after one
 adjustment each way and A. Nothing in the runtime was wrong or changed for
-it, and the console command the earlier runs used is not needed. Whether a
-console shows the prompt without an adjustment was **not checked**; nothing
-here says a timer was meant to.
+it, and the console command the earlier runs used is not needed. It is the
+series' way: Modern Warfare 3's setup screens show their `A` prompt only
+after the slider has been moved too
+([MW3-LOCAL-RUN.md](MW3-LOCAL-RUN.md), `ui_brightness_adjusted`).
 
 The controller's binding, its capabilities, the sign-in state and the
 profile's settings were all looked at on the way and are as the title wants
@@ -347,12 +385,11 @@ them: controller 0 is the first active one, its profile is signed in, and
 
 ## Open, in the order it matters
 
-1. Whether the two first-run screens ask a console's player for an
-   adjustment too (above).
-2. New Game from the menu, the other levels, saving.
-3. The multiplayer past its menu; its title block has none of the engine's
+1. New Game from the menu, the other levels, saving.
+2. The multiplayer past its menu; its title block has none of the engine's
    entries (bots, client states, the relay).
-4. The twelve stepped-over instructions and the two half-float unpacks
+3. The twelve stepped-over instructions and the two half-float unpacks
    against known results.
-5. The build kit and `setup/setup.sh` for this title; a merge into
-   `android`, which waits for the other titles to be built from this branch.
+4. `setup/setup.sh` for this title, and the build kit run on a device (it
+   is in the app; `InTextTables.kt` was checked against the script on this
+   PC, the build itself was not run).

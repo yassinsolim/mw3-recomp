@@ -85,54 +85,62 @@ internal object InTextTables {
         val little = ByteBuffer.wrap(image).order(ByteOrder.LITTLE_ENDIAN)
         fun word(address: Long): Long = big.getInt((address - BASE).toInt()).toLong() and 0xFFFFFFFFL
 
-        // The code section, from the image's section table.
+        // Every section that holds instructions, from the image's section
+        // table: .text, and the ones of libraries that bring their own
+        // (Advanced Warfare's Bink has four such tables).
         val pe = little.getInt(0x3C)
         val sections = little.getShort(pe + 6).toInt() and 0xFFFF
         val optional = little.getShort(pe + 20).toInt() and 0xFFFF
-        var start = 0L
-        var size = 0L
+        val code = ArrayList<Pair<Long, Long>>()
         for (index in 0 until sections) {
             val at = pe + 24 + optional + index * 40
-            if (String(image, at, 8, Charsets.ISO_8859_1).trimEnd('\u0000') == ".text") {
-                size = little.getInt(at + 8).toLong() and 0xFFFFFFFFL
-                start = BASE + (little.getInt(at + 12).toLong() and 0xFFFFFFFFL)
+            if (little.getInt(at + 36) and 0x20 != 0) {     // IMAGE_SCN_CNT_CODE
+                val start = BASE + (little.getInt(at + 12).toLong() and 0xFFFFFFFFL)
+                code.add(start to start + (little.getInt(at + 8).toLong() and 0xFFFFFFFFL))
             }
         }
-        if (size == 0L) throw IOException("${executable.name} has no code section")
-        val end = start + size
+        if (code.isEmpty()) throw IOException("${executable.name} has no code section")
 
         val text = tables.readText(Charsets.ISO_8859_1)
         val known = Regex("^    0x([0-9A-F]+),\r?$", RegexOption.MULTILINE).findAll(text).map { it.groupValues[1].toLong(16) }.toHashSet()
         val added = StringBuilder()
         var count = 0
-        var bctr = start + 12
-        while (bctr < end - 8) {
-            if (word(bctr) == 0x4E800420L) {
-                val labels = ArrayList<Long>()
-                var at = bctr + 4
-                // A case is an instruction of the same function: within 16 KB of the dispatch.
-                while (at < end) {
-                    val label = word(at)
-                    if (label < start || label >= end || label % 4 != 0L || Math.abs(label - bctr) >= 0x4000) break
-                    labels.add(label)
-                    at += 4
-                }
-                if (labels.size >= 2 && !known.containsAll(labels)) {
-                    val index = word(bctr - 12)
-                    val load = word(bctr - 8)
-                    val move = word(bctr - 4)
-                    if ((index and 0xFC1FFFFFL) != 0x5400103AL || (load and 0xFFE007FFL) != 0x7C00002EL || move != 0x7C0903A6L) {
-                        throw IOException("an unknown dispatch before the table at %08X".format(bctr + 4))
+        for ((start, end) in code) {
+            var bctr = start + 12
+            while (bctr < end - 8) {
+                if (word(bctr) == 0x4E800420L) {
+                    val labels = ArrayList<Long>()
+                    var at = bctr + 4
+                    // A case is an instruction of the same function: within 16 KB of the dispatch.
+                    while (at < end) {
+                        val label = word(at)
+                        if (label < start || label >= end || label % 4 != 0L || Math.abs(label - bctr) >= 0x4000) break
+                        labels.add(label)
+                        at += 4
                     }
-                    // The cases follow the table.
-                    if (labels.min() < at) throw IOException("the table at %08X runs into its own cases".format(bctr + 4))
-                    added.append("\n").append(MARK).append("[[switch]]\nbase = 0x%08X\nr = %d\ndefault = 0x%08X\nlabels = [\n".format(bctr - 12, (index shr 21) and 31, labels[0]))
-                    labels.forEach { added.append("    0x%08X,\n".format(it)) }
-                    added.append("]\n")
-                    count++
+                    if (labels.size >= 2 && !known.containsAll(labels)) {
+                        var base = bctr - 12
+                        var index = word(base)
+                        val load = word(bctr - 8)
+                        val move = word(bctr - 4)
+                        // addi r12,r12,N between the two: the index is one further back.
+                        if ((index and 0xFFFF0000L) == 0x398C0000L) {
+                            base -= 4
+                            index = word(base)
+                        }
+                        if ((index and 0xFC1FFFFFL) != 0x5400103AL || (load and 0xFFE007FFL) != 0x7C00002EL || move != 0x7C0903A6L) {
+                            throw IOException("an unknown dispatch before the table at %08X".format(bctr + 4))
+                        }
+                        // The cases follow the table.
+                        if (labels.min() < at) throw IOException("the table at %08X runs into its own cases".format(bctr + 4))
+                        added.append("\n").append(MARK).append("[[switch]]\nbase = 0x%08X\nr = %d\ndefault = 0x%08X\nlabels = [\n".format(base, (index shr 21) and 31, labels[0]))
+                        labels.forEach { added.append("    0x%08X,\n".format(it)) }
+                        added.append("]\n")
+                        count++
+                    }
                 }
+                bctr += 4
             }
-            bctr += 4
         }
         if (count > 0) tables.appendText(added.toString(), Charsets.ISO_8859_1)
         return count
