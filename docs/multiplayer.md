@@ -594,8 +594,13 @@ invited private match on Windows; it
 finds matches through its publisher's matchmaking, which the DemonWare
 stand-in answers from the relay's listings. Exo Survival starts from the
 campaign's menu, which hands the mode over as launch data, and `MW2_UNLOCK_ALL`
-(the app's "Unlock all items") takes the padlocks off Create a Class under
+(the app's "Unlock all items", and in the `.env` that `setup\setup.ps1`
+writes) takes the padlocks off Create a Class under
 Live ([AW-BRINGUP.md](AW-BRINGUP.md#the-rest-on-the-devices-24-november-2026)).
+On Windows two copies meet in Exo Survival by its own Find Match, and
+Combat Readiness Program is a Team Deathmatch of one player and the host's
+bots
+([AW-BRINGUP.md](AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a

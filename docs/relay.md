@@ -190,6 +190,9 @@ joins a party, so raise it when the file changes.
     mp_afghan,tdm,1                    // map, game type, weight: no spaces
 
 A flag `ranked` on a playlist makes it arbitrated, which nothing here answers.
+Advanced Warfare's file also has categories, which say which of its menus
+lists a playlist
+([AW-BRINGUP.md](AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
 `rule party_hostmigration 0` keeps a lobby's first host, so a match ends when it
 leaves ([host migration](multiplayer.md#host-migration)).
 

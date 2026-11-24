@@ -5,6 +5,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Advanced Warfare: Exo Survival's Find Match and Combat Readiness
+  Program on a relay**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
+  The playlists now have the title's categories
+  (`relay/playlists_aw.info`): Exo Survival's Find Match lists Exo
+  Survival, where it listed Team Deathmatch and Free-for-all and opened a
+  Team Deathmatch lobby, and two copies on Windows meet by it and play
+  round 1; Combat Readiness Program starts a Team Deathmatch with one
+  player and the host's bots. The multiplayer's Find Match reads as
+  before. Seen on Windows only.
+- `setup\setup.ps1` writes Advanced Warfare's Windows settings (`.env`)
+  with the relay and `MW2_UNLOCK_ALL=1`, as Modern Warfare 3's.
 - **Advanced Warfare's checkpoints are kept**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#checkpoints-the-left-trigger-setupsh-24-november-2026),
   [docs/saves.md](docs/saves.md#advanced-warfares-checkpoints)): the title
@@ -116,6 +128,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **Advanced Warfare: wall panels drawn as coloured noise for a whole
+  match, now and then.** The title draws some moves of its streamed
+  images' pool in pieces; the copy was made at the first piece and the
+  move forgotten, so a later piece could be taken for the next move to
+  the same place, whose copy was then made too early, from memory the
+  pool had not filled yet (4 to 146 times in 150 seconds on each of the
+  thirteen multiplayer maps; seen as noise once, on Bio Lab's outside in
+  Exo Survival). A move is now held until its last piece
+  (`runtime/image_move.cpp`,
+  [docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#wall-panels-as-coloured-noise-24-november-2026)).
+  Modern Warfare 2 and 3 draw every move in one piece and are unchanged.
 - **Advanced Warfare: Create a Class had padlocks under Xbox LIVE on a
   phone.** The app set `MW2_UNLOCK_ALL` for Modern Warfare 3 only; it now
   sets it for Advanced Warfare's multiplayer too, with its own switch in

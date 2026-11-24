@@ -6,7 +6,13 @@
 // Playlists are numbered from 1: the title's menu never lists playlist 0.
 // None is `ranked`: a ranked match asks Xbox LIVE for arbitration, which
 // nothing answers.
-version 1
+//
+// The categories at the end say which menu lists what (docs/AW-BRINGUP.md,
+// "Exo Survival under Xbox LIVE, Combat Readiness Program"): TOP's own
+// playlists are the multiplayer's Find Match, a SURVIVAL category Exo
+// Survival's, and Combat Readiness Program takes the PRACTICE category's
+// playlist. Without them every menu listed every playlist.
+version 2
 
 gametype tdm
 name english "Team Deathmatch"
@@ -18,6 +24,12 @@ gametype ffa
 name english "Free-for-all"
 abbrv english "FFA"
 script dm
+
+gametype horde
+name english "Exo Survival"
+abbrv english "EXO"
+script horde
+teambased
 
 playlist 1
 name english "Team Deathmatch"
@@ -58,3 +70,57 @@ mp_venus,ffa,1
 mp_prison,ffa,1
 mp_solar,ffa,1
 mp_terrace,ffa,1
+
+playlist 3
+name english "Exo Survival"
+description english "Up to four players against rounds of enemies."
+minparty 1
+maxparty 4
+rule party_minplayers 2
+mp_refraction,horde,1
+mp_lab2,horde,1
+mp_comeback,horde,1
+mp_laser2,horde,1
+mp_detroit,horde,1
+mp_greenband,horde,1
+mp_levity,horde,1
+mp_instinct,horde,1
+mp_recovery,horde,1
+mp_venus,horde,1
+mp_prison,horde,1
+mp_solar,horde,1
+mp_terrace,horde,1
+
+playlist 4
+name english "Combat Readiness Program"
+description english "Team Deathmatch for practice, with the host's bots."
+minparty 1
+maxparty 6
+// One: the title then starts without searching for a second player.
+rule party_minplayers 1
+mp_refraction,tdm,1
+mp_lab2,tdm,1
+mp_comeback,tdm,1
+mp_laser2,tdm,1
+mp_detroit,tdm,1
+mp_greenband,tdm,1
+mp_levity,tdm,1
+mp_instinct,tdm,1
+mp_recovery,tdm,1
+mp_venus,tdm,1
+mp_prison,tdm,1
+mp_solar,tdm,1
+mp_terrace,tdm,1
+
+category TOP
+include 1,2,B,C
+
+category B
+name english "Exo Survival"
+categoryclass SURVIVAL
+include 3
+
+category C
+name english "Combat Readiness Program"
+categoryclass PRACTICE
+include 4

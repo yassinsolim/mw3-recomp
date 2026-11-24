@@ -1046,12 +1046,13 @@ if ($ForPc) {
         if (-not $name) { $name = $own }
         if ($name.Length -gt 15) { $name = $name.Substring(0, 15) }
         $online = "MW2_NETWORK=server`nMW2_SERVER=$DefaultRelay`nMW2_NAME=$name`nMW2_FULLSCREEN=0`n"
-        # Call of Duty 4 and Advanced Warfare have nothing to unlock, and a
-        # log of their own name. Advanced Warfare has no relay to play
-        # through yet, and is told where the install disc's packages are
-        # rather than given a copy of their 4 GB.
+        # Call of Duty 4 has nothing to unlock. Advanced Warfare's Create a
+        # Class has padlocks under Xbox LIVE, which a relay signs it in to,
+        # as Modern Warfare 3's has; it is also told where the install
+        # disc's packages are rather than given a copy of their 4 GB. Each
+        # has a log of its own name.
         $settings = if ($Cod4) { $online + "MW2_LOG_FILE=cod4.log`n" }
-                    elseif ($Aw) { "MW2_FULLSCREEN=0`nMW2_LOG_FILE=aw.log`nMW2_DLC_DIR=$InstallFolder`n" }
+                    elseif ($Aw) { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=aw.log`nMW2_DLC_DIR=$InstallFolder`n" }
                     else { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n" }
         [IO.File]::WriteAllText($envFile, $settings)
     }

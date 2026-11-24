@@ -417,9 +417,10 @@ them: controller 0 is the first active one, its profile is signed in, and
 1. A level played from its first minute to its last without a start point,
    and the levels after Atlas ("Checkpoints, the left trigger, setup.sh"
    has what was tried and what there is to try it with).
-2. The multiplayer's Combat Readiness Program, Exo Survival under Xbox
-   LIVE, and a round of Exo Survival survived on a device without the test
-   build ("The multiplayer", below, has what works).
+2. A round of Exo Survival survived on a device without the test build,
+   and Exo Survival under Xbox LIVE and Combat Readiness Program on the
+   devices: both were seen on Windows only ("The multiplayer", below, has
+   what works).
 
 ## After merging `android` in (24 November 2026)
 
@@ -695,7 +696,10 @@ Xbox LIVE's Find Match (on Windows, and the Thor with the Flip 2) and by an
 invitation to a private match (on Windows). Exo Survival is reached from the
 campaign's own menu on both devices and played by one and by two; a bot
 leaves a full match for a joining player ("Xbox LIVE and Exo Survival" and
-"The rest on the devices", below). Combat Readiness Program is open.
+"The rest on the devices", below). On Windows two copies also meet in Exo
+Survival by Xbox LIVE's Find Match, and Combat Readiness Program is a match
+of one player and the host's bots ("Exo Survival under Xbox LIVE, Combat
+Readiness Program", below).
 
 ### What the executable has (derived, from `default_mp.pe`)
 
@@ -751,7 +755,8 @@ Start Game (the party's `go <map> <game type>` to every member).
   is not used. Game Setup's Friendly Bots and Enemy Bots still decide when
   the player sets them. At most 11.
 - **The streamed images' move** (`T_Image_FlushMove`): without it most
-  world and weapon textures were noise.
+  world and weapon textures were noise. A move drawn in pieces is held
+  until its last piece ("Wall panels as coloured noise", below).
 - **The host's patience** (`runtime/aw_server.cpp`). A host built from this
   source waits for a silent player in its match as long as the title waits
   for one connecting: `sv_timeout` is given `sv_connectTimeout`'s 40 seconds
@@ -777,9 +782,13 @@ Start Game (the party's `go <map> <game type>` to every member).
   `thor-settings-unlock-all-items.png`), and with it all
   six kinds of primary weapon and the attachments list without one
   (`thor-live-cac-unlocked-*`). The perks, Exo abilities, scorestreaks and
-  wildcards were not paged through. The Windows game's settings file is
-  written without the switch and without a relay for this title
-  (`setup/setup.ps1`): set `MW2_UNLOCK_ALL=1` there by hand.
+  wildcards were not paged through. The Windows game's settings file
+  (`.env`, written by `setup/setup.ps1` when there is none) has the relay
+  and the switch as Modern Warfare 3's has: started from a folder with
+  only that file, the multiplayer signs in to the relay and Create a Class
+  under Xbox LIVE lists its assault rifles without a padlock, and the
+  campaign, which reads the same file, reaches its menu and New Game.
+  `setup/setup.sh` builds for Android only and writes no such file.
 
 ### Seen on Windows (RTX 5080, two copies on one PC, `MW2_NETWORK=lan`)
 
@@ -863,7 +872,7 @@ both had drawn the map before. A Windows copy also joined the Flip 2's
 lobby through the relay ("Waiting for host to start game").
 
 **Open:** a join by a copy that is silent for twenty seconds or more
-(above); Combat Readiness Program (not opened).
+(above).
 
 ### Xbox LIVE and Exo Survival (24 November 2026, Windows)
 
@@ -877,7 +886,7 @@ machine at `822F5388`, one state a step):
 | The logon | one HTTPS POST of JSON to `aw-xbox360-auth3.prod.demonware.net/auth/` through XHttp (`bdXHTTP`, the thread at `821BAA18`; `bdAuthXenon` `821C6310`, the reply read at `821C6718`), after asking Live for a token (`XamGetToken`) | `kernel/xhttp.cpp`, a request answered in the process; `online/demonware.cpp` writes the reply: task 0x2B, code 700, a client ticket the title takes undecrypted because its magic number reads as it is (`821C6A2C`), and `{"dpi": ...}` |
 | Where the lobby is | `XOnlineGetServiceInfo(0x415607E9)`, the title server `S1 - DW ATVI LSP` (`822F5190`) | as Modern Warfare 3's, `kernel/xam.cpp` |
 | The lobby | one TCP stream to port 1027, Modern Warfare 3's protocol, not encrypted | `online/demonware.cpp` |
-| The playlists | `playlists.aggr` (storage task 7), then `social.cfg`, `mm.cfg`, the message of the day | `relay/playlists_aw.info` unless the relay has a file; the others as Modern Warfare 3's or "no such file" |
+| The playlists | `playlists.aggr` (storage task 7), then `social.cfg`, `mm.cfg`, the message of the day | `relay/playlists_aw.info` (its categories are below, "Exo Survival under Xbox LIVE, Combat Readiness Program") unless the relay has a file; the others as Modern Warfare 3's or "no such file" |
 | The player's files | `metplayerdata` and `mpdata` (storage tasks 12, 10, 13: get `821C42A0`, upload `821C4128`, list `821C43E0`, each with a context name first) | kept under `saves/online/user/<xuid>/` |
 | A public match | matchmaking, service 138: create 1 (`821AF470`), update 2, delete 3, find 16 (`821AF978`); **not** `XSessionSearch` | the online service's listings (`online/demonware.cpp`, "bdMatchMaking") |
 | The line to a host | `XNetQosLookup` | from the search, as for the other titles |
@@ -977,15 +986,109 @@ Equipped and the upgrade points go from 4 to 3
 (`pc-survival-exo-upgrade-*`, `pc-survival-exo-ability-bought-*`). The
 weapon station and a support drop were not opened.
 
-**Seen and not explained:** in Exo Survival on Windows some wall panels of
-Bio Lab's outside were drawn as coloured noise in one run
-(`pc-survival-*` sheets), which is how the campaign's textures looked
-before the image pool's move was made. On the Thor a touch on a stick
-moved nothing during the two-player session's intermission, where it had
-turned and walked the player in the session before; not looked into.
+**Seen and not explained:** on the Thor a touch on a stick moved nothing
+during the two-player session's intermission, where it had turned and
+walked the player in the session before; not looked into. On Windows dark
+round blots hung in the air in a few frames on Bio Lab and on Riot
+(`pc-mp-thirteen-maps-after-piecewise-moves-2.png`, its first row); not
+looked into.
 
-**Not seen:** a round survived on a device by play alone; Exo Survival under
-Xbox LIVE (its public matchmaking); the weapon station; Local Play.
+**Not seen:** a round survived on a device by play alone; the weapon
+station; Local Play.
+
+### Wall panels as coloured noise (24 November 2026)
+
+In one Exo Survival run on Windows some wall panels of Bio Lab's outside
+were coloured noise for as long as the run was watched, four minutes
+(`pc-survival-biolab-panels-noise-before.png`). It did not come back in
+twelve more runs looked at from the same place, with the same executable or a later
+one, with every core busy while the level loaded, or with the thread that
+consumes the command stream held for 3 to 9 seconds as textures streamed
+in. So the cause was looked for in what the pool's moves do, and found
+there.
+
+The title's function draws a move in one piece, unless the destination
+lies below the source and reaches into it: then in pieces no longer than
+the distance between the two (`822AEAA8`, the campaign's `825A91F0`: the
+count at `srawi r10,r11,6`, the loop after it), every piece with the
+move's one stream constant, its first vertex in `VGT_INDX_OFFSET`. The
+copy was made at the first piece and the move forgotten. The pool moves
+blocks to one destination again and again, and the title's threads run a
+frame or two ahead of the command stream: when the next move to that
+destination had been asked before the earlier one's later pieces were
+parsed, a later piece named the next move as well, and its copy was made
+there, ahead of every draw the title had put between the two, from a
+source the pool had not filled yet. Nothing put it right afterwards: the
+move's own draw found nothing waiting.
+
+How often, counted by a build that holds a move until its last piece and
+notes each later piece with another move to the same destination waiting
+behind it: 600 to 3,500 later pieces in 150 seconds of a level, 4 to 146
+of them with one waiting, on every one of the thirteen maps. A build that
+also compared the source's bytes at those two moments (not kept) found
+them different in two runs of four, one or two blocks of 8 or 16 KB each:
+a small texture's worth, which is noise where it is drawn and unseen where
+it is not.
+
+**The fix** (`runtime/image_move.cpp`): the number of pieces is worked out
+as the title's function does, and a move stays in the list until the
+parse has met that many of its draws; the copy is still made at the
+first. Modern Warfare 2's and 3's functions draw every move in one piece
+(the campaigns' `823A52F8` and `823D4398`, read: one draw of `size >> 6`
+vertices from the first), so nothing changes for them. After it, the same place on Bio Lab
+(`pc-survival-biolab-panels-after-piecewise-moves.png`) and a Team
+Deathmatch with six bots on each of the thirteen maps, 150 seconds each:
+no noise (`pc-mp-thirteen-maps-after-piecewise-moves-*.png`). On the AYN
+Thor (`-Suffix .awf`, the game started by a script in `options.txt`) Exo
+Survival's round 1 on Bio Lab at 119 frames a second, its textures whole
+(`thor-survival-biolab-round1-after-piecewise-moves.png`). The noise
+itself was never reproduced, so the fix rests on the fault found and not
+on a picture that changed.
+
+### Exo Survival under Xbox LIVE, Combat Readiness Program (24 November 2026, Windows)
+
+Two copies on one PC through `mw3.yassin.app`, driven by
+`MW2_INPUT_SCRIPT`; evidence in `private-captures\aw\`.
+
+**The playlists' categories.** The title's playlist file has categories
+beside its playlists (the parser's loop at `8249ABE0`, the keywords at
+`8208BB94`..): `category TOP`, or `category` and one letter from A to S;
+in it `name`, `categoryclass` and `include`, a list of playlist numbers
+and, in TOP only, of other categories' letters. The class says which menu
+lists the category: `MPCORE` (also `CORE`, `MP`) the multiplayer's Find
+Match, `SURVIVAL` Exo Survival's, `PRACTICE` Combat Readiness Program,
+and `ALIEN`, `DIRECTDISPLAY`, `ANY`, `OFF`. With no category in the file,
+as it was, Exo Survival's Find Match listed Team Deathmatch and
+Free-for-all and put the player in a Team Deathmatch lobby.
+`relay/playlists_aw.info` now has a `horde` game type, an Exo Survival
+playlist in a `SURVIVAL` category and a Combat Readiness Program playlist
+in a `PRACTICE` one; the two multiplayer playlists are listed by TOP
+itself, so the multiplayer's Find Match reads as before.
+
+| | Seen | Evidence |
+|---|---|---|
+| Exo Survival, Xbox LIVE, Find Match | lists Exo Survival alone; both copies choose it six seconds apart, the second finds the first's lobby (`dw: the search found 1 sessions`), the map vote, Comeback loads as "Comeback - Exo Survival", both choose an Exo, "Survive", round 1's enemies; both are killed in round 1 (blind input) and the After Action Report follows | `pc-survival-live-findmatch-*` |
+| Combat Readiness Program, two copies, `MW2_BOTS=6` | the lobby opens at once from the main menu, "The match is about to begin", and each copy plays a Team Deathmatch of its own with its own bots (Greenband on one: a killcam, respawns, an Orbital Care Package): they do not meet | `pc-crp-relay-bots-copy-*` |
+
+Combat Readiness Program takes the `PRACTICE` category's playlist (its map
+list was the lobby's when it had one map). What its `party_minplayers`
+does:
+
+- At 2 the lobby waits ("Waiting for 1 more player"). A second copy found
+  it and joined, the match began and the level loaded on both; one of
+  the two was then dropped with "Server timed out" while two more copies
+  were loading levels on the same PC, and the run was not repeated. With
+  no bots set this is Find Match under another name.
+- At 1, as the file has it, the title searches for nobody and starts.
+  With the host's bots that is a practice match, the nearest to what the
+  mode was. Without bots (`MW2_BOTS` unset, the app's Bots at 0) the
+  match starts and is forfeited after twenty seconds for want of an
+  enemy.
+
+The playlist's `numaislots` added no bots.
+
+**Not seen:** either on a device; Exo Survival's Find Match past round 1;
+its Private Match.
 
 ## Frame rate on the two devices (24 November 2026)
 

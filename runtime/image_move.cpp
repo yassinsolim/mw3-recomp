@@ -40,8 +40,12 @@ namespace
     struct PendingCopy
     {
         uint32_t destination = 0, source = 0, size = 0;   // guest virtual
-        uint32_t streamConstant = 0;                       // c0.x of the copy draw
+        uint32_t streamConstant = 0;                       // c0.x of the copy's draws
         uint64_t frame = 0;                                // the guest frame asked in
+        // The draws the title makes of it that the parse has yet to meet: one,
+        // or one for each piece of a move down onto its own source (Pieces).
+        uint32_t drawsLeft = 1;
+        bool made = false;                                 // at the first of them
     };
     std::mutex g_pendingLock;
     std::vector<PendingCopy> g_pending;
@@ -62,6 +66,7 @@ namespace
 
     std::atomic<uint64_t> g_asked{ 0 }, g_bytes{ 0 };
     uint64_t g_atDraw = 0, g_atFrameEnd = 0, g_otherShader = 0;   // GPU thread only
+    uint64_t g_laterPieces = 0, g_piecesBeforeAnother = 0;        // GPU thread only
     std::atomic<uint64_t> g_immediate{ 0 };
 
     // `inStream` when the copy is made where the command stream makes it, on
@@ -84,6 +89,25 @@ namespace
         }
         vk::textures::MemoryWritten(kernel::ToPhysical(destination), size);
     }
+
+    // How many draws the title makes of one move. Advanced Warfare's function
+    // (the campaign's sub_825A91F0, the multiplayer's sub_822AEAA8) draws 64
+    // bytes a vertex, all of them at once unless the destination lies below
+    // the source and reaches into it: then no draw is longer than the distance
+    // between the two, and each has the move's stream constant. The earlier
+    // titles' functions make the one draw whatever the two blocks are.
+    uint32_t Pieces([[maybe_unused]] uint32_t destination, [[maybe_unused]] uint32_t source,
+                    [[maybe_unused]] uint32_t size)
+    {
+#ifdef AW_TITLE
+        const bool overlap = destination + size > source && source + size > destination;
+        if (!overlap || source <= destination) return 1;
+        const uint32_t vertices = size >> 6, most = (source - destination) >> 6;
+        return most && vertices ? (vertices + most - 1) / most : 1;
+#else
+        return 1;
+#endif
+    }
 }
 
 #ifdef T_Image_FlushMove
@@ -99,7 +123,7 @@ GUEST_HOOK(T_Image_FlushMove)
     {
         std::lock_guard held(g_pendingLock);
         g_pending.push_back({ destination, source, size, 0x40000000u | (physical >> 2),
-                              gpu::FrameCount() });
+                              gpu::FrameCount(), Pieces(destination, source, size) });
         g_pendingCount.store(uint32_t(g_pending.size()), std::memory_order_relaxed);
     }
     GUEST_ORIG(T_Image_FlushMove)(ctx, base);
@@ -122,18 +146,30 @@ void imagepool::AtDraw(uint32_t streamConstant, uint64_t vertexShader)
     PendingCopy copy;
     {
         std::lock_guard held(g_pendingLock);
-        auto it = std::find_if(g_pending.begin(), g_pending.end(), [&](const PendingCopy& c) {
-            return c.streamConstant == streamConstant;
-        });
+        auto named = [&](const PendingCopy& c) { return c.streamConstant == streamConstant; };
+        auto it = std::find_if(g_pending.begin(), g_pending.end(), named);
         if (it == g_pending.end()) return;
         // c0 outlives the draw that set it. Once the copy shader is known, an
         // old stream constant under some other draw is not a copy.
         if (g_copyShader && vertexShader != g_copyShader) { g_otherShader++; return; }
         g_copyShader = vertexShader;
         copy = *it;
-        g_pending.erase(it);
+        // A move drawn in pieces stays until its last: the pool moves blocks
+        // to one destination again and again, and a later piece's draw named
+        // the next move there as well as its own, which was then copied
+        // before the draws the title had put ahead of it -- from a source the
+        // pool had not filled yet, noise for as long as the image stayed.
+        if (copy.made)
+        {
+            g_laterPieces++;
+            if (std::find_if(it + 1, g_pending.end(), named) != g_pending.end())
+                g_piecesBeforeAnother++;
+        }
+        it->made = true;
+        if (--it->drawsLeft == 0) g_pending.erase(it);
         g_pendingCount.store(uint32_t(g_pending.size()), std::memory_order_relaxed);
     }
+    if (copy.made) return;
     Copy(copy.destination, copy.source, copy.size, true);
     g_atDraw++;
 }
@@ -151,8 +187,11 @@ void imagepool::AtFrameEnd(uint64_t parsedFrames)
         g_pending.erase(late, g_pending.end());
         g_pendingCount.store(uint32_t(g_pending.size()), std::memory_order_relaxed);
     }
-    for (const PendingCopy& c : overdue) Copy(c.destination, c.source, c.size, true);
-    g_atFrameEnd += overdue.size();
+    // One made at its first draw was only waiting for draws that never came.
+    size_t late = 0;
+    for (const PendingCopy& c : overdue)
+        if (!c.made) { Copy(c.destination, c.source, c.size, true); late++; }
+    g_atFrameEnd += late;
 }
 
 void imagepool::DescribeMovesAround(uint32_t physicalAddress, uint32_t size, uint64_t frames,
@@ -203,4 +242,8 @@ void imagepool::Report()
          (unsigned long long)asked, (unsigned long long)(g_bytes.load() >> 20),
          (unsigned long long)g_atDraw, (unsigned long long)g_atFrameEnd,
          (unsigned long long)g_immediate.load(), (unsigned long long)g_otherShader);
+    if (g_laterPieces)
+        LOGI("image pool: %llu later draws of moves made in pieces, %llu of them with another move"
+             " to the same destination waiting behind",
+             (unsigned long long)g_laterPieces, (unsigned long long)g_piecesBeforeAnother);
 }
