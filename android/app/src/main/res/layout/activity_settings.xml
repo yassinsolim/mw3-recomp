@@ -238,6 +238,24 @@
                     android:text="@string/sun_shadows_hint" />
 
                 <TextView
+                    android:id="@+id/sharpening_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/sharpening"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/sharpening_hint" />
+
+                <TextView
                     android:id="@+id/fov_label"
                     style="@style/SettingLabel"
                     android:layout_width="match_parent"

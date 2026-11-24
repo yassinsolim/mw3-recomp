@@ -163,6 +163,9 @@
         <item>Off</item>
     </string-array>
     <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device leaves them out on a Snapdragon 865-class chip, and in Modern Warfare 3 wherever the FPS limit is above 60, which is nearer held without them; On keeps them at a lower frame rate.</string>
+    <string name="sharpening">Sharpening: %1$d%%</string>
+    <string name="sharpening_off">Sharpening: off</string>
+    <string name="sharpening_hint">Sharpens the picture as it is enlarged to the screen, which gives back some of the detail the enlarging blurs; 80 to 100% is nearest a picture drawn at the screen\'s own size. The game is then shown at the screen\'s full resolution whatever the resolution above says. It costs a third to half a millisecond of the graphics chip\'s time a frame: a few frames a second where the chip is already at its limit.</string>
     <string name="show_stats">Show frames per second</string>
     <string name="hide_stats">Hide frames per second</string>
     <string name="texture_budget_auto">Texture memory: chosen for this phone</string>

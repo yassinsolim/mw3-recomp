@@ -20,6 +20,7 @@ time and are not stored here.
 | Barlow fonts | `third_party/fonts/Barlow*.ttf` | SIL OFL 1.1 (`third_party/fonts/OFL.txt`) |
 | Michroma font | `third_party/fonts/Michroma-Regular.ttf` | SIL OFL 1.1 (`third_party/fonts/Michroma-OFL.txt`) |
 | Zone structure definitions from [OpenAssetTools](https://github.com/Laupetin/OpenAssetTools) via [pc2xbox360mw2ools](https://github.com/slanginbeans/pc2xbox360mw2ools) | `launcher/zone/defs/`, `launcher/zone/defs_pc/` (each has a `NOTICE.md`) | GPL-3.0 |
+| [FidelityFX Super Resolution 1.0](https://github.com/GPUOpen-Effects/FidelityFX-FSR) by Advanced Micro Devices: its RCAS sharpening filter, written out as GLSL | `runtime/gpu/vulkan/shaders/sharpen.frag` (and its SPIR-V in `sharpen_shaders.inc`) | MIT (in the file) |
 | [libadrenotools](https://github.com/bylaws/libadrenotools) | fetched into `third_party/libadrenotools/` | BSD-2-Clause |
 | Mesa Turnip driver | fetched, see below | MIT |
 

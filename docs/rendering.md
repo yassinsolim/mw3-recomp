@@ -829,6 +829,123 @@ periods of the one before, M% within 2.05` is the line a 120 Hz run is judged
 by: N is the share of frames that kept the display's rate, 100 - M the share
 that missed two blanks.
 
+### Sharpening on the way to the window
+
+`MW2_SHARPEN=<1 to 100>` (`sharpen.cpp`) draws the frame into the window
+through a filter in place of the linear copy: FidelityFX Super Resolution
+1.0's RCAS, five taps a window pixel apart read through the linear sampler,
+one pass over the frame's place in the swapchain image (the bars around it are
+the pass's clear). The number is the strength in percent of the filter's most.
+Unset or 0 is the copy, as before. The picture has been enlarged twice by
+then, the scene to the frame by the title and the frame to the window here,
+both linearly, and the filter gives some of that back. Where a device has no
+dynamic rendering the frame is copied, and the log says so.
+
+The Android app's Sharpening setting (Graphics) sets it, off by default, and
+makes the surface the screen's own size while it is on: the app otherwise
+draws into a surface of 70% of the screen and lets the compositor enlarge
+that, which would soften the sharpened edges again.
+
+The two shaders are GLSL (`shaders/sharpen.vert`, `.frag`), where the
+runtime's other SPIR-V is written by `spirv.h`: the fragment shader is a
+published filter kept as its authors wrote it. `tools/gen_sharpen_shaders.py`
+compiles them with `glslc` into `shaders/sharpen_shaders.inc`, which is
+committed, so no build needs a GLSL compiler; `--check` says whether the file
+is what the shaders compile to.
+
+**What it costs**, measured 2026-11-24 with `MW2_REPORT=1` (the GPU's time in
+the window's submissions over the frames of a run), Modern Warfare 2, Team
+Player's three heavy views, a 1920x1080 window, Turnip v27.0.0-R2:
+
+| the frame's way to the window | Retroid Pocket Flip 2 (Adreno 650), GPU ms a frame | frames a second at the views, on time | AYN Thor (Adreno 740), GPU ms a frame | frames a second in play |
+|---|---|---|---|---|
+| linear copy into a 70% surface, enlarged by the compositor (the app's default) | 0.19 | 58.8, 77.8% | 0.18 | 83.9 |
+| linear copy into a full-size surface | 0.32 | 58.6, 79.3% | 0.35 | 81.7 |
+| RCAS, `MW2_SHARPEN=50` | 0.54 | 59.0, 75.3% | 0.66 | 81.0 |
+| Snapdragon Game Super Resolution 1 (not kept) | 0.58 | 58.0, 73.7% | 0.64 | 79.0 |
+| FSR 1: EASU, then RCAS (not kept) | 1.46 | 58.0, 68.9% | 1.15 | 79.1 |
+
+One run each. The Flip 2 is at its cap of 60 there with any of them; the Thor
+is bound by its GPU in those views and gives up three frames a second in 84
+for the sharpening, which is why it is off until the player asks.
+
+**What it gains**, against a picture whose truth is known. The three views
+drawn at twice the size (`MW2_SCALE=2`) and photographed at 1920x1080 are the
+truth; that picture was taken down to the scene's size and enlarged linearly
+to the 1280x720 frame as the title does, brought to 1920x1080 by each filter
+(the shaders rewritten for the PC, operation for operation), and compared:
+
+| | 832x480 scene (Adreno 6xx): PSNR, SSIM | 1024x600 scene: PSNR, SSIM |
+|---|---|---|
+| linear copy into a 70% surface, enlarged again | 27.75 dB, 0.796 | 28.66 dB, 0.834 |
+| linear copy into a full-size surface | 28.23 dB, 0.817 | 29.44 dB, 0.862 |
+| RCAS at 50% | 28.59 dB, 0.833 | 30.03 dB, 0.882 |
+| RCAS at 100% | 29.59 dB, 0.873 | 31.59 dB, 0.925 |
+| Snapdragon Game Super Resolution 1 | 29.40 dB, 0.854 | 31.00 dB, 0.900 |
+| FSR 1 (EASU, RCAS at 100%) | 29.52 dB, 0.870 | 31.07 dB, 0.914 |
+
+The measure flatters all of them in one respect: the picture taken down is
+smooth at its edges, and the title's scene, drawn without multisampling on a
+phone, is not. On the devices every filter also makes the scene's stair-stepped
+edges and the grain of smoke crisper, Snapdragon GSR most (its picture looks
+painted at 720 to 1080), RCAS least at the same strength. Text and the HUD,
+which are drawn at the frame's size, gain most.
+
+### Not built, and built and not kept (November 2026)
+
+What the title gives a filter is a finished 1280x720 picture: the HUD is
+drawn into the same surface as the world, there are no motion vectors, and
+the depth of a frame is in another surface the window never sees. What each
+technique would need, and what was measured of the ones tried:
+
+| technique | needs | licence | here |
+|---|---|---|---|
+| [Snapdragon GSR 1](https://github.com/SnapdragonStudios/snapdragon-gsr) (spatial, one pass, twelve taps of luminance) | the picture | BSD-3-Clause | tried: as much GPU as RCAS, a lower SSIM in both tables above and the harsher picture; not kept |
+| [FSR 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR) EASU + RCAS (spatial, two passes) | the picture | MIT | tried: two to two and a half times RCAS's GPU for the same PSNR; EASU not kept, RCAS is the sharpening above |
+| FidelityFX CAS | the picture | MIT | not built: RCAS is its successor in FSR 1 and the same five taps |
+| [Snapdragon GSR 2](https://github.com/SnapdragonStudios/snapdragon-gsr/tree/main/sgsr/v2), FSR 2 and 3 upscaling, [Arm ASR](https://github.com/arm/accuracy-super-resolution) (temporal) | the scene before the HUD, its depth, motion vectors (the camera's can be made from depth and the two frames' matrices; a moving object's cannot), and the projection moved by a part of a pixel every frame | BSD-3-Clause, MIT, MIT | not built: the title's view matrices would have to be found and jittered in four executables, and the scene taken before its own stretch to the frame |
+| TAA, TAAU | the same | | not built, for the same reason |
+| Variable-rate shading (`VK_KHR_fragment_shading_rate`) | the extension, which Turnip has from the Adreno 7xx on ([Mesa's features list](https://docs.mesa3d.org/features.html): `tu/a7xx+`), so not on the Flip 2 | | not built: it saves pixels, and on the one device that has it a scene of two thirds the pixels changed nothing ([android.md](android.md#adreno-7xx-snapdragon-8-gen-2-class): 106.2 against 107.1 frames a second) |
+| FSR 3 frame generation | two frames, depth, motion vectors, and the HUD apart (its own advice); written for Direct3D 12 compute shaders | MIT | not built |
+| Qualcomm's AFME | on the phone's own driver, [`GL_QCOM_frame_extrapolation`](https://registry.khronos.org/OpenGL/extensions/QCOM/QCOM_frame_extrapolation.txt) makes a frame from two textures in OpenGL ES; the Thor's driver lists it and `GL_QCOM_motion_estimation`, the Flip 2's the second only. Neither is in Vulkan or in Turnip; the system-wide "AFME 2.0" is a phone maker's feature and not an app's | none: part of the driver | not built: it would need an OpenGL ES context on Qualcomm's driver beside the Vulkan one on Turnip and the frames shared between them |
+| A frame from the last one turned by the camera's motion (reprojection) | a view newer than the frame's, which the title has not got: it reads the pad once a frame | | not built |
+| Frame generation from two frames alone | two frames; it holds each frame back by a blank of the display | | built and measured, below; not kept |
+
+**Frame generation as tried.** Where a frame is due on screen for two of the
+display's blanks (a limit of 60 on a 120 Hz display, 30 on a 60 Hz one), the
+window showed, for the first of them, a frame made halfway between the frame
+before and this one. The motion was searched for in the two pictures: from a
+place in the frame between, the displacement that makes the last frame one
+way and this frame the other way alike, down four levels of their luminance
+from 80x45 to 640x360, nine taps a candidate, a median of nine after each
+level. The frame between is the two read half the motion away and averaged; a
+pixel that did not change is left alone, which keeps a HUD over an unmoving
+world. (The branch `nextgen-gfx-proto` has it, `MW2_FRAME_GEN`.)
+
+| | AYN Thor, 60 to 120 | Retroid Pocket Flip 2, 30 to 60 |
+|---|---|---|
+| GPU a frame of the title's, without and with | 0.29 ms, 2.06 ms | 0.94 ms, 4.34 ms |
+| a frame's present after the renderer finished it, without and with | 2.0 ms, 20.5 ms | 115.5 ms, 132.7 ms |
+| the frame between against the frame the game really drew there (PSNR) | 31.0 dB | 26.3 dB |
+| the same place shown the frame before, as now | 23.8 dB | 19.7 dB |
+| the plain average of the two frames | 26.9 dB | 22.3 dB |
+| OpenCV's DIS optical flow on a PC in the search's place | 32.5 dB | 27.6 dB |
+
+The pictures' rows are from a recording of a walk through Terminal at 120
+frames a second on the Thor: every second frame left out, made from its
+neighbours by the same shaders rewritten for the PC, and compared with the
+one left out (40 frames each; for 30 to 60, every second pair). It is not
+kept, for three reasons. The latency: a frame reaches the screen 17 to 18 ms
+later, where the scheme itself asks for one blank (8.3 ms on the Thor). The HUD: it is in the
+picture, so where the world moves behind it the mini-map smears, and digits
+of the clock and the score were missing from a generated frame; a
+generated frame is only as good as the search, and the search knows no HUD
+from a wall. And the need: Modern Warfare 2 and 3 already draw 115 to 118
+real frames a second on the Thor and 58 to 60 on the Flip 2, so the frames
+it would add stand where real ones are now. What would change the verdict is
+the frame taken before the HUD is drawn, and the motion from the title's own
+matrices and depth instead of a search.
+
 ## Occlusion queries
 
 The title brackets counted draws with two `EVENT_WRITE_ZPD` events, with the

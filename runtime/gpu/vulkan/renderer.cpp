@@ -30,6 +30,7 @@ void vk::renderer::Idle() {}
 #include "display_table.h"
 #include "gpu_time.h"
 #include "texture_cache.h"
+#include "sharpen.h"
 #include "../memory_watch.h"
 #include "../../guest_memory.h"
 #include "../../crash.h"
@@ -75,6 +76,7 @@ static void RollbackInitialise()
     // Both do nothing unless Initialise got as far as starting them.
     vk::gpu_time::Stop();
     StopPassTimes();
+    vk::sharpen::ForgetFrames();
     for (uint32_t i = 0; i < kPresentImages; i++)
     {
         if (g.present[i]) vkDestroyImage(g.device, g.present[i], nullptr);
@@ -589,13 +591,14 @@ bool vk::renderer::Initialise()
     for (uint32_t i = 0; i < kPresentImages; i++)
     {
         Target image;
-        image.format = VK_FORMAT_R8G8B8A8_UNORM;
+        image.format = vk::sharpen::kFrameFormat;
         image.width = g.presentWidth / g.scale;     // MakeImage scales
         image.height = g.presentHeight / g.scale;
         image.scale = g.scale;
-        // STORAGE so the display's colour table can be applied to it in place.
+        // STORAGE so the display's colour table can be applied to it in place,
+        // SAMPLED for the window's sharpening (sharpen.h).
         if (!MakeImage(image, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              VK_IMAGE_USAGE_STORAGE_BIT, 0))
+                              VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0))
         {
             RollbackInitialise();
             return false;
@@ -658,6 +661,7 @@ void vk::renderer::Shutdown()
         for (auto& last : stage) last = {};
     g.targets.clear();
     g.lastTargets[0] = g.lastTargets[1] = {};
+    vk::sharpen::ForgetFrames();
     for (uint32_t i = 0; i < kPresentImages; i++)
     {
         if (g.present[i]) vkDestroyImage(g.device, g.present[i], nullptr);

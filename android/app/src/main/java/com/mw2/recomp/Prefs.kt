@@ -53,6 +53,25 @@ class Prefs(context: Context) {
         get() = store.getInt(KEY_RENDER_SCALE, 1).coerceIn(1, 3)
         set(value) = store.edit().putInt(KEY_RENDER_SCALE, value.coerceIn(1, 3)).apply()
 
+    /**
+     * How strongly the frame is sharpened on its way to the screen, in
+     * percent of the filter's most; 0, the default, not at all (MW2_SHARPEN,
+     * runtime/gpu/vulkan/sharpen.h). It costs a third to half a millisecond
+     * of GPU a frame, which a chip at its limit shows as frames.
+     */
+    var sharpening: Int
+        get() = store.getInt(KEY_SHARPENING, 0).coerceIn(0, 100)
+        set(value) = store.edit().putInt(KEY_SHARPENING, value.coerceIn(0, 100)).apply()
+
+    /**
+     * The fraction of the screen the surface is made at: [resolutionScale],
+     * or all of it under sharpening, whose filter works at the size the
+     * picture is seen at -- sharpened first and then enlarged by the
+     * compositor, its edges would be softened again.
+     */
+    val surfaceScale: Float
+        get() = if (sharpening > 0) 1f else resolutionScale
+
     /** Multisampling. Off by default: it is pure cost on a tiled GPU. */
     var multisampling: Boolean
         get() = store.getBoolean(KEY_MSAA, false)
@@ -503,6 +522,7 @@ class Prefs(context: Context) {
         val FPS_LIMITS = listOf(30, 45, 60, 120)
         private const val KEY_RESOLUTION = "resolutionScale"
         private const val KEY_RENDER_SCALE = "renderScale"
+        private const val KEY_SHARPENING = "sharpening"
         private const val KEY_MSAA = "multisampling"
         private const val KEY_DETAIL_BIAS = "detailBias"
         /** As on the console, reduced, low: what the slider stops at. */

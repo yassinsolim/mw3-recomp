@@ -525,7 +525,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 // display scales it up for free -- the single biggest thing
                 // a weak phone can be given. setFixedSize comes back here
                 // with the new size, which is when the runtime is told.
-                val scale = prefs.resolutionScale
+                val scale = prefs.surfaceScale
                 val wantedHeight = max(240, (surfaceView.height * scale).roundToInt())
                 val wantedWidth = if (prefs.fillScreen) max(320, (wantedHeight * 16f / 9f).roundToInt()) else max(320, (surfaceView.width * scale).roundToInt())
                 if (width != wantedWidth || height != wantedHeight) {
@@ -833,6 +833,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // Modern Warfare 2 alone has the hook (runtime/model_detail.cpp).
         if (!Title.isMw3) NativeBridge.nativeSetOption("MW2_LOD_BIAS", prefs.detailBias.toString())
         NativeBridge.nativeSetOption("MW2_FPS_LIMIT", prefs.fpsLimit.toString())
+        NativeBridge.nativeSetOption("MW2_SHARPEN", prefs.sharpening.toString())
         // Unset leaves the sun's shadows to the runtime's choice for the
         // chip and the title.
         if (prefs.sunShadows != 0) {

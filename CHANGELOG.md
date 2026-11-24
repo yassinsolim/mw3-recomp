@@ -5,6 +5,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Sharpening, and what else was tried of the newer graphics techniques**
+  ([docs/rendering.md](docs/rendering.md#sharpening-on-the-way-to-the-window)):
+  a Sharpening setting in every title's app (Settings, Graphics; off by
+  default) draws the frame to the screen through FSR 1's RCAS filter
+  instead of a linear copy, at the screen's full size (`MW2_SHARPEN=<1 to
+  100>`, every build). Against the same views drawn at twice the size it
+  is 1.8 to 2.9 dB nearer than the app's default path at full strength,
+  for 0.35 ms (Retroid Pocket Flip 2) to 0.5 ms (AYN Thor) more GPU a
+  frame; the Thor gives up three frames a second in 84 where its GPU is
+  the limit. Snapdragon GSR 1 and FSR 1's EASU were built, measured and
+  not kept (no nearer than RCAS, the second at more than twice the cost),
+  and so was frame generation from two frames (a frame 17 to 18 ms later
+  on screen, the HUD smeared where the world moves behind it); the
+  temporal upscalers, variable-rate shading and Qualcomm's frame
+  extrapolation are set out there with what each would need.
 - **Advanced Warfare: Exo Survival's Find Match and Combat Readiness
   Program on a relay**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).

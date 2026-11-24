@@ -770,6 +770,35 @@ mode, `MW2_REPORT=1`, pipelines cached. The scenes: S.S.D.D.'s opening
   Pocket Flip 2, Modern Warfare 2's S.S.D.D. opening at its limit of 60:
   59.9 frames a second, 94.2% on time, the consumer 52% of its core.
 
+## Sharpening, upscalers and frame generation (24 November 2026)
+
+AYN Thor and Retroid Pocket Flip 2, Turnip v27.0.0-R2, `.ngg` builds, Modern
+Warfare 2. The tables and the reasons are in
+[rendering.md](rendering.md#sharpening-on-the-way-to-the-window).
+
+- **Kept: sharpening** (`MW2_SHARPEN`, the app's Sharpening setting, off by
+  default): FSR 1's RCAS in place of the window's linear copy, at the
+  screen's full size. 0.54 ms of GPU a frame on the Flip 2 against 0.19 for
+  the app's default path, 0.66 against 0.18 on the Thor.
+- **Seen on the way:** the app's default path -- a surface of 70% of the
+  screen, enlarged by the compositor -- is 0.5 to 0.8 dB further from a
+  picture drawn at twice the size than a linear copy into a full-size
+  surface, which costs 0.13 to 0.17 ms a frame more. The default was left.
+- **Not kept:** Snapdragon GSR 1 (RCAS's cost, a lower SSIM, a harsher
+  picture), FSR 1's EASU (twice the cost and more for RCAS's PSNR), frame
+  generation from two frames (60 to 120 on the Thor: 1.8 ms of GPU a frame,
+  a frame on screen 18.5 ms later, 31 dB against the real frame where
+  holding the last one is 24, and the HUD smeared over a moving world; 30
+  to 60 on the Flip 2: 3.4 ms, 17 ms, 26 dB).
+- **Seen on the way:** at a limit of 30 on the Flip 2 a frame is presented
+  115 ms after the renderer finished it: the renderer is three frames ahead
+  of the window there. At 60 on the Thor it is 2 ms. Not looked into.
+- **Not built:** the temporal upscalers and TAA (no motion vectors, no
+  jitter, the HUD in the picture), variable-rate shading (Adreno 7xx only
+  under Turnip, where pixels are not the limit), Qualcomm's frame
+  extrapolation (OpenGL ES on the phone's own driver; listed by the Thor's,
+  not the Flip 2's).
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

@@ -11,6 +11,7 @@
 #include "../../signin.h"
 #include "../../render_size.h"
 #include "backdrop.h"
+#include "sharpen.h"
 
 #if !defined(MW2_HAVE_VULKAN) || (!defined(MW2_USE_SDL) && !defined(MW2_ANDROID))
 // Without a loader or a window system there is nothing to present to; the rest
@@ -623,6 +624,8 @@ namespace
         {
             // Nothing waits on a present of the old one once it is gone.
             std::unique_lock life(g.swapchainLife);
+            // The sharpening's views of the old one's images go before them.
+            vk::sharpen::ForgetTargets();
             if (old) vkDestroySwapchainKHR(g.device, old, nullptr);
             g.swapchain = ok ? made : VK_NULL_HANDLE;
             std::lock_guard waiting(g.waitLock);
@@ -1135,9 +1138,7 @@ namespace
         {
             // The renderer's frame, scaled to the window at its own proportions.
             // It is in TRANSFER_SRC layout, and its owner does not draw into it
-            // again until this copy is submitted (WaitUntilTaken). The bars are
-            // cleared first; the clear covers the whole image and the blit
-            // paints over the middle, which is cheaper than working out the bars.
+            // again until this copy is submitted (WaitUntilTaken).
             VkImageBlit blit{};
             blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
             blit.srcOffsets[1] = { int32_t(shown.width), int32_t(shown.height), 1 };
@@ -1155,21 +1156,37 @@ namespace
                 g_mouse.picture[3] = frameTo.y;
             }
 #endif
-            const bool bars = blit.dstOffsets[0].x || blit.dstOffsets[0].y;
-            if (bars)
+            // Sharpened into its place (sharpen.h), or else copied: the bars
+            // are cleared first; the clear covers the whole image and the blit
+            // paints over the middle, which is cheaper than working out the bars.
+            vk::sharpen::Draw sharpened{};
+            sharpened.device = g.device;
+            sharpened.commands = frame.commands;
+            sharpened.slot = g.frameIndex;
+            sharpened.target = image;
+            sharpened.targetFormat = g.swapchainFormat;
+            sharpened.extent = g.extent;
+            sharpened.frame = shown.image;
+            sharpened.from = { frameFrom.x, frameFrom.y };
+            sharpened.to = { frameTo.x, frameTo.y };
+            if (!vk::sharpen::Record(sharpened))
             {
-                VkClearColorValue black{};
-                VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-                vkCmdClearColorImage(frame.commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     &black, 1, &range);
-                vk::util::Barrier(frame.commands, image, VK_IMAGE_ASPECT_COLOR_BIT,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                                  VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+                const bool bars = blit.dstOffsets[0].x || blit.dstOffsets[0].y;
+                if (bars)
+                {
+                    VkClearColorValue black{};
+                    VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+                    vkCmdClearColorImage(frame.commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                         &black, 1, &range);
+                    vk::util::Barrier(frame.commands, image, VK_IMAGE_ASPECT_COLOR_BIT,
+                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+                }
+                vkCmdBlitImage(frame.commands, shown.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
             }
-            vkCmdBlitImage(frame.commands, shown.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
         }
         else
         {
@@ -1270,6 +1287,7 @@ namespace
         {
             vkDeviceWaitIdle(g.device);
             vk::backdrop::Destroy();
+            vk::sharpen::Destroy();
             DestroyOverlay();
             for (auto& frame : g.frames)
             {

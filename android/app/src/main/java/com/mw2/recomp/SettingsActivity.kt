@@ -175,6 +175,19 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 if (fromUser) prefs.sunShadows = value
             }
         })
+        val sharpeningLabel: TextView = findViewById(R.id.sharpening_label)
+        val sharpening: SeekBar = findViewById(R.id.sharpening)
+        fun sharpeningText(tenths: Int) =
+            if (tenths == 0) getString(R.string.sharpening_off) else getString(R.string.sharpening, tenths * 10)
+        sharpening.max = 10                       // off, then 10% to 100%
+        sharpening.progress = (prefs.sharpening / 10f).roundToInt()
+        sharpeningLabel.text = sharpeningText(sharpening.progress)
+        sharpening.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                sharpeningLabel.text = sharpeningText(value)
+                if (fromUser) prefs.sharpening = value * 10
+            }
+        })
         switch(R.id.prewarm_all, prefs.prewarmAllShaders) { prefs.prewarmAllShaders = it }
         switch(R.id.async_pipelines, prefs.asyncPipelines) { prefs.asyncPipelines = it }
         switch(R.id.persist_pipeline, prefs.persistPipelineCache) { prefs.persistPipelineCache = it }
