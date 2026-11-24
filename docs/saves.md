@@ -83,6 +83,24 @@ and, when it returns, fills every empty entry with device 1.
 as on the console. The table's address is known for the campaign only; in the
 multiplayer build the seed does nothing.
 
+## Advanced Warfare's checkpoints
+
+Advanced Warfare's campaign saves the same way (a package, a file in it),
+but only twice: at a level's start, and when the player chooses **Save and
+Quit** in the pause menu. A checkpoint in between ("Checkpoint Reached") is
+a save committed in memory; the file is written by the title's console
+command `savegame_lastcommit`, and only the menu that Save and Quit opens
+gives it ([AW-BRINGUP.md](AW-BRINGUP.md#checkpoints-the-left-trigger-setupsh-24-november-2026)
+has the functions). Leave any other way and Resume Game starts the level
+again.
+
+That is the console's behaviour and a poor one for a phone, where the app
+is put away and killed without a word. So `runtime/checkpoint_save.cpp`
+hooks the commit and queues `savegame_lastcommit` whenever one succeeds:
+the title's own code writes its own file, between frames, as Save and Quit
+would have. A save request that writes itself is not written twice.
+`MW2_NO_CHECKPOINT_WRITE=1` turns it off.
+
 ## The profile (`kernel/profile.cpp`)
 
 MW2 keeps its own settings (controls, video, and what the player sets on the

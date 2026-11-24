@@ -5,6 +5,24 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Advanced Warfare's checkpoints are kept**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#checkpoints-the-left-trigger-setupsh-24-november-2026),
+  [docs/saves.md](docs/saves.md#advanced-warfares-checkpoints)): the title
+  writes a checkpoint to the save only at the pause menu's Save and Quit,
+  so a campaign left any other way resumed at the level's start. The
+  runtime now gives the title's own `savegame_lastcommit` whenever a
+  checkpoint is committed; Resume Game after the app was stopped goes on
+  from the checkpoint, on Windows and on the Retroid Pocket Flip 2, in a
+  release-signed build too. `MW2_NO_CHECKPOINT_WRITE=1` keeps the
+  console's way. `setup.sh` has been run from end to end for this title
+  (5 min 46 s on Ubuntu under WSL2, installed on the Flip 2).
+  `MW2_INPUT_LIVE=<file>` (diagnostic) is an input script written while
+  the game runs. Still open: a level played from start to end without a
+  start point. Fixed with it: a tap on the middle of the touch LT pressed
+  the D-pad on the Flip 2 (where touch controls overlap, the touch is the
+  nearer one's, in every title's app); `setup.sh` pushed one of Advanced
+  Warfare's two packages; and `setup.sh` stopped at libadrenotools when
+  run a second time, for every title.
 - **Advanced Warfare's multiplayer on the two devices, the rest**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-rest-on-the-devices-24-november-2026)):
   the AYN Thor and the Retroid Pocket Flip 2 meet by Xbox LIVE's Find

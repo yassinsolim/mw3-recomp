@@ -61,9 +61,13 @@ memory), from a fresh clone, for Modern Warfare 2: the whole first run took
 2 minutes 32 seconds, with 3.3 GB of memory in use at its fullest (1.0 GB
 before it began) and 5 GB of disk. The game code it built states the same
 build as the one made on Windows and as the published app v0.1.6 asks for,
-and it loads and starts the game on a Retroid Pocket Flip 2. Modern Warfare 3
-and Call of Duty 4 go through the same script and have not been run on Linux
-yet.
+and it loads and starts the game on a Retroid Pocket Flip 2. Advanced
+Warfare was run the same way (`--game aw --iso ... --install-iso ... --dev
+--suffix .awc --yes --install --device <serial>`): 5 minutes 46 seconds
+with 6.5 GB in use at its fullest, installed on the Flip 2, where it plays
+([AW-BRINGUP.md](AW-BRINGUP.md#setupsh-from-end-to-end-ubuntu-2404-under-wsl2)).
+Modern Warfare 3 and Call of Duty 4 go through the same script and have
+not been run on Linux yet.
 
 **An old PC, or little memory.** The recompiled code is a few hundred very
 large files. One compiler working on them took 320 MB at most, and

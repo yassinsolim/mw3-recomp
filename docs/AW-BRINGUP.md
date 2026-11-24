@@ -23,7 +23,8 @@ textures put right and the sound checked by what is said in it
 played into its After Action Report and on into Atlas, and the Retroid
 Pocket Flip 2 plays both at 60 from an app set up unattended and from game
 code it built itself ("A level's end, the next level, the Flip 2"). A
-checkpoint within a level is kept in memory and not written to the save.
+checkpoint within a level is written to the save as it is reached, so
+Resume Game goes on from it ("Checkpoints, the left trigger, setup.sh").
 
 ## The two discs
 
@@ -306,7 +307,7 @@ beside it as they come off the disc.
 | A level: Seoul by `devmap seoul`, its opening movie, the drop pod, the save-device dialog, the pause menu, the Exo Type card | **verified**, 60 presents a second, 54,000 draws a second, no fault | `pc-seoul-ingame-exposure-fixed-sheet.png`, `.log`, `pc-seoul-pause-menu.png` |
 | Exposure | **verified** right with the write-back; before and after are `pc-seoul-ingame-overexposed-sheet.png` and `pc-seoul-ingame-exposure-fixed-sheet.png` | |
 | Sound | the mixer runs (frames submitted, none dropped); checked since by what is said in it (at the end) | the same logs |
-| New Game from the menu, a second level, a save written and loaded | **verified** since (at the end); a level played to its end and a checkpoint within one are **open** | |
+| New Game from the menu, a second level, a save written and loaded | **verified** since (at the end), a checkpoint within a level too; a level played to its end without a start point is **open** | |
 | The multiplayer: its main menu and Options | **verified**, 60 presents a second | `pc-mp-main-menu.png`, `pc-mp-main-menu-options-sheet.png`, `.log` |
 | A multiplayer map, bots, a system link | **verified**, below ("The multiplayer") | `pc-mp-*` |
 | `setup\setup.cmd -Game aw -Build pc` from the two images | **verified**: both trees as expected (207 and 204 files, 210 and 230 tables, 415 stepped), `out\pc-aw` starts and mounts the packages from `aw\install` | |
@@ -335,7 +336,8 @@ the script's tables to the byte for both of this title's executables and
 both of Call of Duty 4's (**verified** on this PC, in a unit test against
 the script's output); the build itself was **not run** on a device.
 `setup/setup.sh` (Linux) knows this title since (`--game aw`,
-`--install-iso`); it was **not run** from end to end.
+`--install-iso`), and has been run from end to end ("Checkpoints, the left
+trigger, setup.sh").
 
 ### The other titles
 
@@ -412,16 +414,12 @@ them: controller 0 is the first active one, its profile is signed in, and
 
 ## Open, in the order it matters
 
-1. A checkpoint within a level written to the save: the title reaches it
-   ("Checkpoint Reached") and reloads it after a failure, and
-   `savegame.svg` stays the level's start, so Resume Game after leaving
-   starts the level again ("A level's end, the next level, the Flip 2").
-2. A level played from its first minute to its last without a start point,
-   and the levels after Atlas.
-3. The multiplayer's Combat Readiness Program, Exo Survival under Xbox
+1. A level played from its first minute to its last without a start point,
+   and the levels after Atlas ("Checkpoints, the left trigger, setup.sh"
+   has what was tried and what there is to try it with).
+2. The multiplayer's Combat Readiness Program, Exo Survival under Xbox
    LIVE, and a round of Exo Survival survived on a device without the test
    build ("The multiplayer", below, has what works).
-4. `setup/setup.sh` for this title from end to end on Linux.
 
 ## After merging `android` in (24 November 2026)
 
@@ -446,8 +444,8 @@ runs, so the sound is the mix as the title submitted it
 | New Game: Campaign, New Game, the autosave notice, Select Difficulty, Seoul's loading movie | **verified** | `pc-newgame-from-menu-sheet.png`, `.log` |
 | Seoul: the Exo Type card, the drop pod, "Tap X to Pull Lever", "LT or RT to Release Harness", "RS to Open Hatch", the rooftop with the weapon in hand and the objective marker | **verified**; no further: the player was turned and walked by timed input and did not find the way down | `pc-seoul-resume-pod-rooftop-textures-fixed-sheet.png`, `.log` |
 | A save: `saves/savegame.svg/savegame.svg`, 1,181,466 bytes, its header naming `seoul` and "Start Level Save" | **verified** written at the level's start | the log's `content: mounted save0:` lines |
-| Resume Game: "Resume Game?", the save opened, the level from its start | **verified** for Seoul and for Atlas | `pc-resume-game-dialog-sheet.png` |
-| A checkpoint within a level | reached and reloaded from memory; **open**: never written to the save (the next section) | |
+| Resume Game: "Resume Game?", the save opened, the level from its start | **verified** for Seoul and for Atlas; from a checkpoint since | `pc-resume-game-dialog-sheet.png` |
+| A checkpoint within a level | reached and reloaded from memory; not written to the save in these runs, written since ("Checkpoints, the left trigger, setup.sh") | |
 | Mission Select: the first mission's card and the row of missions; the later ones dimmed and not selectable on a profile that has only started Seoul | **verified** | `pc-mission-select.png`, `pc-mission-select-locked-without-mis-cheat.png` |
 | Atlas (`recovery`), chosen in Mission Select with the title's own `set mis_cheat 1` from the console: the warning that the mission's progress is overwritten (No is the default), Select Difficulty, its loading movie, the Exo Type card, the funeral, "X To Pay Respects"; its start save written (785,421 bytes) | **verified**; no further | `pc-atlas-from-mission-select-sheet.png`, `.log` |
 | Sound: the movies' narration and the levels' speech | **verified** by transcribing the dump: Seoul's "We come into this world with our eyes closed", the pod's countdown and "Mitchell, now!", the rooftop's orders; Atlas's eulogy. In a level the speech is in the front pair and the centre is silent | `pc-seoul-audio-transcript.txt`, `pc-atlas-audio-transcript.txt` |
@@ -484,7 +482,7 @@ they did: a prompt came after the presses meant for it had ended.
 | The next level from it: A on the report, Atlas's loading movie, its Exo Type card, the funeral in play; its start save written (`recovery`, "Start Level Save") | **verified** | `pc-seoul-end-after-action-report-atlas-starts-sheet.png`, `.log` |
 | Atlas further: "X To Pay Respects" (held), the walk to the cars, the card, the training exercise at Camp David with the weapon in hand | **verified**; the walk wants a step to the right first, the honour guard being in the way | `pc-atlas-card-camp-david-sheet.png` |
 | A checkpoint, loaded: the player died at Camp David and the level went on from Camp David's beginning, not from the funeral | **verified** | `pc-atlas-camp-david-death-restart-sheet.png` |
-| A checkpoint, written: `savegame.svg` | **open**: not written (below) | |
+| A checkpoint, written: `savegame.svg` | not written in these runs (below); written since | |
 
 **The start point.** The levels' scripts keep their developers' start
 points, and the title's own `start` dvar chooses one for a level started by
@@ -506,23 +504,17 @@ saving), so these runs start a New Game first and give the command in
 Seoul's loading movie; and every start by it writes a "Start Level Save"
 of where it starts.
 
-**The checkpoint that is not written.** The title's notice says it saves at
-certain points, and it does reach them: "Checkpoint Reached" is on the
+**The checkpoint that was not written.** The title's notice says it saves
+at certain points, and it does reach them: "Checkpoint Reached" is on the
 screen in Seoul's drop pod (seen on the Flip 2), failing the lever after it
 starts again in the pod, and dying at Camp David starts again at Camp
 David. But in every run on both platforms `savegame.svg` was written only
-at a level's start (its header says "Start Level Save"), the log has no
+at a level's start (its header says "Start Level Save"), the log had no
 `save0:` mount after it and no other kernel call at the checkpoint, and
-Resume Game after leaving returns to the level's start. So the title keeps
-the checkpoint in memory and does not come to the write; why is **open**.
-What was tried: watching the file through Seoul's finale, seven of Seoul's
-start points and Atlas to Camp David (nothing but start saves); every file
-call traced (`MW2_TRACE_FILES`: reads of the save only); and entry traces on
-functions that load the addresses of the save code's strings, which
-turned out to be other code (an address pair matched by chance), so the
-write's caller was not found. The place to start is the caller of
-`XamContentCreateEx` at a level's start, and what its counterpart for a
-checkpoint waits for.
+Resume Game after leaving returned to the level's start. These runs were
+ended by stopping the process; the cause, found since, is that the title
+writes a checkpoint only when the player chooses Save and Quit
+("Checkpoints, the left trigger, setup.sh").
 
 **The pod below 30.** The one slow run of the earlier section was **not
 reproduced and not explained**: these runs leave Seoul's opening for the
@@ -546,7 +538,8 @@ The app and the game code were built and installed by one unattended run
 
 The left trigger's touch button did not answer a tap at its middle while
 "LT to Release Left Harness" was up; a tap nearer its edge, or the pad's own
-trigger, did. **Not looked into** (the button overlaps the D-pad's corner).
+trigger, did. The D-pad's circle reached over it and was asked first; put
+right since ("Checkpoints, the left trigger, setup.sh").
 
 **Setup, unattended.** `setup\setup.ps1 -Game aw -Iso <game disc>
 -InstallIso <install disc> -Build android -Suffix .awc -Yes -Install -PushIso
@@ -558,6 +551,138 @@ the phone named, found the app there signed with another key and replaced
 it with its game files and saves moved aside and back, pushed the packages
 and the game disc's image (8.7 GB, 246 s of the run), and asked nothing.
 The Thor, connected beside it, was not touched.
+
+## Checkpoints, the left trigger, setup.sh (24 November 2026)
+
+### Why a checkpoint was not in the save, and what writes it now
+
+The title does what it did on the console. Read from the executable, from
+`XamContentCreateEx`'s callers upwards:
+
+| | |
+|---|---|
+| `sub_824E06F8` | opens the save's package for a controller (its device from the table at `0x845A3F24`) |
+| `sub_823BFF60` | writes a save's header and body into `save0:\savegame.svg` |
+| `sub_823C1F50` | writes the committed save, if there is one |
+| `sub_825232C8` | the console command `savegame_lastcommit`: the above, and `gamesavefailed` to the client if it fails |
+| `sub_82374DA8` | finishes a queued save request: flag 2 commits it, flag 4 writes it. A level's start asks for 6 ("Start Level Save"); the script's `SaveGame` for 2, and 4 only with its fifth argument; `SaveGameNoCommit` for 1 |
+| `sub_823C1E40` | the commit: the waiting save becomes the committed one and "Checkpoint Reached" is printed. The script's `CommitSave` ends here. Nothing is written |
+| `sub_821AA230` | the menus' `WriteSave`: sets a byte that the client's frame (`sub_8246BD30`) turns into `savegame_lastcommit` |
+
+`WriteSave` has one caller in the menus' scripts (read from the running
+game's memory): the `save_game_info_hud` menu, which the pause menu's
+**Save and Quit** opens ("If you save now you will lose any progress since
+your last checkpoint"). So a checkpoint is in memory until the player
+chooses Save and Quit, and the earlier runs here, all ended by stopping the
+process, never came to the write. **Verified** on Windows with the code as
+it was: Seoul's pod, Start, Save and Quit, its confirmation, "Saving...",
+the main menu, and `savegame.svg` holds `autosave_seoul1`
+(`pc-checkpoint-save-and-quit-writes-it-sheet.jpg`).
+
+A phone's player does not leave by a menu, and the system takes the process
+when it wants the memory. So the runtime now gives the title's own command
+as soon as a commit succeeds (`runtime/checkpoint_save.cpp`): the file is
+written between frames, where Save and Quit's is, by the same code. A
+request that writes itself (a level's start) is left to do so.
+`MW2_NO_CHECKPOINT_WRITE=1` leaves it to Save and Quit as on the console.
+
+| | State | Evidence |
+|---|---|---|
+| Windows: New Game, Seoul; the save is "Start Level Save" at the level's start, `autosave_seoulstart` when the pod's scene begins and `autosave_seoul1` at the lever, each written as "Checkpoint Reached" comes; the process stopped; Resume Game starts at the lever, not at the level's opening | **verified** | `pc-checkpoint-written-at-commit.log`, `pc-checkpoint-resume-game-lands-in-the-pod-sheet.jpg` |
+| Retroid Pocket Flip 2, the app and game code `setup.sh` built: New Game to the rooftop (the save 1,297,714 bytes at the lever, 1,354,040 on the rooftop), the app force-stopped, Resume Game: the rooftop, 60 FPS | **verified** | `flip-awc3-05-lever.png`, `flip-awc3-20-resume-dialog.png`, `flip-awc3-21-resumed-at-rooftop-checkpoint.png` |
+| The same with the release-signed app (below) | **verified** | `flip-awc3-31-release-resumed-rooftop.png` to `flip-awc3-35-release-resumed-pod.png` |
+
+The write is the whole save, 1.2 to 1.4 MB, with a sync; what it costs in
+frame time on the phone was **not measured** (the overlay read 60 before
+and after each).
+
+### The left trigger's touch button
+
+The touch controls asked their buttons in the layout's order and took the
+first whose circle held the touch. The D-pad is before the triggers there,
+and on the Flip 2 (density 2.25) its circle is 148 px wide of its centre,
+which is 138 px from LT's: LT's own middle was the D-pad's corner, and
+only LT's far edge was LT. Now the touch goes to the button whose centre
+it is nearest, in that button's radii (`TouchOverlayView.elementAt`); the
+same for every title's app. **Verified** on the Flip 2: one tap at LT's
+centre (105,195) with "LT or RT to Release Harness" up releases it
+(`flip-awc3-07-lt-prompt.png`, `flip-awc3-08-after-lt-centre-tap.png`), and
+the sticks, the face buttons, RT, the D-pad and Start drove a first run,
+New Game and the pod as before. Modern Warfare 3's app was **not run** with
+it; its layout and code are the same file.
+
+A report from the multiplayer's work, "the touch sticks did nothing during
+one Exo Survival intermission on the Thor", is **not** this: a stick's
+centre is nearest the stick. Its screenshots show the player having walked
+and the view not turned, in a build with that work's own test harness,
+which turned the host's players to the nearest live entity every 30 ms;
+that is the likelier cause and was **not reproduced** here.
+
+### `setup.sh` from end to end (Ubuntu 24.04 under WSL2)
+
+`bash setup/setup.sh --game aw --iso <game disc> --install-iso <install
+disc> --dev --suffix .awc --yes --install --device f315edc9`, in a fresh
+clone with nothing downloaded: **5 min 46 s**, 6.5 GB of memory at its
+fullest, asking nothing. It fetched the SDK and NDK, read both executables
+and the packages from the images, recompiled both (207 and 204 files, 210
+and 230 tables, 415 stepped, as expected), built the game code (36 s
+each with 30 compilers) and the app, and installed both on the phone
+named. The game code states the build the app made on Windows asks for:
+the release-signed app below runs on it.
+
+WSL has no USB, so its `adb` was pointed at Windows' adb server
+(`ANDROID_ADB_SERVER_PORT` and a relay through a Windows process); the
+script and its tools were Linux's own.
+
+Two things it found, both put right:
+
+- Only one of the two packages reached the phone: `adb` reads its standard
+  input, which in that loop was the list of packages. A second run pushed
+  the other (`linux-setup-sh-aw-second-run.log`).
+- A second run stopped at `android/fetch_deps.sh`: the libadrenotools
+  commit it named is not in that repository, so the first run's clone had
+  quietly taken the default branch and the second's fetch failed. It names
+  the commit every build was made with, and fetches it either way. This
+  was every title's, on any second run.
+
+The game files were then copied on the phone from another suffix's folder,
+not installed from the image by the app.
+
+### A release-signed build
+
+`:app:assembleAwTu0Release -PappSuffix=.awc` with the release key, as
+`scripts\discart_gradle.ps1 -Release` does it, installed on the Flip 2
+over the game package `setup.sh` had built (that package is the player's
+own build and has no release signing). **Verified**: Resume Game to the
+rooftop checkpoint; New Game (the warning, the notice, the difficulty,
+Seoul's movie, "Start Level Save" written, the pod's checkpoint written);
+the app force-stopped and Resume Game at the lever; 60 FPS on the overlay
+throughout (`flip-awc3-30-release-launch.png` to
+`flip-awc3-35-release-resumed-pod.png`).
+
+### A level from its first minute to its last: still open
+
+Not done, for Seoul or for Atlas. What there is now:
+
+- `MW2_INPUT_LIVE=<file>` ([switches.md](switches.md)): a script written
+  while the game runs, each line timed from when it is read, so whoever
+  drives looks at the dumped frames in between. With it Seoul was played
+  on Windows from New Game through the pod (the lever wants X twice a
+  second, held 0.2 s; faster taps fail it), the harness, the hatch and the
+  apartment to the corridor beyond its kitchen, three checkpoints written
+  on the way.
+- The pause menu stops the level between looks (Start; A on Resume Game
+  goes on), though the resume took up to two seconds and input given in
+  them was lost.
+
+What stopped it: finding the way. The view is all there is to steer by;
+the "Follow" marker is small and dim enough that picking it out of a frame
+by colour failed in the dark rooms, and a turn and a walk decided from one
+frame took twenty seconds each and often ended against a wall. The
+walking tools of the other titles (`MW2_WALK_PATH`) need the player's
+position, which is not derived for this title (`T_DATA_ClientStates`).
+That is the thing to derive first: with a position and a yaw, a recorded
+route can be walked and the fights left to the squad.
 
 ## The multiplayer
 
