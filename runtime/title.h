@@ -79,6 +79,14 @@
 // laid beside this executable, with the same export stream constant
 // (`lis r4,19200`). Without it a moved image is drawn as noise.
 #define T_Image_FlushMove      822AEAA8
+// The scene (render_size.cpp, MW2_SCENE): the function that makes the
+// vidConfig of the sizes it is handed, the campaign's sub_825AB870 with the
+// registers in another order: the same loads of what it is handed (+8, +12,
+// +16, +20 and the bytes at +0 and +1), the same halfwords 512 and 1024
+// stored at +16 and +18 of the vidConfig (844463EC). Its one caller is the
+// renderer's start-up, sub_822AC740, which has sub_822AB420 write the
+// console's sizes and hands it a copy of them.
+#define T_R_SetVidConfigOfSizes 822AC2B0
 
 // the kernel's data imports: the image's own import records, found by their
 // (library, ordinal) words 0x000100AD, 0x00010059 and 0x00010193, each present once
@@ -189,6 +197,18 @@
 // 11028 and 11069 in MW3's order.
 #define T_DEV_PresentInterval  14000u   // D3DRS_PRESENTINTERVAL (MW3: 13872)
 #define T_DEV_ProgressBlock    11024u   // the arena progress block, where MW3 has it
+
+// the scene (render_size.cpp, MW2_SCENE)
+// R_VideoSizes is here (sub_825AC6D8: hi-def and widescreen bytes, the
+// refresh rate, a 1024x600 scene, a 1280x720 frame and 2 samples) and
+// nothing calls it: the renderer's start-up, sub_825AC798, writes the same
+// seven words itself (li 1024, li 600, li 1280, li 720 into 84990770),
+// copies them to its stack and hands the copy to this, its one caller. It
+// is R_SetVidConfig taking the sizes as an argument: it stores the scene at
+// +0 and +4 of the vidConfig (849907F4), the frame at +8 and +12, the aspect
+// at +32 by the widescreen byte, and the two pixel aspects worked out of the
+// sizes. What the start-up calls next (sub_825ABD18) is handed the same copy.
+#define T_R_SetVidConfigOfSizes 825AB870
 
 // the kernel's data imports, as the multiplayer's
 #define T_DATA_TimeStampBundlePtr 0x82000874u   // the KeTimeStampBundle import record

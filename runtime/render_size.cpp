@@ -230,7 +230,7 @@ render::Size render::SceneAsked()
         const Size frame = Frame();
         const Size own = Scene(frame);
         const char* asked = env::Text("MW2_SCENE");
-#if defined(MW2_ANDROID) && defined(T_R_VideoSizes)
+#if defined(MW2_ANDROID) && (defined(T_R_VideoSizes) || defined(T_R_SetVidConfigOfSizes))
         // An Adreno 650 draws Modern Warfare 2's console scene at 49 to 55
         // frames a second and this one at 54 to 59, and Modern Warfare 3's
         // Survival at 57.5 with 62% of its frames on time and this one at
@@ -245,7 +245,7 @@ render::Size render::SceneAsked()
         }
 #endif
         if (!asked) return own;
-#ifndef T_R_VideoSizes
+#if !defined(T_R_VideoSizes) && !defined(T_R_SetVidConfigOfSizes)
         LOGW("render: the " MW2_TITLE_NAME " cannot be given another scene than the console's; "
              "MW2_SCENE=%s is left out", asked);
         return own;
@@ -280,6 +280,27 @@ GUEST_HOOK(T_R_VideoSizes)
     PPC_STORE_U32(config + kScene + 4, scene.height);
     PPC_STORE_U32(config + kFrame, frame.width);
     PPC_STORE_U32(config + kFrame + 4, frame.height);
+}
+
+#endif
+
+// Advanced Warfare writes the console's sizes where it starts its renderer,
+// with no call to R_VideoSizes, and hands them to the function that makes
+// the vidConfig of them (title.h): the scene is put into what that is handed,
+// and the function and what the start-up does with the same sizes after it
+// then see it. The frame keeps the console's size.
+#ifdef T_R_SetVidConfigOfSizes
+
+GUEST_HOOK(T_R_SetVidConfigOfSizes)
+{
+    const uint32_t sizes = ctx.r3.u32;
+    const render::Size scene = render::SceneAsked();
+    if (scene != render::kConsoleScene && PPC_LOAD_U8(sizes + kHiDef))
+    {
+        PPC_STORE_U32(sizes + kScene, scene.width);
+        PPC_STORE_U32(sizes + kScene + 4, scene.height);
+    }
+    GUEST_ORIG(T_R_SetVidConfigOfSizes)(ctx, base);
 }
 
 #endif
