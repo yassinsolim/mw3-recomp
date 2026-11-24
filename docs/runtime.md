@@ -279,9 +279,31 @@ Guest paths look like `game:\zone\common.ff` or `\Device\Cdrom0\...`
 - A path under a mounted content package (`save0:` and the like, mounted by
   `content.cpp`) resolves under that package's directory and may be created,
   written, truncated and deleted.
+- A path under a mounted map pack (`mappack1:`, `dlc1:`) resolves inside the
+  player's own package file, read-only ([dlc.md](dlc.md)).
 - Everything else resolves under the game root, which is the disc and
   read-only. Truncation depends on the path being writable, not on the
   disposition, so a disc file opened with `FILE_OVERWRITE_IF` is not emptied.
+
+**The disc image under the game folder** (`volume.h`). The game root is a
+folder, and may have the disc image laid under it (`MW2_DISC_IMAGE`: a path,
+or `fd:<number>` for a file the Android app holds open; the app sets it when
+the player plays from the image). A name is looked for in the folder first,
+so an update's or a mod's file, the camouflage folder and the executables
+are the folder's, and then in the image, whose directory is read once at
+start (`launcher/disc.cpp`, the installer's reader: the root and the root's
+own folders, which is every file of the three discs, Call of Duty 4's
+`highmip\` included). A file in the image is a run of the image's bytes: an
+open takes a descriptor of its own on the image where it has a path, so the
+system reads ahead for each of the title's files as for a file of its own,
+and a read is one `pread` into the bounce buffer. There is no cache but the
+system's page cache, which is the same one a copied file is read through.
+A map pack is the other kind of volume, an STFS package, whose files are
+chains of 4 KB blocks between hash tables; the file layer reads both through
+`ReadVolume::Read`. Measured on a Retroid Pocket Flip 2
+([android.md](android.md#the-game-files)): a level loads from the image on
+the device's storage in the time it takes from copied files, and from a
+memory card half a second later on the heaviest level.
 
 Resolution is case-insensitive, one component at a time. Deletion follows NT:
 a file marked for deletion goes when its last handle closes. Reads go through a

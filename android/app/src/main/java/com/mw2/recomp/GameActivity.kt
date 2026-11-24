@@ -467,6 +467,17 @@ class GameActivity : AppCompatActivity(), NativeListener {
             fail(getString(R.string.error_not_installed))
             return
         }
+        // A game played from its disc image: the runtime lays the image under
+        // the game folder (kernel/volume.h), and without it has no files.
+        val disc = prefs.discImage
+        if (disc.isNotEmpty()) {
+            val source = DiscImage.source(this, disc)
+            if (source == null) {
+                fail(getString(R.string.status_disc_missing, DiscImage.label(this, disc)))
+                return
+            }
+            NativeBridge.nativeSetOption("MW2_DISC_IMAGE", source)
+        }
         // The camouflage packs this APK was built with, where the runtime
         // reads them: Modern Warfare 3's multiplayer lists them.
         if (isMw3Multiplayer) CamoPacks.installBundled(this, gameDirectory)

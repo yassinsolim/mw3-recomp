@@ -7,6 +7,7 @@
 #include "diagnostics.h"
 #include "env.h"
 #include "kernel/kernel.h"
+#include "kernel/volume.h"
 #include "gpu/gpu.h"
 #include "gpu/vulkan/pipeline.h"
 #include "gpu/vulkan/presenter.h"
@@ -276,6 +277,18 @@ int mw2::Run(int argc, char** argv)
     platform::SetThreadAffinity(platform::ThreadAffinityRole::PerformanceCore);
     player::Record();
     crash::Step("kernel", "the console's kernel and the game's files");
+    // A player who plays from the disc image has only the executables in the
+    // game folder: the image is laid under it, named by the app (or by hand,
+    // for a development run).
+    if (const char* disc = env::Text("MW2_DISC_IMAGE"))
+    {
+        std::string error;
+        if (!kernel::MountDisc(disc, error))
+        {
+            LOGE("the disc image %s cannot be read: %s", disc, error.c_str());
+            return 1;
+        }
+    }
     kernel::Initialise(launch.gameRoot, launch.xexHeader);
     launch.xexHeader.clear();
     crash::Step("gpu", "bringing up the renderer");

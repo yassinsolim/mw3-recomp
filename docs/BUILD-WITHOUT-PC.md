@@ -5,15 +5,11 @@ own disc's two executables and installed beside the app as a package of its
 own ([game-library.md](game-library.md)). `setup\setup.cmd` makes it on a
 Windows PC. This page is for everyone else:
 
+- **[A Linux PC](#a-linux-pc)**: one command, `bash setup/setup.sh`. Tested
+  on Ubuntu 24.04.
 - **[No PC at all](#no-pc-at-all-github-builds-it-for-you)**: your phone and
-  a free GitHub account. GitHub builds the package in a **private**
-  repository of your own.
-- **[A Linux PC](#a-linux-pc)**: one command, `bash setup/setup.sh`.
-
-> **New and not yet proven.** Both ways are written and the app's part is
-> tested (it reads the executables out of a disc image on a Retroid Pocket
-> Flip 2), but neither build has yet been run from start to finish on
-> Linux or on GitHub. Expect rough edges, and please report them.
+  a free GitHub account; GitHub builds the package in a **private**
+  repository of your own. Not available yet: see the note there.
 
 Either way you use your own disc image (`.iso`), and what is built is for
 your own devices only.
@@ -21,7 +17,76 @@ your own devices only.
 In the steps below, *mw2* stands for your game: `mw3` (Modern Warfare 3),
 `mw2` (Modern Warfare 2) or `cod4` (Call of Duty 4).
 
+## A Linux PC
+
+On a 64-bit Linux with about 8 GB free:
+
+```sh
+git clone https://github.com/yassinsolim/mw2-recomp.git && cd mw2-recomp
+bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso
+```
+
+It fetches a JDK and the Android SDK and NDK into `.toolchain/` (pinned and
+checked; nothing installed system-wide), reads the two executables out of
+your disc image (read-only), checks them, recompiles them, builds
+`out/mw2-game.apk`, downloads the published app, and offers to install both
+on a phone connected over USB with USB debugging on. A few programs have to
+be the system's own; it names the ones missing and offers to install them:
+
+```sh
+sudo apt install git curl unzip python3 openssl clang
+```
+
+(`clang` 17 or later builds the recompiler.)
+
+| option | what it does |
+|---|---|
+| `--check` | read-only: says what is present and what would be fetched |
+| `--install`, `--device <serial>` | install without asking; which phone, when several are connected |
+| `--push-iso` | also copy the disc image to the phone's Download folder |
+| `--game-only` | build and install the game code only: what to run after `git pull` when the app says the game code does not match |
+| `--xex-dir <folder>` | take the two executables from a folder instead of a disc image |
+| `--jobs <n>` | how many compilers run at once |
+| `--dev`, `--suffix .dev` | build the app here instead of downloading it; under another package name |
+| `--yes` | ask nothing |
+
+Running it again is safe: finished steps are skipped.
+
+**Tested** on Ubuntu 24.04 (under WSL2, 32 processor threads, 23 GB of
+memory), from a fresh clone, for Modern Warfare 2: the whole first run took
+2 minutes 32 seconds, with 3.3 GB of memory in use at its fullest (1.0 GB
+before it began) and 5 GB of disk. The game code it built states the same
+build as the one made on Windows and as the published app v0.1.6 asks for,
+and it loads and starts the game on a Retroid Pocket Flip 2. Modern Warfare 3
+and Call of Duty 4 go through the same script and have not been run on Linux
+yet.
+
+**An old PC, or little memory.** The recompiled code is a few hundred very
+large files. One compiler working on them took 320 MB at most, and
+Modern Warfare 2's campaign took 2 minutes 40 seconds with a single compiler
+on that PC; an old processor will need several times that, for each of the
+two halves. Setup counts the free memory and runs only as many compilers as
+fit (768 MB each, to be safe; `--jobs 1` forces one). With under 2 GB free
+it warns: close the browser first, and add a swap file if the build is
+killed. At its end setup says how long it took and how much memory was in
+use at its fullest.
+
+**Under WSL** a phone on USB is not seen by Linux. Build there, then install
+`out/mw2-game.apk` and the app with Windows' `adb install -r`, or copy both
+to the phone and open them; or attach the phone to WSL with
+[usbipd-win](https://github.com/dorssel/usbipd-win).
+
+The Windows game and other authors' camouflage packs are not part of the
+Linux script: the first is `setup\setup.ps1`'s, the second the app fetches
+itself (**Settings**, **Multiplayer**, **Camo packs**).
+
 ## No PC at all: GitHub builds it for you
+
+> **Not available yet.** This needs the app's **Prepare files for building
+> online**, which comes with the next release of the app, and the template
+> repository, which is not published yet. The build itself has not yet been
+> run on GitHub from start to finish either. What follows is how it will
+> work.
 
 You need: the phone or handheld you play on, your disc image on it, a
 browser, and a [GitHub account](https://github.com/signup) (free).
@@ -132,50 +197,3 @@ set a payment method and a spending limit above zero.
 | "is not a disc build this port supports" | the files are from another edition of the game than the port is made for |
 | Android says **App not installed** | an older game package signed with another key is installed (one built on a PC, or in another repository): uninstall it first (Android's **Settings**, **Apps**, *Modern Warfare 2 game code*), then install the new one |
 | the app still says the game code does not match | the app is older than the package: let it update itself (**Check for updates**), or build for your version: **Run workflow** with the app's version (such as `v0.1.6`) in the version box |
-
-## A Linux PC
-
-On a 64-bit Linux (written for Ubuntu 24.04), with about 25 GB free:
-
-```sh
-git clone https://github.com/yassinsolim/mw2-recomp.git && cd mw2-recomp
-bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso
-```
-
-It fetches a JDK and the Android SDK and NDK into `.toolchain/` (pinned and
-checked; nothing installed system-wide), reads the two executables out of
-your disc image (read-only), checks them, recompiles them, builds
-`out/mw2-game.apk`, downloads the published app, and offers to install both
-on a phone connected over USB with USB debugging on. A few programs have to
-be the system's own; it names the ones missing and offers to install them:
-
-```sh
-sudo apt install git curl unzip python3 openssl clang
-```
-
-(`clang` 17 or later builds the recompiler.)
-
-| option | what it does |
-|---|---|
-| `--check` | read-only: says what is present and what would be fetched |
-| `--install`, `--device <serial>` | install without asking; which phone, when several are connected |
-| `--push-iso` | also copy the disc image to the phone's Download folder |
-| `--game-only` | build and install the game code only: what to run after `git pull` when the app says the game code does not match |
-| `--xex-dir <folder>` | take the two executables from a folder instead of a disc image |
-| `--jobs <n>` | how many compilers run at once |
-| `--dev`, `--suffix .dev` | build the app here instead of downloading it; under another package name |
-| `--yes` | ask nothing |
-
-Running it again is safe: finished steps are skipped.
-
-**An old PC, or little memory.** The recompiled code is a few hundred very
-large files, and each compiler working on one takes up to about 1.5 GB.
-Setup counts the free memory and runs only as many compilers as fit
-(`--jobs 1` forces one). With under 3 GB free it warns: close the browser
-first, and add a swap file if the build is killed. The build then takes
-longer, not more memory; at its end setup says how long it took and how
-much memory was in use at its fullest.
-
-The Windows game and other authors' camouflage packs are not part of the
-Linux script: the first is `setup\setup.ps1`'s, the second the app fetches
-itself (**Settings**, **Multiplayer**, **Camo packs**).

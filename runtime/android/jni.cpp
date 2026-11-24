@@ -559,7 +559,9 @@ MW2_NATIVE(jboolean, nativeGameInstalled)(JNIEnv* env, jobject, jstring gameDire
 
 // Blocking: the app calls it from a thread of its own and polls the progress.
 // Returns null when it worked, or the sentence to show when it did not.
-MW2_NATIVE(jstring, nativeInstall)(JNIEnv* env, jobject, jstring source, jstring gameDirectory)
+// `link`: for a game played from the disc image, which copies the
+// executables alone.
+MW2_NATIVE(jstring, nativeInstall)(JNIEnv* env, jobject, jstring source, jstring gameDirectory, jboolean link)
 {
     const std::string from = ToString(env, source);
     const std::string folder = ToString(env, gameDirectory);
@@ -572,9 +574,20 @@ MW2_NATIVE(jstring, nativeInstall)(JNIEnv* env, jobject, jstring source, jstring
         g_progressDone = g_progressTotal = 0;
     }
     std::string error;
-    const bool ok = install::InstallFrom(from, error, InstallReport, nullptr);
+    const bool ok = install::InstallFrom(from, error, InstallReport, nullptr, link == JNI_TRUE);
     if (ok) return nullptr;
     return FromString(env, error);
+}
+
+// The size of the game folder's copies of the disc image's files, which a
+// game played from the image does not need; removed when asked.
+MW2_NATIVE(jlong, nativeCopiedFiles)(JNIEnv* env, jobject, jstring source, jstring gameDirectory, jboolean remove)
+{
+    const std::string from = ToString(env, source);
+    const std::string folder = ToString(env, gameDirectory);
+    if (from.empty() || folder.empty()) return 0;
+    install::SetGameFolder(folder);
+    return jlong(install::CopiedFiles(from, remove == JNI_TRUE));
 }
 
 MW2_NATIVE(jstring, nativeInstallProgress)(JNIEnv* env, jobject, jlongArray out)

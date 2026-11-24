@@ -12,6 +12,7 @@
 #include <string>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace kernel
@@ -102,8 +103,16 @@ namespace kernel
     // A package here is a directory under SaveRoot(); nothing writes the console's
     // STFS container format.
     void MountDevice(const std::string& name, const std::filesystem::path& root);
+    // A read-only volume as a drive: a downloadable content package, read
+    // where it lies (volume.h).
+    void MountVolume(const std::string& name, std::shared_ptr<class ReadVolume> volume);
     void UnmountDevice(const std::string& name);
     const std::filesystem::path& SaveRoot();
+    // Downloadable content: the player's own packages for this title, found in
+    // the `dlc` folders (content.cpp, docs/dlc.md). Writes XCONTENT_DATA for
+    // those from `next` on that fit in the buffer, moves `next` past them and
+    // returns how many.
+    uint32_t ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next);
     // What is kept under a player's number -- his rank, offline and Live, and
     // the settings of a profile at the second to fourth controllers -- renamed
     // to another number, where that one has none yet (kernel/xam.cpp).

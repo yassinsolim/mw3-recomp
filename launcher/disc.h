@@ -20,6 +20,12 @@ namespace install
         return std::filesystem::path(std::u8string(text.begin(), text.end()));
     }
 
+    // The open file an "fd:<number>" source names, or -1 for a path. Android
+    // hands a file the player chose with the system's picker over as a
+    // descriptor, not a path, and one on a memory card may be readable no
+    // other way.
+    int SourceDescriptor(const std::string& source);
+
     class Source
     {
     public:
@@ -44,7 +50,8 @@ namespace install
         const File* Find(const std::string& name) const;
         bool ReadAll(const File& file, std::vector<uint8_t>& out);
 
-        // An image file or a folder; null with `error` set if it is neither.
+        // An image file (by path, or "fd:<number>" for one already open) or a
+        // folder; null with `error` set if it is neither.
         static std::unique_ptr<Source> Open(const std::filesystem::path& path, std::string& error);
     };
 }

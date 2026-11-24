@@ -6,6 +6,7 @@
     <string name="wordmark">MODERN WARFARE</string>
     <string name="wordmark_recompiled">COD4 RECOMPILED</string>
     <string name="title_campaign">CAMPAIGN</string>
-    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd -Game cod4 (on Linux: bash setup/setup.sh --game cod4) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
+    <string name="setup_command">setup\\setup.cmd -Game cod4</string>
+    <string name="game_code_missing">Step 1 is not done: the game code is not on this device. It is made from your own disc.\nOn your PC, run setup\\setup.cmd -Game cod4 (on Linux: bash setup/setup.sh --game cod4) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
     <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game cod4 -GameOnly with this device connected over USB. If you built it online: in your private repository, Actions, Build my game package, Run workflow. Your game files and saves are kept.</string>
 </resources>

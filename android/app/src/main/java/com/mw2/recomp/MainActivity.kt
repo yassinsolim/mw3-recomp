@@ -63,6 +63,12 @@ class MainActivity : AppCompatActivity() {
     /** Whether the detail card is the Play entry's, which changes when an install finishes. */
     private var detailIsPlay = false
 
+    /** Whether the detail card is the two steps of setting up, which changes as they are done. */
+    private var detailIsSetup = false
+
+    /** Whether the two steps were said in a dialog since this launcher started. */
+    private var setupExplained = false
+
     /** What the large button starts: the campaign, where the app carries it. */
     private val firstTitle = Title.carried.first()
 
@@ -422,24 +428,31 @@ class MainActivity : AppCompatActivity() {
         detectedIsoFile = if (missing.isEmpty()) null else findDisc()
         refreshSecondEntry(gameDirectory)
         refreshBotsEntry()
+        // The app is published without the game's code: the files alone do
+        // not make it ready (GameLibrary.kt). Which of the two a player still
+        // has to do is said before either is started.
+        val gameCode = GameLibrary.installed(this)
+        showSetupSteps(gameCode, installed)
 
         if (installed) {
-            play.isEnabled = true
+            // A game played from its disc image needs the image where it was.
+            val disc = prefs.discImage
+            val discGone = disc.isNotEmpty() && DiscImage.source(this, disc).also { DiscImage.close(it) } == null
+            play.isEnabled = gameCode && !discGone
             play.text = if (Title.both) "▶ " + getString(R.string.title_campaign) else "▶ LAUNCH GAME"
-            status.text = if (missing.isEmpty()) "Status: Game Ready\nLocation: $gameDirectory"
-            else getString(R.string.status_multiplayer_missing)
-            installButton.visibility = if (missing.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
+            status.text = when {
+                !gameCode -> getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
+                missing.isNotEmpty() -> getString(R.string.status_multiplayer_missing)
+                discGone -> getString(R.string.status_disc_missing, DiscImage.label(this, disc))
+                disc.isNotEmpty() -> getString(R.string.status_ready_disc, DiscImage.label(this, disc))
+                else -> "Status: Game Ready\nLocation: $gameDirectory"
+            }
+            installButton.visibility =
+                if (missing.isEmpty() && !discGone) android.view.View.GONE else android.view.View.VISIBLE
             installButton.text = getString(R.string.install_game)
             directLaunchSwitch.visibility = android.view.View.VISIBLE
-            // The app is published without the game's code: the files alone
-            // do not make it ready (GameLibrary.kt).
-            val gameCode = GameLibrary.installed(this)
-            if (!gameCode) {
-                play.isEnabled = false
-                status.text = getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
-            }
 
-            if (gameCode && prefs.autoLaunch && !hasAutoLaunched) {
+            if (play.isEnabled && prefs.autoLaunch && !hasAutoLaunched) {
                 hasAutoLaunched = true
                 // The title played last, while its files are still there.
                 val last = RunRequest.read(this).title
@@ -455,7 +468,7 @@ class MainActivity : AppCompatActivity() {
             if (detectedIsoFile != null) {
                 play.isEnabled = true
                 play.text = "⚡ INSTALL & PLAY"
-                status.text = "Game Disc Detected:\n${detectedIsoFile!!.name}\nReady for one-click setup."
+                status.text = getString(R.string.status_disc_found, detectedIsoFile!!.name)
                 installButton.visibility = android.view.View.VISIBLE
                 installButton.text = "Choose Another Source"
             } else {
@@ -481,6 +494,72 @@ class MainActivity : AppCompatActivity() {
         footer.text = getString(
             R.string.footer, device(), currentDriverName(),
             BuildConfig.BUILD_SHA, BuildConfig.BUILD_STAMP,
+        )
+    }
+
+    /**
+     * The two things a player does before the first game, and which of them
+     * are done: in the detail card while one is not, and once in a dialog,
+     * with the way to the guide. A tester ran Install & Play, waited for
+     * seven gigabytes, and only then read that the game's code comes from a
+     * PC.
+     */
+    private fun showSetupSteps(gameCode: Boolean, gameFiles: Boolean) {
+        // An app with the game's code inside has the one step, which the
+        // status says.
+        if (!GameLibrary.separate) return
+        if (gameCode && gameFiles) {
+            if (detailIsSetup) showDetail(getString(R.string.detail_default_title), getString(R.string.detail_default_text))
+            return
+        }
+        val untouched = detailTitle.text.toString() == getString(R.string.detail_default_title)
+        if (untouched || detailIsSetup) {
+            showDetail(getString(R.string.setup_title), setupSteps(gameCode, gameFiles))
+            detailIsSetup = true
+        }
+        // The dialog is for the step done away from the device, which
+        // nothing on this screen can do: with the game code here, the card
+        // and the Install & Play button say the rest.
+        if (setupExplained || gameCode) return
+        setupExplained = true
+        explainSetup(gameCode, gameFiles)
+    }
+
+    private fun setupSteps(gameCode: Boolean, gameFiles: Boolean): String {
+        val done = getString(R.string.setup_done)
+        val todo = getString(R.string.setup_todo)
+        return getString(
+            R.string.setup_steps, if (gameCode) done else todo, if (gameFiles) done else todo,
+            getString(R.string.setup_command),
+        )
+    }
+
+    private fun explainSetup(gameCode: Boolean, gameFiles: Boolean) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.setup_title)
+            .setMessage(setupSteps(gameCode, gameFiles) + "\n\n" + getString(R.string.setup_guide_where, setupGuide()))
+            .setNegativeButton(R.string.close, null)
+            .setPositiveButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
+        if (!gameFiles) {
+            dialog.setNeutralButton(R.string.install_game) { _, _ -> install() }
+        }
+        dialog.show()
+    }
+
+    /** The README's section on the two steps, in this game's repository. */
+    private fun setupGuide(): String =
+        "https://github.com/${BuildConfig.UPDATE_REPO.ifEmpty { "yassinsolim/mw3-recomp" }}#two-steps-to-play"
+
+    /** The install screen, from the disc image found on the device when there is one. */
+    private fun install(title: Title = firstTitle) {
+        startActivity(
+            Intent(this, InstallActivity::class.java).apply {
+                putExtra(InstallActivity.EXTRA_TITLE, title.name)
+                detectedIsoFile?.let {
+                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, it.absolutePath)
+                    putExtra(InstallActivity.EXTRA_AUTO_START, true)
+                }
+            },
         )
     }
 
@@ -522,36 +601,32 @@ class MainActivity : AppCompatActivity() {
                 File(getExternalFilesDir(null) ?: filesDir, "mw2.iso")
             )
         }
-        val downloadFolder = File("/sdcard/Download")
-        val anyDownloadIso = if (downloadFolder.exists() && downloadFolder.isDirectory) {
-            downloadFolder.listFiles { f ->
-                f.isFile && f.name.endsWith(".iso", ignoreCase = true) && f.length() > 500_000_000L &&
-                    // Lean ISO has no MP zones; don't offer it as fallback for MP.
-                    (!isMp || !f.name.contains("lean", ignoreCase = true))
-            }?.firstOrNull()
-        } else null
+        // Any other image in a Download folder, the device's or a memory
+        // card's: under another name, it may still be the game's.
+        val anyDownloadIso = DiscImage.inDownloads(this).firstOrNull {
+            // Lean ISO has no MP zones; don't offer it as fallback for MP.
+            !isMp || !it.name.contains("lean", ignoreCase = true)
+        }
 
-        return candidateIsos.firstOrNull { it.exists() && it.length() > 500_000_000L } ?: anyDownloadIso
+        return candidateIsos.firstOrNull { it.exists() && it.length() > DiscImage.SMALLEST } ?: anyDownloadIso
     }
 
     /**
      * Starts a title, or the install that has to come first: from the disc
      * image found on the phone when there is one, else by asking for it.
+     * Without the game's code the two steps are said first, since the
+     * install alone does not end in a game.
      */
     private fun launch(title: Title) {
         if (title.installed(prefs.gameDirectory)) {
             startGame(title)
             return
         }
-        startActivity(
-            Intent(this, InstallActivity::class.java).apply {
-                putExtra(InstallActivity.EXTRA_TITLE, title.name)
-                detectedIsoFile?.let {
-                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, it.absolutePath)
-                    putExtra(InstallActivity.EXTRA_AUTO_START, true)
-                }
-            },
-        )
+        if (!GameLibrary.installed(this)) {
+            explainSetup(gameCode = false, gameFiles = firstTitle.installed(prefs.gameDirectory))
+            return
+        }
+        install(title)
     }
 
     private fun device(): String {
@@ -618,6 +693,7 @@ class MainActivity : AppCompatActivity() {
         detailTitle.text = title
         detailText.text = text
         detailIsPlay = false
+        detailIsSetup = false
     }
 
     /** What the Play card says: the game that is installed, or what the status says is in the way. */

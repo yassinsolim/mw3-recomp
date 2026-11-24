@@ -1,14 +1,17 @@
 // Asset-free test of the kernel's file layer: how guest NT paths become host
 // files. It compiles runtime/kernel/files.cpp unchanged, calls its NtCreateFile,
 // NtReadFile and friends the way recompiled code would, and runs them against a
-// temporary folder of synthetic files made here. No game files are involved.
+// temporary folder of synthetic files made here -- among them a disc image and
+// a content package, built byte by byte. No game files are involved.
 #include "tests/fake_guest.h"
 #include "tests/fake_crash.h"
 #include "runtime/kernel/objects.h"
+#include "runtime/kernel/volume.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -16,6 +19,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <fcntl.h>
 #include <unistd.h>
 
 namespace fs = std::filesystem;
@@ -380,6 +384,213 @@ int main()
     }
     UnmountDevice("cache0");
     assert(Create("cache0:\\profile\\save.dat", GENERIC_READ, FILE_OPEN).status == X_STATUS_OBJECT_NAME_NOT_FOUND);
+
+    // ---- a downloadable content package, read where it lies ------------------
+    // A synthetic read-only STFS package: a marker, a folder, a file that runs
+    // past the first hash table's 170 blocks, and two files whose blocks are
+    // interleaved, so their chains have to be followed.
+    {
+        constexpr uint32_t kBlock = 0x1000, kPerTable = 0xAA;
+        // Where the console puts a data block of a read-only package (after
+        // Velocity's ComputeBackingDataBlockNumber), written out apart from
+        // the runtime's own arithmetic.
+        const auto blockAt = [](uint32_t block) -> uint64_t
+        {
+            uint64_t backing = (block + kPerTable) / kPerTable + block;
+            if (block >= kPerTable) backing += (block + 0x70E4) / 0x70E4;
+            return 0xB000 + backing * kBlock;
+        };
+        const std::string big = Pattern(0xB0 * kBlock - 100), odd = Pattern(2 * kBlock - 7), even(kBlock, 'e');
+        constexpr uint32_t kBigFirst = 1, kOddA = 0xB1, kEven = 0xB2, kOddB = 0xB3, kBlocks = 0xB4;
+        std::string package(size_t(blockAt(kBlocks)), '\0');
+        const auto put32 = [&](size_t at, uint32_t v) { for (int i = 0; i < 4; i++) package[at + i] = char(v >> (24 - 8 * i)); };
+        const auto next = [&](uint32_t block, uint32_t after)
+        {
+            const size_t entry = size_t(blockAt(block - block % kPerTable) - kBlock) + (block % kPerTable) * 0x18;
+            package[entry + 0x15] = char(after >> 16); package[entry + 0x16] = char(after >> 8); package[entry + 0x17] = char(after);
+        };
+        std::memcpy(package.data(), "LIVE", 4);
+        put32(0x22C + 8, 0x00000001);                    // a licence, and its bits
+        put32(0x340, 0xAD0E);                            // header size: a read-only package
+        put32(0x344, 2);                                 // marketplace content
+        put32(0x360, 0x41560817);
+        package[0x37C] = 1;                             // one block of file table, block 0
+        const char16_t title[] = u"Test Pack";
+        for (size_t i = 0; title[i]; i++) package[0x411 + 2 * i + 1] = char(title[i]);
+        const auto file = [&](size_t index, const char* name, uint8_t flags, uint32_t first, uint32_t size, uint16_t parent)
+        {
+            const size_t at = size_t(blockAt(0)) + index * 0x40;
+            std::memcpy(&package[at], name, std::strlen(name));
+            package[at + 0x28] = char(flags | std::strlen(name));
+            package[at + 0x2F] = char(first); package[at + 0x30] = char(first >> 8);
+            package[at + 0x32] = char(parent >> 8); package[at + 0x33] = char(parent);
+            put32(at + 0x34, size);
+        };
+        file(0, "mappack1.id", 0, 0, 0, 0xFFFF);
+        file(1, "Maps", 0x80, 0, 0, 0xFFFF);
+        file(2, "Big.ff", 0x40, kBigFirst, uint32_t(big.size()), 1);
+        file(3, "odd.bin", 0, kOddA, uint32_t(odd.size()), 0xFFFF);
+        file(4, "even.bin", 0, kEven, uint32_t(even.size()), 0xFFFF);
+        for (uint32_t i = 0; i < 0xB0; i++)
+        {
+            const size_t n = std::min<size_t>(kBlock, big.size() - size_t(i) * kBlock);
+            std::memcpy(&package[size_t(blockAt(kBigFirst + i))], big.data() + size_t(i) * kBlock, n);
+            if (i + 1 < 0xB0) next(kBigFirst + i, kBigFirst + i + 1);
+        }
+        std::memcpy(&package[size_t(blockAt(kOddA))], odd.data(), kBlock);
+        std::memcpy(&package[size_t(blockAt(kOddB))], odd.data() + kBlock, odd.size() - kBlock);
+        next(kOddA, kOddB);
+        std::memcpy(&package[size_t(blockAt(kEven))], even.data(), kBlock);
+        const fs::path packageFile = base / "0123456789ABCDEF0123456789ABCDEF01234567";
+        { std::ofstream(packageFile, std::ios::binary) << package; }
+
+        std::string error;
+        const auto volume = ReadVolume::OpenPackage(packageFile, error);
+        assert(volume && error.empty());
+        assert(volume->Header().titleId == 0x41560817 && volume->Header().contentType == 2);
+        assert(volume->Header().licenceBits == 1 && volume->Header().displayName == u"Test Pack");
+        assert(volume->RootFiles().size() == 3);
+        MountVolume("mappack1", volume);
+
+        Opened o = Create("mappack1:\\mappack1.id", GENERIC_READ, FILE_OPEN);
+        assert(o.status == X_STATUS_SUCCESS && o.information == FILE_OPENED);
+        assert(Read(o.handle, 16).status == X_STATUS_END_OF_FILE);
+        CloseHandle(o.handle);
+        assert(FullAttributes("mappack1:\\MAPS") == X_STATUS_SUCCESS && uint32_t(*GuestPtr<be32>(kInfo + 48)) == 0x10);
+        assert(FullAttributes("mappack1:\\maps\\big.FF") == X_STATUS_SUCCESS);
+        assert(uint64_t(*GuestPtr<be64>(kInfo + 40)) == big.size());
+
+        // Across the first hash table, from the start, the middle and the end.
+        o = Create("mappack1:\\maps\\big.ff", GENERIC_READ, FILE_OPEN);
+        assert(o.status == X_STATUS_SUCCESS);
+        for (const uint64_t at : { uint64_t(0), uint64_t(0xA8 * kBlock + 5), uint64_t(big.size() - 3000) })
+        {
+            const uint32_t want = uint32_t(std::min<uint64_t>(0x5000, big.size() - at));
+            const Transfer t = Read(o.handle, 0x5000, int64_t(at));
+            assert(t.status == X_STATUS_SUCCESS && t.information == want);
+            assert(Bytes(want) == big.substr(size_t(at), want));
+        }
+        assert(Read(o.handle, 16, int64_t(big.size())).status == X_STATUS_END_OF_FILE);
+        CloseHandle(o.handle);
+
+        // A chain that is not consecutive, read in order without positions.
+        o = Create("mappack1:\\odd.bin", GENERIC_READ, FILE_OPEN);
+        assert(Read(o.handle, 5000).information == 5000 && Bytes(5000) == odd.substr(0, 5000));
+        assert(Read(o.handle, 5000).information == odd.size() - 5000 && Bytes(uint32_t(odd.size() - 5000)) == odd.substr(5000));
+        SetInfo(o.handle, 14, 4090);
+        assert(Read(o.handle, 12).information == 12 && Bytes(12) == odd.substr(4090, 12));
+        assert(QueryInfo(o.handle, 14) == X_STATUS_SUCCESS && uint64_t(*GuestPtr<be64>(kInfo)) == 4102);
+        CloseHandle(o.handle);
+
+        // Read-only: nothing is made in it, and a write is taken and dropped
+        // as a write to the disc is.
+        assert(Create("mappack1:\\new.bin", GENERIC_WRITE, FILE_OPEN_IF).status == X_STATUS_OBJECT_NAME_NOT_FOUND);
+        assert(Create("mappack1:\\even.bin", GENERIC_READ, FILE_CREATE).status == X_STATUS_OBJECT_NAME_COLLISION);
+        o = Create("mappack1:\\even.bin", GENERIC_WRITE, FILE_OVERWRITE_IF);
+        assert(o.status == X_STATUS_SUCCESS);
+        assert(Write(o.handle, "scribble").status == X_STATUS_SUCCESS);
+        assert(Read(o.handle, kBlock, 0).information == kBlock && Bytes(kBlock) == even);
+        CloseHandle(o.handle);
+        UnmountDevice("mappack1");
+        assert(Create("mappack1:\\even.bin", GENERIC_READ, FILE_OPEN).status == X_STATUS_OBJECT_NAME_NOT_FOUND);
+        assert(Slurp(packageFile) == package);
+
+        // What is not such a package is refused, with the reason.
+        { std::ofstream(base / "not-a-package", std::ios::binary) << Pattern(0x2000); }
+        assert(!ReadVolume::OpenPackage(base / "not-a-package", error) && !error.empty());
+        std::string cut = package.substr(0, size_t(blockAt(0x40)));
+        { std::ofstream(base / "cut-short", std::ios::binary) << cut; }
+        assert(!ReadVolume::OpenPackage(base / "cut-short", error));
+    }
+
+    // ---- the disc image under the game folder --------------------------------
+    // A synthetic XDVDFS image: two files at the root and one in a folder.
+    {
+        constexpr size_t kSector = 2048;
+        const std::string common = Pattern(5000), top = Pattern(700), shadowed = Pattern(300);
+        std::string image(64 * kSector, '\0');
+        const auto le32 = [&](size_t at, uint32_t v) { for (int i = 0; i < 4; i++) image[at + i] = char(v >> (8 * i)); };
+        // { left u16, right u16, sector u32, size u32, attributes u8, name length u8, name },
+        // the next entry to the right of each.
+        const auto entry = [&](size_t directory, size_t at, bool last, uint32_t sector, uint32_t size,
+                               uint8_t attributes, const char* name)
+        {
+            const size_t length = std::strlen(name), end = (at + 14 + length + 3) & ~size_t(3);
+            const size_t e = directory * kSector + at;
+            image[e] = image[e + 1] = image[e + 3] = 0;
+            image[e + 2] = char(last ? 0 : end / 4);
+            le32(e + 4, sector); le32(e + 8, size);
+            image[e + 12] = char(attributes); image[e + 13] = char(length);
+            std::memcpy(&image[e + 14], name, length);
+            return end;
+        };
+        std::memcpy(&image[32 * kSector], "MICROSOFT*XBOX*MEDIA", 20);
+        le32(32 * kSector + 0x14, 33); le32(32 * kSector + 0x18, kSector);
+        std::fill(image.begin() + 33 * kSector, image.begin() + 35 * kSector, char(0xFF));
+        size_t at = entry(33, 0, false, 40, uint32_t(common.size()), 0x80, "Common.ff");
+        at = entry(33, at, false, 34, kSector, 0x10, "highmip");
+        entry(33, at, true, 44, uint32_t(shadowed.size()), 0x80, "empty.bin");
+        entry(34, 0, true, 48, uint32_t(top.size()), 0x80, "Tex.hi");
+        std::memcpy(&image[40 * kSector], common.data(), common.size());
+        std::memcpy(&image[44 * kSector], shadowed.data(), shadowed.size());
+        std::memcpy(&image[48 * kSector], top.data(), top.size());
+        const fs::path imageFile = base / "disc.iso";
+        { std::ofstream(imageFile, std::ios::binary) << image; }
+
+        // Not there until the image is mounted; a folder is not an image.
+        assert(Open("D:\\common.ff") == X_STATUS_OBJECT_NAME_NOT_FOUND);
+        std::string error;
+        assert(!MountDisc(g_discRoot.string(), error) && !Disc());
+        assert(!MountDisc((base / "outside.txt").string(), error) && !error.empty());
+
+        // By its path, and by a descriptor the caller holds open.
+        const int held = open(imageFile.c_str(), O_RDONLY);
+        assert(held >= 0);
+        for (const std::string& source : { imageFile.string(), "fd:" + std::to_string(held) })
+        {
+            assert(MountDisc(source, error) && Disc());
+            assert(Disc()->RootFiles().size() == 2);
+            Opened o = Create("game:\\COMMON.FF", GENERIC_READ, FILE_OPEN);
+            assert(o.status == X_STATUS_SUCCESS && o.information == FILE_OPENED);
+            assert(QueryInfo(o.handle, 5) == X_STATUS_SUCCESS && uint64_t(*GuestPtr<be64>(kInfo + 8)) == common.size());
+            assert(Read(o.handle, 3000).information == 3000 && Bytes(3000) == common.substr(0, 3000));
+            assert(Read(o.handle, 3000).information == 2000 && Bytes(2000) == common.substr(3000));
+            assert(Read(o.handle, 16).status == X_STATUS_END_OF_FILE);
+            assert(Read(o.handle, 100, 4950).information == 50 && Bytes(50) == common.substr(4950));
+            // A second handle on the same file keeps its own place.
+            const Opened other = Create("D:\\common.ff", GENERIC_READ, FILE_OPEN);
+            assert(Read(other.handle, 10).information == 10 && Bytes(10) == common.substr(0, 10));
+            assert(Read(o.handle, 10, 100).information == 10);
+            assert(Read(other.handle, 10).information == 10 && Bytes(10) == common.substr(10, 10));
+            CloseHandle(other.handle);
+            CloseHandle(o.handle);
+
+            o = Create("D:\\highmip\\tex.hi", GENERIC_READ, FILE_OPEN);
+            assert(o.status == X_STATUS_SUCCESS);
+            assert(Read(o.handle, 4096).information == top.size() && Bytes(uint32_t(top.size())) == top);
+            CloseHandle(o.handle);
+            assert(FullAttributes("D:\\HighMip") == X_STATUS_SUCCESS && uint32_t(*GuestPtr<be32>(kInfo + 48)) == 0x10);
+            assert(FullAttributes("D:\\highmip\\tex.hi") == X_STATUS_SUCCESS);
+            assert(uint64_t(*GuestPtr<be64>(kInfo + 40)) == top.size());
+
+            // The game folder's file comes before the image's of the same name.
+            assert(FullAttributes("D:\\empty.bin") == X_STATUS_SUCCESS && uint64_t(*GuestPtr<be64>(kInfo + 40)) == 0);
+            o = Create("D:\\zone\\sub\\data.bin", GENERIC_READ, FILE_OPEN);
+            assert(o.status == X_STATUS_SUCCESS && Read(o.handle, 1000).information == 1000 && Bytes(1000) == data);
+            CloseHandle(o.handle);
+
+            // Still read-only, and what neither has is still not there.
+            assert(Create("D:\\common.ff", GENERIC_READ, FILE_CREATE).status == X_STATUS_OBJECT_NAME_COLLISION);
+            o = Create("D:\\common.ff", GENERIC_WRITE, FILE_OVERWRITE_IF);
+            assert(o.status == X_STATUS_SUCCESS && Write(o.handle, "scribble").status == X_STATUS_SUCCESS);
+            CloseHandle(o.handle);
+            assert(Open("D:\\absent.ff") == X_STATUS_OBJECT_NAME_NOT_FOUND);
+            assert(Open("D:\\highmip\\absent.hi") == X_STATUS_OBJECT_NAME_NOT_FOUND);
+            assert(Open("D:\\..\\disc.iso") == X_STATUS_OBJECT_NAME_NOT_FOUND);
+        }
+        close(held);
+        assert(Slurp(imageFile) == image);
+    }
 
     fs::remove_all(base);
     std::puts("kernel-files-test ok");

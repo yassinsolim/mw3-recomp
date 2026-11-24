@@ -38,6 +38,9 @@ class FileBrowserActivity : AppCompatActivity() {
     private var children: List<File> = emptyList()
     private var hasParent = false
 
+    /** The other storages, listed at the top of one. */
+    private var others: List<File> = emptyList()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_browser)
@@ -77,8 +80,12 @@ class FileBrowserActivity : AppCompatActivity() {
             .sortedBy { it.name.lowercase() }
         val parent = folder.parentFile
         hasParent = parent != null && parent.canRead()
+        // At the top of a storage there is no way up to the others: the
+        // device's own and each memory card's are listed there instead.
+        others = if (hasParent) emptyList() else storages().filter { it != folder }
         children = buildList {
             if (hasParent && parent != null) add(parent)
+            addAll(others)
             addAll(folders)
             addAll(images)
         }
@@ -88,6 +95,17 @@ class FileBrowserActivity : AppCompatActivity() {
         grant.visibility = if (canRead && !needsPermission()) View.GONE else View.VISIBLE
         if (!canRead) {
             here.text = getString(R.string.storage_explained, packageName)
+        }
+    }
+
+    /** The device's storage and each memory card's, by their roots. */
+    private fun storages(): List<File> = buildList {
+        add(Environment.getExternalStorageDirectory())
+        // A card's root, from the app's own folder on it
+        // (<root>/Android/data/<package>/files).
+        for (own in getExternalFilesDirs(null).drop(1)) {
+            val root = own?.absolutePath?.substringBefore("/Android/data/", "") ?: continue
+            if (root.isNotEmpty()) add(File(root))
         }
     }
 
@@ -165,6 +183,9 @@ class FileBrowserActivity : AppCompatActivity() {
             if (position == 0 && hasParent) {
                 title.setText(R.string.up_one)
                 detail.text = file.absolutePath
+            } else if (file in others) {
+                title.text = getString(R.string.other_storage, file.absolutePath)
+                detail.text = ""
             } else {
                 title.text = file.name
                 detail.text = if (file.isDirectory) ""

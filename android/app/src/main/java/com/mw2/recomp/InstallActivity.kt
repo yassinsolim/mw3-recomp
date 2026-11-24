@@ -24,25 +24,35 @@ import java.io.File
 import kotlin.concurrent.thread
 
 /**
- * Copying the player's own copy of the game into the app's storage.
+ * Setting the player's own copy of the game up to be played.
+ *
+ * Two ways, and the player chooses:
+ *
+ *   From the image   the game reads its files out of the disc image where
+ *                    it lies (runtime/kernel/volume.h), on the device or on
+ *                    a memory card. Only the executables are copied, which
+ *                    takes a second; the image has to stay where it is.
+ *   Copied           what the game needs is copied into the app's storage,
+ *                    about 7 GB, from an image or from a folder a disc was
+ *                    extracted to; the source is not needed afterwards.
  *
  * The work is the runtime's (runtime/install/install.cpp): it reads a disc
- * image or a folder, copies what the game needs, checks every file against
- * a known hash as it goes, and can be interrupted and carried on later.
- * This screen is a source, a progress bar and a cancel button.
+ * image or a folder, checks the executables against the disc this build was
+ * made from, and can be interrupted and carried on later. This screen is a
+ * source, the choice, a progress bar and a cancel button.
  *
  * Two ways to name the source, because Android has two and neither covers
  * everyone:
  *
  *   Files      the system picker. No permission at all, works with a phone
- *              whose storage is locked down, and works with cloud entries --
- *              but it hands over a document rather than a path, so the file
- *              has to be copied into the app's folder before the installer
- *              can read it. That costs the disc image's size again.
- *   Browse     a plain directory listing over real paths. Nothing is copied
- *              twice, and a folder of already-extracted files can be used
- *              as it stands -- but reading outside the app's own folder
- *              needs the all-files permission.
+ *              whose storage is locked down and with a memory card. It
+ *              hands over a document rather than a path: a file on the
+ *              device is read through it where it lies (DiscImage.kt), and
+ *              only one that is not a file here, a cloud entry, has to be
+ *              copied into the app's folder first.
+ *   Browse     a plain directory listing over real paths, and the only way
+ *              to name a folder of already-extracted files -- but reading
+ *              outside the app's own folder needs the all-files permission.
  */
 class InstallActivity : AppCompatActivity() {
 
@@ -54,9 +64,18 @@ class InstallActivity : AppCompatActivity() {
     private lateinit var choose: Button
     private lateinit var pick: Button
     private lateinit var cancel: Button
+    private lateinit var linkMode: android.widget.RadioButton
+    private lateinit var copyMode: android.widget.RadioButton
 
     private val handler = Handler(Looper.getMainLooper())
+    /** A path, or a document's address (DiscImage.kt). */
     private var source: String = ""
+
+    /** Whether the install running, or the last to finish, plays from the image. */
+    private var linked = false
+
+    /** The bytes of earlier copies the game folder still holds once it plays from the image. */
+    private var copies = 0L
 
     @Volatile
     private var running = false
@@ -85,7 +104,7 @@ class InstallActivity : AppCompatActivity() {
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
         val uri = result.data?.data ?: return@registerForActivityResult
-        importDocument(uri)
+        chooseDocument(uri)
     }
 
     private val tick = object : Runnable {
@@ -114,6 +133,8 @@ class InstallActivity : AppCompatActivity() {
         choose = findViewById(R.id.choose)
         pick = findViewById(R.id.pick)
         cancel = findViewById(R.id.cancel)
+        linkMode = findViewById(R.id.mode_link)
+        copyMode = findViewById(R.id.mode_copy)
 
         sourceText.text = getString(R.string.no_source)
 
@@ -192,9 +213,13 @@ class InstallActivity : AppCompatActivity() {
         const val EXTRA_TITLE = "title"
     }
 
-    private fun useSource(path: String) {
-        source = path
-        sourceText.text = getString(R.string.chosen, path)
+    private fun useSource(image: String) {
+        source = image
+        sourceText.text = getString(R.string.chosen, DiscImage.label(this, image))
+        // A folder of extracted files has no image to play from.
+        val folder = !DiscImage.isDocument(image) && File(image).isDirectory
+        linkMode.isEnabled = !folder
+        if (folder) copyMode.isChecked = true else linkMode.isChecked = true
         begin.isEnabled = NativeBridge.isLoaded()
     }
 
@@ -209,10 +234,25 @@ class InstallActivity : AppCompatActivity() {
     // ---- bringing a document in ------------------------------------------------
 
     /**
-     * A document provider hands over a stream, not a path, and the runtime's
-     * installer reads paths. So it is copied in first -- with the size said
-     * out loud, because for a disc image this is gigabytes and the phone
-     * needs room for both copies at once.
+     * A document the picker hands over: read where it lies when it is a file
+     * on this device, with the permission kept for later runs, and copied in
+     * first when it is not.
+     */
+    private fun chooseDocument(uri: Uri) {
+        DiscImage.keep(this, uri)
+        val readable = DiscImage.source(this, uri.toString())
+        if (readable == null) {
+            importDocument(uri)
+            return
+        }
+        DiscImage.close(readable)
+        useSource(uri.toString())
+    }
+
+    /**
+     * A document that is only a stream, where the runtime's installer reads
+     * at positions. So it is copied in first -- with the size said out loud,
+     * because for a disc image this is gigabytes.
      */
     private fun importDocument(uri: Uri) {
         val name = documentName(uri)
@@ -222,7 +262,7 @@ class InstallActivity : AppCompatActivity() {
         val destination = File(target, name)
 
         val free = StatFs(target.absolutePath).availableBytes
-        val needed = if (size > 0) size + 7L * 1024 * 1024 * 1024 else 0L
+        val needed = size
         val message = if (size > 0) {
             getString(
                 R.string.import_explained,
@@ -350,9 +390,10 @@ class InstallActivity : AppCompatActivity() {
         if (!NativeBridge.isLoaded() || running) return
         val target = gameDirectory()
         target.mkdirs()
+        val link = linkMode.isEnabled && linkMode.isChecked
 
         val free = StatFs(target.absolutePath).availableBytes
-        if (free < 7L * 1024 * 1024 * 1024) {
+        if (!link && free < 7L * 1024 * 1024 * 1024) {
             AlertDialog.Builder(this)
                 .setTitle(R.string.install_game)
                 .setMessage(
@@ -362,27 +403,41 @@ class InstallActivity : AppCompatActivity() {
                     )
                 )
                 .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.begin_install) { _, _ -> reallyStart(target) }
+                .setPositiveButton(R.string.begin_install) { _, _ -> reallyStart(target, link) }
                 .show()
             return
         }
-        reallyStart(target)
+        reallyStart(target, link)
     }
 
-    private fun reallyStart(target: File) {
+    private fun reallyStart(target: File, link: Boolean) {
+        val from = if (File(source).isDirectory) source else DiscImage.source(this, source)
+        if (from == null) {
+            finished(getString(R.string.source_unreadable, DiscImage.label(this, source)), target)
+            return
+        }
         running = true
+        linked = link
         setBusy(true)
         handler.post(tick)
 
-        // The runtime's installer blocks: it is copying gigabytes. It runs
-        // on a thread of its own and the screen polls it.
+        // The runtime's installer blocks: it may be copying gigabytes. It
+        // runs on a thread of its own and the screen polls it.
         thread(name = "install") {
+            var left = 0L
             val error = try {
-                NativeBridge.nativeInstall(source, target.absolutePath)
+                NativeBridge.nativeInstall(from, target.absolutePath, link).also {
+                    if (it == null && link) left = NativeBridge.nativeCopiedFiles(from, target.absolutePath, false)
+                }
             } catch (failure: Throwable) {
                 failure.message ?: "unexpected failure"
             }
-            handler.post { finished(error, target) }
+            // The game's own process opens the image for itself.
+            DiscImage.close(from)
+            handler.post {
+                copies = left
+                finished(error, target)
+            }
         }
     }
 
@@ -424,10 +479,58 @@ class InstallActivity : AppCompatActivity() {
     }
 
     private fun installedDone(target: File) {
+        // The image first: the game folder is what says the game is installed.
+        prefs.discImage = if (linked) source else ""
         prefs.gameDirectory = target.absolutePath
-        progressText.text = getString(R.string.install_done)
-        // The imported copy has done its job and is the size of a disc.
-        File(getExternalFilesDir(null) ?: filesDir, "import").deleteRecursively()
+        progressText.text = getString(if (linked) R.string.install_done_link else R.string.install_done)
+        // An imported copy has done its job and is the size of a disc, unless
+        // it is the image the game now plays from.
+        val imported = File(getExternalFilesDir(null) ?: filesDir, "import")
+        if (!linked || !source.startsWith(imported.absolutePath)) imported.deleteRecursively()
+        if (linked && copies > 0) {
+            offerToRemoveCopies(target)
+            return
+        }
+        installedPlay()
+    }
+
+    /**
+     * A game that was copied in and now plays from the image still has the
+     * copies, gigabytes the image has too: the player is asked, since they
+     * are also what a return to the copied game would use.
+     */
+    private fun offerToRemoveCopies(target: File) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.install_game)
+            .setMessage(
+                getString(R.string.copies_found, android.text.format.Formatter.formatFileSize(this, copies)),
+            )
+            .setCancelable(false)
+            .setNegativeButton(R.string.copies_keep) { _, _ -> installedPlay() }
+            .setPositiveButton(R.string.copies_remove) { _, _ ->
+                setBusy(true)
+                progress.isIndeterminate = true
+                thread(name = "remove-copies") {
+                    val from = DiscImage.source(this, source)
+                    if (from != null) {
+                        try {
+                            NativeBridge.nativeCopiedFiles(from, target.absolutePath, true)
+                        } catch (_: Throwable) {
+                        }
+                        DiscImage.close(from)
+                    }
+                    handler.post {
+                        progress.isIndeterminate = false
+                        setBusy(false)
+                        installedPlay()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun installedPlay() {
+        val done = getString(if (linked) R.string.install_done_link else R.string.install_done)
         // The game's files are one half; an app published without the game's
         // code needs that too (GameLibrary.kt), and a run started without it
         // only ends in "The game could not start". Said here instead.
@@ -440,7 +543,7 @@ class InstallActivity : AppCompatActivity() {
             .setTitle(R.string.install_game)
             .setNegativeButton(R.string.close) { _, _ -> finish() }
         if (playable) {
-            dialog.setMessage(R.string.install_done)
+            dialog.setMessage(done)
                 .setPositiveButton(R.string.play) { _, _ ->
                     GameActivity.start(this, titleToStart()) { finish() }
                 }
@@ -451,7 +554,7 @@ class InstallActivity : AppCompatActivity() {
                     finish()
                 }
         } else {
-            dialog.setMessage(getString(R.string.install_done) + "\n\n" + getString(R.string.game_code_missing))
+            dialog.setMessage(done + "\n\n" + getString(R.string.game_code_missing))
         }
         dialog.show()
     }

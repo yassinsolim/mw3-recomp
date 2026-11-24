@@ -22,6 +22,22 @@ This is the same code as [mw3-recomp](https://github.com/yassinsolim/mw3-recomp)
 releases carry. Call of Duty 4 is the newest of the three and the least
 played: expect rough edges.
 
+## Two steps to play
+
+The app on the [releases](https://github.com/yassinsolim/cod4-recomp/releases)
+page is not the whole game: it carries no game code and no game files. Both
+come from your own disc, in two steps, and the app says which is still to do:
+
+1. **On a PC:** `setup\setup.cmd -Game cod4` builds the game code from your
+   disc image and installs it, with the app, on the device over USB
+   ([Setup](#setup-windows)).
+2. **On the device:** open the app and choose **INSTALL & PLAY**. It finds
+   your disc image (`.iso`) in `Download`, on the device or its memory card,
+   and plays from it where it is: nothing is copied.
+
+An app installed by itself, without step 1, says "Step 1 is not done" and
+cannot start the game.
+
 ## Status
 
 The game is the disc's own version (no title update). Measured on two
@@ -72,11 +88,12 @@ What has been checked and how, and what is still open:
   one disc build it was made for (USA/Europe, 2007); anything else is refused
   rather than built wrong.
 - A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
-  free. With a Linux PC, or no PC at all, see
+  free. With a Linux PC, see
   [Setup without a Windows PC](#setup-without-a-windows-pc).
-- A 64-bit Android phone or handheld with Android 8 or later and Vulkan, about
-  7 GB free for the game files (plus room for the 7.8 GB disc image while
-  installing).
+- A 64-bit Android phone or handheld with Android 8 or later and Vulkan, with
+  room for the 7.8 GB disc image on its own storage or on a memory card. The
+  game plays from the image; copying its files into the app instead (about
+  7 GB more) is a choice.
 
 ## Setup on the device (no PC)
 
@@ -87,6 +104,9 @@ below is the tested route.
 
 ## Setup (Windows)
 
+Step 1 of the [two](#two-steps-to-play), on the PC, and then step 2 on the
+phone:
+
 1. Get the code: `git clone https://github.com/yassinsolim/cod4-recomp.git C:\cod4`
    (a short path without spaces).
 2. Connect the phone over USB with USB debugging on, and run
@@ -94,8 +114,11 @@ below is the tested route.
        setup\setup.cmd -Game cod4 -Iso "D:\Games\CoD4.iso" -Install -PushIso
 
 3. On the phone: open **CoD 4: Modern Warfare**, choose **INSTALL & PLAY**. It
-   finds the disc image in `Download` and copies the game files once, for the
-   campaign and the multiplayer together.
+   finds the disc image in `Download` (on a memory card too) and plays from
+   it: the campaign and the multiplayer read their files out of the image,
+   so keep it there. **Choose Another Source** names an image anywhere else,
+   or copies the files into the app instead
+   ([docs/android.md](docs/android.md#the-game-files)).
 
 The script downloads the tools it needs into `.toolchain\` (each pinned and
 checked by SHA-256; only Microsoft's C++ Build Tools are installed
@@ -118,8 +141,8 @@ nothing), `-Build pc` or `-Build both` (the Windows game as well, in
 
 ## Setup without a Windows PC
 
-- **A Linux PC** (written for Ubuntu 24.04; new, not yet proven), one
-  command, with the phone connected over USB:
+- **A Linux PC** (tested on Ubuntu 24.04, WSL2 included), one command, with
+  the phone connected over USB:
 
       git clone https://github.com/yassinsolim/cod4-recomp.git && cd cod4-recomp
       bash setup/setup.sh --game cod4 --iso ~/Downloads/CoD4.iso --install --push-iso
@@ -128,12 +151,9 @@ nothing), `-Build pc` or `-Build both` (the Windows game as well, in
   downloads the published app and installs both. It runs as many compilers
   as the free memory holds, so an old PC is slower, not stuck;
   `--game-only` rebuilds the game code after an update.
-- **No PC at all** (new, not yet proven): GitHub builds the game code for you, in a private
-  repository of your own, from the two executables the app reads out of your
-  disc image on the phone (**Settings → Files → Prepare files for building
-  online**).
 
-Both, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+Step by step, with what an old PC should expect:
+[docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
 
 ## Updates
 

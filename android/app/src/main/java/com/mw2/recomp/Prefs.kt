@@ -238,6 +238,18 @@ class Prefs(context: Context) {
             store.edit().putString(KEY_GAME_DIR, value).commit()
         }
 
+    /**
+     * The disc image the game is played from (DiscImage.kt): its path, or the
+     * document's address for one chosen with the system's picker. Empty when
+     * the game's files were copied into the game folder. Written before the
+     * setter returns, as the game folder is, and before it.
+     */
+    var discImage: String
+        get() = store.getString(KEY_DISC_IMAGE, "") ?: ""
+        set(value) {
+            store.edit().putString(KEY_DISC_IMAGE, value).commit()
+        }
+
     /** The folder the file browser last showed, so it opens where it left off. */
     var lastBrowsed: String
         get() = store.getString(KEY_LAST_BROWSED, "") ?: ""
@@ -507,6 +519,7 @@ class Prefs(context: Context) {
         private const val KEY_BUNDLED_DRIVER_SHA = "bundledDriverSha"
         private const val KEY_BUNDLED_DRIVER_DIR = "bundledDriverDirectory"
         private const val KEY_GAME_DIR = "gameDirectory"
+        private const val KEY_DISC_IMAGE = "discImage"
         private const val KEY_LAST_BROWSED = "lastBrowsed"
         private const val KEY_WELCOME = "seenWelcome"
         private const val KEY_AUTO_LAUNCH = "autoLaunch"
