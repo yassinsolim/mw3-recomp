@@ -23,6 +23,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
     repository and keeps the package as a draft release, which only the
     owner can see.
   - The app's messages about missing or outdated game code name both.
+- The build tools for building the game code on the phone, as a package of
+  their own (`com.recomp.toolchain`, `android/toolchain`,
+  `tools/toolchain/build.sh`): clang and lld 19.1.7, XenonRecomp and
+  XenonAnalyse for arm64 Android, with Android's headers from AOSP and LLVM's
+  libraries built from source, nothing of the NDK's. Modern Warfare 2's game
+  library builds with it on an AYN Thor in a minute and a half and on a
+  Retroid Pocket Flip 2 in two and a half, and states what the PC's states
+  ([docs/ondevice-build.md](docs/ondevice-build.md)).
+- `tools/check_no_game_files.py` refuses a tracked APK and any tracked file
+  over 20 MB.
 
 ## [v0.1.6] - 2026-11-24
 
