@@ -24,8 +24,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   mounted as the game expects, and the campaign reaches its main menu and
   plays its first level on Windows and on the AYN Thor, with its exposure
   right (the scene's luminance is written back for it). The app's installer
-  takes the two disc images one after the other. The first-run Brightness
-  screen takes no input yet: a console command goes round it.
+  takes the two disc images one after the other. A first run's Brightness
+  and Safe Area screens want an adjustment (a direction) before they take A.
   `tools/check_aw_xex.py`, `tools/extra_instructions.py`,
   `tools/ctr_branch_extents.py`.
 - **Building the game code without a Windows PC**

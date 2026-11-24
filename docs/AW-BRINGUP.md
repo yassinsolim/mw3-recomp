@@ -14,9 +14,9 @@ State on 24 November 2026, in one line: both discs read, both executables
 recompile clean, the install disc's packages are mounted as the game expects,
 and the campaign reaches its main menu and plays its first level (Seoul) with
 the right exposure on Windows at 60 frames a second and on the AYN Thor at
-119; the multiplayer reaches its main menu on Windows. One thing is in the
-way of a player: the first-run Brightness screen takes no input, and the
-runs here go round it with a console command.
+119; the multiplayer reaches its main menu on Windows. A first run goes
+Brightness, Safe Area, main menu, each of the two asking for an adjustment
+before it takes A.
 
 ## The two discs
 
@@ -277,8 +277,7 @@ beside it as they come off the disc.
 |---|---|---|
 | The campaign starts: logos (Bink), the title screen with "Press START", the attract movie | **verified**, 60 presents a second | `pc-first-boot-sheet.png`, `pc-first-boot.log` |
 | Both packages mounted (`dlc1:`, `dlc2:`) and listed | **verified** | "content: mounted dlc1" in every log since |
-| Start: the first-run Brightness screen | **verified**; it takes no input (below) | `pc-title-then-brightness-sheet.png` |
-| The main menu (Campaign, Multiplayer, Exo Survival), the Campaign menu, Intel, back | **verified**, with `profile_SetHasEverPlayed_MainMenu` given to the console before Start (`MW2_CONSOLE`), which is what the Brightness screen would have set | `pc-sp-main-menu-campaign-sheet.png`, `.log` |
+| The first run's two screens, then the main menu (Campaign, Multiplayer, Exo Survival), the Campaign menu, Intel, back | **verified** from an empty profile with the pad alone: Start, a direction on Brightness, A, a direction each way on Safe Area, A (below) | `pc-first-run-brightness-safe-area-main-menu-sheet.png`, `.log`; the menus themselves `pc-sp-main-menu-campaign-sheet.png` |
 | A level: Seoul by `devmap seoul`, its opening movie, the drop pod, the save-device dialog, the pause menu, the Exo Type card | **verified**, 60 presents a second, 54,000 draws a second, no fault | `pc-seoul-ingame-exposure-fixed-sheet.png`, `.log`, `pc-seoul-pause-menu.png` |
 | Exposure | **verified** right with the write-back; before and after are `pc-seoul-ingame-overexposed-sheet.png` and `pc-seoul-ingame-exposure-fixed-sheet.png` | |
 | Sound | the mixer runs (frames submitted, none dropped); **not listened to** | the same logs |
@@ -296,7 +295,7 @@ the game files were pushed with adb and the packages by setup.
 
 | | State | Evidence |
 |---|---|---|
-| The campaign starts, mounts both packages, reaches the main menu | **verified**, 119 FPS on the overlay; with the same console command, from `options.txt` | `thor-main-menu.png`, `thor-main-menu.log` |
+| The campaign starts, mounts both packages, reaches the main menu | **verified**, 119 FPS on the overlay. Once with `profile_SetHasEverPlayed_MainMenu` from `options.txt`; then again with no `options.txt` and no profile, by the touch controls alone: Start, Brightness, Safe Area, main menu | `thor-main-menu.png`, `thor-main-menu.log`; `thor-brightness-no-options.png`, `thor-main-menu-by-touch-no-options.png` |
 | Seoul by `devmap seoul` | **verified**: in the drop pod at 119 FPS, exposure right (the write-back is logged) | `thor-seoul-level.png`, `thor-seoul-level.log` |
 | The app's installer, with both images in the device's Download folder and nothing installed | **verified**: Install & Play copies the game disc (1,809 files and the 95 of `english/`, 7.3 GB, about a minute), the screen asks for the second disc, the install disc's image is chosen in the app's file browser, the two packages are copied to `files/dlc` (4 GB, under a minute) and the game starts and mounts them. The install disc first was **not run** | `thor-installer-asks-for-second-disc.png`, `thor-after-in-app-install-both-discs.png` |
 | The multiplayer, the Flip 2, a release build | **not run** | |
@@ -323,15 +322,33 @@ this branch. What they share that changed: `NtCreateSemaphore` and
 `launcher/disc.cpp` (reads folders deeper than one into a list of their
 own), `SubmissionFinished` taken out of the occlusion queries' check.
 
+## The first run's screens
+
+With no profile, Start opens Brightness (`boot_brightness`) and not the main
+menu, and Brightness was taken for dead: A, B, X and Start do nothing on it
+and it shows no prompt. It is not dead. The menus are Lua, and Lua asks the
+engine whether the dvar `lui_print_events` is set; with `set lui_print_events
+1` from the console its own trace of events came out through the
+interpreter's string conversion (`8213E240`, hooked for the investigation and
+not kept). It shows the pad's events arriving (`gamepad_button`, "button
+primary is down") for controller 0, and that the screen puts up "Press A to
+continue" (`continue_message_visible`) only once the brightness has been
+changed (`brightness_updated`), by left or right; A then goes on to Safe Area
+Adjustment (`boot_screen_margins`), which went on to the main menu after one
+adjustment each way and A. Nothing in the runtime was wrong or changed for
+it, and the console command the earlier runs used is not needed. Whether a
+console shows the prompt without an adjustment was **not checked**; nothing
+here says a timer was meant to.
+
+The controller's binding, its capabilities, the sign-in state and the
+profile's settings were all looked at on the way and are as the title wants
+them: controller 0 is the first active one, its profile is signed in, and
+`profileMenuOption_blacklevel` exists.
+
 ## Open, in the order it matters
 
-1. **The Brightness screen takes no input**, on Windows and so on a phone.
-   The first press (Start or A) opens it; nothing after does, and its row of
-   button prompts is not drawn. The pad is fine everywhere else: the main
-   menu, the pause menu and the dialogs answer. No Lua error is raised
-   (`T_Lua_Error`, and the interpreter's throw, both watched). Until it is
-   found a player needs `MW2_CONSOLE=22:profile_SetHasEverPlayed_MainMenu`,
-   which a release build cannot be given.
+1. Whether the two first-run screens ask a console's player for an
+   adjustment too (above).
 2. New Game from the menu, the other levels, saving.
 3. The multiplayer past its menu; its title block has none of the engine's
    entries (bots, client states, the relay).
