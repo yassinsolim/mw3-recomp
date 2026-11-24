@@ -117,7 +117,7 @@ Where the two images end up:
   the install disc and they are copied to `files/dlc`; the game disc gives the
   root's files and `english/`. After one the screen asks for the other, and
   the game is not started without both. Playing from the image where it lies
-  is not offered for this title. See below for what of this was run.
+  is not offered for this title. **Verified** on the Thor (below).
 
 ## Recompiling
 
@@ -291,13 +291,14 @@ beside it as they come off the disc.
 
 The flavour is `aw` (`com.aw.recomp`, a violet reticle around a chevron), the
 game code in `com.aw.recomp.aw.game` (aw `c5cef5aeaede`, awmp
-`6bc76440aa55`; `config/abi/aw`, `config/abi/awmp`). The game files were
-pushed with adb, the packages by setup.
+`6bc76440aa55`; `config/abi/aw`, `config/abi/awmp`). For the first two rows
+the game files were pushed with adb and the packages by setup.
 
 | | State | Evidence |
 |---|---|---|
 | The campaign starts, mounts both packages, reaches the main menu | **verified**, 119 FPS on the overlay; with the same console command, from `options.txt` | `thor-main-menu.png`, `thor-main-menu.log` |
 | Seoul by `devmap seoul` | **verified**: in the drop pod at 119 FPS, exposure right (the write-back is logged) | `thor-seoul-level.png`, `thor-seoul-level.log` |
+| The app's installer, with both images in the device's Download folder and nothing installed | **verified**: Install & Play copies the game disc (1,809 files and the 95 of `english/`, 7.3 GB, about a minute), the screen asks for the second disc, the install disc's image is chosen in the app's file browser, the two packages are copied to `files/dlc` (4 GB, under a minute) and the game starts and mounts them. The install disc first was **not run** | `thor-installer-asks-for-second-disc.png`, `thor-after-in-app-install-both-discs.png` |
 | The multiplayer, the Flip 2, a release build | **not run** | |
 
 The app gives this title the other games' start-up commands (`com_maxfps 0`,
@@ -334,9 +335,7 @@ own), `SubmissionFinished` taken out of the occlusion queries' check.
 2. New Game from the menu, the other levels, saving.
 3. The multiplayer past its menu; its title block has none of the engine's
    entries (bots, client states, the relay).
-4. The app's installer with the two images, end to end on a device (see the
-   table above for what was run of it).
-5. The twelve stepped-over instructions and the two half-float unpacks
+4. The twelve stepped-over instructions and the two half-float unpacks
    against known results.
-6. The build kit and `setup/setup.sh` for this title; a merge into
+5. The build kit and `setup/setup.sh` for this title; a merge into
    `android`, which waits for the other titles to be built from this branch.

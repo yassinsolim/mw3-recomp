@@ -9,4 +9,5 @@
     <string name="setup_command">setup\\setup.cmd -Game aw</string>
     <string name="game_code_missing">Step 1 is not done: the game code is not on this device. It is made from your own discs.\nOn your PC, run setup\\setup.cmd -Game aw with this device connected over USB.</string>
     <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game aw -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
+    <string name="status_disc_found">Game disc found:\n%1$s\nInstall &amp; Play copies its files into the app, then asks for the second disc, the install disc.</string>
 </resources>

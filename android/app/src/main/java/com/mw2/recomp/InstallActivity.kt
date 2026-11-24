@@ -221,7 +221,7 @@ class InstallActivity : AppCompatActivity() {
         // packages have to be files, and one image cannot stand for both.
         val folder = !DiscImage.isDocument(image) && File(image).isDirectory
         linkMode.isEnabled = !folder && !Title.isAw
-        if (folder) copyMode.isChecked = true else linkMode.isChecked = true
+        if (linkMode.isEnabled) linkMode.isChecked = true else copyMode.isChecked = true
         begin.isEnabled = NativeBridge.isLoaded()
     }
 

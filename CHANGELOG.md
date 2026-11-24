@@ -17,12 +17,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   game package built on a PC still works. After an update that needs new
   game code the same entry builds it again, with no disc image.
 - **Call of Duty: Advanced Warfare, started**
-  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)): titles `aw` and `awmp` for the
-  Windows build. Both discs read, both executables recompile clean, and the
-  campaign draws its logos, title screen and first-run Brightness screen; it
-  does not leave that screen yet, the second disc's content is not mounted,
-  and there is no setup, app or Android build for it. `tools/check_aw_xex.py`,
-  `tools/extra_instructions.py`, `tools/ctr_branch_extents.py`.
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)): titles `aw` and `awmp`, for
+  Windows and Android (`com.aw.recomp`, built by `setup\setup.cmd -Game aw
+  -Iso <game disc> -InstallIso <install disc>`; nothing is published). Both
+  executables recompile clean, the install disc's two content packages are
+  mounted as the game expects, and the campaign reaches its main menu and
+  plays its first level on Windows and on the AYN Thor, with its exposure
+  right (the scene's luminance is written back for it). The app's installer
+  takes the two disc images one after the other. The first-run Brightness
+  screen takes no input yet: a console command goes round it.
+  `tools/check_aw_xex.py`, `tools/extra_instructions.py`,
+  `tools/ctr_branch_extents.py`.
 - **Building the game code without a Windows PC**
   ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
   - `setup/setup.sh`: setup for Linux, for all three games
