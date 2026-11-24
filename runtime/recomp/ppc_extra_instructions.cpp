@@ -1,11 +1,10 @@
-// Two AltiVec instructions Call of Duty 4's executables use and the pinned
-// recompiler has no case for: it knows only their VMX128 forms, which is all
-// Modern Warfare 2 and 3 have. The recompiler's configuration replaces each
-// one by a call here and steps over it (config/COD4.toml, [[midasm_hook]]).
-// Adding the two cases to patches/xenonrecomp-mw2.patch instead would change
-// what every title's game library says it was built against
-// (cmake/game_abi.cmake), and the published apps would refuse the game code
-// players have already built.
+// Instructions a title's executables use and the pinned recompiler has no
+// case for: it knows what Modern Warfare 2 and 3 have. The recompiler's
+// configuration replaces each one by a call here and steps over it
+// (config/COD4.toml and config/AW.toml, [[midasm_hook]]). Adding the cases to
+// patches/xenonrecomp-mw2.patch instead would change what every title's game
+// library says it was built against (cmake/game_abi.cmake), and the published
+// apps would refuse the game code players have already built.
 //
 // The recompiler declares a hook with its registers as the parameters' names,
 // so an instruction whose result goes where an operand came from has a form
@@ -16,6 +15,11 @@
 // own; in a folder of its own for that, since every source at the top of
 // runtime/ is the runtime's.
 #include <ppc_context.h>
+
+#if defined(COD4_TITLE)
+// Call of Duty 4: two AltiVec instructions of which the recompiler has only
+// the VMX128 forms.
+
 
 // vandc vD,vA,vB: vA & ~vB, as the recompiler writes vandc128.
 void PpcVandc(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b)
@@ -35,3 +39,88 @@ void PpcVctuxsInPlace(PPCVRegister& d)
 {
     simde_mm_store_si128((simde__m128i*)d.u32, simde_mm_vctuxs(simde_mm_load_ps(d.f32)));
 }
+
+#elif defined(AW_TITLE)
+// Advanced Warfare: twelve instructions, most of them integer AltiVec
+// (config/AW.toml lists how many of each; tools/extra_instructions.py wrote
+// the hooks). A vector register holds its sixteen bytes in reverse, as the
+// recompiler's own code keeps them, so what works element by element is the
+// host's instruction of the same width, and what packs two vectors takes them
+// in the other order.
+
+// Where guest memory starts (runtime/guest_memory.cpp): a hook is given
+// registers and nothing else.
+extern "C" uint8_t* mw2_guest_base();
+
+namespace
+{
+    simde__m128i Load(const PPCVRegister& v) { return simde_mm_load_si128((const simde__m128i*)v.u8); }
+    void Store(PPCVRegister& v, simde__m128i value) { simde_mm_store_si128((simde__m128i*)v.u8, value); }
+}
+
+// vminsw vD,vA,vB: the smaller of each pair of signed words.
+void PpcVminsw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_min_epi32(Load(a), Load(b))); }
+// vminsw vD,vA,vA, which is a move.
+void PpcVminsw_abb(PPCVRegister& d, PPCVRegister& a) { Store(d, Load(a)); }
+
+// vminuh and vmaxuh vD,vA,vB: of each pair of unsigned halfwords.
+void PpcVminuh(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_min_epu16(Load(a), Load(b))); }
+void PpcVmaxuh(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_max_epu16(Load(a), Load(b))); }
+
+// vsububm and vsubuwm vD,vA,vB: vA - vB in bytes and in words, wrapping.
+void PpcVsububm(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_sub_epi8(Load(a), Load(b))); }
+void PpcVsubuwm(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_sub_epi32(Load(a), Load(b))); }
+
+// vcmpgtsb vD,vA,vB: all ones in each byte where vA's is the greater, signed.
+// None of the six sets cr6 (the tool refuses the form that does).
+void PpcVcmpgtsb(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_cmpgt_epi8(Load(a), Load(b))); }
+
+// vaddsws vD,vA,vB: signed words added, saturated. The host has no such
+// instruction at this width.
+void PpcVaddsws(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        const int64_t sum = int64_t(a.s32[i]) + int64_t(b.s32[i]);
+        d.s32[i] = sum > INT32_MAX ? INT32_MAX : sum < INT32_MIN ? INT32_MIN : int32_t(sum);
+    }
+}
+
+// vpkuhus128 and vpkuwus128 vD,vA,vA: unsigned halfwords to bytes and
+// unsigned words to halfwords, saturated, vA's before vB's (here the same
+// register). The host's pack takes its input as signed, so each element is
+// brought under the limit first.
+void PpcVpkuhus_abb(PPCVRegister& d, PPCVRegister& a)
+{
+    const simde__m128i limited = simde_mm_min_epu16(Load(a), simde_mm_set1_epi16(0xFF));
+    Store(d, simde_mm_packus_epi16(limited, limited));
+}
+void PpcVpkuwus_abb(PPCVRegister& d, PPCVRegister& a)
+{
+    const simde__m128i limited = simde_mm_min_epu32(Load(a), simde_mm_set1_epi32(0xFFFF));
+    Store(d, simde_mm_packus_epi32(limited, limited));
+}
+
+// lvehx vD,0,rB: the halfword at rB into its place in vD, the rest undefined.
+// As the recompiler does for lvewx, the whole aligned vector is loaded.
+void PpcLvehx(PPCVRegister& d, PPCRegister& b)
+{
+    Store(d, simde_mm_shuffle_epi8(simde_mm_load_si128((const simde__m128i*)(mw2_guest_base() + (b.u32 & ~0xFu))),
+                                   simde_mm_load_si128((const simde__m128i*)VectorMaskL)));
+}
+
+// mulhd rD,rA,rB: the high 64 bits of the signed 128-bit product.
+void PpcMulhd(PPCRegister& d, PPCRegister& a, PPCRegister& b)
+{
+    d.s64 = int64_t((__int128(a.s64) * __int128(b.s64)) >> 64);
+}
+
+// bdnzt eq,target: the count goes down by one, and the branch is taken while
+// it is not zero and the comparison before it was equal.
+bool PpcBdnzt_eq(PPCRegister& ctr, PPCCRRegister& cr)
+{
+    --ctr.u64;
+    return ctr.u32 != 0 && cr.eq;
+}
+
+#endif

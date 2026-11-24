@@ -47,6 +47,15 @@ COD4 = dict(xex="cod4/tu0/default.xex", image="cod4/tu0/default.pe", ppc="ppc_co
 COD4MP = dict(xex="cod4/tu0/default_mp.xex", image="cod4/tu0/default_mp.pe", ppc="ppc_cod4_mp",
               toml="config/COD4MP.toml", tables="config/cod4mp_switch_tables.toml", build="build-cod4mp",
               syms="config/cod4mp_symbols.txt")
+# Call of Duty: Advanced Warfare's campaign and its multiplayer (default.pe and
+# default_mp.pe, the S1 engine as High Moon built it for the Xbox 360), the game
+# disc's executables (docs/AW-BRINGUP.md).
+AW = dict(xex="aw/tu0/default.xex", image="aw/tu0/default.pe", ppc="ppc_aw",
+          toml="config/AW.toml", tables="config/aw_switch_tables.toml", build="build-aw",
+          syms="config/aw_symbols.txt")
+AWMP = dict(xex="aw/tu0/default_mp.xex", image="aw/tu0/default_mp.pe", ppc="ppc_aw_mp",
+            toml="config/AWMP.toml", tables="config/awmp_switch_tables.toml", build="build-awmp",
+            syms="config/awmp_symbols.txt")
 
 VERSIONS = ("tu6", "tu0")
 VERSION = os.environ.get("MW2_VERSION", "tu6")
@@ -66,6 +75,8 @@ TITLES["mw3"] = MW3
 TITLES["mw3mp"] = MW3MP
 TITLES["cod4"] = COD4
 TITLES["cod4mp"] = COD4MP
+TITLES["aw"] = AW
+TITLES["awmp"] = AWMP
 
 NAME = os.environ.get("MW2_TITLE", "sp")
 if NAME not in TITLES:
@@ -166,6 +177,21 @@ def sections(img):
 def text(img):
     """(guest address, size) of the code section."""
     return sections(img)[".text"]
+
+def code(img):
+    """[(guest address, size)] of every section that holds instructions: .text,
+    and the ones of libraries that bring their own (Bink's, for one)."""
+    pe = struct.unpack_from("<I", img, 0x3C)[0]
+    count = struct.unpack_from("<H", img, pe + 6)[0]
+    optional = struct.unpack_from("<H", img, pe + 20)[0]
+    out = []
+    for i in range(count):
+        o = pe + 24 + optional + i * 40
+        size, rva = struct.unpack_from("<II", img, o + 8)
+        if struct.unpack_from("<I", img, o + 36)[0] & 0x20:      # IMAGE_SCN_CNT_CODE
+            out.append((BASE + rva, size))
+    return out
+
 
 
 def functions(img):

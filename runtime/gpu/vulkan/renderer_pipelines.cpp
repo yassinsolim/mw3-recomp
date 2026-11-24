@@ -9,6 +9,7 @@
 #include "../../report.h"
 #include "pipeline.h"
 
+#include <bit>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>

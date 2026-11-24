@@ -1442,6 +1442,13 @@ PPC_FUNC(__imp__XMsgStartIORequest)
     ctx.r3.u64 = X_ERROR_IO_PENDING;
 }
 
+PPC_FUNC(__imp__XMsgStartIORequestEx)
+{
+    // (app, message, overlapped, buffer, length, auxiliary stack): the same
+    // request with room for the system's own call, which is not made here.
+    __imp__XMsgStartIORequest(ctx, base);
+}
+
 void kernel::FinishSearches()
 {
     auto* service = online::Get();

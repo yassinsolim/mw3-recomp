@@ -40,6 +40,10 @@ namespace
 
 uint8_t* guest::Base() { return g_base; }
 
+// The same, for a function of the recompiled code's own target that is handed
+// registers and no base (runtime/recomp/ppc_extra_instructions.cpp).
+extern "C" uint8_t* mw2_guest_base() { return g_base; }
+
 bool guest::Commit(uint32_t address, uint32_t size)
 {
 #ifdef _WIN32

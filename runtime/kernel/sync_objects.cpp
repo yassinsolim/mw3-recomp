@@ -349,10 +349,14 @@ PPC_FUNC(__imp__KeReleaseSemaphore)
 // handle, while Ke* callers address its guest dispatcher header.
 PPC_FUNC(__imp__NtCreateSemaphore)
 {
-    // NtCreateSemaphore(Handle*, Access, ObjectAttributes*, InitialCount, MaximumCount)
+    // NtCreateSemaphore(Handle*, ObjectAttributes*, InitialCount, MaximumCount):
+    // this console's has no access mask, unlike Windows'. CreateSemaphore
+    // passes (out, attributes or 0, initial, maximum) in r3 to r6 in Modern
+    // Warfare 3's executable and in Advanced Warfare's, whose XAudio2 makes
+    // one for its worker threads before it has a mastering voice.
     auto* out = GuestPtr<be32>(ctx.r3.u32);
-    const int32_t initialCount = int32_t(ctx.r6.u32);
-    const int32_t maximumCount = int32_t(ctx.r7.u32);
+    const int32_t initialCount = int32_t(ctx.r5.u32);
+    const int32_t maximumCount = int32_t(ctx.r6.u32);
     if (!out || initialCount < 0 || maximumCount <= 0 || initialCount > maximumCount)
     {
         ctx.r3.u64 = X_STATUS_INVALID_PARAMETER;

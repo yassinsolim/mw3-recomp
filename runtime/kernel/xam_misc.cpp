@@ -7,6 +7,7 @@
 #include "../guest.h"
 #include "../log.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 using namespace kernel;
@@ -117,3 +118,29 @@ PPC_FUNC(__imp__XamShowFriendRequestUI)
     LOGW("xam: friend request UI -- no dashboard, failing the call");
     ctx.r3.u64 = 1627;   // ERROR_FUNCTION_FAILED
 }
+
+// XamVoiceIsActiveProcess: whether this title, and not the system's party
+// chat, has the headsets. Voice library 2 asks every frame; "no" has it leave
+// the headsets alone, which is right where the runtime's own voice path
+// (voice.cpp) is not this title's.
+PPC_FUNC(__imp__XamVoiceIsActiveProcess) { ctx.r3.u64 = 0; }
+
+// XamGetLocaleEx(highest country, highest locale): the console's locale, one
+// of XC_LOCALE_*. The United States (36), as XGetLanguage says English.
+PPC_FUNC(__imp__XamGetLocaleEx)
+{
+    constexpr uint32_t kUnitedStates = 36;
+    ctx.r3.u64 = std::min(kUnitedStates, ctx.r4.u32);
+}
+
+// XamUserGetDeviceContext(user, unused, context*): the device a signed-in
+// player's controller is, for the voice and vibration calls that take one.
+PPC_FUNC(__imp__XamUserGetDeviceContext)
+{
+    if (auto* context = GuestPtr<be32>(ctx.r5.u32)) *context = 0;
+    ctx.r3.u64 = ctx.r3.u32 < 4 ? 0 : 0x80070490u;   // S_OK, or "element not found" for no such player
+}
+
+// XamBackgroundDownloadSetMode: how eagerly the dashboard downloads behind the
+// title. There is no dashboard and nothing to download.
+PPC_FUNC(__imp__XamBackgroundDownloadSetMode) { ctx.r3.u64 = 0; }

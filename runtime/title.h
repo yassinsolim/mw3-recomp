@@ -53,7 +53,81 @@
 // MW3_TITLE, which the runtime's sources read as "not Modern Warfare 2: a hook
 // without an entry here is compiled out". Every entry was found in CoD4's own
 // executable, by laying the function beside the one MW2's disc block names.
-#if defined(COD4_TITLE) && defined(COD4_TITLE_MP)
+//
+// Call of Duty: Advanced Warfare (default.pe and default_mp.pe, the S1 engine
+// as High Moon built it for this console; ppc_aw/ and ppc_aw_mp/;
+// docs/AW-BRINGUP.md) comes first of all, on the same terms: AW_TITLE (and
+// AW_TITLE_MP) beside MW3_TITLE. Its D3D9 is a later build of Modern Warfare
+// 3's, and every entry was found in its own executables by laying the
+// function beside the one MW3's campaign block names (the sequence of
+// instructions' kinds compared over the whole function), then read.
+#if defined(AW_TITLE) && defined(AW_TITLE_MP)
+
+#define MW2_TITLE_NAME  "AW multiplayer"
+#define T_ENTRY_POINT   0x8213A6D0u          // the XEX header's ENTRY_POINT
+
+// The campaign's entries below, each found in this executable from the
+// campaign's function: the D3D9 ones match instruction for instruction.
+#define T_Com_Error            82485478   // 0.79 of the campaign's; one of the functions that leave by longjmp
+#define T_Cbuf_AddText         824A2308   // the same "p<digit> " prefix parse (112, 80, 48, 50, 32)
+#define T_D3D_Present          8210E6E0   // the one caller of VdSwap
+#define T_D3D_ArenaWait        82102508
+#define T_DEV_PresentInterval  14000u     // the flip packet writer, sub_8210D9A0, is the campaign's word for word
+#define T_DEV_ProgressBlock    11024u
+
+// the kernel's data imports: the image's own import records, found by their
+// (library, ordinal) words 0x000100AD, 0x00010059 and 0x00010193, each present once
+#define T_DATA_TimeStampBundlePtr 0x820008A4u   // the KeTimeStampBundle import record
+#define T_DATA_DebugMonitorPtr    0x82000998u   // the KeDebugMonitorData import record
+#define T_DATA_ModuleHandlePtr    0x82000910u   // the XexExecutableModuleHandle import record
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(AW_TITLE)
+
+#define MW2_TITLE_NAME  "AW campaign"
+#define T_ENTRY_POINT   0x8263ED28u          // the XEX header's ENTRY_POINT
+
+// the engine
+// MW3's sub_8229D688 (0.99 of its instructions' kinds in order): (code,
+// format, ...), a format buffer and longjmp.
+#define T_Com_Error            82417C20
+// MW3's sub_8228CA48 instruction for instruction: (localClientNum, text) with
+// the "p<digit> " client prefix parse.
+#define T_Cbuf_AddText         82408B70
+
+// the D3D9 library (XDK 21256)
+// The one caller of VdSwap; 0.92 of MW3's sub_820A16E8.
+#define T_D3D_Present          820D9030
+// MW3's sub_8209B5E8 instruction for instruction (and MW2's, by
+// tools/port_hooks.py): the first load is [device+11024].
+#define T_D3D_ArenaWait        820DD7F8
+// The device structure, from the flip packet writer (sub_820D82E8, MW3's
+// sub_820A11B8), which reads 11028, the present interval, 12284 (MW3: 12156),
+// 11028 and 11069 in MW3's order.
+#define T_DEV_PresentInterval  14000u   // D3DRS_PRESENTINTERVAL (MW3: 13872)
+#define T_DEV_ProgressBlock    11024u   // the arena progress block, where MW3 has it
+
+// the kernel's data imports, as the multiplayer's
+#define T_DATA_TimeStampBundlePtr 0x82000874u   // the KeTimeStampBundle import record
+#define T_DATA_DebugMonitorPtr    0x82000970u   // the KeDebugMonitorData import record
+#define T_DATA_ModuleHandlePtr    0x8200089Cu   // the XexExecutableModuleHandle import record
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(COD4_TITLE) && defined(COD4_TITLE_MP)
 
 #define MW2_TITLE_NAME  "CoD4 multiplayer"
 #define T_ENTRY_POINT   0x82103AC8u          // the XEX header's ENTRY_POINT

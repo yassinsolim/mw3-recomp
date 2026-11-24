@@ -5,6 +5,7 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+<<<<<<< HEAD
 - **Build the game code on the device itself**
   ([docs/ondevice-build.md](docs/ondevice-build.md)): no PC and no GitHub.
   The launcher's **Build the game code** takes the disc's two executables
@@ -16,6 +17,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Pocket Flip 2 (8 GB). The library is loaded from the app's own storage; a
   game package built on a PC still works. After an update that needs new
   game code the same entry builds it again, with no disc image.
+=======
+- **Call of Duty: Advanced Warfare, started**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)): titles `aw` and `awmp` for the
+  Windows build. Both discs read, both executables recompile clean, and the
+  campaign draws its logos, title screen and first-run Brightness screen; it
+  does not leave that screen yet, the second disc's content is not mounted,
+  and there is no setup, app or Android build for it. `tools/check_aw_xex.py`,
+  `tools/extra_instructions.py`, `tools/ctr_branch_extents.py`.
+>>>>>>> 0fd5c23 (Call of Duty: Advanced Warfare, started: titles aw and awmp (config/AW.toml, AWMP.toml, the title blocks, CMake), both discs read and both executables recompiled clean (exception handlers' data named as invalid instructions, 415 unrecognised instructions stepped over by midasm hooks written by tools/extra_instructions.py, extents for counting-branch switches by tools/ctr_branch_extents.py, in-text jump tables in Bink's section); the kernel's imported variables get storage (VdHSIOCalibrationLock), NtCreateSemaphore takes the console's four arguments, seven XAM and kernel imports; the campaign's Windows build reaches its title screen and first-run Brightness screen and stops there; tools/check_aw_xex.py, the AW paths in check_no_game_files.py and the mirror filter; docs/AW-BRINGUP.md, changelog)
 - **Building the game code without a Windows PC**
   ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
   - `setup/setup.sh`: setup for Linux, for all three games
@@ -93,6 +103,11 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   under the game folder, and a synthetic content package mounted as a drive;
   `kernel_xam_test`: the downloadable content enumerator. Both were built
   with the NDK and run on an arm64 Android device.
+
+### Fixed
+- `NtCreateSemaphore` read its counts from the registers of Windows' call,
+  which has an access mask this console's has not (Modern Warfare 3 imports
+  it too).
 
 ## [v0.1.6] - 2026-11-24
 
@@ -198,7 +213,6 @@ The game package built for v0.1.0 still fits: nothing to build again.
   pause menu whenever it plays through a relay.
 
 ### Fixed
-
 - **Join network game lists every player.** Two players with the same name
   were one line; they are told apart by their ids now.
 - **Modern Warfare 3's private match can be joined** (and an invitation to it
