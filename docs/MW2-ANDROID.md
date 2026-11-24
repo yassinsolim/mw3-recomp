@@ -9,7 +9,7 @@ itself, and the recompiled code as a package of its own
 The game is the disc's own version (1.0.557, "tu0"). It shares the runtime
 with Modern Warfare 3, and so every renderer fix made for it since. The public
 repository for it is `yassinsolim/mw2-recomp`
-([README-MW2.md](../README-MW2.md) is its front page).
+([its front page](https://github.com/yassinsolim/mw2-recomp#readme) is README-MW2.md here).
 
 ## Status
 
