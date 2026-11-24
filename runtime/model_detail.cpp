@@ -19,28 +19,38 @@
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "env.h"
+#include "live_options.h"
 #include "log.h"
+
+#include <atomic>
 
 #ifdef T_XModelGetLodForDist
 
 namespace
 {
     constexpr double kConsole = 1.0, kMost = 8.0;
+    // 0 until the switch has been read.
+    std::atomic<double> g_bias{ 0.0 };
+
+    double Given(double asked)
+    {
+        if (!(asked >= kConsole && asked <= kMost))
+        {
+            LOGW("detail: MW2_LOD_BIAS is from 1 to 8, not %g", asked);
+            return kConsole;
+        }
+        if (asked != kConsole)
+            LOGI("detail: a model changes to its coarser meshes %g times nearer than on the console (MW2_LOD_BIAS)", asked);
+        return asked;
+    }
 
     double Bias()
     {
-        static const double bias = [] {
-            const double asked = env::Real("MW2_LOD_BIAS", kConsole);
-            if (!(asked >= kConsole && asked <= kMost))
-            {
-                LOGW("detail: MW2_LOD_BIAS is from 1 to 8, not %g", asked);
-                return kConsole;
-            }
-            if (asked != kConsole)
-                LOGI("detail: a model changes to its coarser meshes %g times nearer than on the console (MW2_LOD_BIAS)", asked);
-            return asked;
-        }();
-        return bias;
+        double bias = g_bias.load(std::memory_order_relaxed);
+        if (bias != 0.0) return bias;
+        const double given = Given(env::Real("MW2_LOD_BIAS", kConsole));
+        // A bias set while this read the switch is the newer of the two.
+        return g_bias.compare_exchange_strong(bias, given, std::memory_order_relaxed) ? given : bias;
     }
 }
 
@@ -51,5 +61,15 @@ GUEST_HOOK(T_XModelGetLodForDist)
     ctx.f1.f64 *= Bias();
     GUEST_ORIG(T_XModelGetLodForDist)(ctx, base);
 }
+
+bool live::SetDetailBias(double bias)
+{
+    g_bias.store(Given(bias), std::memory_order_relaxed);
+    return true;
+}
+
+#else
+
+bool live::SetDetailBias(double) { return false; }
 
 #endif

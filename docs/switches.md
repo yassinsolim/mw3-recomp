@@ -20,6 +20,12 @@ the launcher looks for Steam's copy once a run and writes the line when it finds
 `MW2_PC_GAME=` says there is none. The environment's value decides over the file's
 ([maps.md](maps.md#inputs)).
 
+A switch is read once, at the start of a run. The Android app's in-game menu
+gives six of them another value under a running title, without writing the
+environment (`runtime/live_options.h`, [android.md](android.md#the-menu-over-the-game-gamemenukt)):
+`MW2_FPS_LIMIT`, `MW2_SHADOWS`, `MW2_FOV`, `MW2_LOD_BIAS`,
+`MW2_TEXTURE_BUDGET_MB` and `MW2_SHARPEN`.
+
 Switches marked **R** are read by every build. The rest are diagnostic: a build
 without diagnostics (`RELEASE=1 ./build.sh`, `-DMW2_DIAGNOSTICS=OFF`) treats
 them as unset whatever the environment says, and also drops the keys `F5`, `F7`,

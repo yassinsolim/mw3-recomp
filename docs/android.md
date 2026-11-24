@@ -169,7 +169,29 @@ The virtual gamepad converts multi-touch gestures into normalized synthetic XInp
 - **Movement (Left Stick)**: Analog thumbstick with customizable deadzone.
 - **Camera Look (Right Side)**: Uses a velocity-based flick model rather than a fixed virtual stick, allowing natural, responsive camera panning.
 - **Sticky ADS**: The Aim Down Sights button can be configured to toggle or hold.
-- **HUD Layout Editor**: Pause the game and tap **Edit controls** to move, resize, adjust opacity, or hide any button. Layouts are saved in `filesDir/controls.json`.
+- **HUD Layout Editor**: Open the game's menu and choose **Edit controls** to move, resize, adjust opacity, or hide any button. Layouts are saved in `filesDir/controls.json`.
+- **Off**: Settings → Controls and the game's menu both have **On-screen controls**. Off stays off across starts and updates (below); the Menu button at the top right stays, and a controller opens the menu with Select and Start.
+
+### The menu over the game (`GameMenu.kt`)
+One panel of the app's own in every title (Modern Warfare 2, Modern Warfare 3, Call of Duty 4, Advanced Warfare, campaign and multiplayer), at the left of the picture with the game running beside it, so a setting is seen as it changes. It is not the title's pause menu: those are four menu systems in the games' fastfiles.
+
+- **Opening it**: the **Menu** button at the top right, the back key or gesture, or **Select and Start together** on a controller (either order; the second of the two is not passed to the game). The D-pad or left stick chooses a row, left and right change its value, A takes it, B goes back, Start closes it. By touch: a row, or the arrows beside its value. While it is up the game sees no pad input.
+- **Graphics**, each written to the same `Prefs` the launcher's Settings show:
+
+  | Row | How the running game takes it | |
+  |---|---|---|
+  | Display resolution, Sharpening, Fill the screen | Sharpening is `vk::sharpen::Set`; the surface is given another size (`SurfaceHolder.setFixedSize`), the presenter makes its swapchain again; the title's own frame is untouched | live |
+  | FPS limit | `frame_rate::SetLimit`: the pacing follows at the next present (`d3d_hooks.cpp`, `Pace`), the surface votes again for the display's rate and the window asks for the mode; back on the console's 60 the title's `com_maxfps` and `r_vsync` are reset to its own | live |
+  | Sun shadows | `sm_enable` at the next present (`live::SetSunShadows`); Auto is the runtime's choice for the chip, the title and the limit, asked again whenever the limit changes | live |
+  | Field of view | Modern Warfare 3's multiplayer: `MW2_FOV`'s scale (`live::SetFieldOfView`); the others: the title's `cg_fov` | live |
+  | Detail at distance | Modern Warfare 2's disc version only (`live::SetDetailBias`) | live |
+  | Texture memory | the texture cache's budget (`android::perf::SetTextureBudgetMB`) | live |
+  | Frames per second shown | the overlay's view | live |
+  | Internal render multiplier, Smooth edges | `MW2_SCALE` and `MW2_NO_MSAA` size the renderer's targets when it starts | marked `*`: the next start |
+
+- **The rest**: On-screen controls and Physical controllers (on or off), Edit controls, the multiplayer's invitations, bots (`bots <n>`) and Modern Warfare 2's stat cheats, and Quit, which asks on a page of its own.
+- **One settings file for two processes** (`Prefs.kt`): the launcher and the game are separate processes and both write the `mw2` preferences. A process reads a preference file once and afterwards writes its own copy whole, so a choice made in the game (the on-screen controls hidden) was undone by the launcher's next write, and came back at the next start. The file is now opened with `MODE_MULTI_PROCESS` at every use, which reads it again when the other process has written it, and the game waits for its writes to reach the file before its process is killed (`Prefs.flush`).
+- **`nativeApplyOption(key, value)`** (`runtime/android/jni.cpp`, `runtime/live_options.h`) is the one call behind the live rows; it returns false for a switch that is read once at the start of a run. The environment is never written under a running title.
 
 ### Physical Gamepads
 - Bluetooth and USB gamepads (Xbox, DualShock/DualSense, Razer Kishi, Backbone) are supported.

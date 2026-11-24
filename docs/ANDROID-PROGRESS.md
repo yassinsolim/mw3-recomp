@@ -30,6 +30,7 @@ Status words: **verified** (observed on the device or by a run), **built**
 | Camos in a match | verified on the Thor: Gold chosen in Create a Class now spawns gold (the spawn check's weaponRank read was not covered before); Gold replaced by an original animated camo on the weapon in a match (keys in docs/textures.md) |
 | Voice chat | implemented (XamVoice*, PC SDL capture + T push-to-talk, Android AAudio + Talk button, off by default); compiled only, not run |
 | PC build | the mouse turns the view by an angle (110.0 degrees a thousand counts at sensitivity 5, measured with a scripted mouse) and points in Modern Warfare 3's menus; a System Link match on Seatown with six bots played to its end, the vote and the next map by script, 53 frames a second in play beside another game on the same GPU. Not yet tried with a hand or with real Windows input: the cursor's hiding and confinement, Alt+Tab, fullscreen, the wheel |
+| Settings in the game | verified on the Thor in all four titles, Modern Warfare 2 on the Flip 2 too: the app's menu over the game (touch, or Select and Start on a controller) changes resolution, sharpening, FPS limit, sun shadows, field of view, detail and texture memory under the running level; the on-screen controls stay off across restarts ([below](#the-menu-over-the-game-24-november-2026)) |
 | Profile and saves | profile and campaign saves written and resumed |
 
 ## 2026-11-16
@@ -798,6 +799,55 @@ Warfare 2. The tables and the reasons are in
   under Turnip, where pixels are not the limit), Qualcomm's frame
   extrapolation (OpenGL ES on the phone's own driver; listed by the Thor's,
   not the Flip 2's).
+
+## The menu over the game (24 November 2026)
+
+`.gm` builds of the four titles on the AYN Thor (Adreno 740, 120 Hz) and the
+Retroid Pocket Flip 2 (Adreno 650, 60 Hz), the game code packaged from
+libraries built before this change (the game library's statement is
+unchanged: they load). Each campaign started by `devmap` (S.S.D.D., Black
+Tuesday, F.N.G., Seoul at `seoul_enemy_encounter_01`), the menu opened with
+Select and Start on the device's own controller (`sendevent` on its input
+device) and every row changed by its D-pad; Modern Warfare 3's multiplayer
+in a split-screen match on Seatown, there by touch. What is in the design
+is in [android.md](android.md#the-menu-over-the-game-gamemenukt). Pictures
+and logs: `C:\Users\solim\mw3-android-work\out\gamemenu\`.
+
+| Row | Modern Warfare 2 | Modern Warfare 3 | Call of Duty 4 | Advanced Warfare |
+|---|---|---|---|---|
+| Display resolution | live: the swapchain goes from 1344x756 to 672x378 and back, the level runs on (both devices) | live (Thor) | live (Thor) | live (Thor) |
+| Sharpening | live: `sharpen:` lines 10 to 80% and off, the surface 1920x1080 while on (Thor) | live (Thor; on the Flip 2 seen going to 20%) | live (Thor) | live (Thor) |
+| FPS limit | live: the frame-rate line reads 60, 45, 30, 45, 60, 118 on the Thor, whose display follows to 60 Hz and back, and 46, 30, 45, 60 on the Flip 2 | live: 60, 46, 31, 45, 60, 118 (Thor) | 120, 60 and 30 live (61, 31, 60, 118); **45 is not held**: the campaign runs at the display's rate, as it does started with a limit of 45 (119 at 120 Hz), the title's `com_maxfps` not limiting it | live: 60, 45, 30, 45, 60, 118 (Thor) |
+| Sun shadows | live: gone and back in the picture (both devices) | live by the log (`sm_enable` 0 and 1; the street is overcast and the pictures do not show it); Auto follows the limit, on at 60 and off at 120 | live: the window's light on the floor goes and comes back (Thor) | live by the log; not seen in the picture, the start point faces the sky |
+| Field of view | live, `cg_fov` 65 to 110 (both devices) | live: `cg_fov` in the campaign, `MW2_FOV` in the multiplayer (Thor) | live, `cg_fov` (Thor) | live, `cg_fov` (Thor) |
+| Detail at distance | live: `detail:` lines at 2 and 4 (Thor) | no hook | no hook | no hook |
+| Texture memory | live: `perf: the texture budget is now 128 MB` (Thor) | the same code, not exercised | not exercised | not exercised |
+| Frames per second shown | live (Thor) | the app's own view, as in Modern Warfare 2 | the same | the same |
+| Internal render multiplier, Smooth edges | saved, marked `*`; `MW2_SCALE=2` and multisampling on at the next start (Thor) | the same code | the same code | the same code |
+
+- **Kept across a restart** (Modern Warfare 2, Thor): every value set in the
+  game was in the preference file after Quit, the launcher's Settings, in
+  the process that had been running since before the game, showed them
+  (35%, 2x, multisampling on, Low, shadows On), and after `am force-stop`
+  and a new start the run began with them (`surface 672x378`,
+  `MW2_SCALE=2`, `MW2_LOD_BIAS=4`, `MW2_SHADOWS=1`,
+  `MW2_TEXTURE_BUDGET_MB=128`, `cg_fov 65`).
+- **The on-screen controls off, and back on with the controller**: turned
+  off in the menu by the D-pad, the game quit from the menu, a switch
+  changed in the launcher (which used to write its stale copy back),
+  `touchControls` still false; the app stopped and started: no controls
+  drawn, the Menu button there; Select and Start, D-pad, A: controls back
+  (`thor-mw2-restart-touch-off.png`, `thor-mw2-touch-back-on-by-pad.png`,
+  `flip-mw2-touch-persist.png`). The same on the Flip 2. Physical
+  controllers switched off in the menu by the controller were switched on
+  again by it: the menu's own keys do not go through that switch.
+- **By touch** (Modern Warfare 3's multiplayer, Thor): the Menu button, the
+  Graphics row, the field of view's arrows, a touch beside the panel to
+  close it.
+- **Not done**: the multiplayer of Modern Warfare 2, Call of Duty 4 and
+  Advanced Warfare (the same activity and runtime calls; not run). No
+  frame rate here is a measurement: the numbers are the app's own
+  frame-rate line, read off screenshots.
 
 ## Build (WSL2 Ubuntu 24.04)
 

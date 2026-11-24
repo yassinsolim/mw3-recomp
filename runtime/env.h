@@ -1,7 +1,8 @@
 #pragma once
 // The MW2_* switches, read one way everywhere: a flag is on when the variable
 // is set to anything but "" or "0". Callers cache the answer in a static; the
-// environment does not change under a run.
+// environment does not change under a run. The few that another value can be
+// given under one hold it themselves (live_options.h).
 #include <cstdint>
 #include <cstdlib>
 

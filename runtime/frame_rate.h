@@ -31,11 +31,28 @@ namespace frame_rate
 {
     constexpr uint32_t kConsole = 60;
 
-    // com_maxfps: 0 is no limit, and 1000 is the most the title takes.
+    namespace detail
+    {
+        constexpr uint32_t kMost = 1000, kUnread = ~0u;
+        inline std::atomic<uint32_t> g_limit{ kUnread };
+    }
+
+    // com_maxfps: 0 is no limit, and 1000 is the most the title takes. The
+    // switch's value until SetLimit gives another.
     inline uint32_t Limit()
     {
-        static const uint32_t limit = uint32_t(std::min<uint64_t>(env::Number("MW2_FPS_LIMIT", kConsole), 1000));
-        return limit;
+        uint32_t limit = detail::g_limit.load(std::memory_order_relaxed);
+        if (limit != detail::kUnread) return limit;
+        const uint32_t asked = uint32_t(std::min<uint64_t>(env::Number("MW2_FPS_LIMIT", kConsole), detail::kMost));
+        // A limit set while this read the switch is the newer of the two.
+        return detail::g_limit.compare_exchange_strong(limit, asked, std::memory_order_relaxed) ? asked : limit;
+    }
+
+    // Another limit under a running title (live_options.h): everything here
+    // is asked again at each frame, so the pacing follows at the next present.
+    inline void SetLimit(uint32_t limit)
+    {
+        detail::g_limit.store(std::min(limit, detail::kMost), std::memory_order_relaxed);
     }
 
     // How many of the guest's 60 blanks a frame is held for where the

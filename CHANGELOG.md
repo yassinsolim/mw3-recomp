@@ -20,6 +20,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   on screen, the HUD smeared where the world moves behind it); the
   temporal upscalers, variable-rate shading and Qualcomm's frame
   extrapolation are set out there with what each would need.
+- **Settings changed in the game, in all four titles**
+  ([docs/android.md](docs/android.md#the-menu-over-the-game-gamemenukt),
+  [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#the-menu-over-the-game-24-november-2026)):
+  the app's menu over a running game is a panel of its own beside the
+  picture, worked by touch or by a controller (Select and Start together
+  open it), with a Graphics page: display resolution, FPS limit, sun
+  shadows, sharpening, field of view, detail at distance (Modern Warfare 2), texture
+  memory, the frame-rate line and Fill the screen change as they are
+  chosen, without leaving the level; the internal render multiplier and
+  multisampling are marked as taking effect at the next start. Every
+  choice is the launcher's Settings' own (`Prefs`). Behind it the runtime
+  takes `MW2_FPS_LIMIT`, `MW2_SHADOWS`, `MW2_FOV`, `MW2_LOD_BIAS` and
+  `MW2_TEXTURE_BUDGET_MB` under a running title
+  (`NativeBridge.nativeApplyOption`, `runtime/live_options.h`). Quit asks
+  on a page a controller can answer, and the bots are a row.
 - **Advanced Warfare: Exo Survival's Find Match and Combat Readiness
   Program on a relay**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
@@ -143,6 +158,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **The on-screen controls stay off** (and every other choice made in the
+  game stays made): the launcher and the game are two processes with one
+  preference file, each wrote its own stale copy over the other's, and a
+  write still queued when the game's process was killed was lost. The
+  file is read again when the other process has written it, and the game
+  waits for its writes before it ends. With them off, the Menu button and
+  Select and Start on a controller still open the menu that turns them on.
+- Settings offered Detail at distance in Call of Duty 4 and Advanced
+  Warfare, which have no such hook; it is Modern Warfare 2's alone.
 - **Advanced Warfare: wall panels drawn as coloured noise for a whole
   match, now and then.** The title draws some moves of its streamed
   images' pool in pieces; the copy was made at the first piece and the

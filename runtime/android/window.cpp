@@ -203,6 +203,14 @@ namespace android::detail
 
     // The display's mode changed under the surface (the app's display
     // listener); the presenter reads it at its next frame.
+    // The limit is another one (frame_rate::SetLimit): the surface votes
+    // for the display rate that goes with it.
+    void VoteAgain()
+    {
+        std::lock_guard lock(g_lock);
+        if (g_window) VoteFrameRate(g_window);
+    }
+
     void SetRefreshHz(double hz)
     {
         if (hz <= 20.0 || hz >= 500.0) return;

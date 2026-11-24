@@ -458,7 +458,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (overlay.editing) endEditing(save = true) else showMenu()
+                if (overlay.editing) endEditing(save = true) else if (menu.isOpen) menu.back() else showMenu()
             }
         })
 
@@ -500,13 +500,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         handler.post(statsTick)
         // Modern Warfare 3's multiplayer takes the field of view as MW2_FOV
         // (applyOptions): its scripts put cg_fov back at every spawn.
-        if (!isMw3Multiplayer) {
-            handler.postDelayed({
-                if (started) {
-                    NativeBridge.nativeRunConsoleCommand("cg_fov ${prefs.fov}")
-                }
-            }, 2500)
-        }
+        if (!isMw3Multiplayer) handler.postDelayed({ if (started) applyFov() }, 2500)
     }
 
     // ---- the screen ---------------------------------------------------------
@@ -525,9 +519,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 // display scales it up for free -- the single biggest thing
                 // a weak phone can be given. setFixedSize comes back here
                 // with the new size, which is when the runtime is told.
-                val scale = prefs.surfaceScale
-                val wantedHeight = max(240, (surfaceView.height * scale).roundToInt())
-                val wantedWidth = if (prefs.fillScreen) max(320, (wantedHeight * 16f / 9f).roundToInt()) else max(320, (surfaceView.width * scale).roundToInt())
+                val (wantedWidth, wantedHeight) = surfaceSize()
                 if (width != wantedWidth || height != wantedHeight) {
                     holder.setFixedSize(wantedWidth, wantedHeight)
                     return
@@ -675,6 +667,26 @@ class GameActivity : AppCompatActivity(), NativeListener {
         )
 
         setContentView(root)
+    }
+
+    /** The pixels the renderer is given: the view's, times the resolution setting (Prefs.surfaceScale). */
+    private fun surfaceSize(): Pair<Int, Int> {
+        val scale = prefs.surfaceScale
+        val height = max(240, (surfaceView.height * scale).roundToInt())
+        val width = if (prefs.fillScreen) max(320, (height * 16f / 9f).roundToInt())
+        else max(320, (surfaceView.width * scale).roundToInt())
+        return width to height
+    }
+
+    /**
+     * The resolution, the sharpening or the fill setting is another one: the surface is given
+     * its new size, which comes back through surfaceChanged, where the
+     * runtime is told and makes its swapchain again. The title's own frame
+     * is not touched, so the level goes on.
+     */
+    private fun resizeSurface() {
+        val (width, height) = surfaceSize()
+        surfaceView.holder.setFixedSize(width, height)
     }
 
     private fun smallButton(label: String, onClick: () -> Unit): Button {
@@ -1009,14 +1021,28 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
     }
 
-    // ---- the pause menu ----------------------------------------------------------
+    // ---- the menu over the game -----------------------------------------------------
 
+    private val menu: GameMenu by lazy { GameMenu(this, root) { goFullscreen() } }
+
+    private fun onOff(): List<String> = listOf(getString(R.string.state_off), getString(R.string.state_on))
+
+    /**
+     * Opened by the Menu button, the back key, or Select and Start together
+     * on a pad (dispatchKeyEvent). The game is not paused by it: the title's
+     * own pause does that, and a setting is seen as it changes.
+     */
     private fun showMenu() {
-        // Built as a list: the invite entry only exists in the multiplayer
-        // app, so fixed indices would point at the wrong rows there.
-        val labels = mutableListOf(
-            getString(R.string.resume) to { _: android.content.DialogInterface -> },
-            getString(R.string.edit_controls) to { _: android.content.DialogInterface -> beginEditing() },
+        // The pads' events are the menu's from here, and the game would
+        // never see what is held now come up.
+        pads.release()
+        overlay.releaseEverything()
+        val rows = mutableListOf<GameMenu.Row>(
+            GameMenu.Entry(getString(R.string.resume)) { menu.close() },
+            GameMenu.Entry(getString(R.string.menu_graphics)) { menu.push(graphicsPage()) },
+            GameMenu.Choice(getString(R.string.touch_controls), onOff(), if (prefs.touchControls) 1 else 0) { setTouchControls(it == 1) },
+            GameMenu.Entry(getString(R.string.edit_controls)) { menu.close(); beginEditing() },
+            GameMenu.Choice(getString(R.string.menu_gamepad), onOff(), if (prefs.gamepadEnabled) 1 else 0) { setGamepad(it == 1) },
         )
         // The Live lobby's invitations: MW2's and Call of Duty 4's, and
         // MW3's when it is signed in, which through a relay it is
@@ -1024,33 +1050,149 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // had a lobby nobody could be asked into or find.
         if (isMw2Multiplayer ||
             (isMultiplayer && (prefs.liveSignIn || prefs.networkBackend == "server"))) {
-            labels.add(getString(R.string.invite_players) to { _: android.content.DialogInterface -> inviteNetworkPlayers() })
-            labels.add(getString(R.string.join_game) to { _: android.content.DialogInterface -> pickNetworkPeer() })
+            rows.add(GameMenu.Entry(getString(R.string.invite_players)) { menu.close(); inviteNetworkPlayers() })
+            rows.add(GameMenu.Entry(getString(R.string.join_game)) { menu.close(); pickNetworkPeer() })
         }
         // Modern Warfare 2's stat cheats write that game's stats file
         // (MpCheatsData's offsets): Call of Duty 4's and Advanced Warfare's
         // are laid out differently, so their multiplayer is not offered them.
         if (isMw2Multiplayer && !Title.isCod4 && !Title.isAw) {
-            labels.add(getString(R.string.max_rank) to { _: android.content.DialogInterface -> runCheat(R.string.max_rank, Cheats::maxRank) })
-            labels.add(getString(R.string.unlock_all) to { _: android.content.DialogInterface -> runCheat(R.string.unlock_all, Cheats::unlockEverything) })
-            labels.add(getString(R.string.prestige_up) to { _: android.content.DialogInterface -> runCheat(R.string.prestige_up, Cheats::prestigeUp) })
+            rows.add(GameMenu.Entry(getString(R.string.max_rank)) { menu.close(); runCheat(R.string.max_rank, Cheats::maxRank) })
+            rows.add(GameMenu.Entry(getString(R.string.unlock_all)) { menu.close(); runCheat(R.string.unlock_all, Cheats::unlockEverything) })
+            rows.add(GameMenu.Entry(getString(R.string.prestige_up)) { menu.close(); runCheat(R.string.prestige_up, Cheats::prestigeUp) })
         }
         if (hasBots) {
-            val bots = if (prefs.botCount == 0) getString(R.string.bot_count_none) else getString(R.string.bot_count, prefs.botCount)
-            labels.add(bots to { _: android.content.DialogInterface -> pickBotCount() })
+            val counts = List(Prefs.MAX_BOTS + 1) { if (it == 0) getString(R.string.menu_bots_none) else it.toString() }
+            rows.add(GameMenu.Choice(getString(R.string.menu_bots), counts, prefs.botCount.coerceIn(0, Prefs.MAX_BOTS)) { setBotCount(it) })
         }
-        labels.add(getString(if (prefs.touchControls) R.string.hide_touch_controls else R.string.show_touch_controls) to { _: android.content.DialogInterface -> setTouchControls(!prefs.touchControls) })
-        labels.add(getString(if (prefs.gamepadEnabled) R.string.disable_gamepad else R.string.enable_gamepad) to { _: android.content.DialogInterface -> setGamepad(!prefs.gamepadEnabled) })
-        labels.add(getString(if (prefs.showStats) R.string.hide_stats else R.string.show_stats) to { _: android.content.DialogInterface -> setStats(!prefs.showStats) })
-        labels.add(getString(R.string.quit) to { _: android.content.DialogInterface -> confirmQuit() })
-        AlertDialog.Builder(this)
-            .setTitle(R.string.paused)
-            .setItems(labels.map { it.first }.toTypedArray()) { dialog, which ->
-                dialog.dismiss()
-                labels[which].second(dialog)
-            }
-            .setOnDismissListener { goFullscreen() }
-            .show()
+        rows.add(GameMenu.Entry(getString(R.string.quit)) { menu.push(quitPage()) })
+        menu.open(GameMenu.Page(getString(R.string.menu), rows, getString(R.string.menu_hint)))
+    }
+
+    /**
+     * What Settings' Graphics page has, with the same Prefs behind it. All
+     * but the last two are taken by the running game; those two are sizes the
+     * renderer makes its targets at once, and are marked.
+     */
+    private fun graphicsPage(): GameMenu.Page {
+        val rows = mutableListOf<GameMenu.Row>()
+
+        val percents = (35..100 step 5).toList()
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_resolution), percents.map { getString(R.string.menu_percent, it) },
+            nearest(percents, (prefs.resolutionScale * 100f).roundToInt()),
+        ) {
+            prefs.resolutionScale = percents[it] / 100f
+            resizeSurface()
+        })
+
+        // Sharpened, the picture is shown at the screen's full size
+        // whatever the row above says (Prefs.surfaceScale), so the surface
+        // changes with the first step from off and the last one back.
+        val tenths = (0..100 step 10).toList()
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_sharpening),
+            tenths.map { if (it == 0) getString(R.string.state_off) else getString(R.string.menu_percent, it) },
+            nearest(tenths, prefs.sharpening),
+        ) {
+            prefs.sharpening = tenths[it]
+            NativeBridge.nativeApplyOption("MW2_SHARPEN", tenths[it].toString())
+            resizeSurface()
+        })
+
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_fps_limit), Prefs.FPS_LIMITS.map { it.toString() },
+            Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit).coerceAtLeast(0),
+        ) { setFpsLimit(Prefs.FPS_LIMITS[it]) })
+
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_sun_shadows), resources.getStringArray(R.array.menu_sun_shadows_choices).toList(),
+            prefs.sunShadows,
+        ) {
+            prefs.sunShadows = it
+            NativeBridge.nativeApplyOption("MW2_SHADOWS", when (it) { 1 -> "1"; 2 -> "0"; else -> "" })
+        })
+
+        val views = (65..110 step 5).toList()
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_fov), views.map { getString(R.string.menu_degrees, it) },
+            nearest(views, prefs.fov),
+        ) {
+            prefs.fov = views[it]
+            applyFov()
+        })
+
+        if (Title.hasDetailBias) {
+            rows.add(GameMenu.Choice(
+                getString(R.string.menu_detail), resources.getStringArray(R.array.detail_biases).toList(),
+                Prefs.DETAIL_BIASES.indexOf(prefs.detailBias).coerceAtLeast(0),
+            ) {
+                prefs.detailBias = Prefs.DETAIL_BIASES[it]
+                NativeBridge.nativeApplyOption("MW2_LOD_BIAS", prefs.detailBias.toString())
+            })
+        }
+
+        // As Settings' slider: the device's own figure, then 128 MB steps to 1920.
+        val budgets = (0..15).map { it * 128 }
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_texture_budget),
+            budgets.map { if (it == 0) getString(R.string.menu_auto) else getString(R.string.menu_megabytes, it) },
+            nearest(budgets, prefs.textureBudgetMB),
+        ) {
+            prefs.textureBudgetMB = budgets[it]
+            NativeBridge.nativeApplyOption("MW2_TEXTURE_BUDGET_MB", budgets[it].toString())
+        })
+
+        rows.add(GameMenu.Choice(getString(R.string.menu_stats), onOff(), if (prefs.showStats) 1 else 0) { setStats(it == 1) })
+        rows.add(GameMenu.Choice(getString(R.string.menu_fill_screen), onOff(), if (prefs.fillScreen) 1 else 0) {
+            prefs.fillScreen = it == 1
+            resizeSurface()
+        })
+
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_render_scale), (1..3).map { getString(R.string.menu_times, it) },
+            prefs.renderScale - 1, afterRestart = true,
+        ) { prefs.renderScale = it + 1 })
+        rows.add(GameMenu.Choice(
+            getString(R.string.msaa), onOff(), if (prefs.multisampling) 1 else 0, afterRestart = true,
+        ) { prefs.multisampling = it == 1 })
+
+        return GameMenu.Page(getString(R.string.menu_graphics), rows, getString(R.string.menu_after_restart))
+    }
+
+    /** The place of the value nearest [wanted]: a setting saved between two of the menu's steps. */
+    private fun nearest(values: List<Int>, wanted: Int): Int =
+        values.indices.minByOrNull { kotlin.math.abs(values[it] - wanted) } ?: 0
+
+    private fun quitPage(): GameMenu.Page = GameMenu.Page(
+        getString(R.string.quit),
+        listOf(
+            GameMenu.Entry(getString(R.string.cancel)) { menu.close() },
+            GameMenu.Entry(getString(R.string.menu_quit_now)) { quit() },
+        ),
+        getString(R.string.quit_explained),
+    )
+
+    /**
+     * The cap, changed under the running title: the runtime paces by it from
+     * the next frame (frame_rate.h), and the display is asked for the mode
+     * that goes with it, as at the start of a run.
+     */
+    private fun setFpsLimit(limit: Int) {
+        prefs.fpsLimit = limit
+        NativeBridge.nativeApplyOption("MW2_FPS_LIMIT", limit.toString())
+        DisplayRate.request(window, shownDisplay(), limit)
+        logDisplayMode()
+    }
+
+    /**
+     * The field of view as each title takes it. Modern Warfare 3's
+     * multiplayer has the runtime's own (MW2_FOV), since its scripts put
+     * cg_fov back at every spawn; the others are given cg_fov.
+     */
+    private fun applyFov() {
+        if (isMw3Multiplayer) NativeBridge.nativeApplyOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
+        else NativeBridge.nativeRunConsoleCommand("cg_fov ${prefs.fov}")
     }
 
     /**
@@ -1058,22 +1200,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
      * `bots <n>` (runtime/bots.cpp) and the server adds or drops them on its
      * next frame. Kept as the setting too, so the next start has the same.
      */
-    private fun pickBotCount() {
-        val counts = Array(Prefs.MAX_BOTS + 1) { if (it == 0) getString(R.string.bot_count_none) else getString(R.string.bot_count, it) }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.bots_in_game_title)
-            .setSingleChoiceItems(counts, prefs.botCount) { dialog, which ->
-                prefs.botCount = which
-                if (NativeBridge.isLoaded()) {
-                    try {
-                        NativeBridge.nativeRunConsoleCommand("bots $which")
-                    } catch (_: Throwable) {
-                    }
-                }
-                dialog.dismiss()
-            }
-            .setOnDismissListener { goFullscreen() }
-            .show()
+    private fun setBotCount(count: Int) {
+        prefs.botCount = count
+        NativeBridge.nativeRunConsoleCommand("bots $count")
     }
 
     // The title lobby's "Invite friends" for the network: invites every
@@ -1182,6 +1311,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     private fun quit() {
         overlay.layout.save(this)
+        // The process is killed below: what the menu changed has to be in
+        // the file by then.
+        prefs.flush()
         if (NativeBridge.isLoaded()) NativeBridge.nativeRequestStop()
         finishAndRemoveTask()
         // The only way to end a guest that is inside recompiled code. The
@@ -1362,15 +1494,53 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     // ---- input ------------------------------------------------------------------------
 
+    // Select and Start as a pad holds them, for the two together.
+    private var menuButtonsHeld = 0
+
+    /**
+     * Select and Start held together open the menu: the way in for a player
+     * with a pad and the on-screen controls off, who has no Menu button to
+     * reach and whose B is the game's. It is counted whether or not pads are
+     * listened to, so a pad switched off in the menu can be switched on again
+     * from it. The second of the two is not passed on; the first already was,
+     * and showMenu lets it go.
+     */
+    private fun opensMenu(event: KeyEvent): Boolean {
+        val bit = when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_SELECT -> 1
+            KeyEvent.KEYCODE_BUTTON_START -> 2
+            else -> return false
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) {
+            menuButtonsHeld = menuButtonsHeld and bit.inv()
+            return false
+        }
+        menuButtonsHeld = menuButtonsHeld or bit
+        if (menuButtonsHeld != 3) return false
+        // Their coming up is the menu's to see, not this count's.
+        menuButtonsHeld = 0
+        return true
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // The dialogs and the editor come first; a pad should not fire a gun
-        // through a menu.
-        if (started && !overlay.editing && pads.onKey(event)) return true
+        // The menu, the dialogs and the editor come first; a pad should not
+        // fire a gun through a menu.
+        if (started && !overlay.editing) {
+            if (menu.isOpen) return menu.onKey(event) || super.dispatchKeyEvent(event)
+            if (opensMenu(event)) {
+                showMenu()
+                return true
+            }
+            if (pads.onKey(event)) return true
+        }
         return super.dispatchKeyEvent(event)
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
-        if (started && !overlay.editing && pads.onMotion(event)) return true
+        if (started && !overlay.editing) {
+            if (menu.isOpen) return menu.onMotion(event) || super.onGenericMotionEvent(event)
+            if (pads.onMotion(event)) return true
+        }
         return super.onGenericMotionEvent(event)
     }
 
@@ -1400,6 +1570,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
         overlay.releaseEverything()
         handler.removeCallbacks(statsTick)
         overlay.layout.save(this)
+        // A game left in the background may be killed without another word.
+        prefs.flush()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

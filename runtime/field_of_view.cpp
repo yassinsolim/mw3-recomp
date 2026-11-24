@@ -33,9 +33,11 @@
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "env.h"
+#include "live_options.h"
 #include "log.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstring>
 
@@ -45,17 +47,37 @@ namespace
     constexpr double kWidest = 120.0;
     constexpr double kTitleMost = 170.0;    // T_CG_ViewFov's own upper bound
 
+#ifdef T_CG_ViewFov
+    // The view over the console's; 0 until the switch has been read.
+    std::atomic<double> g_scale{ 0.0 };
+
+    double Given(double asked)
+    {
+        const double fov = std::clamp(asked, kConsole, kWidest);
+        if (fov != asked) LOGW("fov: MW2_FOV is %g to %g, not %g", kConsole, kWidest, asked);
+        if (fov != kConsole) LOGI("fov: the view is %g degrees where the console's is %g", fov, kConsole);
+        return fov / kConsole;
+    }
+
     double Scale()
     {
-        static const double scale = [] {
-            const double asked = env::Real("MW2_FOV", kConsole);
-            const double fov = std::clamp(asked, kConsole, kWidest);
-            if (fov != asked) LOGW("fov: MW2_FOV is %g to %g, not %g", kConsole, kWidest, asked);
-            if (fov != kConsole) LOGI("fov: the view is %g degrees where the console's is %g", fov, kConsole);
-            return fov / kConsole;
-        }();
-        return scale;
+        double scale = g_scale.load(std::memory_order_relaxed);
+        if (scale != 0.0) return scale;
+        const double given = Given(env::Real("MW2_FOV", kConsole));
+        // A view set while this read the switch is the newer of the two.
+        return g_scale.compare_exchange_strong(scale, given, std::memory_order_relaxed) ? given : scale;
     }
+#endif
+}
+
+bool live::SetFieldOfView([[maybe_unused]] double degrees)
+{
+#ifdef T_CG_ViewFov
+    g_scale.store(Given(degrees), std::memory_order_relaxed);
+    return true;
+#else
+    return false;
+#endif
 }
 
 #ifdef T_CG_ViewFov     // not located in Modern Warfare 3's campaign
@@ -101,8 +123,7 @@ GUEST_HOOK(T_CG_SetViewFov)
     const uint32_t client = ctx.r3.u32;
     GUEST_ORIG(T_CG_SetViewFov)(ctx, base);
     if (Scale() == 1.0) return;
-    static const float hip = HipRatio(1.0);
-    Multiply(base, PPC_LOAD_U32(T_DATA_CgArray) + client * T_CG_STRIDE + T_CG_ZOOM_SENSITIVITY, hip);
+    Multiply(base, PPC_LOAD_U32(T_DATA_CgArray) + client * T_CG_STRIDE + T_CG_ZOOM_SENSITIVITY, HipRatio(1.0));
 }
 
 // (the aim assist's state, tan(half the view's height))

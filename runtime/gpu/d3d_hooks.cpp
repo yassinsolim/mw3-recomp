@@ -10,6 +10,7 @@
 #include "../console.h"
 #include "../env.h"
 #include "../frame_rate.h"
+#include "../live_options.h"
 #include "../guest.h"
 #include "../log.h"
 #ifdef MW2_ANDROID
@@ -36,36 +37,55 @@ namespace
     // length from the blanks counted rather than from the clock.
     //
     // What com_maxfps is depends on what paces the frames, and that on the
-    // display, whose mode a phone may change in the middle of a run: the
-    // title is told again whenever the pacing is another one.
+    // display, whose mode a phone may change in the middle of a run, and on
+    // the limit, which the app's menu may (frame_rate::SetLimit): the title
+    // is told again whenever the pacing or the limit is another one. Back on
+    // the console's pacing it is given its own interval and its own two
+    // settings again.
     void Pace(uint32_t device)
     {
         const frame_rate::Pacing pacing = frame_rate::Mode();
+        const uint32_t limit = frame_rate::Limit();
         constexpr uint32_t kPresentInterval = T_DEV_PresentInterval;   // in D3D9's device structure
         constexpr uint32_t kIntervalTwo = 2, kIntervalImmediate = 0x80000000;
-        if (pacing != frame_rate::kByConsole)
-            *GuestPtr<be32>(device + kPresentInterval) = kIntervalImmediate;
-        else if (frame_rate::ConsoleBlanks() == 2)
-            *GuestPtr<be32>(device + kPresentInterval) = kIntervalTwo;
+        // Presents come from one guest thread: the device's interval before
+        // anything here wrote one, and whether anything has.
+        static const uint32_t own = *GuestPtr<be32>(device + kPresentInterval);
+        static bool written = false;
+        const uint32_t interval = pacing != frame_rate::kByConsole ? kIntervalImmediate
+                                  : frame_rate::ConsoleBlanks() == 2 ? kIntervalTwo : own;
+        if (interval != own) written = true;
+        if (written) *GuestPtr<be32>(device + kPresentInterval) = interval;
 
-        static std::atomic<int> told{ -1 };
-        if (told.exchange(pacing, std::memory_order_relaxed) == pacing) return;
-        const uint32_t limit = frame_rate::Limit();
+        static uint32_t told = ~0u;
+        static bool limited = false;   // com_maxfps and r_vsync are not the title's own
+        const uint32_t state = uint32_t(pacing) << 16 | limit;
+        if (told == state) return;
+        told = state;
         // The display's own blanks hold the frames to its rate; a limiter
         // counting whole milliseconds beside them would let 125 through
         // against 120 shown.
         const uint32_t maxFps = pacing == frame_rate::kByDisplay ? 0 : limit;
         char how[112];
         if (pacing == frame_rate::kByConsole)
+        {
+            if (limited)
+            {
+                console::RunNow("reset com_maxfps");
+                console::RunNow("reset r_vsync");
+                limited = false;
+            }
             std::snprintf(how, sizeof how, frame_rate::ConsoleBlanks() == 2
                               ? "the console's at half rate: a frame retired at every second guest blank, 30 a second"
                               : "the console's: a frame retired at every guest blank, 60 a second");
+        }
         else
         {
             char command[32];
             std::snprintf(command, sizeof command, "com_maxfps %u", maxFps);
             console::RunNow(command);
             console::RunNow("r_vsync 0");
+            limited = true;
             if (pacing == frame_rate::kByDisplay)
                 std::snprintf(how, sizeof how, "the display's: com_maxfps 0, every frame shown, one a blank");
             else if (limit)
@@ -95,10 +115,22 @@ namespace
     // for Advanced Warfare, whose build is that title's kind: Seoul's drop
     // pod there ran at 114.4 with 78% on time with them and 118.8 with 90%
     // without. On everywhere else. Said once the title presents, when its console takes
-    // commands.
+    // commands, and again whenever the answer is another: the app's menu
+    // gives the switch another value (live::SetSunShadows) or a limit that
+    // decided it.
+    constexpr int kUnread = -2, kUnset = -1;
+    std::atomic<int> g_shadowsAsked{ kUnread };
+
     const char* WhyNoShadows()
     {
-        if (env::Text("MW2_SHADOWS")) return env::Flag("MW2_SHADOWS") ? nullptr : "MW2_SHADOWS=0";
+        int asked = g_shadowsAsked.load(std::memory_order_relaxed);
+        if (asked == kUnread)
+        {
+            const int given = !env::Text("MW2_SHADOWS") ? kUnset : env::Flag("MW2_SHADOWS") ? 1 : 0;
+            // A value set while this read the switch is the newer of the two.
+            if (g_shadowsAsked.compare_exchange_strong(asked, given, std::memory_order_relaxed)) asked = given;
+        }
+        if (asked != kUnset) return asked ? nullptr : "MW2_SHADOWS=0";
 #if defined(MW2_ANDROID)
         if (android::perf::Adreno6xx())
             return "an Adreno 6xx holds its frame rate without them; MW2_SHADOWS=1 keeps them";
@@ -112,13 +144,18 @@ namespace
 
     void Shadows()
     {
-        static std::atomic<bool> told{ false };
-        if (told.exchange(true, std::memory_order_relaxed)) return;
+        static std::atomic<bool> told{ true };   // the title starts with them
         const char* why = WhyNoShadows();
-        if (!why) return;
-        console::RunNow("sm_enable 0");
-        LOGI("shadows: the sun casts none (sm_enable 0): %s", why);
+        if (told.exchange(!why, std::memory_order_relaxed) == !why) return;
+        console::RunNow(why ? "sm_enable 0" : "sm_enable 1");
+        if (why) LOGI("shadows: the sun casts none (sm_enable 0): %s", why);
+        else LOGI("shadows: the sun casts them again (sm_enable 1)");
     }
+}
+
+void live::SetSunShadows(int asked)
+{
+    g_shadowsAsked.store(asked < 0 ? kUnset : asked ? 1 : 0, std::memory_order_relaxed);
 }
 
 // D3D9's present. Its frame is retired the way the console retires it: the

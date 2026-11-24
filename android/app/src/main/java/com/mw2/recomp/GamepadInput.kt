@@ -32,17 +32,21 @@ class GamepadInput {
         if (enabled == value) return
         enabled = value
         NativeBridge.nativePadEnabled(value)
-        if (!value) {
-            // Everything let go, or whatever was held stays held forever.
-            for (slot in 0 until 4) {
-                buttons[slot] = 0
-                axes[slot].fill(0f)
-                triggers[slot][0] = 0
-                triggers[slot][1] = 0
-                push(slot)
-            }
-        } else {
-            refreshDevices()
+        if (!value) release() else refreshDevices()
+    }
+
+    /**
+     * Everything let go, or whatever was held stays held forever: the pads
+     * are being ignored from now on, or their events go to the app's menu
+     * and the game does not see the buttons come up.
+     */
+    fun release() {
+        for (slot in 0 until 4) {
+            buttons[slot] = 0
+            axes[slot].fill(0f)
+            triggers[slot][0] = 0
+            triggers[slot][1] = 0
+            push(slot)
         }
     }
 

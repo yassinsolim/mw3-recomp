@@ -147,6 +147,14 @@ namespace
     }
 
     uint64_t g_fullTextureBudget = 0;
+
+    // The guest's own 512 MB bank, its 440 MB heap and the image are not
+    // negotiable; what is left over is what the renderer may cache. A sixth of
+    // the device's memory keeps a 4 GB phone alive with room for the system.
+    uint32_t DeviceTextureMB(uint32_t totalMB)
+    {
+        return totalMB >= 12000 ? 1536 : std::clamp(totalMB / 6, 128u, 1024u);
+    }
 }
 
 void android::perf::PinToBigCores()
@@ -226,11 +234,7 @@ void android::perf::ApplyMemoryDefaults()
     const uint32_t totalMB = TotalMemoryMB();
     const Paths& paths = GetPaths();
 
-    // The guest's own 512 MB bank, its 440 MB heap and the image are not
-    // negotiable; what is left over is what the renderer may cache. A sixth of
-    // the device's memory keeps a 4 GB phone alive with room for the system.
-    uint32_t textureMB = std::clamp(totalMB / 6, 128u, 1024u);
-    if (totalMB >= 12000) textureMB = 1536;
+    const uint32_t textureMB = DeviceTextureMB(totalMB);
     char text[32];
     std::snprintf(text, sizeof text, "%u", textureMB);
     setenv("MW2_TEXTURE_BUDGET_MB", text, 0);
@@ -289,6 +293,16 @@ void android::perf::RestoreMemory()
     vk::textures::SetBudget(g_fullTextureBudget);
     LOGI("perf: the texture budget is back to %llu MB",
          (unsigned long long)(g_fullTextureBudget >> 20));
+}
+
+// The whole budget is this one from now on: what a trim cuts from and what
+// coming back restores.
+void android::perf::SetTextureBudgetMB(uint32_t megabytes)
+{
+    const uint32_t wanted = megabytes ? megabytes : DeviceTextureMB(TotalMemoryMB());
+    g_fullTextureBudget = uint64_t(wanted) << 20;
+    vk::textures::SetBudget(g_fullTextureBudget);
+    LOGI("perf: the texture budget is now %u MB", wanted);
 }
 
 void android::perf::TrimMemory(int level)

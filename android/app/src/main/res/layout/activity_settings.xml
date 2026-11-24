@@ -373,6 +373,12 @@
                     android:layout_height="wrap_content"
                     android:text="@string/touch_controls" />
 
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/touch_controls_hint" />
+
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/gamepad"
                     style="@style/SettingSwitch"

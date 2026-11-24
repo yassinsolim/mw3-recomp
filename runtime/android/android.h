@@ -224,6 +224,10 @@ namespace android::perf
     void TrimMemory(int level);
     // The other half of it, when the run comes back.
     void RestoreMemory();
+    // MW2_TEXTURE_BUDGET_MB under a running title (the app's in-game menu):
+    // the texture cache's budget from now on, or with 0 the one this device
+    // is given unasked.
+    void SetTextureBudgetMB(uint32_t megabytes);
     // Sets the defaults the renderer reads out of the environment, sized for
     // this device, before anything reads them. Never overrides a value the
     // app set itself.

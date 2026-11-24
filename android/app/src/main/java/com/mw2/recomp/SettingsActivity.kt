@@ -136,7 +136,7 @@ class SettingsActivity : AppCompatActivity() {
 
         switch(R.id.msaa, prefs.multisampling) { prefs.multisampling = it }
         // Detail at distance is Modern Warfare 2's, the only title with the hook.
-        if (!Title.isMw3) {
+        if (Title.hasDetailBias) {
             findViewById<android.view.View>(R.id.detail_group).visibility = android.view.View.VISIBLE
             val details = resources.getStringArray(R.array.detail_biases)
             val detailLabel: TextView = findViewById(R.id.detail_label)

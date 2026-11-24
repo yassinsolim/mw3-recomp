@@ -45,7 +45,6 @@
     <string name="bots_title">Bots</string>
     <string name="bots_detail">Computer players for multiplayer. They join the matches this device hosts: System Link, Create Game, or a private match. They do nothing in a match somebody else hosts. Choose how many and how good here, then start Multiplayer.</string>
     <string name="bots_more">More in Settings</string>
-    <string name="bots_in_game_title">Bots (in the matches this device hosts)</string>
     <string name="status_multiplayer_missing">The campaign is ready.\nThe multiplayer\'s executable is not in the game folder yet: install from your disc image once more. Only what is missing is copied.</string>
 
     <!-- launcher -->
@@ -167,12 +166,12 @@
     <string name="sharpening_off">Sharpening: off</string>
     <string name="sharpening_hint">Sharpens the picture as it is enlarged to the screen, which gives back some of the detail the enlarging blurs; 80 to 100% is nearest a picture drawn at the screen\'s own size. The game is then shown at the screen\'s full resolution whatever the resolution above says. It costs a third to half a millisecond of the graphics chip\'s time a frame: a few frames a second where the chip is already at its limit.</string>
     <string name="show_stats">Show frames per second</string>
-    <string name="hide_stats">Hide frames per second</string>
     <string name="texture_budget_auto">Texture memory: chosen for this phone</string>
     <string name="texture_budget">Texture memory: %1$d MB</string>
     <string name="texture_hint">How much the texture cache may hold before it starts letting go of what has not been drawn for a while. Left alone, the runtime picks a figure from the memory this phone has.</string>
     <string name="audio_on">Sound</string>
     <string name="touch_controls">On-screen controls</string>
+    <string name="touch_controls_hint">Off is for playing with a controller, and stays off until it is turned on again: here, or in the game\'s menu, which Select and Start together open on a controller and the Menu button at the top right opens by touch.</string>
     <string name="use_gamepad">Use a physical controller</string>
     <string name="gamepad_hint">Turn this off to ignore controllers entirely. Some phones report an accessory, or their own sensors, as a gamepad with a stick that is not centred, which makes the character walk on its own.</string>
     <string name="vibration">Vibration</string>
@@ -293,14 +292,37 @@
 
     <!-- in the game -->
     <string name="menu">Menu</string>
-    <string name="paused">Paused</string>
     <string name="resume">Carry on</string>
     <string name="edit_controls">Edit controls</string>
     <string name="edit_controls_short">Edit</string>
-    <string name="hide_touch_controls">Hide the on-screen controls</string>
-    <string name="show_touch_controls">Show the on-screen controls</string>
-    <string name="disable_gamepad">Ignore physical controllers</string>
-    <string name="enable_gamepad">Use physical controllers</string>
+    <!-- the menu over the game (GameMenu.kt): a label, and its value beside it -->
+    <string name="menu_graphics">Graphics</string>
+    <string name="menu_gamepad">Physical controllers</string>
+    <string name="menu_bots">Bots in my matches</string>
+    <string name="menu_bots_none">None</string>
+    <string name="menu_resolution">Display resolution</string>
+    <string name="menu_percent">%1$d%%</string>
+    <string name="menu_sharpening">Sharpening</string>
+    <string name="menu_fps_limit">FPS limit</string>
+    <string name="menu_sun_shadows">Sun shadows</string>
+    <string-array name="menu_sun_shadows_choices">
+        <item>Auto</item>
+        <item>On</item>
+        <item>Off</item>
+    </string-array>
+    <string name="menu_fov">Field of view</string>
+    <string name="menu_degrees">%1$d°</string>
+    <string name="menu_detail">Detail at distance</string>
+    <string name="menu_texture_budget">Texture memory</string>
+    <string name="menu_auto">Auto</string>
+    <string name="menu_megabytes">%1$d MB</string>
+    <string name="menu_stats">Frames per second shown</string>
+    <string name="menu_fill_screen">Fill the screen</string>
+    <string name="menu_render_scale">Internal render multiplier</string>
+    <string name="menu_times">%1$dx</string>
+    <string name="menu_after_restart">* takes effect the next time the game is started. Everything else changes as you choose it, and is what Settings shows.</string>
+    <string name="menu_hint">On a controller, Select and Start together open this menu: D-pad to choose, left and right to change, A to take, B to go back.</string>
+    <string name="menu_quit_now">Quit the game</string>
     <string name="quit">Quit</string>
     <string name="quit_explained">The game ends now. Anything the game itself has not saved is lost.</string>
     <string name="cannot_start">The game could not start</string>

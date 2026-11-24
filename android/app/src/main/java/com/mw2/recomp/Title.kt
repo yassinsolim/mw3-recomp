@@ -83,6 +83,15 @@ enum class Title(val library: String, val executable: String) {
          */
         val hasBots: Boolean = MULTIPLAYER.carried && BuildConfig.MW2_TU == "tu0"
 
+        /** Modern Warfare 2, either version of it. */
+        val isMw2: Boolean = !isMw3 && !isCod4 && !isAw
+
+        /**
+         * Detail at distance (MW2_LOD_BIAS): the hook is in Modern Warfare
+         * 2's disc executables alone (runtime/model_detail.cpp).
+         */
+        val hasDetailBias: Boolean = isMw2 && BuildConfig.MW2_TU == "tu0"
+
         /** The title an executable's name on the disc belongs to, if this app carries it. */
         fun forExecutable(name: String): Title? = carried.firstOrNull { it.executable == name }
     }

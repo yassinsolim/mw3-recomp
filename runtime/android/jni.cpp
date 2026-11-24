@@ -19,11 +19,14 @@
 #include "../crash.h"
 #include "../install/install.h"
 #include "../gpu/vulkan/presenter.h"
+#include "../gpu/vulkan/sharpen.h"
 #include "../gpu/vulkan/texture_cache.h"
 #include "../gpu/vulkan/pipeline.h"
 #include "../gpu/vulkan/renderer.h"
 #include "../gpu/vulkan/renderer_state.h"
 #include "../console.h"
+#include "../frame_rate.h"
+#include "../live_options.h"
 #include "../online/service.h"
 #if MW2_SPLIT_GAME
 #include "game_library.h"
@@ -53,6 +56,7 @@ namespace android::detail
     void SetPaused(bool paused);
     void SetRunning(bool running);
     void SetRefreshHz(double hz);
+    void VoteAgain();
     std::string LogTail();
 }
 namespace android::input::detail { void SetRumbleSink(void (*sink)(uint32_t, uint16_t, uint16_t)); }
@@ -289,6 +293,34 @@ MW2_NATIVE(void, nativeSetOption)(JNIEnv* env, jobject, jstring key, jstring val
     if (name.empty()) return;
     setenv(name.c_str(), text.c_str(), 1);
     LOGI("android: %s=%s", name.c_str(), text.c_str());
+}
+
+// One of the switches that can be given another value while the title runs
+// (live_options.h): the in-game menu's. An empty value is the switch unset.
+// False for a switch that is read once, at the start of a run, and for a
+// title that has not got it: the app then says the change waits for the next
+// start. The environment is not written, which other threads are reading.
+MW2_NATIVE(jboolean, nativeApplyOption)(JNIEnv* env, jobject, jstring key, jstring value)
+{
+    const std::string name = ToString(env, key);
+    const std::string text = ToString(env, value);
+    bool applied = true;
+    if (name == "MW2_FPS_LIMIT")
+    {
+        frame_rate::SetLimit(uint32_t(std::strtoul(text.c_str(), nullptr, 10)));
+        android::detail::VoteAgain();
+    }
+    else if (name == "MW2_SHADOWS") live::SetSunShadows(text.empty() ? -1 : text != "0");
+    else if (name == "MW2_FOV") applied = live::SetFieldOfView(std::strtod(text.c_str(), nullptr));
+    else if (name == "MW2_LOD_BIAS") applied = live::SetDetailBias(std::strtod(text.c_str(), nullptr));
+    else if (name == "MW2_TEXTURE_BUDGET_MB")
+        android::perf::SetTextureBudgetMB(uint32_t(std::strtoul(text.c_str(), nullptr, 10)));
+    else if (name == "MW2_SHARPEN")
+        vk::sharpen::Set(uint32_t(std::strtoul(text.c_str(), nullptr, 10)));
+    else applied = false;
+    LOGI("android: %s=%s %s", name.c_str(), text.c_str(),
+         applied ? "from now on" : "is read at the start of a run");
+    return applied ? JNI_TRUE : JNI_FALSE;
 }
 
 MW2_NATIVE(void, nativeSelectDriver)(JNIEnv* env, jobject, jstring directory, jstring library)

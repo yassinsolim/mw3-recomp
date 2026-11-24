@@ -65,6 +65,13 @@ object NativeBridge {
     external fun nativeSetOption(key: String, value: String)
 
     /**
+     * The same for a run that is under way: the switch has that value from
+     * the next frame on. False for a switch the runtime reads once, at the
+     * start of a run, or one this title has not got.
+     */
+    external fun nativeApplyOption(key: String, value: String): Boolean
+
+    /**
      * A line of the app's own in this process's log (game.log, launcher.log),
      * as an error when [failure]: the device, and why a run was not started.
      */

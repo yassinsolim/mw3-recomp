@@ -12,8 +12,31 @@ class Prefs(context: Context) {
 
     private val app: Context = context.applicationContext
 
-    private val store: SharedPreferences =
-        app.getSharedPreferences("mw2", Context.MODE_PRIVATE)
+    /**
+     * One file for the launcher's process and the game's (":game"), which
+     * both write it: Settings in one, the in-game menu in the other. A
+     * process reads a preference file once and from then on writes its own
+     * copy over the file whole, so each undid what the other had saved: the
+     * on-screen controls hidden in the game were back at the next start,
+     * because the launcher, still holding the copy from before the run, wrote
+     * its own after it. MODE_MULTI_PROCESS has the file checked each time it
+     * is asked for and read again when another process has written it, so it
+     * is asked for at every use instead of once. Deprecated in favour of a
+     * content provider, which two processes sharing a dozen settings do not
+     * need; the check is one stat of the file.
+     */
+    private val store: SharedPreferences
+        @Suppress("DEPRECATION")
+        get() = app.getSharedPreferences("mw2", Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS)
+
+    /**
+     * Waits until everything set so far is in the file. The game's process is
+     * killed to end a run (GameActivity.quit), and a write still queued then
+     * is a choice lost.
+     */
+    fun flush() {
+        store.edit().commit()
+    }
 
     /**
      * The fastest cap this screen can show: the highest of FPS_LIMITS at or
