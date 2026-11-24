@@ -119,6 +119,19 @@
 #define T_MATCHRULES_BOT_DIFFICULTY 0x21u
 #define T_MATCHRULES_BOT_LIMIT      0x23u
 
+// The server's patience (aw_server.cpp). sv_timeout (8208F288) and
+// sv_connectTimeout (8208F294) are registered in sub_8240A938, the one user
+// of either name, with 10 and 40 for defaults (0 to 1800), and the two
+// pointers the registrations return are stored at the addresses below.
+// sub_82405470, the only other user of the two, is SV_CheckTimeouts: it
+// reads each dvar's number at +12, multiplies by 1000 and drops a client
+// whose last packet is older (the player's states 2 and 5 against
+// sv_timeout, the others above 1 against sv_connectTimeout).
+#define T_SV_RegisterDvars          8240A938
+#define T_DATA_SvTimeoutDvar        0x83D48738u
+#define T_DATA_SvConnectTimeoutDvar 0x83D48734u
+#define T_DVAR_INTEGER              12u
+
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
 #define T_DATA_ClientStates       0u
