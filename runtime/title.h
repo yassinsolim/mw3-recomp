@@ -105,6 +105,17 @@
 // most callers in the executable (874, all in the interpreter's library); it
 // formats into the state, adds where the script was, and raises.
 #define T_Lua_Error            8214C1F0
+// The streamed images' pool moves a block by having the GPU copy it (a vertex
+// shader's memory export, which the renderer drops), so the copy is made
+// here, at its draw (image_move.cpp). (destination, source, size, last):
+// MW3's sub_823D4398 by 0.85 of its instructions' kinds, and read: the copy
+// draw's stream constant is 0x40000000 | the destination's physical address
+// in dwords, as MW3's, and a move down onto its own source is drawn in
+// pieces no longer than the distance, which one memmove at the first of
+// them covers. Without it every texture the pool had moved was whatever lay
+// at its new place: buildings, faces and the drop pod drawn as coloured
+// noise from Seoul's first minute.
+#define T_Image_FlushMove      825A91F0
 
 // the D3D9 library (XDK 21256)
 // The one caller of VdSwap; 0.92 of MW3's sub_820A16E8.

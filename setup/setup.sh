@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds a game's code for Android from your own disc image, on Linux: what
 # setup\setup.ps1 does on Windows for the Android app, for Modern Warfare 3
-# (the default), Modern Warfare 2 (--game mw2) and Call of Duty 4 (--game cod4).
+# (the default), Modern Warfare 2 (--game mw2), Call of Duty 4 (--game cod4)
+# and Call of Duty: Advanced Warfare (--game aw, docs/AW-BRINGUP.md).
 #
 #   bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso
 #
@@ -20,7 +21,7 @@
 #      Android: a package of its own with no screen, out/<game>-game.apk;
 #   5. downloads the published app, and installs both on a phone connected
 #      over USB, if asked (docs/game-library.md).
-# Everything it makes is in the git-ignored out/, mw3/ (mw2/, cod4/), ppc_*/
+# Everything it makes is in the git-ignored out/, mw3/ (mw2/, cod4/, aw/), ppc_*/
 # and XenonRecomp/ folders: it contains code made from your copy of the game
 # and is for your own devices only. Never upload or share it.
 # Re-runnable: finished steps are skipped. The Windows game is built by
@@ -32,8 +33,14 @@ usage() {
     cat <<'EOF'
 usage: bash setup/setup.sh [options]
 
-  --game mw3|mw2|cod4   which game (default mw3)
-  --iso <file>          your disc image; asked for when it is needed and not given
+  --game mw3|mw2|cod4|aw  which game (default mw3)
+  --iso <file>          your disc image (Advanced Warfare: the game disc's);
+                        asked for when it is needed and not given
+  --install-iso <file>  Advanced Warfare: the image of its second disc, the
+                        install disc. Its two content packages are read out
+                        of it (4 GB) and copied to the phone with the app.
+                        Without it the app's own installer asks for that
+                        image on the phone
   --xex-dir <folder>    take default.xex and default_mp.xex from this folder
                         instead of a disc image (also as <game>-default.xex,
                         the names the app's "Prepare files for building
@@ -55,13 +62,14 @@ usage: bash setup/setup.sh [options]
 EOF
 }
 
-GAME=mw3; ISO=; XEX_DIR=; INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
+GAME=mw3; ISO=; INSTALL_ISO=; XEX_DIR=; INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
 SUFFIX=; RECOMP=0; JOBS=; SDK=; TC=; CHECK=0; YES=0
 # -Device, as setup.ps1 spells it, is taken too.
 while [ $# -gt 0 ]; do
     case "$1" in
         --game) GAME=${2:?--game needs a name}; shift ;;
         --iso) ISO=${2:?--iso needs a file}; shift ;;
+        --install-iso) INSTALL_ISO=${2:?--install-iso needs a file}; shift ;;
         --xex-dir) XEX_DIR=${2:?--xex-dir needs a folder}; shift ;;
         --install) INSTALL=1 ;;
         --device|-Device) DEVICE=${2:?--device needs a serial}; shift ;;
@@ -125,7 +133,11 @@ sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 # returns, so a checkout with Windows line endings says the same.
 abi_hash() { tr -d '\r' < "$1" | sha256sum | cut -d' ' -f1; }
 
-case "$GAME" in mw3|mw2|cod4) ;; *) die "--game must be mw3, mw2 or cod4, not '$GAME'" ;; esac
+case "$GAME" in mw3|mw2|cod4|aw) ;; *) die "--game must be mw3, mw2, cod4 or aw, not '$GAME'" ;; esac
+# Advanced Warfare has no published app: the one built here is the only one.
+[ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ] && DEV=1
+[ -n "$INSTALL_ISO" ] && [ "$GAME" != aw ] && die '--install-iso is for --game aw: the other games have the one disc.'
+[ -n "$INSTALL_ISO" ] && [ ! -f "$INSTALL_ISO" ] && die "--install-iso: no file at $INSTALL_ISO"
 [[ "$SUFFIX" =~ ^(\.[a-z][a-z0-9]*)?$ ]] || die "--suffix must look like .dev"
 [ "$GAME_ONLY" = 1 ] && [ "$DEV" = 1 ] && die '--game-only leaves the app alone; --dev builds it. Choose one.'
 [ -n "$SUFFIX" ] && [ "$GAME_ONLY" = 0 ] && [ "$DEV" = 0 ] && die '--suffix goes with --dev or --game-only: the published app has the one name.'
@@ -170,6 +182,11 @@ case "$GAME" in
     cod4) GAME_NAME='Call of Duty 4: Modern Warfare'; GUIDE=docs/COD4-BRINGUP.md
          T_sp=(cod4 cod4 'campaign' default ppc_cod4 COD4.toml cod4_switch_tables.toml 76 181 9)
          T_mp=(cod4mp cod4mp 'multiplayer' default_mp ppc_cod4_mp COD4MP.toml cod4mp_switch_tables.toml 77 179 9) ;;
+    # The last number: 415 instructions of twelve kinds in each executable,
+    # which the configuration steps over (config/AW.toml, tools/extra_instructions.py).
+    aw)  GAME_NAME='Call of Duty: Advanced Warfare'; GUIDE=docs/AW-BRINGUP.md
+         T_sp=(aw aw 'campaign' default ppc_aw AW.toml aw_switch_tables.toml 207 210 415)
+         T_mp=(awmp awmp 'multiplayer' default_mp ppc_aw_mp AWMP.toml awmp_switch_tables.toml 204 230 415) ;;
     *)   GAME_NAME='Modern Warfare 3'; GUIDE=README.md
          T_sp=(mw3 mw3 'campaign and Special Ops' default ppc_mw3 MW3.toml mw3_switch_tables.toml 146 128 0)
          T_mp=(mw3mp mw3mp 'multiplayer' default_mp ppc_mw3_mp MW3MP.toml mw3mp_switch_tables.toml 153 156 0) ;;
@@ -204,6 +221,7 @@ check_xex() {
     local rel=$DISC/$T_XEX.xex sha want
     case "$GAME" in
         cod4) (cd "$REPO" && python3 tools/check_cod4_xex.py "$rel") ;;
+        aw)   (cd "$REPO" && python3 tools/check_aw_xex.py "$rel") ;;
         mw3)  (cd "$REPO" && python3 tools/check_mw3_xex.py "$rel") ;;
         mw2)  sha=$(sha256_of "$REPO/$rel"); want=MW2_SHA_$T_XEX
               [ "$sha" = "${!want}" ] || { echo "$rel: its SHA-256 is not the Modern Warfare 2 disc's"; return 1; }
@@ -346,6 +364,17 @@ elif [ "$need_source" = 1 ] || [ "$PUSH_ISO" = 1 ]; then
     done
 fi
 [ -n "$ISO" ] && ISO=$(readlink -f "$ISO")
+[ -n "$INSTALL_ISO" ] && INSTALL_ISO=$(readlink -f "$INSTALL_ISO")
+# Advanced Warfare's install disc holds two content packages, which a console
+# copies to its hard disk before the game disc will start; they are read out
+# of the image once, into the git-ignored aw/install, and go to the phone as
+# they are (docs/AW-BRINGUP.md).
+INSTALL_FOLDER=$REPO/aw/install
+INSTALL_PACKAGES=(41560914051BF3C0 4156091407406280)
+missing_install_packages() {
+    local p
+    for p in "${INSTALL_PACKAGES[@]}"; do [ -n "$(find "$INSTALL_FOLDER" -type f -name "$p" 2> /dev/null)" ] || echo "$p"; done
+}
 
 mkdir -p "$TC" "$DL" "$OUT" "$LOGS"
 
@@ -410,6 +439,13 @@ for key in sp mp; do
     check_xex || die "$T_XEX.xex is not a disc build this port supports. The app holds the campaign and the multiplayer, and needs both executables to be."
 done
 
+if [ -n "$INSTALL_ISO" ] && [ -n "$(missing_install_packages)" ]; then
+    step "copy the two content packages from the install disc's image (read-only; 4 GB)"
+    (cd "$REPO" && logged extract_install_packages.log python3 tools/xdvdfs.py "$INSTALL_ISO" "$INSTALL_FOLDER" content/0000000000000000/41560914/00000002/)
+    missing=$(missing_install_packages | paste -sd' ')
+    [ -z "$missing" ] || die "that image has no package $missing: is it $GAME_NAME's install disc?"
+fi
+
 # ---- 4. recompile ------------------------------------------------------------
 to_recompile=()
 for key in "${KEYS[@]}"; do
@@ -451,10 +487,11 @@ for key in "${KEYS[@]}"; do
         step "recompile $T_XEX.xex ($T_LABEL); this takes a few minutes"
         logged "${T_NAME}_xexdump.log" python3 tools/xexdump.py "$rel" "$DISC/$T_XEX.pe"
         logged "${T_NAME}_analyse.log" "$ANALYSE_EXE" "$rel" "config/$T_TABLES"
-        # Call of Duty 4 has a kind of jump table the analyser does not
-        # recognise. Its own alone: the other games' tables are part of what
-        # their game code is checked against, and stay as the analyser writes them.
-        [ "$GAME" = cod4 ] && logged "${T_NAME}_intext_tables.log" python3 tools/intext_switch_tables.py
+        # Call of Duty 4 and Advanced Warfare have a kind of jump table the
+        # analyser does not recognise. Theirs alone: the other games' tables
+        # are part of what their game code is checked against, and stay as
+        # the analyser writes them.
+        case "$GAME" in cod4|aw) logged "${T_NAME}_intext_tables.log" python3 tools/intext_switch_tables.py ;; esac
         # XenonRecomp crashes, rather than complaining, when its output directory is missing.
         rm -rf "$T_PPC" && mkdir "$T_PPC"
         (cd config && logged "${T_NAME}_recomp.log" "$XENON_EXE" "$T_TOML" ../XenonRecomp/XenonUtils/ppc_context.h)
@@ -558,7 +595,7 @@ fi
 if [ "$BUILD_APP" = 1 ]; then
     step 'libadrenotools, the bundled Turnip driver and the camouflage pack (android/fetch_deps.sh)'
     logged fetch_deps.log bash android/fetch_deps.sh
-    case "$GAME" in mw2) variant=mw2Tu0 ;; cod4) variant=cod4Tu0 ;; *) variant=mw3Tu0 ;; esac
+    case "$GAME" in mw2) variant=mw2Tu0 ;; cod4) variant=cod4Tu0 ;; aw) variant=awTu0 ;; *) variant=mw3Tu0 ;; esac
     step "build the app, without the game code (gradle assemble${variant^}Debug; log: out/logs/gradle_$variant.log)"
     (cd android && logged "gradle_$variant.log" "${GRADLE[@]}" ":app:assemble${variant^}Debug")
     made=$(ls -t "android/app/build/outputs/apk/$variant/debug/"*.apk 2> /dev/null | head -n 1)
@@ -639,6 +676,18 @@ else
             read -r apk package data <<< "$item"
             install_package "$serial" "$apk" "$package" "$data"
         done
+        # Advanced Warfare's install disc: its packages go beside the game
+        # folder, where the runtime looks for a title's installed content
+        # (runtime/kernel/content.cpp). Files of the same size are skipped.
+        if [ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ] && [ -z "$(missing_install_packages)" ]; then
+            step "adb push the install disc's packages (4 GB) to the app's dlc folder"
+            dlc=/sdcard/Android/data/$APP_PACKAGE/files/dlc
+            "$ADB" -s "$serial" shell "mkdir -p $dlc"
+            while IFS= read -r package; do
+                there=$("$ADB" -s "$serial" shell "stat -c %s $dlc/$(basename "$package") 2>/dev/null || echo 0" | tr -d '\r')
+                [ "$there" = "$(stat -c %s "$package")" ] || "$ADB" -s "$serial" push "$package" "$dlc/$(basename "$package")" > /dev/null
+            done < <(find "$INSTALL_FOLDER" -type f)
+        fi
         if [ -n "$ISO" ] && { [ "$PUSH_ISO" = 1 ] || ask "Copy the disc image to the phone's Download folder for the app's installer (7-8 GB, several minutes)?" n; }; then
             step 'adb push the disc image to /sdcard/Download/'
             "$ADB" -s "$serial" push "$ISO" /sdcard/Download/
@@ -653,5 +702,9 @@ for item in "${APKS[@]}"; do note "APK: ${item%% *}"; done
 if [ "$GAME_ONLY" = 1 ]; then
     note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).'
 else
-    note "On the phone: open the app, \"Install the game files\", choose the disc image. See $GUIDE."
+    if [ "$GAME" = aw ]; then
+        note "On the phone: open the app, \"Install the game files\", choose the game disc's image$([ -z "$(missing_install_packages)" ] || echo ", then the install disc's when it asks for the second disc"). See $GUIDE."
+    else
+        note "On the phone: open the app, \"Install the game files\", choose the disc image. See $GUIDE."
+    fi
 fi

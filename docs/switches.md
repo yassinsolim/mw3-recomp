@@ -62,6 +62,7 @@ them as unset whatever the environment says, and also drops the keys `F5`, `F7`,
 | `MW2_NET_LINK=0\|1` | R | whether the Ethernet link is reported up. Default down for the campaign, up for MW2's multiplayer, which starts no match without one, and for MW3's multiplayer up when an online service started |
 | `MW2_NO_AUTO_SAVE_DEVICE=1` | R | leaves the save-device choice to the title's prompt instead of choosing the hard disk ([saves.md](saves.md)) |
 | `MW2_NO_AUDIO=1` | R | opens no playback device; the mixer and decoder still run ([audio.md](audio.md)) |
+| `MW2_AUDIO_DUMP=<file.wav>` | | writes the title's mix as it is handed to the output (six channels of 32-bit floats, 48 kHz) to a WAV file: whether a run nobody listened to had sound, and what kind (diagnostic) |
 | `MW2_RUN_SECONDS=<n>` | | reports and exits after n seconds |
 | `MW2_WATCHDOG=<seconds>` | | when it fires: the `MW2_DUMP` blocks, what every guest thread is blocked on (handle and caller) or spinning on, and every thread's backtrace, which is the guest call stack; then exits |
 | `MW2_DEBUG_CRASH_AT=<step>` | | writes through a null pointer when start-up reaches that step (the word of a `step:` line of the log: `image`, `guest-memory`, `vulkan-device`, `arena`, ...), to check on a device that a crash that early is reported whole: the step, the signal and the backtrace in `game.log`, and on Android the system's tombstone in the log share ([android.md](android.md#what-the-log-share-holds)). Does nothing unless set to a step's name |

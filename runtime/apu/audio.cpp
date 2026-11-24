@@ -88,6 +88,56 @@ namespace
         return off;
     }
 
+    // MW2_AUDIO_DUMP=<file.wav>: the title's mix as it submits it, six
+    // channels of 32-bit floats at 48 kHz, to check that a run nobody listens
+    // to (a scripted one, a device on a desk, a PC with no sound device) has
+    // sound and what kind. Every frame is in it, those the output had no
+    // room for too. The header is rewritten every second of sound, because
+    // a run ends by the process being killed.
+    void Dump(uint32_t samplesGuestAddress)
+    {
+        static const char* path = diag::Text("MW2_AUDIO_DUMP");
+        if (!path) return;
+        static std::FILE* file = std::fopen(path, "wb");
+        static uint32_t bytes = 0, frames = 0;
+        if (!file)
+        {
+            static bool warned = false;
+            if (!warned) { warned = true; LOGW("audio: could not write %s", path); }
+            return;
+        }
+        // The host is little-endian, as the file is.
+        struct [[gnu::packed]] Header
+        {
+            char riff[4]; uint32_t riffSize; char wave[4];
+            char fmt[4]; uint32_t fmtSize; uint16_t tag, channels; uint32_t rate, byteRate;
+            uint16_t blockAlign, bits; char data[4]; uint32_t dataSize;
+        };
+        // Six planes of 256 big-endian floats to interleaved host floats.
+        const uint32_t* in = reinterpret_cast<const uint32_t*>(guest::Base() + samplesGuestAddress);
+        float frame[kFrameFloats];
+        for (uint32_t s = 0; s < kSamplesPerChannel; s++)
+            for (uint32_t c = 0; c < kChannels; c++)
+            {
+                uint32_t bits; std::memcpy(&bits, &in[c * kSamplesPerChannel + s], 4);
+                bits = __builtin_bswap32(bits);
+                std::memcpy(&frame[s * kChannels + c], &bits, 4);
+            }
+        if (frames == 0) { const Header blank{}; std::fwrite(&blank, sizeof blank, 1, file); }
+        std::fwrite(frame, sizeof(float), kFrameFloats, file);
+        bytes += kFrameFloats * sizeof(float);
+        if (frames++ % (48000 / kSamplesPerChannel) == 0)
+        {
+            const Header header{ { 'R', 'I', 'F', 'F' }, 36 + bytes, { 'W', 'A', 'V', 'E' },
+                                 { 'f', 'm', 't', ' ' }, 16, 3 /* IEEE float */, uint16_t(kChannels), 48000,
+                                 48000 * kChannels * 4, uint16_t(kChannels * 4), 32, { 'd', 'a', 't', 'a' }, bytes };
+            std::fseek(file, 0, SEEK_SET);
+            std::fwrite(&header, sizeof header, 1, file);
+            std::fseek(file, 0, SEEK_END);
+            std::fflush(file);
+        }
+    }
+
     void OpenOutput()
     {
 #ifdef MW2_ANDROID
@@ -312,6 +362,7 @@ void apu::audio::SubmitFrame(uint32_t handle, uint32_t samplesGuestAddress)
     const uint32_t i = handle & 0xFFFF;
     if ((handle & 0xFFFF0000u) != kHandleTag || i >= kMaxClients || !samplesGuestAddress) return;
     g_frames++;
+    Dump(samplesGuestAddress);
 #ifdef MW2_ANDROID
     if (!g_outputOpen) return;
     if (android::audio::QueuedFrames() > kHighWaterFrames) { g_dropped++; return; }

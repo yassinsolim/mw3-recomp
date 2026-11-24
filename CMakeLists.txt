@@ -62,6 +62,25 @@ if(BUILD_TESTING)
     mw3_runtime_test(gpu_command_processor_test runtime/gpu/command_processor.cpp)
     # The camouflage pack reader, on packs the test writes.
     mw3_runtime_test(camo_packs_test runtime/camo_packs.cpp)
+    # Advanced Warfare's stepped-over instructions against their definitions.
+    # They are written against the recompiler's register types, so the check
+    # is there only where the recompiler's checkout is (setup clones it; a CI
+    # runner of the asset-free tests has none).
+    if(EXISTS "${CMAKE_SOURCE_DIR}/XenonRecomp/XenonUtils/ppc_context.h")
+        add_executable(ppc_extra_instructions_test tests/ppc_extra_instructions_test.cpp
+                       runtime/recomp/ppc_extra_instructions.cpp)
+        # The recompiler's header wants the title's generated extents first
+        # (ppc_config.h, made from the disc); neither the hooks nor the check
+        # reads them, so it is told they are there.
+        target_compile_definitions(ppc_extra_instructions_test PRIVATE AW_TITLE=1 PPC_CONFIG_H_INCLUDED=1)
+        target_include_directories(ppc_extra_instructions_test PRIVATE
+            "${CMAKE_SOURCE_DIR}/XenonRecomp/XenonUtils" "${CMAKE_SOURCE_DIR}/XenonRecomp/thirdparty/simde")
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            # The level the game itself is compiled for (MW2_X86_LEVEL below).
+            target_compile_options(ppc_extra_instructions_test PRIVATE -march=x86-64-v2)
+        endif()
+        add_test(NAME ppc_extra_instructions_test COMMAND ppc_extra_instructions_test)
+    endif()
 endif()
 # Stop before title selection, generated PPC sources and dependency downloads.
 if(MW2_TESTS_ONLY)
