@@ -74,6 +74,11 @@
 #define T_D3D_ArenaWait        82102508
 #define T_DEV_PresentInterval  14000u     // the flip packet writer, sub_8210D9A0, is the campaign's word for word
 #define T_DEV_ProgressBlock    11024u
+// The streamed-image pool's move, done by the GPU with a memory export
+// (image_move.cpp): (destination, source, size), the campaign's sub_825A91F0
+// laid beside this executable, with the same export stream constant
+// (`lis r4,19200`). Without it a moved image is drawn as noise.
+#define T_Image_FlushMove      822AEAA8
 
 // the kernel's data imports: the image's own import records, found by their
 // (library, ordinal) words 0x000100AD, 0x00010059 and 0x00010193, each present once
@@ -113,6 +118,16 @@
 #define T_MATCHRULES_BOT_CONNECT    0x20u
 #define T_MATCHRULES_BOT_DIFFICULTY 0x21u
 #define T_MATCHRULES_BOT_LIMIT      0x23u
+
+// Unlocks (aw_unlock_all.cpp, MW2_UNLOCK_ALL). The four users of
+// "mp/unlocktable.csv" at 823C9D30..823CA2B8 are the menu's item checks (the
+// Lua IsItemUnlocked, sub_82719128, in the table at 82060238, calls the last
+// with a controller and an item's name); each finds the row and calls
+// T_Unlock_RowLockedForController(controller, table, row), which fetches the
+// controller's stats and calls T_Unlock_RowLocked(controller, stats, table,
+// row, int* needed). Both answer 0 for an item that can be used.
+#define T_Unlock_RowLocked              82495080
+#define T_Unlock_RowLockedForController 82496258
 
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
