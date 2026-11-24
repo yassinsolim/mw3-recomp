@@ -81,6 +81,39 @@
 #define T_DATA_DebugMonitorPtr    0x82000998u   // the KeDebugMonitorData import record
 #define T_DATA_ModuleHandlePtr    0x82000910u   // the XexExecutableModuleHandle import record
 
+// The Lua library's error function, as the campaign's T_Lua_Error: the
+// variadic function with the most callers in the interpreter's library (1160,
+// all between 826E9AA0 and 8280A400). Every menu function of the engine's
+// calls it with its usage text when its arguments are wrong (sub_82717800,
+// "SetBotsTeamLimit" in the Lobby table at 820601C0, is one).
+#define T_Lua_Error            827636B8
+
+// Bots (aw_bots.cpp, MW2_BOTS). This executable has all of them: SV_AddBot
+// (sub_824120C0) and SV_AddTestClient (sub_824123F0) are the two users of the
+// format `connect bot%d "%s\name\%s\qport\%d\ctz\%s"` (8208F0B0), and the
+// scripts of common_bots_mp.ff add and drop bots by what the lobby's Game
+// Setup holds. That is part of the match rules ("mp/recipes.def"), which
+// sub_82247CE0(which, reset) returns: two blocks of 0x28 bytes at 84779560,
+// the first the one this copy's menus write (the Lobby table's functions
+// call it with (0, 0)); +0 says the block holds anything. Read from the menu
+// functions and from the engine's setters behind them:
+//   +0x20  the connect type (sub_826D2E98 stores it): 0 "off", 1 "fill_open",
+//          the values of the dvar bot_AutoConnectDefault (8208E994, its
+//          value list at 8288FB08)
+//   +0x21  the difficulty of the friendly bots and +0x22 of the enemy's
+//          (sub_826D2C80(team, value)): recruit, regular, hardened, veteran,
+//          and 4 for "default", a mix (the list at 8288FB14)
+//   +0x23  how many friendly bots and +0x24 how many enemy bots
+//          (sub_826D2BC8(team, count); "SetBotsTeamLimit")
+// T_MatchRules_BotDefaults (rules) is the leaf sub_82247CE0 calls when it
+// starts a block afresh: it fills the five bytes from the two dvars (6 and 6
+// bots when bot_AutoConnectDefault is fill_open, none otherwise).
+#define T_MatchRules_BotDefaults  82247A98
+#define T_DATA_MatchRules           0x84779560u
+#define T_MATCHRULES_BOT_CONNECT    0x20u
+#define T_MATCHRULES_BOT_DIFFICULTY 0x21u
+#define T_MATCHRULES_BOT_LIMIT      0x23u
+
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
 #define T_DATA_ClientStates       0u

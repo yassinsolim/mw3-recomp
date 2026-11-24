@@ -24,16 +24,17 @@ namespace
     constexpr Backend kNone[] = { { nullptr, nullptr } };
 
     // MW2_NETWORK: what the player chose; none when unset or unknown.
-    // MW3's multiplayer has lan and server only: its hardening
-    // (docs/security.md) was read against what those two let through, and
-    // with none the kernel keeps its sockets on the loopback (kernel/net.cpp).
+    // MW3's multiplayer and Advanced Warfare's have lan and server only:
+    // MW3's hardening (docs/security.md) was read against what those two let
+    // through, Advanced Warfare's network code has had no such reading, and
+    // with none the kernel keeps their sockets on the loopback (kernel/net.cpp).
     const Backend* Chosen()
     {
         const char* network = env::Text("MW2_NETWORK");
         if (!network || !*network || std::strcmp(network, "none") == 0) return kNone;
         if (std::strcmp(network, "lan") == 0) return kLan;
         if (std::strcmp(network, "server") == 0) return kServer;
-#if defined(MW3_TITLE_MP)
+#if defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
         LOGW("online: MW2_NETWORK=%s is none of none, lan, server; playing without a network", network);
 #else
         if (std::strcmp(network, "steam") == 0) return kSteam;
@@ -93,9 +94,15 @@ const char* online::Name()
 // DemonWare lobby is answered here (demonware.h). On lan it is not, unless
 // asked (MW2_LIVE=1): its players meet in System Link, which either service
 // carries to everyone it reaches. MW2_LIVE=0 keeps it signed out on a relay.
+// Advanced Warfare's multiplayer is never signed in: its Xbox LIVE menu wants
+// services nothing here answers (docs/AW-BRINGUP.md), and its players meet in
+// System Link.
 bool online::Live()
 {
     static const bool live = [] {
+#if defined(AW_TITLE_MP)
+        return false;
+#else
         auto* service = Get();
 #if defined(MW3_TITLE_MP)
         const bool wanted = env::Text("MW2_LIVE") ? env::Flag("MW2_LIVE")
@@ -103,6 +110,7 @@ bool online::Live()
         if (!wanted) return false;
 #endif
         return service && service->Lobbies();
+#endif
     }();
     return live;
 }
