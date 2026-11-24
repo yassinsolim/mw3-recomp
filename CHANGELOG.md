@@ -39,9 +39,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   use the maps' paths and the exo's jumps. The title has a network link when
   a service started and its sockets are the service's, as Modern Warfare
   3's. Its streamed textures are no longer noise (`T_Image_FlushMove`).
-  Create a Class needs no unlock switch in System Link. Not working yet:
-  a match through the relay (the joiner is dropped while the level loads)
-  and Xbox LIVE; not run: any device.
+  Create a Class needs no unlock switch in System Link: a new profile's
+  Pick 13 is full and its weapons have no padlock. On the AYN Thor and the
+  Retroid Pocket Flip 2 a hosted match with 6 bots holds 119 and 60 frames a
+  second (Retreat, Detroit, Comeback), and the two play one match through
+  the relay, each hosting in turn. Not working yet: Xbox LIVE.
+- **Advanced Warfare: a join is no longer lost while the level loads.** A
+  copy joining a match says nothing while its first frames of the level
+  compile their shaders (6 to 11.5 seconds on Windows), and the title's
+  host drops a player after 10 (`sv_timeout`): "Server Disconnected", on
+  the local network as through the relay, by chance. A host built from this
+  source waits as long as the title waits for a player still connecting, 40
+  seconds (`runtime/aw_server.cpp`). The relay is unchanged. A copy silent
+  for twenty seconds or more still gives up by itself.
 
 ### Fixed
 - `NtCreateSemaphore` read its counts from the registers of Windows' call,

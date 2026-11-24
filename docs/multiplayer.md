@@ -583,9 +583,9 @@ Bots are in Modern Warfare 3's multiplayer, in Modern Warfare 2's disc
 version (not its title update 6) and in Call of Duty 4's; the unlocks are
 Modern Warfare 3's only. Advanced Warfare's multiplayer has bots of its own,
 which the same switches set through its lobby's rules (`runtime/aw_bots.cpp`,
-11 at most; [AW-BRINGUP.md](AW-BRINGUP.md#the-multiplayer)): seen on Windows
-in System Link, hosted and joined over the local network, not yet through
-the relay nor on a device.
+11 at most; [AW-BRINGUP.md](AW-BRINGUP.md#the-multiplayer)): seen on Windows,
+the Thor and the Flip 2 in System Link, hosted and joined over the local
+network and through the relay.
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,
 a System Link game it created or a private match, and nothing else: in a
@@ -871,6 +871,8 @@ name ("AYN Thor 5DF4", "Flip2 0218"). A pass is as above.
 | Modern Warfare 3 | Private match, joined from the pause menu; and by invitation | PC; Thor | Thor; PC | 2.3 min each | 119 / (PC) | `m3_priv_*`, `m3_invite_*` |
 | Call of Duty 4 | Find Match, Free-for-all, both searching in the same second | Thor | Flip 2 | 2.2 min; in the match 30 s after searching | 119 / 60 | `c4_ffa_*` |
 | Call of Duty 4 | Private match, joined from the pause menu | Thor | Flip 2 | 2.2 min | 119 / 60 | `c4_private_*` |
+| Advanced Warfare | System Link, the match under way with the host's 6 bots (24 November 2026; evidence in `private-captures\aw\`) | Thor | Flip 2 | joined while it ran; both scoreboards list both | 119 / 59 | `relay-thor-hosts-flip-joined-*` |
+| Advanced Warfare | the same | Flip 2 | Thor | the same | 119 / 60 | `relay-flip-hosts-thor-joined-*` |
 
 Screenshots in `private-captures\refine\`, logs in `private-logs\refine\`.
 

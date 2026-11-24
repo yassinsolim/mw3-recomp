@@ -414,7 +414,8 @@ them: controller 0 is the first active one, its profile is signed in, and
    rate, the stepped-over instructions' check on arm64, and the build kit
    run on a device (it is in the app; `InTextTables.kt` was checked against
    the script on a PC, the build itself was not run).
-3. The multiplayer (the `aw-mp` branch has its own notes).
+3. The multiplayer's Xbox LIVE menu, Exo Survival and Combat Readiness
+   Program ("The multiplayer", below, has what works).
 4. `setup/setup.sh` for this title from end to end on Linux.
 
 ## After merging `android` in (24 November 2026)
@@ -467,14 +468,15 @@ was **not measured**.
 spent 75 s of the pod below 30 presents a second; the PC was shared with
 other builds at the time. Timed input is also why two runs stopped where
 they did: a prompt came after the presses meant for it had ended.
+
 ## The multiplayer
 
-State on 24 November 2026: on Windows a System Link match is hosted, played
-with the title's own bots and joined by a second copy over the local
-network. Through the relay the game is listed and the session joined, and the
-joiner is then dropped while the level loads (**open**). Nothing of it has
-been run on a device: the app (`-Suffix .awm`) was being built when the work
-stopped.
+State on 24 November 2026: a System Link match is hosted with the title's
+own bots on Windows, the AYN Thor and the Retroid Pocket Flip 2, and joined
+by another copy over the local network and through the relay
+(`mw3.yassin.app:3074`): two copies on Windows, and the Thor and the Flip 2
+in one match, each hosting in turn. Xbox LIVE, Exo Survival and Combat
+Readiness Program are open.
 
 ### What the executable has (derived, from `default_mp.pe`)
 
@@ -498,9 +500,13 @@ Strings and the code that loads their addresses, read with capstone over
 | the commands of `CL_Init` | `82601830` | `xstartlobby`, `xstartprivateparty`, `xstartprivatematch`, `xpartygo`, `connect`, `disconnect`, `startSingleplayer`; the dvars `systemlink` (`82B0CE38`), `onlinegame` (`839B200C`), `xblive_privatematch` (`84215734`) |
 | the item check | `82495080(controller, stats, table, row, int* needed)`, through `82496258` | the users of `mp/unlocktable.csv`; 0 is unlocked |
 | the image pool's move | `822AEAA8` | the campaign's, laid beside it (found by the campaign's work) |
+| the server's dvars | registered in `8240A938` | the one user of the names `sv_timeout` (`8208F288`, default 10, 0 to 1800) and `sv_connectTimeout` (`8208F294`, default 40); the pointers are kept at `83D48738` and `83D48734` |
+| `SV_CheckTimeouts` | `82405470` | the only other user of those two pointers: each dvar's number (+12) times 1000 against the time of a client's last packet; states 2 and 5 against `sv_timeout`, the others above 1 against `sv_connectTimeout` |
+| the client's and the party's patience | `82601830`, `825DEC30` | `cl_timeout` 10.0 and `cl_connectTimeout` 60.0 (floats); `pt_memberTimeout` 25000 ms |
 
-Only the bots' defaults, the match rules' address, `luaL_error` and the
-image pool's move are entries of `runtime/title.h`: nothing else is called.
+Only the bots' defaults, the match rules' address, `luaL_error`, the image
+pool's move and the server's dvars are entries of `runtime/title.h`: nothing
+else is called.
 The usercmd and the client states were not needed and not derived: the bots
 think in the engine.
 
@@ -527,10 +533,19 @@ Start Game (the party's `go <map> <game type>` to every member).
   the player sets them. At most 11.
 - **The streamed images' move** (`T_Image_FlushMove`): without it most
   world and weapon textures were noise.
+- **The host's patience** (`runtime/aw_server.cpp`). A host built from this
+  source waits for a silent player in its match as long as the title waits
+  for one connecting: `sv_timeout` is given `sv_connectTimeout`'s 40 seconds
+  as the server's dvars are registered. Why is below ("Why a join was lost").
 - **Unlocks: nothing.** In System Link, Create a Class lists every weapon
   and all seventeen attachments of a rank 1 profile without a padlock
   (`pc-mp` runs, 24 November); a hook on the item check was written, found
-  to have nothing to do there, and taken out. Under Xbox LIVE the check
+  to have nothing to do there, and taken out. On the Flip 2, from a profile
+  the app had just made (rank 1), Create a Class shows ten custom classes,
+  each already filled (ASM1 with three attachments, four perks, Exo Stim,
+  Semtex, a UAV and two wildcards) under a Pick 13 bar at 13/13, and
+  Primary Weapons lists its submachine guns (KF5, MP11, ASM1, SN6, SAC3,
+  AMR9) with no padlock (`flip-mp-pick13-*`). Under Xbox LIVE the check
   applies, and that menu is not reachable.
 
 ### Seen on Windows (RTX 5080, two copies on one PC, `MW2_NETWORK=lan`)
@@ -549,9 +564,72 @@ the lobby's own map. Evidence in `private-captures\aw\`.
 | Detroit, Retreat | loaded and played; `bots 9` from the console in a match brought the bots to nine | not kept |
 | A second copy joins a lobby | "Waiting for host to start game", both listed | not kept |
 | A second copy joins a match with `MW2_BOTS=11` | the server had ten bots (four friendly, six enemy: the scripts keep the host's place in his team's six) and the player took the twelfth slot; both scoreboards list him | `pc-mp-leave-rule-*` |
-| The same through the relay (`mw3.yassin.app:3074`) | the game listed, the session joined, the level's loading screen, then "Server Disconnected" | `pc-mp-relay-*` |
+| The same through the relay (`mw3.yassin.app:3074`), before the host's patience | the game listed, the session joined, the level's loading screen, then "Server Disconnected" in one run; the same join held in the next | `pc-mp-relay-*`, `pc-mp-relay2-*` |
 
-**Open:** the relay; whether a bot leaves when a third player needs its
-place (the scripts' `fill_open`, not seen with a full team); Exo Survival
-and Combat Readiness Program (not opened); the multiplayer on the Thor and
-the Flip 2; the frame rates there.
+### Why a join was lost, and what holds it now
+
+It was not the relay's. The packets of a join are the same over the local
+network and through the relay (1264 bytes at most, far below the relay's
+2048; the same ports and addresses; nothing dropped by a limit), and the same
+join through the relay held or failed from one run to the next.
+
+What differed was how long the joining copy said nothing. Its first frames of
+a level translate and compile every shader the level draws with, on the
+thread that consumes the title's command stream (Advanced Warfare hands no
+shader over at load: "193 never handed over"), and the title's main thread
+waits for that thread (`82143130 <- 8227DEFC <- 822AC018 <- 8263800C`, the
+watchdog's dump at the stall; the ring 324 words behind). On this PC that is
+6 to 11.5 seconds with no packet sent. The host's `SV_CheckTimeouts` drops a
+player in the match after `sv_timeout`, 10 seconds: its log shows the last
+packet from the joiner at 162.8 s and its `endparty` and `disconnect` at
+173.2 s.
+
+Seen with two copies through the real relay, the joiner's process suspended
+for a few seconds as the level starts (`NtSuspendProcess`, under the relay's
+own 10 seconds so that it is not forgotten) to make the silence a known
+length:
+
+| Host | Joiner silent for | Result | Evidence |
+|---|---|---|---|
+| as the title, `sv_timeout` 10 | 10.7 s | "Server Disconnected", 10.3 s after its last packet | `pc-mp-relay-stall15-*` |
+| patient (40) | 9.3 s | in the match, both scoreboards list both | `pc-mp-relay-fixed-second-*` |
+| patient (40) | 13.6 s | in the match | `pc-mp-relay-fixed-silent14-*` |
+| patient (40) | 20.6 s, 26.6 s | the host keeps the player; the joiner itself gives up ("Server timed out", `82600D80`) | `pc-mp-relay-fixed-silent21-*`, `-silent27-*` |
+
+The last line is the limit that is left. The title sends what a joining
+player must have reliably, and doubles the wait before each repeat (0.1 s to
+12.8 s seen), so after a long silence the host's next packet is many seconds
+away and the joiner's own `cl_timeout`, 10 seconds, ends first. Nothing was
+changed for it: no copy has been silent that long by itself, and the remedy
+is the shaders compiled before the level draws, as for the other titles.
+
+**The relay needs no change**: nothing to deploy.
+
+### Seen on the devices (24 November 2026)
+
+The app built with `-Suffix .awm` (`com.aw.recomp.awm`), the game disc's
+files and the install disc's packages in its own folder, launcher settings
+left as they start (the display's rate, 1024x600 scene) but for Bots at 6.
+By touch: System Link, Create Game, Start Game, Auto-Assign, Custom 1; the
+second map from Game Setup, Maps. The frame rates are the app's own
+counter, read from the screenshots; the runs were ended by stopping the app,
+so there is no end-of-run report.
+
+| Device | Match | Seen | FPS | Evidence |
+|---|---|---|---|---|
+| Flip 2 (Adreno 650, 60 Hz) | Retreat, Team Deathmatch, 6 bots, 6 minutes | three bots a side, 23 to 25 with 2:13 left | 60 to 61 | `flip-mp-retreat-6-bots.png` |
+| Flip 2 | Comeback, the same, 6.5 minutes | 30 to 22 with 2:46 left | 60 to 61 | `flip-mp-comeback-6-bots.png` |
+| Thor (Adreno 740, 120 Hz) | Retreat, the same, 6 minutes | 22 to 23 with 3:28 left | 119 | `thor-mp-retreat-6-bots.png` |
+| Thor | Detroit, the same, 6.7 minutes | 22 to 35 with 2:38 left | 119 | `thor-mp-detroit-6-bots.png` |
+| Thor hosts, the Flip 2 joins through the relay | Retreat with the host's 6 bots; the Flip 2 lists the game (`thor`, Retreat, Team Deathmatch) and joins the match under way | both scoreboards list `thor`, `flip` and the six bots | 119 / 59 | `relay-thor-hosts-flip-joined-*.png`, `thor-mp-relay-game.log` |
+| Flip 2 hosts, the Thor joins through the relay | the same | the same | 119 / 60 | `relay-flip-hosts-thor-joined-*.png`, `flip-mp-relay-game.log` |
+
+The two relay matches ran with the host's patience in the app (the log's
+`server:` line); neither device was silent long enough to need it there:
+both had drawn the map before. A Windows copy also joined the Flip 2's
+lobby through the relay ("Waiting for host to start game").
+
+**Open:** whether a bot leaves when a third player needs its place (the
+scripts' `fill_open`, not seen with a full team); a join by a copy that is
+silent for twenty seconds or more (above); Xbox LIVE; Exo Survival and
+Combat Readiness Program (not opened).
