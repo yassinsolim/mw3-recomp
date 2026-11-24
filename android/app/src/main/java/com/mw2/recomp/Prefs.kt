@@ -541,8 +541,11 @@ class Prefs(context: Context) {
         private const val KEY_BOT_SKILL = "botSkill"
         private const val KEY_BOTS_AGAINST_PLAYERS = "botsAgainstPlayers"
         private const val KEY_MAP_VOTE = "mapVote"
-        /** A server has 18 slots and the host keeps one. */
-        const val MAX_BOTS = 17
+        /**
+         * A server has 18 slots and the host keeps one. Advanced Warfare's
+         * has 12 on this console.
+         */
+        val MAX_BOTS: Int = if (Title.isAw) 11 else 17
         private const val KEY_MATCH_GRAVITY = "matchGravity"
         private const val KEY_MATCH_SPEED = "matchSpeed"
         private const val KEY_MATCH_JUMP = "matchJump"

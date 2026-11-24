@@ -119,16 +119,6 @@
 #define T_MATCHRULES_BOT_DIFFICULTY 0x21u
 #define T_MATCHRULES_BOT_LIMIT      0x23u
 
-// Unlocks (aw_unlock_all.cpp, MW2_UNLOCK_ALL). The four users of
-// "mp/unlocktable.csv" at 823C9D30..823CA2B8 are the menu's item checks (the
-// Lua IsItemUnlocked, sub_82719128, in the table at 82060238, calls the last
-// with a controller and an item's name); each finds the row and calls
-// T_Unlock_RowLockedForController(controller, table, row), which fetches the
-// controller's stats and calls T_Unlock_RowLocked(controller, stats, table,
-// row, int* needed). Both answer 0 for an item that can be used.
-#define T_Unlock_RowLocked              82495080
-#define T_Unlock_RowLockedForController 82496258
-
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
 #define T_DATA_ClientStates       0u
