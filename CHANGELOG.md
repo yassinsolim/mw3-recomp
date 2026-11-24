@@ -5,6 +5,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Advanced Warfare on a phone's efficiency cores**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#frame-rate-on-the-two-devices-24-november-2026)):
+  the title keeps six threads busy at once and all were held to the
+  performance cores, four on an AYN Thor, which were 97% busy in Fusion
+  while the other three idled. Its job workers may now run on the
+  efficiency cores too (`T_FRAME_PROCESSORS`): 107 frames a second to 115
+  there. `MW2_REPORT` says how long each thread stood ready to run with no
+  core, and `MW2_TRACE_PACING_FROM` starts the pacing trace late.
+- **Fewer clears on a tiling GPU**: the EDRAM clear idiom clears a depth
+  target only when something was drawn into it since its last clear, and a
+  draw under a scissor at its reset value no longer grows its targets to
+  the limit (Advanced Warfare on the Retroid Pocket Flip 2: 13.2 ms of GPU
+  a frame to 12.8). `MW2_TIME_PASSES` lists the idiom's clears.
 - **Sharpening, and what else was tried of the newer graphics techniques**
   ([docs/rendering.md](docs/rendering.md#sharpening-on-the-way-to-the-window)):
   a Sharpening setting in every title's app (Settings, Graphics; off by

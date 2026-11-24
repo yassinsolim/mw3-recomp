@@ -1179,14 +1179,72 @@ sun's shadows (a drone fills a sixth of that frame; the buildings are lit as
 before). `perf-aw\caps\pc_still_sheet.jpg`, `fix_thor_sheet.jpg` (the Thor
 after the pool's moves) against `noise0.jpg` (before).
 
+**Fusion at 120, and what holds it (branch `aw-perf2`, not merged).**
+
+The cause is cores, not a wait. The title has six threads busy at once, one
+on each of the console's processors (the main thread on 0, the job workers
+on 1, 2 and 4, the renderer's backend on 3, the server on 5), and all six
+were held to the Thor's four performance cores with the command recorder.
+In four seconds of Fusion's landing (`atrace sched`) those four cores were
+97% busy and the three efficiency cores 26%; the main thread ran 68% of the
+time and stood ready to run with no core 24% of it, the backend 42% and 45%,
+two workers 32% and 56%. The report now says the second number for every
+thread (`/proc/self/task/<id>/schedstat`): workers 47 to 51% over the whole
+level, the recorder 41%, the backend 36%, the main thread 20%. The profile
+is the title's own code (88.6% of those threads' samples in the recompiled
+library, 3.3% in the runtime, 5.5% in the kernel).
+
+`T_FRAME_PROCESSORS` (title.h) names the processors whose threads stay on
+the performance cores, 0, 3 and 5 here; the threads on the others may also
+run on the efficiency cores (`ThreadAffinityRole::SpareCore`). Fusion on the
+Thor, 258 s, caches warm, frames a second / on time / stutters:
+
+| | |
+|---|---|
+| As it was (four runs) | 106.1 to 108.5 / 73.4 to 75.1% / 1,868 to 2,202 |
+| The workers on the efficiency cores as well (six runs, the last as committed) | 113.7 to 115.8 / 77.5 to 81.5% / 471 to 895 |
+| Every guest thread on all but the fastest core | 114.0 / 77.4% / 817 |
+| Every guest thread on all eight | 111.4 / 71.8% / 1,332 |
+| Every guest thread on the five fast cores | 104.2 / 61.2% / 2,680 (and 103.5 with the consumer at a higher priority) |
+| A core each, by the console's processor | 96.0 / 62.1% / 2,608 |
+| Main, backend and server a performance core each, workers on the rest | 110.6 / 78.1% / 1,551 |
+| Main, backend and server at nice -16, or -10 against the workers' -6 | 114.8 / 81.3% and 114.3 / 78.2% |
+| Waits satisfied by whoever signals, one waiter woken (NT's way) | 106.9 / 75.1% |
+
+With the workers moved the four performance cores are still 97% busy and
+the efficiency cores 70 to 79%: the level needs more than this processor
+has at 120, and 115 is where it stands. Seoul's pod with the pipeline
+caches emptied: 118.1 a second, 89.2% on time, 56 stutters a minute and 487
+pipelines compiled (117.3, 87.2%, 94 before); a hosted match with 6 bots
+118.7 and 89.4% on its first visit.
+
+**The Flip 2's passes** (Seoul's pod, `MW2_TIME_PASSES`, GPU ms a frame):
+13.23 before, 12.82 now. The EDRAM clear idiom names a span of tiles, and
+every depth target above its base was cleared each time anything had been
+drawn anywhere: seventeen clears a frame, five of them of targets 2048 rows
+tall that nothing drew into. A depth target is now cleared when an
+instance has been opened on it since its last clear (`Target::depthEmpty`),
+six a frame. The targets were that tall because the title draws its blur
+passes as rectangles in window coordinates under a scissor at its reset
+value, which sized them to the limit; such a draw now takes the surface as
+it is (`Target::rowsRead` grows it to what a resolve has asked of it). What
+is left is the title's: eight one-draw blur passes cost 0.78 ms whether
+their target is 2048 rows or 120, the four full-frame passes 3.0 ms, and
+1.2 ms lies between passes. With the display's pacing as the default the
+Flip holds its 60: the pod 59.7 / 95.6%, Fusion 60.0 / 97.7%, a match with
+6 bots 60.0 / 98.6%. A frame of Seoul's rooftop on Windows with both
+changes is the picture it was (`perf-aw\caps\still_n1_vs_sh0.jpg`; a drone
+crosses both frames, so no figure is given).
+
 **Open.**
 
-- Fusion at 120 on the Thor is 108 a second: 1,192 of its 1,525 late frames
-  have the title presenting late, with no thread of the title above 60% of
-  a core and a flat profile (simpleperf: 64% in the recompiled code, the
-  busiest function 5.8%). At 60 it holds.
-- A release-signed build was not measured, nor the Flip's other scenarios
-  under the display's pacing: one pod run there has it.
-- On the Flip the two full-frame passes after the scene are 3.1 ms and the
-  copies between passes 2.0 ms of 13.2.
+- Not merged: the affinity and the two renderer changes are in code every
+  title shares, and Modern Warfare 3's Survival and Modern Warfare 2's
+  S.S.D.D. were not run against them, nor the eight titles' ABI and bounds
+  compared. The committed build was not run on the Flip 2.
+- Fusion at 120 on the Thor: 115 a second and 78 to 81% on time.
+- No release-signed run: that app takes no switches (`options.txt` is read
+  by a debug build only), so no report, console or script; its native code
+  is built as the debug app's is.
+- A third heavy level and Exo Survival were not measured.
 
