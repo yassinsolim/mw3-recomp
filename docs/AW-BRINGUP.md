@@ -387,9 +387,22 @@ them: controller 0 is the first active one, its profile is signed in, and
 
 1. New Game from the menu, the other levels, saving.
 2. The multiplayer past its menu; its title block has none of the engine's
-   entries (bots, client states, the relay).
+   entries (bots, client states, the relay). `devmap mp_detroit` from the
+   console at its menu did nothing (**verified** on Windows: no fastfile
+   opened, no error, the menu stayed), so no multiplayer map has loaded.
 3. The twelve stepped-over instructions and the two half-float unpacks
    against known results.
 4. `setup/setup.sh` for this title, and the build kit run on a device (it
    is in the app; `InTextTables.kt` was checked against the script on this
    PC, the build itself was not run).
+
+## After merging `android` in (24 November 2026)
+
+`origin/android` (`86a1ef1`, v0.1.7) was merged into this branch. On the
+merged tree, **verified**: `setup.ps1 -Game aw -Build both -Suffix .aw`
+builds both; the Windows campaign runs at 60 presents a second; the Thor
+reaches the main menu by touch at 119 FPS; the six other titles' jump
+tables, in-text tables and extents are still what `config/abi/` and
+`origin/android` give; the 17 standalone tests (`-DMW2_TESTS_ONLY=ON`,
+Ubuntu under WSL) pass, and so do the validation workflow's tool checks.
+The other titles were **not** rebuilt after the merge.
