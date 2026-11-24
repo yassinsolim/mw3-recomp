@@ -2,6 +2,6 @@
 <resources>
     <!-- What the mw2 flavour (the one app, published without the game code)
          says in place of Modern Warfare 3's: setup is told which game. -->
-    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd -Game mw2 with this device connected over USB.</string>
-    <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game mw2 -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
+    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd -Game mw2 (on Linux: bash setup/setup.sh --game mw2) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
+    <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game mw2 -GameOnly with this device connected over USB. If you built it online: in your private repository, Actions, Build my game package, Run workflow. Your game files and saves are kept.</string>
 </resources>

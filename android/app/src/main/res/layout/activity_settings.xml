@@ -845,6 +845,24 @@
                     android:layout_marginTop="10dp"
                     android:text="@string/forget_install" />
 
+                <Button
+                    android:id="@+id/build_online"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/build_online"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/build_online_hint"
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/build_online_hint"
+                    android:visibility="gone" />
+
                 <TextView
                     style="@style/SectionHeading"
                     android:layout_width="match_parent"

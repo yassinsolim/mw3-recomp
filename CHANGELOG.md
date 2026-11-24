@@ -4,6 +4,36 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Building the game code without a Windows PC**
+  ([docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md)).
+  - `setup/setup.sh`: setup for Linux, for all three games
+    (`bash setup/setup.sh --game mw2 --iso <file>`). It fetches a pinned JDK
+    and the Android SDK and NDK into `.toolchain/`, reads and checks the
+    executables, recompiles, builds the game package, downloads the
+    published app and installs both over adb (`--device`). The number of
+    compilers follows the free memory, and it says how much memory and time
+    the build took. Android only; the Windows game stays `setup.ps1`'s.
+  - With no PC at all: the app's **Settings → Files → Prepare files for
+    building online** writes the disc's two executables into Download (from
+    the installed game files, or read out of the disc image), and the
+    workflow in `setup/recomp-builder/` (the template repository
+    `yassinsolim/recomp-builder`) builds the game package from them in the
+    player's own private repository. It refuses to run in a public
+    repository and keeps the package as a draft release, which only the
+    owner can see.
+  - The app's messages about missing or outdated game code name both.
+- The build tools for building the game code on the phone, as a package of
+  their own (`com.recomp.toolchain`, `android/toolchain`,
+  `tools/toolchain/build.sh`): clang and lld 19.1.7, XenonRecomp and
+  XenonAnalyse for arm64 Android, with Android's headers from AOSP and LLVM's
+  libraries built from source, nothing of the NDK's. Modern Warfare 2's game
+  library builds with it on an AYN Thor in a minute and a half and on a
+  Retroid Pocket Flip 2 in two and a half, and states what the PC's states
+  ([docs/ondevice-build.md](docs/ondevice-build.md)).
+- `tools/check_no_game_files.py` refuses a tracked APK and any tracked file
+  over 20 MB.
+
 ## [v0.1.6] - 2026-11-24
 
 Modern Warfare 3's and Modern Warfare 2's v0.1.6 and Call of Duty 4's

@@ -47,6 +47,25 @@ signed with another, and a lost key means every player uninstalling.
    as the changelog; say so when the game code has to be rebuilt) and
    publish. Drafts are invisible to the apps.
 
+## What must not reach the public repositories
+
+The public repositories are made from this one's `android` branch with
+`git filter-repo`, history and all. Two folders in that history hold build
+output that was committed by mistake and removed in the next commit (the
+build tools' programs, 90 MB; [ondevice-build.md](ondevice-build.md)):
+
+    android/toolchain/build/
+    android/toolchain-probe/build/
+
+Every run of the filter has to drop both, beside what it already drops:
+
+    git filter-repo --invert-paths --path android/toolchain/build/ --path android/toolchain-probe/build/
+
+They are the project's own builds of free software, so nothing is disclosed
+if they slip through; a mirror with them is 80 MB heavier for ever and over
+GitHub's size warning. `tools/check_no_game_files.py` now refuses a tracked
+APK and any tracked file over 20 MB, so the tip of a branch cannot have one.
+
 ## The camo packs release
 
 Modern Warfare 3's public repository has one more release, `camo-packs`,

@@ -140,3 +140,7 @@ build-iw4l*/
 
 # ---- the game code package (android/game): built from the disc, never committed ----
 android/game/build/
+
+# ---- the build tools' package and its probe (docs/ondevice-build.md) ----
+android/toolchain/build/
+android/toolchain-probe/build/

@@ -9,7 +9,7 @@ game:
 | package | what is in it | who builds it |
 |---|---|---|
 | `com.mw3.recomp`, `com.mw2.recomp` | the app and the runtime: `libmw3.so`, `libmw3mp.so` (`libmw2.so`, `libmw2mp.so`), with none of the game's code | the release workflow ([android-releases.md](android-releases.md)); it updates itself |
-| `com.mw3.recomp.game`, `com.mw2.recomp.game` | the recompiled code: `libmw3game.so`, `libmw3mpgame.so` (`libmw2game.so`, `libmw2mpgame.so`); no code of its own, no screen, no permissions | `setup\setup.ps1` (`-Game mw2`), from the player's disc, signed with their PC's debug key |
+| `com.mw3.recomp.game`, `com.mw2.recomp.game` | the recompiled code: `libmw3game.so`, `libmw3mpgame.so` (`libmw2game.so`, `libmw2mpgame.so`); no code of its own, no screen, no permissions | the player, from their disc: `setup\setup.ps1` on Windows, `setup/setup.sh` on Linux, or GitHub in a private repository of their own ([BUILD-WITHOUT-PC.md](BUILD-WITHOUT-PC.md)); signed with a debug key of that PC's or that repository's |
 
 Modern Warfare 2's apps of one title each (the `campaign` and `multiplayer`
 flavours, which is how its title update 6 is built), the multiplayer test
@@ -89,9 +89,15 @@ a tree whose note is not what the checkout recompiles with.
   Warfare 2 has the one disc build (1.0.557).
 - The game package is trusted by its name: any package called
   `com.mw3.recomp.game` (`com.mw2.recomp.game`) whose library states the
-  right build is loaded. It is installed by the player, like the app.
+  right build is loaded. It is installed by the player, like the app. Its
+  signature is not looked at: whoever built it (a PC, or the builder
+  workflow in the player's private repository, each with a debug key of its
+  own) signed it with a key the app cannot know, and what protects the game
+  is the statement, which is checked. Android itself only asks that a
+  package replacing another is signed with the same key, so a package from
+  another builder goes on after the old one is uninstalled.
 - An update that changes the statement stops the game until the game code is
-  rebuilt on a PC. The app says so when the game is started, not before the
+  rebuilt (on a PC, or by running the builder workflow again). The app says so when the game is started, not before the
   update is installed; releases publish the statement
   (`mw3-recomp-<tag>-game-abi.txt`, `mw2-recomp-<tag>-game-abi.txt`) and setup
   warns when what it built differs.

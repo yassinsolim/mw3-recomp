@@ -286,8 +286,17 @@
     <string name="error_not_installed">The game files are not installed. Install them from the launcher first.</string>
     <string name="error_start">The runtime would not start. The log has the details.</string>
     <!-- the game's code, where the app is published without it (GameLibrary.kt) -->
-    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd with this device connected over USB.</string>
-    <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
+    <string name="game_code_missing">The game code is not on this device: it is made from your own disc.\nOn your PC, run setup\\setup.cmd (on Linux: bash setup/setup.sh) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
+    <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -GameOnly with this device connected over USB. If you built it online: in your private repository, Actions, Build my game package, Run workflow. Your game files and saves are kept.</string>
+    <!-- for a player with no PC (BuildOnline.kt, docs/BUILD-WITHOUT-PC.md) -->
+    <string name="build_online">Prepare files for building online</string>
+    <string name="build_online_hint">No PC? GitHub can build the game code for you, in a private repository of your own. This writes the two small files it needs, your disc\'s executables, into this device\'s Download folder.</string>
+    <string name="build_online_pick">Your game files are not installed yet, so the executables are read from your disc image. Choose the .iso: it is only read.</string>
+    <string name="build_online_choose">Choose the disc image</string>
+    <string name="build_online_working">Reading the executables…</string>
+    <string name="build_online_failed">The files could not be prepared: %1$s.</string>
+    <string name="build_online_done">%1$s and %2$s are now in this device\'s Download folder. They are your game\'s executables: keep them to yourself.\n\nNext, in your browser, signed in to GitHub:\n\n1. Open github.com/yassinsolim/recomp-builder, tap Use this template, Create a new repository, and choose Private.\n2. In your new repository: Add file, Upload files, choose the two files from Download, Commit changes.\n3. The build starts by itself and takes an hour or two (Actions shows it). Then open Releases, tap the .apk in the draft at the top and install it.\n\nNever make that repository public: it holds your copy of the game\'s code.</string>
+    <string name="build_online_guide">Open the full guide</string>
     <string name="stats_line">%1$.0f fps   %2$d MB textures   %3$d×%4$d</string>
 
     <!-- the run's own notification, which is there so the process is not the
