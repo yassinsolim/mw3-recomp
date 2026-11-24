@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No code, no activity, nothing to open: the package exists so that
+         Android unpacks its programs (extractNativeLibs) where the game's app
+         may run them from, and carries what they read as assets
+         (docs/ondevice-build.md). -->
+    <application
+        android:label="CoD recompilation build tools"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:extractNativeLibs="true" />
+</manifest>

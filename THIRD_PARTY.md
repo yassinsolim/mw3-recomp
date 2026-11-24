@@ -60,6 +60,38 @@ running setup), LLVM 18 (Apache-2.0 with LLVM exception), llvm-mingw
 (BSD-3-Clause), Ninja (Apache-2.0), and when missing, Python (PSF) and
 Portable Git (GPL-2.0).
 
+## The build tools' package (`com.recomp.toolchain`)
+
+The package that builds the game code on the phone
+([docs/ondevice-build.md](docs/ondevice-build.md)) is published, so everything
+in it is there under a licence that allows it, with its notice in the
+package (`assets/toolchain/data.zip`, `licences/`). It is built from sources
+by `tools/toolchain/build.sh`; none of it is stored in this repository.
+
+| in the package | from | licence |
+|---|---|---|
+| clang and lld (`libllvm.so`) | [LLVM](https://github.com/llvm/llvm-project) 19.1.7 release sources (SHA-256 in `tools/toolchain/versions.sh`) | Apache-2.0 with LLVM exception |
+| libc++ and libc++abi (headers and static libraries), libunwind, the compiler's runtime (`libclang_rt.builtins`, `libatomic`) and its headers | the same LLVM sources | Apache-2.0 with LLVM exception (libc++, libc++abi and libunwind also MIT/NCSA) |
+| Android's C library headers | [AOSP bionic](https://android.googlesource.com/platform/bionic), `libc/include`, at the commit in `tools/toolchain/versions.sh` | BSD-style, several holders (`libc/NOTICE`) |
+| the kernel's interface headers (`linux/`, `asm/`, `asm-generic/` and the like) | bionic's `libc/kernel/uapi`, which is the Linux kernel's user-space interface with the comments removed | GPL-2.0 with the Linux syscall note: a program compiled against them is not bound by the GPL |
+| `libc.so`, `libm.so`, `libdl.so` as a link sees them: empty libraries with bionic's lists of exported names | generated from bionic's `libc.map.txt`, `libm.map.txt`, `libdl.map.txt` by `tools/toolchain/ndk_stubs.py` | BSD-style (libc, libm), Apache-2.0 (libdl) |
+| `crtbegin_so.o`, `crtend_so.o` | compiled from bionic's `libc/arch-common/bionic` | BSD-2-Clause |
+| XenonRecomp and XenonAnalyse (`libXenonRecomp.so`, `libXenonAnalyse.so`), `ppc_context.h` | [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) at the pinned commit with `patches/xenonrecomp-mw2.patch` | MIT; our patch GPL-3.0-only. Linked into the programs: fmt (MIT), toml++ (MIT), xxHash (BSD-2-Clause), tiny-AES-c (Unlicense), TinySHA1 (permissive, in the file), libmspack (LGPL-2.1) and the PowerPC disassembler of GNU binutils (GPL-2.0-or-later), so the two programs as a whole are distributed under the GPL-3.0, with this repository as their source |
+| [SIMDe](https://github.com/simd-everywhere/simde) headers | XenonRecomp's submodule | MIT |
+
+**Not the Android NDK.** The NDK is downloaded under the Android Software
+Development Kit License Agreement, which forbids redistributing it except for
+its open-source parts under their own licences. Rather than argue which files
+those are, the package takes nothing from the NDK's files: the headers and
+the lists of names come from AOSP's own repository, the libraries are built
+from LLVM's and bionic's sources. The NDK is used as the compiler that builds
+them, as it builds the app; what its compiler links into a program it builds
+(its libc++ and runtime, in `libllvm.so` and the two recompiler programs) is
+LLVM's code under LLVM's licence. Termux's packages were the other candidate:
+its `ndk-sysroot` is the NDK's sysroot repackaged, and its clang expects
+Termux's own folder and a dozen shared libraries with versioned names, which
+Android does not unpack from a package.
+
 ## Game data
 
 None. Modern Warfare 3 and its executables are Activision's; the player
