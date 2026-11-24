@@ -61,7 +61,7 @@ game code as your own package. It shares every renderer fix made since
   than built wrong.
 - A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
   free (60 GB with the Windows game). A first build takes one to several
-  hours. With a Linux PC, or no PC at all, see [No Windows PC](#no-windows-pc).
+  hours. With a Linux PC, see [No Windows PC](#no-windows-pc).
 - For Android: a 64-bit phone or handheld with Android 10 or later and
   Vulkan, about 7 GB free per app for the game files (plus room for the
   ~8 GB disc image while installing). Qualcomm (Adreno) devices get a bundled
@@ -235,7 +235,7 @@ Settings → Network is **Online** with that address, and the PC's `.env` has
 
 ## No Windows PC
 
-- **A Linux PC** (written for Ubuntu 24.04; new, not yet proven), one command:
+- **A Linux PC** (tested on Ubuntu 24.04, WSL2 included), one command:
 
   ```sh
   git clone https://github.com/yassinsolim/mw3-recomp.git && cd mw3-recomp
@@ -246,13 +246,11 @@ Settings → Network is **Online** with that address, and the PC's `.env` has
   (`out/mw3-game.apk`), downloads the published app and offers to install
   both on a phone connected over USB. It builds for Android only, runs as
   many compilers as the free memory holds (an old PC is slower, not stuck),
-  and `--game-only` rebuilds the game code after an update.
-- **No PC at all** (new, not yet proven): GitHub builds the game code for you, in a private
-  repository of your own, from the two executables the app reads out of your
-  disc image on the phone (**Settings → Files → Prepare files for building
-  online**).
+  and `--game-only` rebuilds the game code after an update. Its first run
+  for Modern Warfare 2 took under three minutes on a fast PC.
 
-Both, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+Step by step, with what an old PC should expect:
+[docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
 The pipeline by hand, and desktop runs on Linux:
 [docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#build-wsl2-ubuntu-2404),
 [docs/MW3-LOCAL-RUN.md](docs/MW3-LOCAL-RUN.md).

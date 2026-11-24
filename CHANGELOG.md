@@ -14,6 +14,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
     published app and installs both over adb (`--device`). The number of
     compilers follows the free memory, and it says how much memory and time
     the build took. Android only; the Windows game stays `setup.ps1`'s.
+    Tested on Ubuntu 24.04 (WSL2) from a fresh clone for Modern Warfare 2:
+    2 minutes 32 seconds, 3.3 GB of memory in use at most, the same
+    statement as the Windows build's, and the package starts the game on a
+    Retroid Pocket Flip 2. One compiler takes 320 MB at most.
   - With no PC at all: the app's **Settings → Files → Prepare files for
     building online** writes the disc's two executables into Download (from
     the installed game files, or read out of the disc image), and the
@@ -21,7 +25,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
     `yassinsolim/recomp-builder`) builds the game package from them in the
     player's own private repository. It refuses to run in a public
     repository and keeps the package as a draft release, which only the
-    owner can see.
+    owner can see. Not yet run on GitHub from start to finish, and not in
+    the READMEs until it has been.
   - The app's messages about missing or outdated game code name both.
 - The build tools for building the game code on the phone, as a package of
   their own (`com.recomp.toolchain`, `android/toolchain`,

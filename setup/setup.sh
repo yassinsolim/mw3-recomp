@@ -268,10 +268,12 @@ MEM_GB=$(awk '/^MemTotal:/ { printf "%d", ($2 + 524288) / 1048576 }' /proc/memin
 AVAILABLE_MB=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo)
 
 # The compilers run at once. The recompiled code is a few hundred very large
-# files, and a compiler on one of them takes up to about 1.5 GB; more of them
-# than the free memory holds and the PC swaps or the build is killed.
+# files; a compiler on one of Modern Warfare 2's was measured at 320 MB at
+# most, and each is counted as 768 MB here, for the other games' and for
+# what else the PC is doing. More of them than the free memory holds and
+# the PC swaps or the build is killed.
 if [ -z "$JOBS" ]; then
-    JOBS=$(( AVAILABLE_MB / 1536 ))
+    JOBS=$(( AVAILABLE_MB / 768 ))
     [ "$JOBS" -lt 1 ] && JOBS=1
     [ "$JOBS" -gt "$(nproc)" ] && JOBS=$(nproc)
 fi
@@ -280,7 +282,7 @@ if [ "$CHECK" = 1 ]; then
     step 'prerequisites (read-only check; nothing is downloaded or written)'
     note "repository: $REPO"
     note "toolchain folder: $TC$([ -d "$TC" ] || echo ' (not created yet)')"
-    note "free space: $FREE_GB GB (about 25 GB wanted)"
+    note "free space: $FREE_GB GB (about 8 GB wanted)"
     note "memory: $MEM_GB GB, $AVAILABLE_MB MB of it free now: $JOBS compiler(s) at once on $(nproc) processor(s)"
     note "system programs: $([ ${#NEEDED[@]} = 0 ] && echo "present (compiler: $CLANG)" || echo "missing; sudo apt install ${NEEDED[*]}")"
     note "JDK 17: $(find_java || echo "would download $JDK_FILE")"
@@ -311,17 +313,20 @@ if [ ${#NEEDED[@]} -gt 0 ]; then
     echo "These programs are needed and are the system's to install: ${NEEDED[*]}"
     [[ " ${NEEDED[*]} " == *' clang '* ]] && echo '(clang 17 or later: Ubuntu 24.04, Debian 13 and Fedora have one; on an older system, https://apt.llvm.org)'
     if command -v apt-get > /dev/null 2>&1 && ask "Install them now with: sudo apt-get install -y ${NEEDED[*]} ?" y; then
-        sudo apt-get update
-        sudo apt-get install -y "${NEEDED[@]}"
+        # Root, as in a container, needs no sudo and often has none.
+        as_root=sudo
+        [ "$(id -u)" = 0 ] && as_root=
+        $as_root apt-get update
+        $as_root apt-get install -y "${NEEDED[@]}"
         CLANG=$(find_clang) || die "the clang that apt installed is older than 17. Install a newer one (https://apt.llvm.org), then run setup again."
     else
         die "Install them (sudo apt install ${NEEDED[*]}, or your system's equivalent), then run setup again."
     fi
 fi
-[ "$FREE_GB" -lt 25 ] && warn "only $FREE_GB GB free here: about 25 GB is wanted."
+[ "$FREE_GB" -lt 8 ] && warn "only $FREE_GB GB free here: about 8 GB is wanted."
 note "memory: $MEM_GB GB, $AVAILABLE_MB MB of it free now: $JOBS compiler(s) at once on $(nproc) processor(s) (--jobs <n> chooses)"
-if [ "$AVAILABLE_MB" -lt 3072 ]; then
-    warn 'under 3 GB of memory is free. Close the browser and other programs first; if the build is still killed, add swap (a swap file of 4 GB or more) and run setup again: it carries on where it stopped.'
+if [ "$AVAILABLE_MB" -lt 2048 ]; then
+    warn 'under 2 GB of memory is free. Close the browser and other programs first; if the build is still killed, add swap (a swap file of 4 GB or more) and run setup again: it carries on where it stopped.'
 fi
 
 # ---- 1. what is needed -------------------------------------------------------

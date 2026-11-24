@@ -66,7 +66,7 @@ What to expect:
   checks the two executables on it and accepts the one disc build it was made
   for (1.0.557); anything else is refused rather than built wrong.
 - A Windows 10 or 11 PC (64-bit) with 16 GB of memory or more and about 40 GB
-  free. With a Linux PC, or no PC at all, see
+  free. With a Linux PC, see
   [Setup without a Windows PC](#setup-without-a-windows-pc).
 - A 64-bit Android phone or handheld with Android 8 or later and Vulkan, about
   7 GB free for the game files (plus room for the 7.3 GB disc image while
@@ -104,8 +104,8 @@ nothing). Running setup again is safe: finished steps are skipped.
 
 ## Setup without a Windows PC
 
-- **A Linux PC** (written for Ubuntu 24.04; new, not yet proven), one
-  command, with the phone connected over USB:
+- **A Linux PC** (tested on Ubuntu 24.04, WSL2 included), one command, with
+  the phone connected over USB:
 
       git clone https://github.com/yassinsolim/mw2-recomp.git && cd mw2-recomp
       bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso --install --push-iso
@@ -114,12 +114,9 @@ nothing). Running setup again is safe: finished steps are skipped.
   downloads the published app and installs both. It runs as many compilers
   as the free memory holds, so an old PC is slower, not stuck;
   `--game-only` rebuilds the game code after an update.
-- **No PC at all** (new, not yet proven): GitHub builds the game code for you, in a private
-  repository of your own, from the two executables the app reads out of your
-  disc image on the phone (**Settings → Files → Prepare files for building
-  online**).
 
-Both, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+Step by step, with what an old PC should expect:
+[docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
 
 ## Updates
 
