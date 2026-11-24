@@ -14,6 +14,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   on time to 95%). On the AYN Thor the campaign's first level and a bot
   match hold 118 to 119 at the 120 cap, without the sun's shadows as
   Modern Warfare 3; its heavier Fusion is 108.
+- **Advanced Warfare's campaign, a level's end and the Flip 2**
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#a-levels-end-the-next-level-the-flip-2-24-november-2026)):
+  on Windows Seoul's ending plays into its After Action Report and on into
+  Atlas, from a start point of the level's own script (`set start
+  seoul_finale_scene_start` before `devmap seoul`), and Atlas goes on to
+  its training exercise. The Retroid Pocket Flip 2 plays New Game into
+  Seoul, Resume Game and Atlas from Mission Select at 60 frames a second,
+  from an app that one unattended `setup.ps1 -Device` run built and
+  installed (8 min 43 s from the two disc images), and from game code it
+  built itself (12 min 41 s, [docs/ondevice-build.md](docs/ondevice-build.md)).
+  Known: a checkpoint within a level is reached and reloaded after a
+  failure, and is not written to the save, so Resume Game starts the level
+  again.
 - **Call of Duty: Advanced Warfare, started**
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md)): titles `aw` and `awmp`, for
   Windows and Android (`com.aw.recomp`, built by `setup\setup.cmd -Game aw

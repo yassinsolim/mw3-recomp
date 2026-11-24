@@ -265,6 +265,7 @@ The other builds, whole, from the app's own report:
 |---|---|---|
 | Call of Duty 4 (151 files) | 2 min 12 s (recompile 11 s + 11 s, compile 54 s + 57 s) | 3 min 49 s (14 s + 14 s, 99 s + 101 s) |
 | Modern Warfare 3 | 4 min 40 s | 8 min 2 s (21 s + 23 s, 211 s + 226 s), a few seconds of it with fewer compilers |
+| Advanced Warfare (409 files) | **not run** | 12 min 41 s (31 s + 37 s, 339 s + 352 s); eight compilers throughout, 1.8 GB between them at most, 3.3 GB free at least (the report; 3.7 GB by `MemAvailable`), battery 30 to 31.5 °C, hottest sensor 91 °C, no thermal status |
 
 **Played on what was built**, with no game package installed:
 
@@ -272,6 +273,12 @@ The other builds, whole, from the app's own report:
   check passed on both devices, F.N.G. loads and is walked at 119 frames a
   second on the Thor and 60 on the Flip 2, and the Thor hosted a System Link
   match on Backlot from `libcod4mpgame.so`.
+- Advanced Warfare, whose jump tables `InTextTables.kt` adds too: the
+  statement check passed on the Flip 2, and with its game package
+  uninstalled the campaign resumed Atlas's funeral from `libawgame.so` at
+  60 frames a second. The executables were the installed game files'; the
+  disc image lay in Download and was not needed. The multiplayer's library
+  was built and **not run**.
 - Modern Warfare 2: the main menu and a System Link match on Afghan (Thor);
   S.S.D.D. on the Flip 2 from the image on its memory card.
 - Modern Warfare 3: its opening film (Thor), a System Link match on Seatown

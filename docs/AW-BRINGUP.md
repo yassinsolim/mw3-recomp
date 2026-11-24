@@ -19,8 +19,11 @@ Brightness, Safe Area, main menu, each of the two asking for an adjustment
 before it takes A. Since then, on Windows: New Game, Resume Game and Mission
 Select from the menus, Seoul to its rooftop and Atlas to its funeral, the
 textures put right and the sound checked by what is said in it
-("The campaign from its menus", at the end). No level has been played to
-its end.
+("The campaign from its menus", at the end). Seoul's ending has since been
+played into its After Action Report and on into Atlas, and the Retroid
+Pocket Flip 2 plays both at 60 from an app set up unattended and from game
+code it built itself ("A level's end, the next level, the Flip 2"). A
+checkpoint within a level is kept in memory and not written to the save.
 
 ## The two discs
 
@@ -320,7 +323,8 @@ the game files were pushed with adb and the packages by setup.
 | The campaign starts, mounts both packages, reaches the main menu | **verified**, 119 FPS on the overlay. Once with `profile_SetHasEverPlayed_MainMenu` from `options.txt`; then again with no `options.txt` and no profile, by the touch controls alone: Start, Brightness, Safe Area, main menu | `thor-main-menu.png`, `thor-main-menu.log`; `thor-brightness-no-options.png`, `thor-main-menu-by-touch-no-options.png` |
 | Seoul by `devmap seoul` | **verified**: in the drop pod at 119 FPS, exposure right (the write-back is logged) | `thor-seoul-level.png`, `thor-seoul-level.log` |
 | The app's installer, with both images in the device's Download folder and nothing installed | **verified**: Install & Play copies the game disc (1,809 files and the 95 of `english/`, 7.3 GB, about a minute), the screen asks for the second disc, the install disc's image is chosen in the app's file browser, the two packages are copied to `files/dlc` (4 GB, under a minute) and the game starts and mounts them. The install disc first was **not run** | `thor-installer-asks-for-second-disc.png`, `thor-after-in-app-install-both-discs.png` |
-| The multiplayer, the Flip 2, a release build | **not run** | |
+| The Flip 2 | **verified** since: "A level's end, the next level, the Flip 2", below | |
+| A release build | **not run** | |
 
 The app gives this title the other games' start-up commands (`com_maxfps 0`,
 `r_vsync 0`, `sm_enable 0`, `cg_fov 85`); what each does here was not looked
@@ -408,12 +412,12 @@ them: controller 0 is the first active one, its profile is signed in, and
 
 ## Open, in the order it matters
 
-1. A level played to its end and the next one started by it; a checkpoint
-   within a level, written and resumed. Neither has been seen.
-2. Everything on the Retroid Pocket Flip 2: the campaign's flow, its frame
-   rate, the stepped-over instructions' check on arm64, and the build kit
-   run on a device (it is in the app; `InTextTables.kt` was checked against
-   the script on a PC, the build itself was not run).
+1. A checkpoint within a level written to the save: the title reaches it
+   ("Checkpoint Reached") and reloads it after a failure, and
+   `savegame.svg` stays the level's start, so Resume Game after leaving
+   starts the level again ("A level's end, the next level, the Flip 2").
+2. A level played from its first minute to its last without a start point,
+   and the levels after Atlas.
 3. The multiplayer's Xbox LIVE menu, Exo Survival and Combat Readiness
    Program ("The multiplayer", below, has what works).
 4. `setup/setup.sh` for this title from end to end on Linux.
@@ -442,11 +446,11 @@ runs, so the sound is the mix as the title submitted it
 | Seoul: the Exo Type card, the drop pod, "Tap X to Pull Lever", "LT or RT to Release Harness", "RS to Open Hatch", the rooftop with the weapon in hand and the objective marker | **verified**; no further: the player was turned and walked by timed input and did not find the way down | `pc-seoul-resume-pod-rooftop-textures-fixed-sheet.png`, `.log` |
 | A save: `saves/savegame.svg/savegame.svg`, 1,181,466 bytes, its header naming `seoul` and "Start Level Save" | **verified** written at the level's start | the log's `content: mounted save0:` lines |
 | Resume Game: "Resume Game?", the save opened, the level from its start | **verified** for Seoul and for Atlas | `pc-resume-game-dialog-sheet.png` |
-| A checkpoint within a level | **open**: the save did not change in any run, and none got far enough to say whether it should have | |
+| A checkpoint within a level | reached and reloaded from memory; **open**: never written to the save (the next section) | |
 | Mission Select: the first mission's card and the row of missions; the later ones dimmed and not selectable on a profile that has only started Seoul | **verified** | `pc-mission-select.png`, `pc-mission-select-locked-without-mis-cheat.png` |
 | Atlas (`recovery`), chosen in Mission Select with the title's own `set mis_cheat 1` from the console: the warning that the mission's progress is overwritten (No is the default), Select Difficulty, its loading movie, the Exo Type card, the funeral, "X To Pay Respects"; its start save written (785,421 bytes) | **verified**; no further | `pc-atlas-from-mission-select-sheet.png`, `.log` |
 | Sound: the movies' narration and the levels' speech | **verified** by transcribing the dump: Seoul's "We come into this world with our eyes closed", the pod's countdown and "Mitchell, now!", the rooftop's orders; Atlas's eulogy. In a level the speech is in the front pair and the centre is silent | `pc-seoul-audio-transcript.txt`, `pc-atlas-audio-transcript.txt` |
-| A level's end and the next level from it | **open** | |
+| A level's end and the next level from it | **verified** since (the next section) | |
 
 **The textures.** From Seoul's first minute buildings, faces and the pod were
 drawn as coloured noise, different in every run
@@ -468,6 +472,91 @@ was **not measured**.
 spent 75 s of the pod below 30 presents a second; the PC was shared with
 other builds at the time. Timed input is also why two runs stopped where
 they did: a prompt came after the presses meant for it had ended.
+
+## A level's end, the next level, the Flip 2 (24 November 2026)
+
+### Windows
+
+| | State | Evidence |
+|---|---|---|
+| Seoul's ending: "Hold X to Give Will the Charges", the finale's scene to its end, the After Action Report for Induction | **verified**, 60 presents a second, by a start point and not by playing the level through (below) | `pc-seoul-finale-to-after-action-report-sheet.png`, `.log` |
+| The next level from it: A on the report, Atlas's loading movie, its Exo Type card, the funeral in play; its start save written (`recovery`, "Start Level Save") | **verified** | `pc-seoul-end-after-action-report-atlas-starts-sheet.png`, `.log` |
+| Atlas further: "X To Pay Respects" (held), the walk to the cars, the card, the training exercise at Camp David with the weapon in hand | **verified**; the walk wants a step to the right first, the honour guard being in the way | `pc-atlas-card-camp-david-sheet.png` |
+| A checkpoint, loaded: the player died at Camp David and the level went on from Camp David's beginning, not from the funeral | **verified** | `pc-atlas-camp-david-death-restart-sheet.png` |
+| A checkpoint, written: `savegame.svg` | **open**: not written (below) | |
+
+**The start point.** The levels' scripts keep their developers' start
+points, and the title's own `start` dvar chooses one for a level started by
+`devmap`: `MW2_CONSOLE="170:set start seoul_finale_scene_start;172:devmap
+seoul"` puts the player in front of the weapon platform with Will. The names
+were read from the running game's memory (the script's strings: Seoul's are
+`seoul_intro`, `seoul_first_land_assist`, `seoul_enemy_encounter_01`,
+`seoul_missle_evade_sequence`, `seoul_forward_operating_base`,
+`seoul_drone_swarm_intro`, `seoul_truck_push`, `seoul_hotel_entrance`,
+`seoul_building_jump_sequence`, `seoul_sinkhole_start`,
+`seoul_subway_start`, `seoul_shopping_district_start`,
+`seoul_shopping_district_flee_swarm`, `seoul_canal_intro`,
+`seoul_canal_combat_start`, `seoul_canal_combat_pt2` and
+`seoul_finale_scene_start`; the last is the only one tried to its end).
+Atlas's were not found: `tour_ride` and `start_tour_ride` both start the
+funeral. Two things about `devmap`: started before any menu it has no save
+device ("Unable to Write to Default Save Device"; A on it goes on without
+saving), so these runs start a New Game first and give the command in
+Seoul's loading movie; and every start by it writes a "Start Level Save"
+of where it starts.
+
+**The checkpoint that is not written.** The title's notice says it saves at
+certain points, and it does reach them: "Checkpoint Reached" is on the
+screen in Seoul's drop pod (seen on the Flip 2), failing the lever after it
+starts again in the pod, and dying at Camp David starts again at Camp
+David. But in every run on both platforms `savegame.svg` was written only
+at a level's start (its header says "Start Level Save"), the log has no
+`save0:` mount after it and no other kernel call at the checkpoint, and
+Resume Game after leaving returns to the level's start. So the title keeps
+the checkpoint in memory and does not come to the write; why is **open**.
+What was tried: watching the file through Seoul's finale, seven of Seoul's
+start points and Atlas to Camp David (nothing but start saves); every file
+call traced (`MW2_TRACE_FILES`: reads of the save only); and entry traces on
+functions that load the addresses of the save code's strings, which
+turned out to be other code (an address pair matched by chance), so the
+write's caller was not found. The place to start is the caller of
+`XamContentCreateEx` at a level's start, and what its counterpart for a
+checkpoint waits for.
+
+**The pod below 30.** The one slow run of the earlier section was **not
+reproduced and not explained**: these runs leave Seoul's opening for the
+start point, so the pod was not run again on Windows. The Flip 2 went
+through it twice at 60. One Windows run here has 42 to 55 presents a second
+for twenty seconds of Seoul's opening and 58 to 60 after it; the others
+held 58 to 60 outside their loads.
+
+### Retroid Pocket Flip 2 (`com.aw.recomp.awc`, Turnip, 60 Hz)
+
+The app and the game code were built and installed by one unattended run
+(below); the game files were already in the app's folder.
+
+| | State | Evidence |
+|---|---|---|
+| A first run by the touch controls: Start, Brightness, Safe Area, the main menu, Campaign, New Game, the notice, the difficulty, Seoul's loading movie | **verified**, 60 on the overlay | `flip-awc2-01-after-start.png` to `flip-awc2-04-newgame-seoul-loading-movie.png` |
+| Seoul: the pod, "Checkpoint Reached", the lever failed once and the pod again from the checkpoint, the lever, the harness, the hatch, the rooftop walked for two minutes | **verified**: 60 FPS on the overlay in every screenshot (16.5 to 16.7 ms), textures right, up to 71 °C on the overlay's sensor, battery 30 °C | `flip-awc2-05-seoul-*.png` to `flip-awc2-14-roof-*.png`, `flip-awc2-newgame-seoul.log` |
+| Resume Game after the app was stopped: "Resume Game?", Seoul from its start | **verified** | `flip-awc2-21-resume-dialog.png`, `flip-awc2-22-resumed-seoul.png` |
+| Mission Select with `MW2_CONSOLE=22:set mis_cheat 1` in the debug build's `options.txt`: every mission's card; Atlas, the warning, its loading movie, the funeral; its start save written | **verified**, 60 FPS | `flip-awc2-30-mission-select.png` to `flip-awc2-33-atlas-b.png`, `flip-awc2-atlas-from-mission-select.log` |
+| The game code built on the device, and Atlas resumed on it with no game package installed | **verified**, 60 FPS; 12 min 41 s ([ondevice-build.md](ondevice-build.md#what-was-measured-the-whole-flow-in-the-app)) | `flip-awc2-41-build-screen.png` to `flip-awc2-48-ondevice-build-atlas-resumed.png`, `flip-awc2-game-build-report.txt` |
+
+The left trigger's touch button did not answer a tap at its middle while
+"LT to Release Left Harness" was up; a tap nearer its edge, or the pad's own
+trigger, did. **Not looked into** (the button overlaps the D-pad's corner).
+
+**Setup, unattended.** `setup\setup.ps1 -Game aw -Iso <game disc>
+-InstallIso <install disc> -Build android -Suffix .awc -Yes -Install -PushIso
+-Device f315edc9`, from a checkout with no `aw\` and no recompiled trees and
+with two phones connected: 8 min 43 s in all. It read the packages and the
+executables from the images, recompiled both (207 files and 210 tables, 415
+stepped, as expected), built the game code and the app, installed both on
+the phone named, found the app there signed with another key and replaced
+it with its game files and saves moved aside and back, pushed the packages
+and the game disc's image (8.7 GB, 246 s of the run), and asked nothing.
+The Thor, connected beside it, was not touched.
 
 ## The multiplayer
 
