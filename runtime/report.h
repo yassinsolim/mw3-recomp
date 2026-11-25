@@ -21,6 +21,17 @@ namespace report
     // The renderer finished a frame; `world` when it drew the world and not
     // only a menu or a loading screen.
     void Frame(bool world);
+    // What the renderer's thread has done since the run began, given before
+    // each Frame: MW2_REPORT_SECONDS says what a frame of each second took of
+    // it, so a slow second on that thread can be put down to how much it
+    // was asked to draw and copy.
+    struct Work { uint64_t draws, segments, constantBytes, vertexBytes, indexBytes; };
+    void Done(const Work& work);
+    // How long a frame took from the renderer finishing it until the window
+    // presented it, and until the display showed it where the device says
+    // when that was (presenter.cpp). The window's and the display's threads.
+    enum Lateness { kToWindow, kToScreen, kLatenessCount };
+    void Late(Lateness of, uint64_t nanoseconds);
     // Work done at a draw that play had to wait for.
     enum Cost { kShader, kPipeline, kCostCount };
     void Add(Cost cost, uint64_t microseconds);

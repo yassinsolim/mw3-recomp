@@ -488,6 +488,8 @@ namespace vk::renderer::detail
         }
         pacing::Note(pacing::kFrame, worldDrawn ? 1 : 0);
         stutters::Finished(g.frames, worldDrawn);
+        report::Done({ g.draws, g.segments, g.arenaWritten[kArenaConstants],
+                       g.arenaWritten[kArenaVertices], g.arenaWritten[kArenaIndices] });
         report::Frame(worldDrawn);
         NoteFrame(worldDrawn);
         SceneFrame(worldDrawn);

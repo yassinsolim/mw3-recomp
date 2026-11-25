@@ -608,6 +608,19 @@ void vk::renderer::Swap(uint32_t frontBuffer, [[maybe_unused]] void (*deliver)(u
         vk::WaitForDisplay(before);
 #endif
     }
+    // At the console's half rate the window is what paces the title as well:
+    // it holds each frame for two blanks, and the title, asked for D3D's
+    // interval of two, still made its frames faster than that (31 in some
+    // seconds), so the renderer ran the three frames ahead that its present
+    // images let it and every frame reached the screen 158 ms after it was
+    // finished (a Retroid Pocket Flip 2, Modern Warfare 2 and Call of Duty
+    // 4). The frame waits for the one before it here too, one waiting at
+    // most.
+    else if (frame_rate::ConsoleBlanks() == 2)
+    {
+        report::Timed waited(report::kDisplayWait);
+        vk::WaitUntilTaken(g.presentSerial[(index + kPresentImages - 1) % kPresentImages]);
+    }
     else vk::WaitUntilTaken(g.presentSerial[index]);
 
     RecordBarrier(frame.image, VK_IMAGE_ASPECT_COLOR_BIT,

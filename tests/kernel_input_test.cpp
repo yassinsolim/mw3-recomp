@@ -1,7 +1,9 @@
 // Real no-SDL input imports against synthetic guest memory, never game assets.
 #include "tests/fake_guest.h"
 #include "runtime/console.h"
+#include "runtime/console_queue.h"
 #include "runtime/online/service.h"
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #ifdef NDEBUG
@@ -26,6 +28,20 @@ int main(int argc, char** argv)
         setenv("MW2_INPUT_SCRIPT", "0:start:3600,0:lt:3600,0:lx-:3600,0:a@2:3600", 1);
     else
         unsetenv("MW2_INPUT_SCRIPT");
+    // A live script's `!` line is a console command: it must be waiting in the
+    // console's queue after the first read of the pad.
+    const char* live = "kernel_input_test.live";
+    if (scripted)
+    {
+        std::FILE* file = std::fopen(live, "wb");
+        assert(file);
+        std::fputs("!viewpos\n", file);
+        std::fclose(file);
+        setenv("MW2_INPUT_LIVE", live, 1);
+    }
+    else
+        unsetenv("MW2_INPUT_LIVE");
+    unsetenv("MW2_CONSOLE");
     PPCContext ctx{};
     auto* base = guest::Base();
     constexpr uint32_t address = 0x1000;
@@ -56,5 +72,14 @@ int main(int argc, char** argv)
         __imp__XamInputGetState(ctx, base);
         assert(ctx.r3.u32 == X_ERROR_DEVICE_NOT_CONNECTED);
         assert(uint32_t(*GuestPtr<be32>(address)) == 0);
+    }
+    std::string command;
+    bool placed = true;
+    assert(console::Take(command, placed) == scripted);
+    if (scripted)
+    {
+        assert(command == "viewpos" && !placed);
+        assert(!console::Take(command, placed));
+        std::remove(live);
     }
 }

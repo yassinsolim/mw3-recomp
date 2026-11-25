@@ -249,6 +249,29 @@ Thor (5% of the run's frames) and up to 30 ms on the Flip 2. The script fires
 now and then, and a shot friend ends the mission: the one pause of 1 to 3 s
 in some of these runs is the checkpoint loading again, not the renderer.
 
+What those frames are made of (25 November 2026, `MW2_REPORT_SECONDS`, which
+now says a frame's draws and copies, and `simpleperf` on the ring consumer,
+the Flip 2): 8,000 to 11,300 draws a frame in 90 to 120 segments, 12 to 16 MB
+of vertex data, 10 to 13 MB of indices and 5 to 6 MB of constants copied, at
+1.4 to 1.5 us a draw, 14 to 16 ms a frame. Of the thread's time 12% is the
+vertex copies (`CopyVertices`: skinned models, whose pages the title writes
+every frame, so no copy is kept; half of those bytes are a window the depth
+prepass already copied in the frame), 11% the indices (`WriteIndices`, each
+draw's with its own table entry in them), 8% the model lighting volume read
+again at a segment's end, 8% the constants, 9% parsing the stream, and the
+rest the per-draw choosing of targets, textures and pipelines. Resolves and
+descriptor writes are not in it. The frame rate there is 59 to 60 with 43 to
+50 frames a second on time; a run's lower average is the checkpoint loading
+again.
+
+Tried and not kept: a second thread making the vertex and index copies, the
+consumer waiting for it before each report to the title (14 ms a frame to 18:
+the consumer waits on a thread whose core runs slow and cold); the title's
+workers let onto the efficiency cores (`T_FRAME_PROCESSORS` as Advanced
+Warfare has it: 58.6 frames a second there for 59.3). Left open: a copy of a
+window made earlier in the frame cannot be shown to be still what guest
+memory holds without watching its pages, which costs more than the copy.
+
 What was wrong, and is fixed:
 
 - **"Out of memory" starting the larger levels.** The title's physical

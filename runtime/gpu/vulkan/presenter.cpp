@@ -6,6 +6,7 @@
 #include "../../crash.h"
 #include "../../console.h"
 #include "../../stutters.h"
+#include "../../report.h"
 #include "../../friends.h"
 #include "../../guide.h"
 #include "../../signin.h"
@@ -179,6 +180,18 @@ namespace
         // thread of its own, which is what the guest's blank follows.
         bool presentWait = false;
         PFN_vkWaitForPresentKHR waitForPresent = nullptr;
+        // The same from the swapchain's record of its presents
+        // (VK_GOOGLE_display_timing), where there is no present wait:
+        // Android's swapchain keeps it over any driver, Turnip's too, and
+        // gives each present's time a few frames after it was shown
+        // (CollectPresentTimes).
+        bool presentTimes = false;
+        PFN_vkGetPastPresentationTimingGOOGLE pastPresentTimes = nullptr;
+        // When the renderer finished each of its last frames, by serial: how
+        // long a frame took to the screen, and which frames were finished
+        // when another reached it.
+        static constexpr uint64_t kFinishTimes = 16;
+        std::atomic<int64_t> finishedNs[kFinishTimes]{};
         std::thread waiter;
         std::mutex waitLock;
         std::condition_variable waitWake;
@@ -195,8 +208,10 @@ namespace
         uint64_t lastShownId = 0;
         bool exactRate = false;              // the display mode gave its rate exactly
         double buffered = 1.0;               // frames queued behind the one on screen
+        double lateBlanks = 0;               // finished to shown, in the display's blanks, smoothed
         uint64_t shownOnTime = 0, stretched = 0;
         uint64_t behindCount[4]{};           // 0, 1, 2, 3+ frames behind at each
+        uint64_t shownWithin[5]{};           // 1, 2, 3, 4 and more blanks after it was finished
         std::atomic<uint64_t> guestPeriodNs{ 0 };
         std::atomic<int64_t> guestPeriodAt{ 0 };
     };
@@ -509,6 +524,16 @@ namespace
                 g.presentWait = true;
             }
         }
+#ifdef MW2_ANDROID
+        // Its times are on the clock Nanoseconds reads, which is what makes
+        // them comparable with ours.
+        if (!g.presentWait &&
+            vk::pipeline::DeviceHasExtension(g.physical, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME))
+        {
+            extensions.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+            g.presentTimes = true;
+        }
+#endif
         void* device = nullptr;
         void* queue = nullptr;
         if (!vk::pipeline::CreateDevice(g.physical, g.queueFamily, extensions.data(),
@@ -522,9 +547,19 @@ namespace
                 vkGetDeviceProcAddr(g.device, "vkWaitForPresentKHR"));
             g.presentWait = g.waitForPresent != nullptr;
         }
-        if (!g.presentWait)
+        if (g.presentTimes)
+        {
+            g.pastPresentTimes = reinterpret_cast<PFN_vkGetPastPresentationTimingGOOGLE>(
+                vkGetDeviceProcAddr(g.device, "vkGetPastPresentationTimingGOOGLE"));
+            g.presentTimes = g.pastPresentTimes != nullptr;
+        }
+        if (g.presentTimes)
+            LOGI("vulkan: the swapchain says when a present reached the screen, a few frames"
+                 " after it did (VK_GOOGLE_display_timing)");
+        else if (!g.presentWait)
             LOGW("vulkan: the device cannot say when a present reaches the screen"
-                 " (VK_KHR_present_wait); the guest's blank keeps its own 60 Hz clock");
+                 " (VK_KHR_present_wait, VK_GOOGLE_display_timing); the guest's blank keeps"
+                 " its own 60 Hz clock");
         return true;
     }
 
@@ -745,7 +780,10 @@ namespace
         g.measured = 0;
         g.lastShownNs = -1;
         frame_rate::SetDisplay(hz, g.periodNs);
-        const bool followed = g.presentWait && hz >= 59.0 && hz <= 61.0;
+        // MW2_FOLLOW_DISPLAY=0 leaves the guest's blank on its own clock, to
+        // measure what following is worth.
+        static const bool follow = !env::Text("MW2_FOLLOW_DISPLAY") || env::Flag("MW2_FOLLOW_DISPLAY");
+        const bool followed = follow && (g.presentWait || g.presentTimes) && hz >= 59.0 && hz <= 61.0;
         g.nominalNs = followed ? g.periodNs : 0;
         if (!followed) g.guestPeriodNs.store(0, std::memory_order_relaxed);
         LOGI("vulkan: the display runs at %.4f Hz; the guest's blank %s", hz,
@@ -774,6 +812,13 @@ namespace
     // How much longer the guest's blank may be than the display's while
     // latency drains: 0.5%, a frame in about three seconds, and nobody sees it.
     constexpr double kNudge = 0.005;
+    // How long after the renderer finished it a frame may reach the screen
+    // before what waits is drained, in the display's blanks, where the
+    // swapchain's record gives the time. With nothing waiting anywhere a
+    // frame is on screen one to two blanks after it is finished: the
+    // compositor takes it at its next blank and the display shows it at the
+    // one after.
+    constexpr double kMostBlanks = 2.0;
 
     int64_t Nanoseconds()
     {
@@ -799,20 +844,34 @@ namespace
     void SawDisplayed(uint64_t id, int64_t at)
     {
         const uint64_t queued = g.lastQueued.load(std::memory_order_relaxed);
-        // Under the title's limiter nothing waits its turn behind the frame
-        // on screen: the frames after it are let go for the newest
-        // (DrawOneFrame).
-        const double behind = frame_rate::Mode() != frame_rate::kByLimiter && queued > id
-                                  ? double(queued - id) : 0.0;
+        // The frames finished by then and not yet on screen. Under the
+        // title's limiter nothing waits its turn behind the frame on screen:
+        // the frames after it are let go for the newest (DrawOneFrame).
+        double behind = 0.0;
+        if (frame_rate::Mode() != frame_rate::kByLimiter)
+            for (uint64_t next = id + 1; next <= queued && next < id + Presenter::kFinishTimes; next++)
+                behind += g.finishedNs[next % Presenter::kFinishTimes].load(std::memory_order_relaxed) <= at;
+        if (queued - id < Presenter::kFinishTimes)
+        {
+            const int64_t took = at - g.finishedNs[id % Presenter::kFinishTimes].load(std::memory_order_relaxed);
+            const double blanks = double(took) / g.periodNs;
+            g.lateBlanks += (blanks - g.lateBlanks) / 16.0;
+            g.shownWithin[std::clamp(long(std::ceil(blanks)), 1L, 5L) - 1]++;
+            report::Late(report::kToScreen, uint64_t(std::max<int64_t>(took, 0)));
+        }
         if (g.lastShownNs >= 0 && id > g.lastShownId)
         {
             const double gap = double(at - g.lastShownNs);
             const uint64_t frames = id - g.lastShownId;
             const long blanks = std::lround(gap / g.periodNs);
-            // Only a gap no longer than the period can be trusted to measure it.
-            if (!g.exactRate && frames == 1 && gap <= g.periodNs * 1.02 && gap > g.periodNs * 0.9)
+            // Only a gap no longer than the frame's blanks can be trusted to
+            // measure them.
+            const long held = long(frame_rate::BlanksAFrame());
+            const double each = gap / double(held);
+            if (!g.exactRate && frames == 1 && blanks == held && each <= g.periodNs * 1.02 &&
+                each > g.periodNs * 0.9)
             {
-                g.periodNs += (gap - g.periodNs) / 256.0;
+                g.periodNs += (each - g.periodNs) / 256.0;
                 frame_rate::SetDisplay(g.modeHz, g.periodNs);
                 // Four times the average's length: what the mode's rate was
                 // out by has gone from it.
@@ -830,10 +889,23 @@ namespace
         g.buffered += (behind - g.buffered) / 16.0;
         g.behindCount[std::min<uint64_t>(uint64_t(behind), 3)]++;
         if (!g.nominalNs) return;
-        const double stretch = g.buffered > 1.5 ? kNudge : 0.0;
+        // What is left waiting is drained: more than a frame and a half
+        // behind the one on screen where the present was waited for, and
+        // where the swapchain's record has the blank each frame was shown
+        // at, a frame reaching the screen more than kMostBlanks after it was
+        // finished. Only where the guest's blank is what paces the title:
+        // at the console's half rate and under the display's pacing the
+        // window does (vk::renderer::Swap), and a longer blank would only
+        // slow the title's count of them.
+        const bool draining = frame_rate::Mode() == frame_rate::kByConsole &&
+                              frame_rate::ConsoleBlanks() == 1 &&
+                              (g.presentTimes ? g.lateBlanks > kMostBlanks : g.buffered > 1.5);
+        const double stretch = draining ? kNudge : 0.0;
         (stretch > 0 ? g.stretched : g.shownOnTime)++;
         g.guestPeriodNs.store(uint64_t(g.periodNs * (1.0 + stretch)), std::memory_order_relaxed);
-        g.guestPeriodAt.store(at, std::memory_order_relaxed);
+        // When it was learnt, which with the swapchain's record is some
+        // frames after `at`.
+        g.guestPeriodAt.store(Nanoseconds(), std::memory_order_relaxed);
     }
 
     // Waits on each present in turn until it is on the screen. Its own thread,
@@ -866,6 +938,34 @@ namespace
             g.waiting.pop_front();
             if (r == VK_SUCCESS) SawDisplayed(id, at);
             else g.lastShownNs = -1;
+        }
+    }
+
+    // The presents the swapchain has a time on screen for by now, oldest
+    // first (VK_GOOGLE_display_timing): the window thread asks after each
+    // present. Android's swapchain has one ready once four more presents
+    // with an id have followed it.
+    void CollectPresentTimes()
+    {
+        uint32_t count = 0;
+        if (g.pastPresentTimes(g.device, g.swapchain, &count, nullptr) != VK_SUCCESS || !count) return;
+        VkPastPresentationTimingGOOGLE times[8];
+        count = std::min<uint32_t>(count, uint32_t(std::size(times)));
+        const VkResult got = g.pastPresentTimes(g.device, g.swapchain, &count, times);
+        if (got != VK_SUCCESS && got != VK_INCOMPLETE) return;
+        std::lock_guard lock(g.waitLock);
+        for (uint32_t i = 0; i < count; i++)
+        {
+            // The id is the serial's low half. One that is not waiting went
+            // with a swapchain since replaced.
+            const auto found = std::find_if(g.waiting.begin(), g.waiting.end(), [&](uint64_t serial) {
+                return uint32_t(serial) == times[i].presentID;
+            });
+            if (found == g.waiting.end()) continue;
+            const uint64_t id = *found;
+            // The ones before it were never shown.
+            g.waiting.erase(g.waiting.begin(), found + 1);
+            if (times[i].actualPresentTime) SawDisplayed(id, int64_t(times[i].actualPresentTime));
         }
     }
 
@@ -1243,7 +1343,13 @@ namespace
                 g.takenWake.notify_all();
             }
         }
-        if (shown.serial && !again) stutters::Shown(shown.serial);
+        if (shown.serial && !again)
+        {
+            stutters::Shown(shown.serial);
+            report::Late(report::kToWindow,
+                         uint64_t(Nanoseconds() - g.finishedNs[shown.serial % Presenter::kFinishTimes].load(
+                                                      std::memory_order_relaxed)));
+        }
 
         VkPresentInfoKHR present{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
         present.waitSemaphoreCount = 1;
@@ -1256,6 +1362,18 @@ namespace
         id.swapchainCount = 1;
         id.pPresentIds = &shown.serial;
         if (g.presentWait && shown.serial && !again) present.pNext = &id;
+        // No time asked for: the next blank, as without it. Every present is
+        // given an id, a frame's later blanks and the window's own colour the
+        // id nothing waits for: Android's swapchain has a present's time
+        // once four more with an id have followed it, and the window keeps
+        // the times of its last eight buffers, so at a limit of 30, where
+        // every second present is a frame's second blank, a frame's time
+        // had gone before it was asked for.
+        const VkPresentTimeGOOGLE time{ shown.serial && !again ? uint32_t(shown.serial) : 0, 0 };
+        VkPresentTimesInfoGOOGLE times{ VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE };
+        times.swapchainCount = 1;
+        times.pTimes = &time;
+        if (g.presentTimes) present.pNext = &times;
         // Out of date and suboptimal here mean the window changed under the
         // present: the swapchain is remade before the next frame. Only a lost
         // device is a failure.
@@ -1268,13 +1386,16 @@ namespace
             g.remakeSwapchain = true;
         else
             vk::pipeline::Failed(presented, "present");
-        if (g.presentWait && shown.serial && !again &&
+        if ((g.presentWait || g.presentTimes) && shown.serial && !again &&
             (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR))
         {
             std::lock_guard waiting(g.waitLock);
             g.waiting.push_back(shown.serial);
+            // The swapchain keeps the times of its last ten presents.
+            if (g.presentTimes && g.waiting.size() > 16) g.waiting.pop_front();
             g.waitWake.notify_one();
         }
+        if (g.presentTimes && !g.remakeSwapchain) CollectPresentTimes();
 
         g.frameIndex = (g.frameIndex + 1) % kFramesInFlight;
         // Frames, not blanks: the app's frame counter reads this.
@@ -1689,6 +1810,7 @@ void vk::ShowImage(void* image, uint32_t width, uint32_t height, uint64_t serial
 {
     if (!g.running.load(std::memory_order_relaxed)) return;
     std::lock_guard lock(g.lock);
+    g.finishedNs[serial % Presenter::kFinishTimes].store(Nanoseconds(), std::memory_order_relaxed);
     g.frameQueue.push_back({ static_cast<VkImage>(image), width, height, serial });
     g.lastQueued.store(serial, std::memory_order_relaxed);
     g.wake.notify_one();
@@ -1787,9 +1909,9 @@ void vk::StopPresenting()
     { std::lock_guard lock(g.lock); g.wake.notify_all(); g.takenWake.notify_all(); }
     { std::lock_guard lock(g.waitLock); g.waitWake.notify_all(); }
     g.worker.join();
-    if (g.waiter.joinable())
+    if (g.waiter.joinable()) g.waiter.join();
+    if (g.presentWait || g.presentTimes)
     {
-        g.waiter.join();
         LOGI("vulkan: the display's blank measured %.1f us; frames behind the one on screen"
              " when it was shown: 0 x%llu, 1 x%llu, 2 x%llu, 3+ x%llu; the guest's blank ran"
              " at the display's for %llu, longer for %llu",
@@ -1797,6 +1919,11 @@ void vk::StopPresenting()
              (unsigned long long)g.behindCount[1], (unsigned long long)g.behindCount[2],
              (unsigned long long)g.behindCount[3], (unsigned long long)g.shownOnTime,
              (unsigned long long)g.stretched);
+        LOGI("vulkan: frames reached the screen within so many of the display's blanks of the"
+             " renderer finishing them: 1 x%llu, 2 x%llu, 3 x%llu, 4 x%llu, more x%llu",
+             (unsigned long long)g.shownWithin[0], (unsigned long long)g.shownWithin[1],
+             (unsigned long long)g.shownWithin[2], (unsigned long long)g.shownWithin[3],
+             (unsigned long long)g.shownWithin[4]);
     }
 }
 

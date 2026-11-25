@@ -19,6 +19,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   published: no level has been played from start to finish by a person,
   Exo Survival's later waves were reached only with test tools, and the
   campaign saves at every checkpoint where the console did not.
+- **A frame reaches the screen sooner**
+  ([docs/rendering.md](docs/rendering.md#presenting)), all four games on
+  Android. No phone's driver here says when a present is on screen, so the
+  game's 60 Hz blank ran on a timer beside the display's, and whenever the
+  timer was the faster the renderer ran three frames ahead of the screen;
+  at an FPS limit of 30 it always did. The blank now follows the display
+  by the times Android's own swapchain keeps (`VK_GOOGLE_display_timing`),
+  and at 30 a frame waits for the window to have taken the one before it.
+  From the renderer finishing a frame to the frame on screen, Retroid
+  Pocket Flip 2: 158 ms to 58 ms at 30, 48 ms to 31 ms at 60, 22.5 ms at
+  45 as before; AYN Thor 42, 16 and 16 ms. `MW2_REPORT` says it,
+  `MW2_REPORT_SECONDS` for each second with the frame's draws and copies,
+  and `MW2_FOLLOW_DISPLAY=0` is the timer again.
 - **Fewer drops to 45 frames a second on a Snapdragon 865**
   ([docs/android.md](docs/android.md#the-campaigns-slow-places-24-november-2026)),
   in all four games' campaigns on the Retroid Pocket Flip 2:
@@ -207,6 +220,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **Call of Duty 4 holds an FPS limit of 45**, set in the game's menu or
+  before the start: its own limiter let three frames through in the time
+  of one (136 a second, which the display then paced), so the runtime
+  holds its presents to the limit instead: 45.0 on both devices.
 - **The on-screen controls stay off** (and every other choice made in the
   game stays made): the launcher and the game are two processes with one
   preference file, each wrote its own stale copy over the other's, and a

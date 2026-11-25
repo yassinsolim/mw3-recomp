@@ -7,7 +7,9 @@
 // console's pacing too, a frame held for two of the guest's blanks, which is
 // D3D's own half-rate interval (d3d_hooks.cpp): every frame is as long as the
 // last, where a limiter counting 33 ms against blanks 33.3 ms apart shows a
-// frame for one blank or three every second or so. Any other number takes
+// frame for one blank or three every second or so. The window shows each
+// frame for two of the display's blanks there, and the renderer waits for
+// it (vk::renderer::Swap). Any other number takes
 // the title off the blank the way the console's D3D offers it, and what
 // paces it then depends on the display:
 //
@@ -20,6 +22,8 @@
 //   * a number under it: the title's limiter paces it, with that number as
 //     com_maxfps; 0 is no limit. The limiter counts whole milliseconds a
 //     frame, so the rate it keeps is 1000 over a whole number: 45 gives 45.5.
+//     Call of Duty 4's limiter does not hold a limit, and the runtime holds
+//     its presents to the limit's period instead (d3d_hooks.cpp): 45.0.
 //     The window shows the newest frame at each blank.
 #include <algorithm>
 #include <atomic>
