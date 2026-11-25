@@ -1250,8 +1250,9 @@ crosses both frames, so no figure is given).
 
 ## The published app, as a new player (24 November 2026)
 
-v0.1.0 of `com.aw.recomp`, the release workflow's own APK
-(`aw-recomp-v0.1.0.apk`, release-signed, no switches), installed on a
+v0.1.0 of `com.aw.recomp`, a release workflow's own APK
+(`aw-recomp-v0.1.0.apk` as first drafted from `10024f2`, release-signed, no
+switches), installed on a
 Retroid Pocket Flip 2 that had no `com.aw.recomp`, and driven by touch over
 adb. Pictures: `private-captures\aw\launch-*.png`.
 
@@ -1264,6 +1265,19 @@ adb. Pictures: `private-captures\aw\launch-*.png`.
 | The start screen's backdrop from the player's disc | **verified** | |
 | Multiplayer: Bots at 6, the player's name, System Link, Create Game, Start Game: Team Deathmatch on Retreat, three bots a side, 10 to 7 after two and a half minutes | **verified**, 60 FPS | |
 | Check for updates on the draft | "This is the newest version" | |
+
+The release was then built again from `0e98df8` (the request for the second
+disc at the top of the installer, the app's wording for two discs, and
+`android`'s two commits since) and the whole of the above done once more
+from a fresh install of that APK, the one published: the build 13 min 5 s,
+the discs 38 s and 46 s, 17 minutes from the app's first screen to the title
+screen, Seoul to its rooftop and the same match at 60 FPS
+(`launch-f*.png`). After publishing:
+
+| | Seen |
+|---|---|
+| The update | an app of the same source with version code 99, release-signed, put in the published one's place (the game files moved aside and back): it offers v0.1.0 with the release's notes, downloads the published APK and Android installs it over itself; the 11 GB of game files are as they were |
+| `setup\setup.cmd -Game aw ... -Install -Device <serial>` from the public clone | downloads the published app, finds the game code it built fits it, installs both; Resume Game then goes on from the rooftop's checkpoint on that game package, 60 FPS |
 
 A stall report ("no world frame since") is written during Seoul's loading
 movie, which draws no world; the game goes on.
