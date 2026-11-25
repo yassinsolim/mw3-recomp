@@ -51,6 +51,9 @@ Windows executables to build. The Android app always holds both.
 android (default), pc, or both. Asked for when not given.
 .PARAMETER Install
 Install the built APK on the connected phone (adb) without asking.
+.PARAMETER NoInstall
+Build only: nothing is installed on or copied to any phone, whatever is
+connected.
 .PARAMETER PushIso
 Copy the disc image to the phone's Download folder, for the app's installer.
 .PARAMETER Instance
@@ -82,9 +85,10 @@ given. Licence terms of the Android SDK are accepted on your behalf. With
 more than one phone connected and no -Device, nothing is installed: the
 build is made and the command for each phone is printed.
 .PARAMETER Device
-The phone to install on, by its adb serial (`adb devices`), when more than
-one is connected. Without it you are asked about the first; a run that asks
-nothing (-Yes) installs on none.
+The phone to install on, by its adb serial (`adb devices`). Without it you
+are asked about the one connected, or the first of several; a run that asks
+nothing (-Yes) installs only on a phone named here, and on none when that
+phone is not connected.
 .PARAMETER Toolchain
 Where the tools go (default: .toolchain\ in the repository).
 .PARAMETER CamoPacks
@@ -112,6 +116,7 @@ param(
     [ValidateSet('both', 'sp', 'mp')][string]$Title,
     [ValidateSet('android', 'pc', 'both')][string]$Build,
     [switch]$Install,
+    [switch]$NoInstall,
     [switch]$PushIso,
     [ValidateRange(1, 9)][int]$Instance = 1,
     [switch]$Recomp,
@@ -396,8 +401,11 @@ function Get-Devices {
 function Select-InstallDevice([object[]]$ready, [string]$device, [bool]$interactive) {
     $chosen = @($ready | Where-Object { $_.Serial -eq $device })
     if ($chosen.Count) { return $chosen[0].Serial }
-    if ($ready.Count -gt 1 -and -not $interactive) { return $null }
-    if ($device) { Warn "no phone with the serial $device is connected; using $($ready[0].Serial)" }
+    # A phone that was named and is not there is never replaced by another,
+    # and a run that asks nothing takes none it was not given: such a run,
+    # with one phone connected that was somebody else's at the time, put an
+    # app and 4 GB on it.
+    if ($device -or -not $interactive) { return $null }
     if ($ready.Count -gt 1) { Warn "more than one phone connected; using $($ready[0].Serial) (-Device <serial> chooses)" }
     return $ready[0].Serial
 }
@@ -619,6 +627,7 @@ $TestCopy = $Instance -gt 1
 # into a package of its own (docs/game-library.md). The multiplayer test copy
 # is one build, code and all.
 $Split = $ForAndroid -and -not $TestCopy
+if ($NoInstall -and ($Install -or $PushIso)) { throw '-NoInstall installs and copies nothing; -Install and -PushIso do. Choose one.' }
 if (($GameOnly -or $Dev -or $Suffix) -and -not $Split) { throw '-GameOnly, -Dev and -Suffix are for the Android app.' }
 if ($GameOnly -and $Dev) { throw '-GameOnly leaves the app alone; -Dev builds it. Choose one.' }
 if ($Suffix -and -not ($GameOnly -or $Dev)) { throw '-Suffix goes with -Dev or -GameOnly: the published app has the one name.' }
@@ -1057,7 +1066,9 @@ if ($ForPc) {
 }
 
 # ---- 7. onto the phone -------------------------------------------------------
-if ($ForAndroid -and $Apks.Count) {
+if ($ForAndroid -and $Apks.Count -and $NoInstall) {
+    Note 'Nothing is installed (-NoInstall): the APKs are in out\.'
+} elseif ($ForAndroid -and $Apks.Count) {
     $devices = @(Get-Devices)
     $ready = @($devices | Where-Object { $_.State -eq 'device' })
     if (@($devices | Where-Object { $_.State -eq 'unauthorized' }).Count) { Warn 'a phone is connected but has not allowed USB debugging: accept the prompt on its screen.' }
@@ -1071,7 +1082,7 @@ if ($ForAndroid -and $Apks.Count) {
             if ($_.Value -is [switch]) { if ($_.Value) { "-$($_.Key)" } }
             elseif ("$($_.Value)" -match '\s') { "-$($_.Key) `"$($_.Value)`"" }
             else { "-$($_.Key) $($_.Value)" } }) -join ' '
-        Warn "the build is ready and was NOT installed: $($ready.Count) phones are connected and $(if ($Device) { "none of them is $Device" } else { 'none was chosen' }), and this run asks nothing. To install it, run one of:"
+        Warn "the build is ready and was NOT installed: $(if ($Device) { "no phone with the serial $Device is connected" } else { 'this run asks nothing and no phone was named' }). To install it, run$(if ($ready.Count -gt 1) { ' one of' }):"
         foreach ($phone in $ready) { Note "setup\setup.cmd $again -Install -Device $($phone.Serial)" }
     } else {
         if ($Install -or (Ask "Install on $serial now?" $true)) {

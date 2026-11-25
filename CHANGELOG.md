@@ -5,6 +5,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **Setup installs only on a phone it was told.** A run that asks nothing
+  (`-Yes`, `--yes`, or no terminal) installs only on the phone `-Device`
+  (`--device`) names, and on none when that phone is not connected: it
+  used to take the only phone connected, and another in place of a named
+  one that was missing. `-NoInstall` (`--no-install`) builds and touches no
+  phone at all. At the keyboard nothing changes: you are asked.
 - **The game code has to be built again, once, for all four games.** After
   this update the game does not start with the game code you have: the app
   says that it was built for another version of the app and offers **Build

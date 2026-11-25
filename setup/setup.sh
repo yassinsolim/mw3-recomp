@@ -46,10 +46,13 @@ usage: bash setup/setup.sh [options]
                         the names the app's "Prepare files for building
                         online" writes)
   --install             install on the connected phone without asking
-  --device <serial>     the phone to install on (`adb devices`), when more
-                        than one is connected. Without it you are asked
-                        about the first; with --yes nothing is installed
-                        and the command for each phone is printed
+  --no-install          build only: nothing is installed on or copied to
+                        any phone, whatever is connected
+  --device <serial>     the phone to install on (`adb devices`). Without it
+                        you are asked about the one connected, or the first
+                        of several; with --yes nothing is installed unless
+                        the phone is named here and connected, and the
+                        command for each phone is printed
   --push-iso            also copy the disc image to the phone's Download folder
   --game-only           build and install the game code only; leave the app alone
   --dev                 build the app here instead of downloading the published one
@@ -64,7 +67,7 @@ usage: bash setup/setup.sh [options]
 EOF
 }
 
-GAME=mw3; ISO=; INSTALL_ISO=; XEX_DIR=; INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
+GAME=mw3; ISO=; INSTALL_ISO=; XEX_DIR=; INSTALL=0; NO_INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
 SUFFIX=; RECOMP=0; JOBS=; SDK=; TC=; CHECK=0; YES=0
 # As given, for the command printed when no phone was chosen (step 6).
 ARGS=("$@")
@@ -76,6 +79,7 @@ while [ $# -gt 0 ]; do
         --install-iso) INSTALL_ISO=${2:?--install-iso needs a file}; shift ;;
         --xex-dir) XEX_DIR=${2:?--xex-dir needs a folder}; shift ;;
         --install) INSTALL=1 ;;
+        --no-install) NO_INSTALL=1 ;;
         --device|-Device) DEVICE=${2:?--device needs a serial}; shift ;;
         --push-iso) PUSH_ISO=1 ;;
         --game-only) GAME_ONLY=1 ;;
@@ -138,6 +142,7 @@ sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 abi_hash() { tr -d '\r' < "$1" | sha256sum | cut -d' ' -f1; }
 
 case "$GAME" in mw3|mw2|cod4|aw) ;; *) die "--game must be mw3, mw2, cod4 or aw, not '$GAME'" ;; esac
+[ "$NO_INSTALL" = 1 ] && { [ "$INSTALL" = 1 ] || [ "$PUSH_ISO" = 1 ]; } && die '--no-install installs and copies nothing; --install and --push-iso do. Choose one.'
 [ -n "$INSTALL_ISO" ] && [ "$GAME" != aw ] && die '--install-iso is for --game aw: the other games have the one disc.'
 [ -n "$INSTALL_ISO" ] && [ ! -f "$INSTALL_ISO" ] && die "--install-iso: no file at $INSTALL_ISO"
 [[ "$SUFFIX" =~ ^(\.[a-z][a-z0-9]*)?$ ]] || die "--suffix must look like .dev"
@@ -278,19 +283,19 @@ devices() {   # the connected phones, a line each: <serial> <device|unauthorized
     "$ADB" devices 2> /dev/null | awk '$2 == "device" || $2 == "unauthorized" { print $1, $2 }'
 }
 
-# Which of the connected phones the APKs go on: the one --device names, or
-# the only one there is. With several and none named, somebody at the
-# keyboard is warned and asked about the first; a run that asks nothing
-# (--yes, or no terminal) gets none, because it would be a phone nobody
-# chose: such a run, with two phones on one PC, put an app and 4 GB on the
-# one adb listed first.
+# Which of the connected phones the APKs go on: the one --device names, when
+# it is connected, and never another in its place. With none named,
+# somebody at the keyboard is asked about the only one, or warned and asked
+# about the first of several; a run that asks nothing (--yes, or no
+# terminal) gets none, because it would be a phone nobody chose: such runs
+# put an app and 4 GB on the one adb listed first of two, and on the only
+# one connected, which was somebody else's at the time.
 install_device() {   # install_device <ready serial...>: prints the serial, or nothing
     local candidate
     for candidate in "$@"; do
         if [ "$candidate" = "$DEVICE" ]; then echo "$candidate"; return 0; fi
     done
-    if [ $# -gt 1 ] && [ "$INTERACTIVE" = 0 ]; then return 0; fi
-    if [ -n "$DEVICE" ]; then warn "no phone with the serial $DEVICE is connected; using $1"; fi
+    if [ -n "$DEVICE" ] || [ "$INTERACTIVE" = 0 ]; then return 0; fi
     if [ $# -gt 1 ]; then warn "more than one phone connected; using $1 (--device <serial> chooses)"; fi
     echo "$1"
 }
@@ -684,8 +689,10 @@ for line in "${found[@]}"; do
     esac
 done
 serial=
-[ ${#ready[@]} = 0 ] || serial=$(install_device "${ready[@]}")
-if [ ${#ready[@]} = 0 ]; then
+[ ${#ready[@]} = 0 ] || [ "$NO_INSTALL" = 1 ] || serial=$(install_device "${ready[@]}")
+if [ "$NO_INSTALL" = 1 ]; then
+    note 'Nothing is installed (--no-install): the APKs are in out/.'
+elif [ ${#ready[@]} = 0 ]; then
     note 'No phone connected with USB debugging on; install the APKs later (copy them to the phone and open each, or run setup again with it connected).'
 elif [ -z "$serial" ]; then
     # The command this run was, with the choice it lacked: what is built is
@@ -699,7 +706,7 @@ elif [ -z "$serial" ]; then
             *) again+=("$(printf '%q' "$arg")") ;;
         esac
     done
-    warn "the build is ready and was NOT installed: ${#ready[@]} phones are connected and $(if [ -n "$DEVICE" ]; then echo "none of them is $DEVICE"; else echo 'none was chosen'; fi), and this run asks nothing. To install it, run one of:"
+    warn "the build is ready and was NOT installed: $(if [ -n "$DEVICE" ]; then echo "no phone with the serial $DEVICE is connected"; else echo 'this run asks nothing and no phone was named'; fi). To install it, run$([ ${#ready[@]} -gt 1 ] && echo ' one of'):"
     for candidate in "${ready[@]}"; do note "bash setup/setup.sh ${again[*]} --install --device $candidate"; done
 else
     if [ "$INSTALL" = 1 ] || ask "Install on $serial now?" y; then
