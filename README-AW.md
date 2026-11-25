@@ -122,8 +122,8 @@ defaults. Other hardware is untested.
 | Exo Survival | ⚠️ | starts from the campaign's menu and plays, alone or two together; see Known limits |
 | Setting up with no PC, from a fresh install of v0.1.0 | ✅ | Flip 2: the game code built in 13 min 8 s, each disc copied in about 40 s, 18 minutes from opening the app to the game's title screen. Not run on the Thor |
 | Playing from both images on an SD card, nothing copied | ✅ | Flip 2: found on the card by itself, the game starts 2 s after **Install & Play**; Seoul loads in 14 s and a match on Retreat in under 8 s, the same as from copied files |
-| Your own map packs (with a PC: `setup -Dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Not run on the Flip 2 |
-| Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive |
+| Your own map packs (with a PC: `setup -Dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Flip 2: Atlas Gorge against a PC, 60 FPS |
+| Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive. Not run on the Flip 2 |
 | Combat Readiness Program, split screen | ❔ | not tested on a device |
 
 ## Known limits
@@ -150,7 +150,7 @@ This is a first release. What has **not** been shown:
   update copied off your console, `setup\setup.cmd -Game aw -Dlc <folder>`
   builds the updated multiplayer and the app gets **Add DLC** and **Exo
   Zombies** entries ([docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies)).
-  Seen on the AYN Thor only; Exo Zombies' later rounds only with test tools;
+  Exo Zombies was seen on the AYN Thor only, its later rounds only with test tools;
   the campaign stays the disc's.
 - **Online play is the project's own server**, not Xbox LIVE: no ranks carry
   over, the Friends list is empty, and everyone needs the same app version.

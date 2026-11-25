@@ -78,8 +78,9 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   menu labels stay in that language (854 strings, most of them the supply
   drops' gear). Seen on Windows and on the AYN Thor (a pack's map with
   bots, a match against a PC through the project's server and Exo Zombies,
-  all at 119 FPS; Exo Zombies' later rounds only with test tools); not run
-  on the Retroid Pocket Flip 2
+  all at 119 FPS; Exo Zombies' later rounds only with test tools) and on
+  the Retroid Pocket Flip 2 (a pack's map against a PC, 60 FPS; Exo Zombies
+  not run there)
   ([docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies),
   [docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#map-packs-and-exo-zombies-25-november-2026)).
 - `MW2_DLC_DIR` takes several folders, with semicolons between.
