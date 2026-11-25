@@ -444,6 +444,27 @@ A resolve does not end the submission unless the slot's arena share is half used
   a whole sweep is a curve, so the table is published under a lock at entry 255,
   and frames are shown untouched until then. `display_table.cpp` applies it as
   a compute pass on the present image.
+- **Whose table it is.** D3D9 writes the table at a present, from the ramp
+  the title last gave `SetGammaRamp` (the title's Brightness setting) or,
+  for a frame whose block from `VdGetSystemCommandBuffer` is not zero at
+  +8, from a straight ramp
+  ([d3d9-seam.md](d3d9-seam.md#the-vd-imports-runtimekernelvideocpp)). While
+  that block was left unwritten, Advanced Warfare's table alternated: the
+  straight ramp for most frames and the title's for one frame, seven times
+  in eight seconds of the multiplayer's lobby on a Retroid Pocket Flip 2 and
+  ten in twelve seconds of a match, each a flash of the whole frame, HUD
+  included, of 13 levels of 255 at the owner's Brightness. It is not the
+  graphics chip's: the logs of 40 of 58 earlier Advanced Warfare runs,
+  Windows' among them, count hundreds of table changes each. With the block
+  zeroed the table is written twice in a run (D3D9's own at start-up, then
+  the title's) and stays: no flash in 20 seconds of the lobby nor in 12 of a
+  match, at 60 frames a second as before, and the picture is the brighter
+  of the two, the one the title's Brightness asks for (the lobby's mean
+  level 47 of 255 where it was 34). The other three on the same device, at
+  their first screens, with the block unwritten and zeroed: Modern Warfare
+  3's table was the straight ramp alone and is now the title's (a mean
+  level of 33 where it was 30), so its Brightness reaches the screen;
+  Modern Warfare 2's and Call of Duty 4's are the same table either way.
 
 ## Resolution scale
 

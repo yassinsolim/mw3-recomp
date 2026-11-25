@@ -39,7 +39,16 @@ can adopt the guest structs but cannot replace them.
 - `VdQueryVideoMode`, `XGetVideoMode` and `VdGetCurrentDisplayInformation`
   report 1280x720 progressive, widescreen, HiDef, 60 Hz.
   `VdGetCurrentDisplayGamma` reports type 2 with gamma 2.2222.
-- `VdGetSystemCommandBuffer` returns a scratch buffer that is never submitted.
+- `VdGetSystemCommandBuffer` returns a scratch buffer that is never submitted,
+  in a block of 148 bytes on D3D9's stack that is otherwise zeroed, as Xenia
+  zeroes it. The present reads the block's other dwords: while the one at +8
+  is not zero and the front buffer is the title's own, the frame goes out
+  with a null gamma ramp, which D3D9 turns into a straight one, and the
+  title's ramp is written again with the next frame that finds it zero.
+  Unwritten, the block was whatever the stack held: not zero for most frames
+  and zero for a few, so Advanced Warfare was shown through the straight
+  ramp and, a few times a second, through its own for one frame
+  ([rendering.md](rendering.md#gamma)).
 - `VdSwap` fills the reserved present dwords (below).
 - `MmGetPhysicalAddress` must match the masking the title also inlines.
 

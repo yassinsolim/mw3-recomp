@@ -257,6 +257,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **Advanced Warfare no longer flickers.** A few times a second one frame
+  was brighter than its neighbours, the whole picture with the HUD (seven
+  times in eight seconds of the multiplayer's lobby and ten in twelve
+  seconds of a match on a Retroid Pocket Flip 2; the logs of Windows runs
+  show it too). The game's Brightness reached the screen for those
+  frames only: the rest were shown through a plain ramp, because a block
+  the game's graphics library reads at every frame was left as the stack
+  had it. It is filled now, so every frame has the game's Brightness and
+  the picture is a little brighter than before; lower
+  **Options > Brightness** if you had raised it to make up. Modern Warfare
+  3 never showed its own Brightness for the same reason and does now;
+  Modern Warfare 2 and Call of Duty 4 are unchanged
+  ([docs/rendering.md](docs/rendering.md#gamma)).
 - **Call of Duty 4 holds an FPS limit of 45**, set in the game's menu or
   before the start: its own limiter let three frames through in the time
   of one (136 a second, which the display then paced), so the runtime

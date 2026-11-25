@@ -8,6 +8,8 @@
 #include "../render_size.h"
 #include "../gpu/gpu.h"
 
+#include <cstring>
+
 namespace
 {
     struct X_VIDEO_MODE
@@ -168,7 +170,25 @@ PPC_FUNC(__imp__VdGetSystemCommandBuffer)
     // A scratch buffer the title may append to; it is never submitted.
     static uint32_t buffer = 0;
     if (!buffer) buffer = kernel::AllocatePhysical(64 * 1024, 0x1000);
-    if (auto* p = GuestPtr<be32>(ctx.r3.u32)) *p = buffer;
+    // What it fills is 148 bytes on D3D9's stack (every title's present:
+    // `addi r3,r1,208`, and `li r5,148` where D3D9 clears them itself), and
+    // D3D9 reads more of them than the buffer. While the dword at +8 is not
+    // zero and the front buffer is the title's own, the frame is presented
+    // with no gamma ramp, which D3D9 writes to the display's colour table as
+    // a straight one, and the title's ramp is written again with the next
+    // frame that finds the dword zero. Left as the stack had them, those
+    // bytes were not zero for most of Advanced Warfare's frames and zero for
+    // a few: the picture was shown through the straight ramp, and through
+    // the title's for one frame a few times a second -- a flash of the whole
+    // frame, the HUD with it. Modern Warfare 3's were never zero, and its
+    // Brightness never reached the screen. So the block is zeroed, as Xenia
+    // zeroes it: every frame is the title's own, with the title's ramp.
+    constexpr uint32_t kSystemCommandBufferBytes = 148;
+    if (auto* block = GuestPtr<uint8_t>(ctx.r3.u32))
+    {
+        std::memset(block, 0, kSystemCommandBufferBytes);
+        *GuestPtr<be32>(ctx.r3.u32) = buffer;
+    }
     if (auto* id = GuestPtr<be32>(ctx.r4.u32)) *id = 0;
     ctx.r3.u64 = 0;
 }
