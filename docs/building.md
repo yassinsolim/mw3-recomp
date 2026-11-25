@@ -431,7 +431,7 @@ A diagnostics build links winpthreads statically, for `clock_gettime`.
 | `gpu/vulkan/` | the Vulkan renderer: draws, targets, resolves, frames, pipelines and pipeline libraries, the shader translator, the texture cache, the recorder thread, the display table, the presenter window, RenderDoc capture |
 | `image_move.cpp` | the image pool's block copy, which the console makes with a memory-export draw |
 | `shader_preload.cpp` | hands shaders loaded with a level to the renderer to compile |
-| `engine.h`, `engine_log.cpp`, `predicate_waits.cpp`, `console.cpp` | hooks into the engine: print and error paths, spin waits, the console command buffer |
+| `engine.h`, `engine_log.cpp`, `predicate_waits.cpp`, `console.cpp`, `console_queue.cpp` | hooks into the engine: print and error paths, spin waits, the console command buffer and the commands waiting for it (apart from the title, so the input test links it) |
 | `player.cpp` | the headless walker and route recorder |
 | `field_of_view.cpp` | `MW2_FOV`: scales the view angle the title computes |
 | `shadow_resolution.cpp`, `shadow_resolution.h` | which depth surface the title made for its shadow maps, for `MW2_SHADOW_SCALE` |

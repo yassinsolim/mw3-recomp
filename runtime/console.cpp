@@ -17,85 +17,13 @@
 #include "guest.h"
 #include "log.h"
 #include "console.h"
+#include "console_queue.h"
 #include "bots.h"
 #include "diagnostics.h"
 #include "match_options.h"
-#include "env.h"
 
-#include <chrono>
-#include <cstdlib>
 #include <cstring>
-#include <mutex>
 #include <string>
-#include <vector>
-
-namespace
-{
-    struct Entry
-    {
-        double at;
-        std::string text;
-        bool done = false;
-    };
-
-    std::mutex g_lock;
-    std::vector<Entry> g_script;
-    std::string g_place;                    // console::Place, the latest only
-    bool g_parsed = false;
-    std::chrono::steady_clock::time_point g_start;
-
-    // A command may contain spaces; only ';' separates entries and only the first
-    // ':' separates the time.
-    void Parse()
-    {
-        g_parsed = true;
-        g_start = std::chrono::steady_clock::now();
-        const char* spec = env::Text("MW2_CONSOLE");
-        if (!spec) return;
-
-        std::string s = spec;
-        size_t pos = 0;
-        while (pos <= s.size())
-        {
-            size_t end = s.find(';', pos);
-            if (end == std::string::npos) end = s.size();
-            std::string item = s.substr(pos, end - pos);
-            pos = end + 1;
-
-            size_t colon = item.find(':');
-            if (colon == std::string::npos || colon == 0) continue;
-            Entry e;
-            e.at = std::strtod(item.substr(0, colon).c_str(), nullptr);
-            e.text = item.substr(colon + 1);
-            if (e.text.empty()) continue;
-            g_script.push_back(std::move(e));
-        }
-
-        for (const Entry& e : g_script)
-            LOGI("console: will run \"%s\" at %.2f s", e.text.c_str(), e.at);
-    }
-
-    double Elapsed()
-    {
-        return std::chrono::duration<double>(std::chrono::steady_clock::now() - g_start).count();
-    }
-}
-
-void console::RunNow(const char* text)
-{
-    std::lock_guard g(g_lock);
-    if (!g_parsed) Parse();
-    Entry e;
-    e.at = 0.0;
-    e.text = text;
-    g_script.push_back(std::move(e));
-}
-
-void console::Place(const char* text)
-{
-    std::lock_guard g(g_lock);
-    g_place = text;
-}
 
 void console::Pump(PPCContext& ctx, uint8_t* base)
 {
@@ -104,27 +32,7 @@ void console::Pump(PPCContext& ctx, uint8_t* base)
 #endif
     std::string text;
     bool placing = false;
-    {
-        std::lock_guard g(g_lock);
-        if (!g_parsed) Parse();
-        if (g_script.empty() && g_place.empty()) return;
-
-        const double now = Elapsed();
-        for (Entry& e : g_script)
-        {
-            if (e.done || now < e.at) continue;
-            e.done = true;
-            text = e.text;
-            break;                          // one per pump; they queue anyway
-        }
-        if (text.empty() && !g_place.empty())
-        {
-            text = std::move(g_place);
-            g_place.clear();
-            placing = true;
-        }
-    }
-    if (text.empty()) return;
+    if (!Take(text, placing)) return;
 
     // Cbuf_AddText wants a newline-terminated line, the way a .cfg supplies it.
     if (text.back() != '\n') text += '\n';
