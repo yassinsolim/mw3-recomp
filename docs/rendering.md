@@ -811,13 +811,39 @@ letterboxed, or stretched to fill it under `MW2_STRETCH=1`. `F8` or
 `MW2_FULLSCREEN=1` switches to borderless fullscreen.
 
 **The guest's blank follows the display.** On the console the blank the title
-counts is the display's own. `VK_KHR_present_wait` timestamps each present.
+counts is the display's own. `VK_KHR_present_wait` timestamps each present;
+where a device has none, Android's swapchain says when each present reached
+the screen a few frames afterwards (`VK_GOOGLE_display_timing`, over any
+driver, Turnip's too; every present is given an id, since the window keeps
+the times of its last eight buffers only).
 The display period comes from the mode's exact rate, or from a slow average of
 single-frame gaps. For a 59-61 Hz display, `vk::GuestBlankPeriod` returns that
-period, 0.5% longer while more than 1.5 frames wait behind the one on screen,
-so that latency drains unseen. It is never shorter. It returns 0, and the
-vblank thread keeps its own 60 Hz, when the display runs at another rate,
-present wait is missing, or nothing has been shown for half a second.
+period, 0.5% longer while frames wait: more than 1.5 behind the one on screen
+with present wait, a frame on screen more than two blanks after the renderer
+finished it with the swapchain's times (one blank for the compositor and one
+for the display is what an empty queue costs). So latency drains unseen. It is
+never shorter. It returns 0, and the vblank thread keeps its own 60 Hz, when
+the display runs at another rate, neither extension is there, nothing has
+been shown for half a second, or under `MW2_FOLLOW_DISPLAY=0`.
+
+Without it both phones ran the guest's blank on a timer beside the display,
+and whenever the timer was the faster the renderer ran the three frames ahead
+that its present images allow. At the console's half rate (a limit of 30) it
+always did: the title made its frames faster than the window showed them, two
+blanks each, and the window's taking them was what held it to 30. The frame
+there now waits until the window has taken the one before it
+(`vk::renderer::Swap`), as under the display's pacing. On screen after the
+renderer finished a frame (`MW2_REPORT`, `in play, a frame was presented ...`;
+25 November 2026, F.N.G. and S.S.D.D.):
+
+| Limit | Retroid Pocket Flip 2, 60 Hz: before | after | AYN Thor, 120 Hz: after |
+|---|---|---|---|
+| 30 | 158 ms (116 ms until the window presented it) | 58 ms (16 ms) | 42 ms (8 ms) |
+| 45 | 22.5 ms | 22.5 ms | 15.5 to 17 ms |
+| 60 | 48 ms with the timer the faster, 27 ms with it the slower | 30 to 32 ms | 15.5 to 17.5 ms |
+
+At 30 a frame still waits a blank behind the second showing of the one
+before it, which the window presents as soon as the first.
 
 ### More than 60 frames a second
 
@@ -856,7 +882,13 @@ one line (`pacing: MW2_FPS_LIMIT 120 on a display at 120.00 Hz, a blank every
 - **The title's limiter** (`frame_rate::kByLimiter`), for any other limit:
   `com_maxfps <limit>`, or 0 for none. The window still presents one frame a
   blank, without tearing, but the newest: frames finished before it and not
-  yet shown are let go. Nothing waits behind the frame on screen.
+  yet shown are let go. Nothing waits behind the frame on screen. Call of
+  Duty 4's limiter does not hold a limit: its `Com_Frame` keeps three clocks,
+  one for every third frame, and each waits `1000 / com_maxfps` ms for its
+  own turn, so a limit of 45 let 136 frames a second through. There the
+  title's present returns no sooner than the limit's period after the one
+  before (`HoldToLimit`, `d3d_hooks.cpp`), `com_maxfps 0`: 45.0 a second,
+  set at the start or in the game's menu.
 
 The guest's blank keeps its 60 Hz in both, and `VdQueryVideoMode` its 60:
 with `r_vsync 0` nothing times a frame by blanks. The simulation's speed does

@@ -19,10 +19,44 @@
 
 #include <atomic>
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
+#include <thread>
 
 namespace
 {
+    // Whether the title's own limiter holds a limit. Call of Duty 4's does
+    // not: its Com_Frame (sub_821DD008) keeps three clocks, one for every
+    // third frame, and has each wait 1000 / com_maxfps ms for its own turn,
+    // so three frames pass in that time wherever in it they fall. A limit of
+    // 45 let 136 a second through, which the display then paced: 119 on a
+    // 120 Hz panel. The console never asks it for less than its blank's rate.
+#if defined(COD4_TITLE)
+    constexpr bool kTitleLimits = false;
+#else
+    constexpr bool kTitleLimits = true;
+#endif
+
+    // Where the title's limiter does not hold, the limit is held here: the
+    // present returns no sooner than the limit's period after the one
+    // before, as the console's does at its blank, and the title's threads
+    // behind it run at that. Counted from when the last was due, not from
+    // when it came, so a late wake-up is not added to every frame after it.
+    void HoldToLimit()
+    {
+        const uint32_t limit = frame_rate::Limit();
+        if (kTitleLimits || !limit || frame_rate::Mode() != frame_rate::kByLimiter) return;
+        static std::chrono::steady_clock::time_point due;   // the presenting thread's own
+        const auto period = std::chrono::nanoseconds(1'000'000'000 / limit);
+        const auto now = std::chrono::steady_clock::now();
+        if (now < due)
+        {
+            std::this_thread::sleep_until(due);
+            due += period;
+        }
+        else due = now + period;
+    }
+
     // MW2_FPS_LIMIT (frame_rate.h) takes the title off the guest's blank
     // with what the console has for it. D3D's present puts the device's
     // D3DRS_PRESENTINTERVAL in the flip request, and its flip handler retires
@@ -65,8 +99,8 @@ namespace
         // The display's own blanks hold the frames to its rate; a limiter
         // counting whole milliseconds beside them would let 125 through
         // against 120 shown.
-        const uint32_t maxFps = pacing == frame_rate::kByDisplay ? 0 : limit;
-        char how[112];
+        const uint32_t maxFps = pacing == frame_rate::kByDisplay || !kTitleLimits ? 0 : limit;
+        char how[160];
         if (pacing == frame_rate::kByConsole)
         {
             if (limited)
@@ -88,9 +122,13 @@ namespace
             limited = true;
             if (pacing == frame_rate::kByDisplay)
                 std::snprintf(how, sizeof how, "the display's: com_maxfps 0, every frame shown, one a blank");
-            else if (limit)
+            else if (limit && kTitleLimits)
                 std::snprintf(how, sizeof how, "the title's limiter: com_maxfps %u, %u a second, the newest"
                               " frame shown at each blank", limit, 1000 / std::max(1u, 1000 / limit));
+            else if (limit)
+                std::snprintf(how, sizeof how, "the runtime's limiter: com_maxfps 0, a present held until %u"
+                              " us after the one before, the newest frame shown at each blank",
+                              1'000'000 / limit);
             else
                 std::snprintf(how, sizeof how, "none: com_maxfps 0, the newest frame shown at each blank");
         }
@@ -167,6 +205,7 @@ GUEST_HOOK(T_D3D_Present)
     Pace(ctx.r3.u32);
     Shadows();
     GUEST_ORIG(T_D3D_Present)(ctx, base);
+    HoldToLimit();
     pacing::Note(pacing::kPresentEnd);
     gpu::Presented();
     stutters::TitlePresented();

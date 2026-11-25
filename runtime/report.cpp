@@ -42,6 +42,9 @@ namespace
         uint64_t spentAtLast[report::kTimeCount]{}, spentInPlay[report::kTimeCount]{};
         uint64_t costCount[report::kCostCount]{}, costMicroseconds[report::kCostCount]{},
                  costLongest[report::kCostCount]{};
+        // How long frames took from the renderer to the window and to the
+        // screen (report::Late), in the seconds that were all play.
+        uint64_t lateInPlay[report::kLatenessCount]{}, lateCountInPlay[report::kLatenessCount]{};
         bool written = false;
     } s;
 
@@ -58,9 +61,17 @@ namespace
     // The share of its width the scene was last drawn at, in percent
     // (report::Scene); 0 where it is never drawn smaller.
     std::atomic<uint32_t> g_scene{ 0 };
+    // The window's and the display's threads (report::Late).
+    std::atomic<uint64_t> g_late[report::kLatenessCount]{}, g_lateCount[report::kLatenessCount]{};
 }
 
 void report::Scene(uint32_t percent) { g_scene.store(percent, std::memory_order_relaxed); }
+
+void report::Late(Lateness of, uint64_t nanoseconds)
+{
+    g_late[of].fetch_add(nanoseconds, std::memory_order_relaxed);
+    g_lateCount[of].fetch_add(1, std::memory_order_relaxed);
+}
 
 namespace
 {
@@ -93,6 +104,8 @@ namespace
         uint64_t playNanoseconds = 0;
         // MW2_REPORT_SECONDS: what the second since the last reading held.
         uint64_t frames = 0, onTime = 0, spentAtSample[report::kTimeCount]{};
+        report::Work workAtSample{};
+        uint64_t lateAtSample[report::kLatenessCount]{}, lateCountAtSample[report::kLatenessCount]{};
         double longestMs = 0;
         uint64_t leastFree = UINT64_MAX, mostCommitted = 0;
         gpu::watch::Costs watch, watchInPlay;
@@ -211,6 +224,13 @@ report::Timed::~Timed()
                              std::chrono::steady_clock::now() - began).count()));
 }
 
+namespace
+{
+    report::Work g_work{};   // the renderer's thread's, like Frame
+}
+
+void report::Done(const Work& work) { g_work = work; }
+
 void report::Frame(bool world)
 {
     if (!On()) return;
@@ -254,6 +274,22 @@ void report::Frame(bool world)
     {
         const bool play = m.started && m.allPlay;
         Sample(play, now - m.sampled);
+        // How long the second's frames took to the window and the screen.
+        double lateMs[kLatenessCount]{};
+        for (size_t of = 0; of < kLatenessCount; of++)
+        {
+            const uint64_t late = g_late[of].load(std::memory_order_relaxed);
+            const uint64_t count = g_lateCount[of].load(std::memory_order_relaxed);
+            if (count > m.lateCountAtSample[of])
+                lateMs[of] = double(late - m.lateAtSample[of]) / 1e6 / double(count - m.lateCountAtSample[of]);
+            if (play)
+            {
+                s.lateInPlay[of] += late - m.lateAtSample[of];
+                s.lateCountInPlay[of] += count - m.lateCountAtSample[of];
+            }
+            m.lateAtSample[of] = late;
+            m.lateCountAtSample[of] = count;
+        }
         // A second of play in one line: where in a level the frame rate
         // falls, and whether the graphics chip or the renderer's thread is
         // what it waits for there.
@@ -261,19 +297,27 @@ void report::Frame(bool world)
         if (seconds && play && m.frames)
         {
             auto took = [&](Time time) { return double(spent[time] - m.spentAtSample[time]) / 1e6 / double(m.frames); };
+            auto each = [&](uint64_t now, uint64_t before) { return double(now - before) / double(m.frames); };
             char scene[48] = "";
             if (const uint32_t share = g_scene.load(std::memory_order_relaxed))
                 std::snprintf(scene, sizeof scene, "; the scene at %u%% of its width", share);
+            const Work& was = m.workAtSample;
             LOGI("report: second %.0f: %llu frames, %llu on time, the longest %.0f ms; a frame: the graphics chip"
                  " %.1f ms, the renderer's thread %.1f ms (%.1f waiting for the chip, %.1f reading textures,"
-                 " %.1f compiling)%s",
+                 " %.1f compiling)%s; %.0f draws in %.0f segments, copied: %.0f KB of constants, %.0f KB of"
+                 " vertex data, %.0f KB of indices; presented %.1f ms after it was finished, on screen %.1f ms",
                  std::chrono::duration<double>(now - s.first).count(), (unsigned long long)m.frames,
                  (unsigned long long)m.onTime, m.longestMs, took(kGpuBusy), took(kExecuting) - took(kDisplayWait),
-                 took(kGpuWait), took(kTextures), took(kCompiling), scene);
+                 took(kGpuWait), took(kTextures), took(kCompiling), scene,
+                 each(g_work.draws, was.draws), each(g_work.segments, was.segments),
+                 each(g_work.constantBytes, was.constantBytes) / 1024,
+                 each(g_work.vertexBytes, was.vertexBytes) / 1024,
+                 each(g_work.indexBytes, was.indexBytes) / 1024, lateMs[kToWindow], lateMs[kToScreen]);
         }
         m.frames = m.onTime = 0;
         m.longestMs = 0;
         std::copy(std::begin(spent), std::end(spent), m.spentAtSample);
+        m.workAtSample = g_work;
         m.started = true;
         m.sampled = now;
         m.allPlay = true;
@@ -331,6 +375,14 @@ void report::Write()
         if (s.spentInPlay[kGpuBusy])
             LOGI("report: in play, the graphics chip was at work %.0f%% of the time, %.1f ms a frame",
                  took(kGpuBusy), double(s.spentInPlay[kGpuBusy]) / 1e6 / double(s.intervals));
+        // The second is only known where the device times its presents.
+        if (s.lateCountInPlay[kToWindow])
+            LOGI("report: in play, a frame was presented %.1f ms after the renderer finished it, and was on"
+                 " screen %.1f ms after (%llu frames timed)",
+                 double(s.lateInPlay[kToWindow]) / 1e6 / double(s.lateCountInPlay[kToWindow]),
+                 s.lateCountInPlay[kToScreen]
+                     ? double(s.lateInPlay[kToScreen]) / 1e6 / double(s.lateCountInPlay[kToScreen]) : 0.0,
+                 (unsigned long long)s.lateCountInPlay[kToScreen]);
     }
     if (m.playNanoseconds && m.inPlay.total)
     {
