@@ -325,7 +325,7 @@ the game files were pushed with adb and the packages by setup.
 | Seoul by `devmap seoul` | **verified**: in the drop pod at 119 FPS, exposure right (the write-back is logged) | `thor-seoul-level.png`, `thor-seoul-level.log` |
 | The app's installer, with both images in the device's Download folder and nothing installed | **verified**: Install & Play copies the game disc (1,809 files and the 95 of `english/`, 7.3 GB, about a minute), the screen asks for the second disc, the install disc's image is chosen in the app's file browser, the two packages are copied to `files/dlc` (4 GB, under a minute) and the game starts and mounts them. The install disc first was **not run** | `thor-installer-asks-for-second-disc.png`, `thor-after-in-app-install-both-discs.png` |
 | The Flip 2 | **verified** since: "A level's end, the next level, the Flip 2", below | |
-| A release build | **not run** | |
+| A release build | **verified** since: "The published app, as a new player" at the end | |
 
 The app gives this title the other games' start-up commands (`com_maxfps 0`,
 `r_vsync 0`, `sm_enable 0`, `cg_fov 85`); what each does here was not looked
@@ -1248,3 +1248,27 @@ crosses both frames, so no figure is given).
   is built as the debug app's is.
 - A third heavy level and Exo Survival were not measured.
 
+## The published app, as a new player (24 November 2026)
+
+v0.1.0 of `com.aw.recomp`, the release workflow's own APK
+(`aw-recomp-v0.1.0.apk`, release-signed, no switches), installed on a
+Retroid Pocket Flip 2 that had no `com.aw.recomp`, and driven by touch over
+adb. Pictures: `private-captures\aw\launch-*.png`.
+
+| | Seen | Time |
+|---|---|---|
+| The app's first screen: the two steps, Build on this device | **verified** | |
+| The game code built on the device, from the game disc's image found in Download, with the published toolchain package (toolchain-v1, the file `setup/toolchain.json` names, already on the device) | **verified**: aw `c5cef5aeaede`, awmp `6bc76440aa55`, eight compilers, 3.4 GB free at least, battery 36 °C | 13 min 8 s (the report: 31 s + 37 s recompiling, 344 s + 355 s compiling) |
+| Install & Play: the game disc copied, the second disc asked for, the install disc's image picked with the Files app from the SD card, its two packages copied, the game started and both mounted | **verified**; the request for the second disc was below the screen's edge and is now also in the source's box | 38 s and 40 s |
+| Brightness, Safe Area, the main menu, Campaign, New Game, Seoul's loading movie, the pod, three checkpoints written, the harness, the hatch, the rooftop with the weapon in hand | **verified**, 60 FPS on the overlay in every picture, no error | 18 minutes from the app's first screen to the title screen |
+| The start screen's backdrop from the player's disc | **verified** | |
+| Multiplayer: Bots at 6, the player's name, System Link, Create Game, Start Game: Team Deathmatch on Retreat, three bots a side, 10 to 7 after two and a half minutes | **verified**, 60 FPS | |
+| Check for updates on the draft | "This is the newest version" | |
+
+A stall report ("no world frame since") is written during Seoul's loading
+movie, which draws no world; the game goes on.
+
+`setup\setup.cmd -Game aw -Iso ... -InstallIso ... -Build android -Yes` in a
+fresh clone of the public repository at v0.1.0 (the tools already
+downloaded): 5 min 8 s, and the game code states what the release's
+`aw-recomp-v0.1.0-game-abi.txt` does.

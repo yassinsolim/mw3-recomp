@@ -45,13 +45,14 @@ Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
 2. Tap **Build on this device** and pick your **game disc's** `.iso` with the
    Files app (it is only read). The app downloads its build tools once
    (43 MB); Android asks twice to allow installing them.
-3. Tap **Build** and wait: this game is the largest of the four. See
-   [What works](#what-works) for the time measured on the Flip 2. You can
-   leave the app or lock the screen; it carries on. Keep the device charging:
-   the build uses every core.
-4. Tap **Install & Play** and choose the game disc's `.iso`. The app copies
-   the game (about a minute or two), then **asks for the second disc**: choose
-   the install disc's `.iso`.
+3. Tap **Build** and wait about **13 minutes** (measured on the Retroid
+   Pocket Flip 2; this game is the largest of the four). You can leave the
+   app or lock the screen; it carries on. Keep the device charging: the build
+   uses every core.
+4. Tap **Install & Play**. The app copies the game out of the game disc's
+   `.iso` (under a minute on the Flip 2), then **asks for the second disc**:
+   tap **Choose with the Files app** and pick the install disc's `.iso`, then
+   **Install** (under a minute again). The game starts by itself.
 5. Play: **Campaign**, **Multiplayer**, or **Exo Survival** from the game's
    own main menu, with the touch overlay or a Bluetooth/USB controller. The
    first start asks you to move the brightness slider and then the screen
@@ -98,20 +99,20 @@ step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
 
 ## What works
 
-Measured on 24 and 25 November 2026 on an AYN Thor (Snapdragon 8 Gen 2,
+Measured on 24 November 2026 on an AYN Thor (Snapdragon 8 Gen 2,
 120 Hz) and a Retroid Pocket Flip 2 (Snapdragon 865, 60 Hz) with the app's
 defaults. Other hardware is untested.
 
 | | | Measured |
 |---|---|---|
-| Campaign: New Game, Induction (Seoul) | ✅ | 60 FPS on the Flip 2, 118 to 119 on the Thor |
+| Campaign: New Game, Induction (Seoul) to its rooftop | ✅ | 60 FPS on the Flip 2, 118 to 119 on the Thor |
 | Campaign: a heavy level (Fusion's opening) | ✅ | 60 FPS on the Flip 2, 115 on the Thor |
 | Checkpoints and Resume Game | ✅ | Flip 2: stopped the app at a checkpoint, Resume Game went on from it |
 | Multiplayer: System Link with bots (up to 11) | ✅ | Team Deathmatch with 6 bots on Retreat: 60 FPS on the Flip 2, 119 on the Thor |
 | Multiplayer: two devices in one match | ✅ | Thor and Flip 2 over the project's server, each hosting in turn: 119 and 60 FPS |
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Thor and Flip 2 met in Team Deathmatch, 119 and 60 FPS |
 | Exo Survival | ⚠️ | starts from the campaign's menu and plays, alone or two together; see Known limits |
-| Building the game code on the device | ✅ | Flip 2: 12 min 41 s. Not run on the Thor |
+| Setting up with no PC, from a fresh install of v0.1.0 | ✅ | Flip 2: the game code built in 13 min 8 s, each disc copied in about 40 s, 18 minutes from opening the app to the game's title screen. Not run on the Thor |
 | Combat Readiness Program, split screen, downloadable maps | ❔ | not tested on a device |
 
 ## Known limits
@@ -165,6 +166,7 @@ What has been checked and what is open, in detail:
 | Problem | What to do |
 |---|---|
 | "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
+| The build screen already says "found" | A game disc image in the Download folder under its usual name is found by itself; nothing to pick |
 | "The game code does not match this version" | After an update: tap **Build the game code** again |
 | "…is not a version of the game this app supports" | The `.iso` is another game, the install disc where the game disc is wanted, or not the USA/Europe disc this port was made for |
 | The app keeps asking for the second disc | The game needs both: choose the other disc's `.iso` (the install disc after the game disc) |

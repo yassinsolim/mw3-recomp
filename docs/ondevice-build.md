@@ -265,7 +265,7 @@ The other builds, whole, from the app's own report:
 |---|---|---|
 | Call of Duty 4 (151 files) | 2 min 12 s (recompile 11 s + 11 s, compile 54 s + 57 s) | 3 min 49 s (14 s + 14 s, 99 s + 101 s) |
 | Modern Warfare 3 | 4 min 40 s | 8 min 2 s (21 s + 23 s, 211 s + 226 s), a few seconds of it with fewer compilers |
-| Advanced Warfare (409 files) | **not run** | 12 min 41 s (31 s + 37 s, 339 s + 352 s); eight compilers throughout, 1.8 GB between them at most, 3.3 GB free at least (the report; 3.7 GB by `MemAvailable`), battery 30 to 31.5 °C, hottest sensor 91 °C, no thermal status |
+| Advanced Warfare (409 files) | **not run** | 13 min 8 s with the published v0.1.0 app and toolchain-v1 ([AW-BRINGUP.md](AW-BRINGUP.md#the-published-app-as-a-new-player-24-november-2026)); in the earlier run 12 min 41 s (31 s + 37 s, 339 s + 352 s); eight compilers throughout, 1.8 GB between them at most, 3.3 GB free at least (the report; 3.7 GB by `MemAvailable`), battery 30 to 31.5 °C, hottest sensor 91 °C, no thermal status |
 
 **Played on what was built**, with no game package installed:
 
