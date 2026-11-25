@@ -474,9 +474,12 @@ class InstallActivity : AppCompatActivity() {
                     else -> null
                 }
                 if (other != null) {
+                    // In the source's box too, at the top of the screen:
+                    // the progress line is below the buttons, off a
+                    // handheld's screen (Retroid Pocket Flip 2).
                     progressText.text = getString(other)
                     source = ""
-                    sourceText.text = ""
+                    sourceText.text = getString(other)
                     begin.isEnabled = false
                     return
                 }
