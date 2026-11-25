@@ -186,13 +186,16 @@ case "$GAME" in
          T_mp=(cod4mp cod4mp 'multiplayer' default_mp ppc_cod4_mp COD4MP.toml cod4mp_switch_tables.toml 77 179 9) ;;
     # The last number: 415 instructions of twelve kinds in each executable,
     # which the configuration steps over (config/AW.toml, tools/extra_instructions.py).
-    aw)  GAME_NAME='Call of Duty: Advanced Warfare'; GUIDE=docs/AW-BRINGUP.md
+    aw)  GAME_NAME='Call of Duty: Advanced Warfare'; GUIDE=README-AW.md
          T_sp=(aw aw 'campaign' default ppc_aw AW.toml aw_switch_tables.toml 207 210 415)
          T_mp=(awmp awmp 'multiplayer' default_mp ppc_aw_mp AWMP.toml awmp_switch_tables.toml 204 230 415) ;;
     *)   GAME_NAME='Modern Warfare 3'; GUIDE=README.md
          T_sp=(mw3 mw3 'campaign and Special Ops' default ppc_mw3 MW3.toml mw3_switch_tables.toml 146 128 0)
          T_mp=(mw3mp mw3mp 'multiplayer' default_mp ppc_mw3_mp MW3MP.toml mw3mp_switch_tables.toml 153 156 0) ;;
 esac
+# Advanced Warfare's README is the front page of its own repository, where it
+# is README.md; here it lies beside the other games'.
+[ "$GAME" = aw ] && [ ! -f "$REPO/$GUIDE" ] && GUIDE=README.md
 # Modern Warfare 2 has the one disc (CMakeLists.txt, MW2_XEX_SHA256_SP/MP).
 MW2_SHA_default=990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff
 MW2_SHA_default_mp=aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde

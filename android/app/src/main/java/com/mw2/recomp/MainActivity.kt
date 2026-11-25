@@ -551,9 +551,9 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /** The README's section on the two steps, in this game's repository. */
+    /** The README's quick start, which has both steps and every way to do them, in this game's repository. */
     private fun setupGuide(): String =
-        "https://github.com/${BuildConfig.UPDATE_REPO.ifEmpty { "yassinsolim/mw3-recomp" }}#two-steps-to-play"
+        "https://github.com/${BuildConfig.UPDATE_REPO.ifEmpty { "yassinsolim/mw3-recomp" }}#quick-start-no-pc"
 
     /** The install screen, from the disc image found on the device when there is one. */
     private fun install(title: Title = firstTitle) {

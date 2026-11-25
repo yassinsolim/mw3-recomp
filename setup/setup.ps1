@@ -1145,4 +1145,9 @@ if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
-else { Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $(if ($Mw2) { 'docs\MW2-ANDROID.md' } elseif ($Cod4) { 'docs\COD4-BRINGUP.md' } elseif ($Aw) { 'docs\AW-BRINGUP.md' } else { 'README.md' })." }
+else {
+    # Advanced Warfare's README is the front page of its own repository, where
+    # it is README.md; here it lies beside the other games'.
+    $guide = if ($Mw2) { 'docs\MW2-ANDROID.md' } elseif ($Cod4) { 'docs\COD4-BRINGUP.md' } elseif ($Aw -and (Test-Path (Join-Path $Repo 'README-AW.md'))) { 'README-AW.md' } else { 'README.md' }
+    Note "On the phone: open the app, `"Install the game files`", choose the disc image. See $guide."
+}

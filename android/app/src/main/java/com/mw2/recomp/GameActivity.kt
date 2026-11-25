@@ -449,7 +449,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // After nativeInit, so that the reason a library is refused is in the
         // run's log as well as on the screen.
         GameLibrary.load(this, request.title)?.let {
-            fail(it)
+            fail(it, offerBuild = GameBuild.offered(this))
             return
         }
 
@@ -1321,7 +1321,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
         handler.postDelayed({ Process.killProcess(Process.myPid()) }, 120)
     }
 
-    private fun fail(message: String) {
+    /**
+     * [offerBuild]: the run needs the game code built, and this app can build
+     * it: the dialog leads to that screen, which is the launcher's process's.
+     */
+    private fun fail(message: String, offerBuild: Boolean = false) {
         // In the log as well as on the screen: a tester sends the log, and a
         // run that was never started used to leave it with nothing to say.
         val line = "the run was not started: " + message.replace('\n', ' ')
@@ -1333,15 +1337,24 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 // A library without the call: the trail has the line.
             }
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.cannot_start)
             .setMessage(message)
             .setCancelable(false)
-            .setPositiveButton(R.string.close) { _, _ ->
-                finish()
-                handler.postDelayed({ Process.killProcess(Process.myPid()) }, 80)
+        val leave = {
+            finish()
+            handler.postDelayed({ Process.killProcess(Process.myPid()) }, 80)
+        }
+        if (offerBuild) {
+            dialog.setPositiveButton(R.string.setup_build_here) { _, _ ->
+                startActivity(Intent(this, BuildActivity::class.java))
+                leave()
             }
-            .show()
+            dialog.setNegativeButton(R.string.close) { _, _ -> leave() }
+        } else {
+            dialog.setPositiveButton(R.string.close) { _, _ -> leave() }
+        }
+        dialog.show()
     }
 
     // ---- editing the pad -----------------------------------------------------------

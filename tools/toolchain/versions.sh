@@ -2,7 +2,8 @@
 # by the scripts beside it.
 
 # The toolchain app's own version: raised with any change to what it holds.
-TOOLCHAIN_VERSION=1
+# 2: the recompiler's patch keeps XER's summary overflow in the context.
+TOOLCHAIN_VERSION=2
 # The NDK the PC's game library is built with (setup/setup.ps1) has clang
 # 19.0.1; this is the release of the same line.
 LLVM_VERSION=19.1.7

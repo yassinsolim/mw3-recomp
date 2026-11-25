@@ -91,8 +91,16 @@ object GameLibrary {
                 error.message ?: error.toString()
             }
             if (problem.isEmpty()) return null
-            if (refusal == null) refusal = context.getString(R.string.game_code_refused, problem)
+            if (refusal == null) {
+                // An app that can build the code says so first: it is the
+                // few minutes' way, and the dialog leads to it (GameActivity.fail).
+                refusal = if (GameBuild.offered(context)) {
+                    context.getString(R.string.game_code_refused_build_here, problem, context.getString(R.string.setup_command))
+                } else {
+                    context.getString(R.string.game_code_refused, problem)
+                }
+            }
         }
-        return refusal ?: context.getString(R.string.game_code_missing)
+        return refusal ?: context.getString(if (GameBuild.offered(context)) R.string.build_code_missing else R.string.game_code_missing)
     }
 }

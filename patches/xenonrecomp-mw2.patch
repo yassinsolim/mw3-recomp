@@ -269,7 +269,7 @@ index f5db6d1..9c3d7b6 100644
      "recompiler_config.cpp")
  
 diff --git a/XenonRecomp/recompiler.cpp b/XenonRecomp/recompiler.cpp
-index fa91527..56ec222 100644
+index fa91527..e4ad113 100644
 --- a/XenonRecomp/recompiler.cpp
 +++ b/XenonRecomp/recompiler.cpp
 @@ -1,5 +1,6 @@
@@ -342,8 +342,16 @@ index fa91527..56ec222 100644
              {
                  localVariables.xer = true;
                  return "xer";
-@@ -331,7 +335,7 @@ bool Recompiler::Recompile(
+@@ -329,9 +333,15 @@ bool Recompiler::Recompile(
+             return "ctx.xer";
+         };
  
++    // XER for its summary overflow, which a compare copies into its field.
++    auto so = [&]()
++        {
++            return summaryOverflowInContext ? "ctx.xer" : xer();
++        };
++
      auto reserved = [&]()
          {
 -            if (config.reservedRegisterAsLocalVariable)
@@ -351,7 +359,7 @@ index fa91527..56ec222 100644
              {
                  localVariables.reserved = true;
                  return "reserved";
-@@ -388,7 +392,7 @@ bool Recompiler::Recompile(
+@@ -388,7 +398,7 @@ bool Recompiler::Recompile(
  
                  if (targetSymbol != image.symbols.end() && targetSymbol->address == address && targetSymbol->type == Symbol_Function)
                  {
@@ -360,7 +368,69 @@ index fa91527..56ec222 100644
                      {
                          // print nothing
                      }
-@@ -609,7 +613,10 @@ bool Recompiler::Recompile(
+@@ -528,7 +538,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_ADD:
+         println("\t{}.u64 = {}.u64 + {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ADDE:
+@@ -536,7 +546,7 @@ bool Recompiler::Recompile(
+         println("\t{}.u64 = {}.u64 + {}.u64 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
+         println("\t{}.ca = {}.u8;", xer(), temp());
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ADDI:
+@@ -550,7 +560,7 @@ bool Recompiler::Recompile(
+         println("\t{}.ca = {}.u32 > {};", xer(), r(insn.operands[1]), ~insn.operands[2]);
+         println("\t{}.s64 = {}.s64 + {};", r(insn.operands[0]), r(insn.operands[1]), int32_t(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ADDIS:
+@@ -565,29 +575,29 @@ bool Recompiler::Recompile(
+         println("\t{}.ca = {}.u32 < {}.u32;", xer(), temp(), r(insn.operands[1]));
+         println("\t{}.s64 = {}.s64;", r(insn.operands[0]), temp());
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_AND:
+         println("\t{}.u64 = {}.u64 & {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ANDC:
+         println("\t{}.u64 = {}.u64 & ~{}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ANDI:
+         println("\t{}.u64 = {}.u64 & {};", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2]);
+-        println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++        println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ANDIS:
+         println("\t{}.u64 = {}.u64 & {};", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2] << 16);
+-        println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++        println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ATTN:
+@@ -609,7 +619,10 @@ bool Recompiler::Recompile(
      case PPC_INST_BCTR:
          if (switchTable != config.switchTables.end())
          {
@@ -372,7 +442,7 @@ index fa91527..56ec222 100644
  
              for (size_t i = 0; i < switchTable->second.labels.size(); i++)
              {
-@@ -627,8 +634,11 @@ bool Recompiler::Recompile(
+@@ -627,8 +640,11 @@ bool Recompiler::Recompile(
                  }
              }
  
@@ -385,7 +455,56 @@ index fa91527..56ec222 100644
              println("\t}}");
  
              switchTable = config.switchTables.end();
-@@ -827,29 +837,29 @@ bool Recompiler::Recompile(
+@@ -753,39 +769,39 @@ bool Recompiler::Recompile(
+     case PPC_INST_CLRLWI:
+         println("\t{}.u64 = {}.u32 & 0x{:X};", r(insn.operands[0]), r(insn.operands[1]), (1ull << (32 - insn.operands[2])) - 1);
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_CMPD:
+-        println("\t{}.compare<int64_t>({}.s64, {}.s64, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
++        println("\t{}.compare<int64_t>({}.s64, {}.s64, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), so());
+         break;
+ 
+     case PPC_INST_CMPDI:
+-        println("\t{}.compare<int64_t>({}.s64, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), int32_t(insn.operands[2]), xer());
++        println("\t{}.compare<int64_t>({}.s64, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), int32_t(insn.operands[2]), so());
+         break;
+ 
+     case PPC_INST_CMPLD:
+-        println("\t{}.compare<uint64_t>({}.u64, {}.u64, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
++        println("\t{}.compare<uint64_t>({}.u64, {}.u64, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), so());
+         break;
+ 
+     case PPC_INST_CMPLDI:
+-        println("\t{}.compare<uint64_t>({}.u64, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), insn.operands[2], xer());
++        println("\t{}.compare<uint64_t>({}.u64, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), insn.operands[2], so());
+         break;
+ 
+     case PPC_INST_CMPLW:
+-        println("\t{}.compare<uint32_t>({}.u32, {}.u32, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
++        println("\t{}.compare<uint32_t>({}.u32, {}.u32, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), so());
+         break;
+ 
+     case PPC_INST_CMPLWI:
+-        println("\t{}.compare<uint32_t>({}.u32, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), insn.operands[2], xer());
++        println("\t{}.compare<uint32_t>({}.u32, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), insn.operands[2], so());
+         break;
+ 
+     case PPC_INST_CMPW:
+-        println("\t{}.compare<int32_t>({}.s32, {}.s32, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
++        println("\t{}.compare<int32_t>({}.s32, {}.s32, {});", cr(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), so());
+         break;
+ 
+     case PPC_INST_CMPWI:
+-        println("\t{}.compare<int32_t>({}.s32, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), int32_t(insn.operands[2]), xer());
++        println("\t{}.compare<int32_t>({}.s32, {}, {});", cr(insn.operands[0]), r(insn.operands[1]), int32_t(insn.operands[2]), so());
+         break;
+ 
+     case PPC_INST_CNTLZD:
+@@ -827,47 +843,47 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_DIVD:
@@ -397,21 +516,24 @@ index fa91527..56ec222 100644
 -        println("\t{}.u64 = {}.u64 / {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
 +        println("\t{}.u64 = PPCDivide({}.u64, {}.u64);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
          if (strchr(insn.opcode->name, '.'))
-             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
          break;
  
      case PPC_INST_DIVW:
 -        println("\t{}.s32 = {}.s32 / {}.s32;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
 +        println("\t{}.s32 = PPCDivide({}.s32, {}.s32);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
          if (strchr(insn.opcode->name, '.'))
-             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
          break;
  
      case PPC_INST_DIVWU:
 -        println("\t{}.u32 = {}.u32 / {}.u32;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
 +        println("\t{}.u32 = PPCDivide({}.u32, {}.u32);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
          if (strchr(insn.opcode->name, '.'))
-             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
          break;
  
      case PPC_INST_EIEIO:
@@ -420,7 +542,28 @@ index fa91527..56ec222 100644
          break;
  
      case PPC_INST_EXTSB:
-@@ -1209,7 +1219,7 @@ bool Recompiler::Recompile(
+         println("\t{}.s64 = {}.s8;", r(insn.operands[0]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_EXTSH:
+         println("\t{}.s64 = {}.s16;", r(insn.operands[0]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_EXTSW:
+         println("\t{}.s64 = {}.s32;", r(insn.operands[0]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_FABS:
+@@ -1209,7 +1225,7 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_LWSYNC:
@@ -429,7 +572,7 @@ index fa91527..56ec222 100644
          break;
  
      case PPC_INST_LWZ:
-@@ -1260,7 +1270,7 @@ bool Recompiler::Recompile(
+@@ -1260,13 +1276,13 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_MFTB:
@@ -438,7 +581,122 @@ index fa91527..56ec222 100644
          break;
  
      case PPC_INST_MR:
-@@ -1486,6 +1496,12 @@ bool Recompiler::Recompile(
+         println("\t{}.u64 = {}.u64;", r(insn.operands[0]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_MTCR:
+@@ -1296,8 +1312,8 @@ bool Recompiler::Recompile(
+         break;
+ 
+     case PPC_INST_MTXER:
+-        println("\t{}.so = ({}.u64 & 0x80000000) != 0;", xer(), r(insn.operands[0]));
+-        println("\t{}.ov = ({}.u64 & 0x40000000) != 0;", xer(), r(insn.operands[0]));
++        println("\t{}.so = ({}.u64 & 0x80000000) != 0;", so(), r(insn.operands[0]));
++        println("\t{}.ov = ({}.u64 & 0x40000000) != 0;", so(), r(insn.operands[0]));
+         println("\t{}.ca = ({}.u64 & 0x20000000) != 0;", xer(), r(insn.operands[0]));
+         break;
+ 
+@@ -1308,7 +1324,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_MULHWU:
+         println("\t{}.u64 = (uint64_t({}.u32) * uint64_t({}.u32)) >> 32;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_MULLD:
+@@ -1322,7 +1338,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_MULLW:
+         println("\t{}.s64 = int64_t({}.s32) * int64_t({}.s32);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_NAND:
+@@ -1332,7 +1348,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_NEG:
+         println("\t{}.s64 = -{}.s64;", r(insn.operands[0]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_NOP:
+@@ -1346,13 +1362,13 @@ bool Recompiler::Recompile(
+     case PPC_INST_NOT:
+         println("\t{}.u64 = ~{}.u64;", r(insn.operands[0]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_OR:
+         println("\t{}.u64 = {}.u64 | {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ORC:
+@@ -1392,7 +1408,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_RLWINM:
+         println("\t{}.u64 = __builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}) & 0x{:X};", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[1]), insn.operands[2], ComputeMask(insn.operands[3] + 32, insn.operands[4] + 32));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_ROTLDI:
+@@ -1406,7 +1422,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_ROTLWI:
+         println("\t{}.u64 = __builtin_rotateleft32({}.u32, {});", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2]);
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SLD:
+@@ -1416,7 +1432,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_SLW:
+         println("\t{}.u64 = {}.u8 & 0x20 ? 0 : ({}.u32 << ({}.u8 & 0x3F));", r(insn.operands[0]), r(insn.operands[2]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SRAD:
+@@ -1445,7 +1461,7 @@ bool Recompiler::Recompile(
+         println("\t{}.ca = ({}.s32 < 0) & ((({}.s32 >> {}.u32) << {}.u32) != {}.s32);", xer(), r(insn.operands[1]), r(insn.operands[1]), temp(), temp(), r(insn.operands[1]));
+         println("\t{}.s64 = {}.s32 >> {}.u32;", r(insn.operands[0]), r(insn.operands[1]), temp());
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SRAWI:
+@@ -1460,7 +1476,7 @@ bool Recompiler::Recompile(
+             println("\t{}.s64 = {}.s32;", r(insn.operands[0]), r(insn.operands[1]));
+         }
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SRD:
+@@ -1470,7 +1486,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_SRW:
+         println("\t{}.u64 = {}.u8 & 0x20 ? 0 : ({}.u32 >> ({}.u8 & 0x3F));", r(insn.operands[0]), r(insn.operands[2]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_STB:
+@@ -1486,6 +1502,12 @@ bool Recompiler::Recompile(
          println("\t{}.u32 = {};", r(insn.operands[2]), ea());
          break;
  
@@ -451,7 +709,51 @@ index fa91527..56ec222 100644
      case PPC_INST_STBX:
          print("{}", mmioStore() ? "\tPPC_MM_STORE_U8(" : "\tPPC_STORE_U8(");
          if (insn.operands[1] != 0)
-@@ -1711,7 +1727,7 @@ bool Recompiler::Recompile(
+@@ -1507,7 +1529,7 @@ bool Recompiler::Recompile(
+         if (insn.operands[1] != 0)
+             print("{}.u32 + ", r(insn.operands[1]));
+         println("{}.u32), {}.s64, __builtin_bswap64({}.s64));", r(insn.operands[2]), reserved(), r(insn.operands[0]));
+-        println("\t{}.so = {}.so;", cr(0), xer());
++        println("\t{}.so = {}.so;", cr(0), so());
+         break;
+ 
+     case PPC_INST_STDU:
+@@ -1662,7 +1684,7 @@ bool Recompiler::Recompile(
+         if (insn.operands[1] != 0)
+             print("{}.u32 + ", r(insn.operands[1]));
+         println("{}.u32), {}.s32, __builtin_bswap32({}.s32));", r(insn.operands[2]), reserved(), r(insn.operands[0]));
+-        println("\t{}.so = {}.so;", cr(0), xer());
++        println("\t{}.so = {}.so;", cr(0), so());
+         break;
+ 
+     case PPC_INST_STWU:
+@@ -1687,14 +1709,14 @@ bool Recompiler::Recompile(
+     case PPC_INST_SUBF:
+         println("\t{}.s64 = {}.s64 - {}.s64;", r(insn.operands[0]), r(insn.operands[2]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SUBFC:
+         println("\t{}.ca = {}.u32 >= {}.u32;", xer(), r(insn.operands[2]), r(insn.operands[1]));
+         println("\t{}.s64 = {}.s64 - {}.s64;", r(insn.operands[0]), r(insn.operands[2]), r(insn.operands[1]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SUBFE:
+@@ -1702,7 +1724,7 @@ bool Recompiler::Recompile(
+         println("\t{}.u64 = ~{}.u64 + {}.u64 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
+         println("\t{}.ca = {}.u8;", xer(), temp());
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_SUBFIC:
+@@ -1711,7 +1733,7 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_SYNC:
@@ -460,7 +762,7 @@ index fa91527..56ec222 100644
          break;
  
      case PPC_INST_TDLGEI:
-@@ -1785,6 +1801,45 @@ bool Recompiler::Recompile(
+@@ -1785,6 +1807,45 @@ bool Recompiler::Recompile(
          println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_avg_epu8(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
          break;
  
@@ -506,7 +808,7 @@ index fa91527..56ec222 100644
      case PPC_INST_VCTSXS:
      case PPC_INST_VCFPSXWS128:
          printSetFlushMode(true);
-@@ -1995,9 +2050,30 @@ bool Recompiler::Recompile(
+@@ -1995,9 +2056,30 @@ bool Recompiler::Recompile(
      }
  
      case PPC_INST_VPKD3D128:
@@ -537,7 +839,7 @@ index fa91527..56ec222 100644
          switch (insn.operands[2])
          {
          case 0: // D3D color
-@@ -2014,26 +2090,40 @@ bool Recompiler::Recompile(
+@@ -2014,26 +2096,40 @@ bool Recompiler::Recompile(
              println("\t{}.u32[{}] = {}.u32;", v(insn.operands[0]), insn.operands[4], temp());
              break;
  
@@ -593,7 +895,7 @@ index fa91527..56ec222 100644
              break;
  
          default:
-@@ -2041,12 +2131,18 @@ bool Recompiler::Recompile(
+@@ -2041,12 +2137,18 @@ bool Recompiler::Recompile(
              break;
          }
          break;
@@ -612,7 +914,7 @@ index fa91527..56ec222 100644
      case PPC_INST_VREFP:
      case PPC_INST_VREFP128:
          // TODO: see if we can use rcp safely
-@@ -2088,6 +2184,7 @@ bool Recompiler::Recompile(
+@@ -2088,6 +2190,7 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_VSEL:
@@ -620,7 +922,7 @@ index fa91527..56ec222 100644
          println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_or_si128(simde_mm_andnot_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)), simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8))));", v(insn.operands[0]), v(insn.operands[3]), v(insn.operands[1]), v(insn.operands[3]), v(insn.operands[2]));
          break;
  
-@@ -2212,6 +2309,31 @@ bool Recompiler::Recompile(
+@@ -2212,6 +2315,31 @@ bool Recompiler::Recompile(
              println("\t{} = {};", v(insn.operands[0]), vTemp());
              break;
  
@@ -652,7 +954,16 @@ index fa91527..56ec222 100644
          default:
              println("\t__builtin_debugtrap();");
              break;
-@@ -2263,6 +2385,212 @@ bool Recompiler::Recompile(
+@@ -2252,7 +2380,7 @@ bool Recompiler::Recompile(
+     case PPC_INST_XOR:
+         println("\t{}.u64 = {}.u64 ^ {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+         if (strchr(insn.opcode->name, '.'))
+-            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
+         break;
+ 
+     case PPC_INST_XORI:
+@@ -2263,6 +2391,212 @@ bool Recompiler::Recompile(
          println("\t{}.u64 = {}.u64 ^ {};", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2] << 16);
          break;
  
@@ -797,7 +1108,7 @@ index fa91527..56ec222 100644
 +    case PPC_INST_EQV:
 +        println("\t{}.u64 = ~({}.u64 ^ {}.u64);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
 +        if (strchr(insn.opcode->name, '.'))
-+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
 +        break;
 +
 +    case PPC_INST_ADDC:
@@ -805,7 +1116,7 @@ index fa91527..56ec222 100644
 +        println("\t{}.u64 = {}.u64 + {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
 +        println("\t{}.ca = {}.u8;", xer(), temp());
 +        if (strchr(insn.opcode->name, '.'))
-+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
 +        break;
 +
 +    case PPC_INST_ADDME:
@@ -814,7 +1125,7 @@ index fa91527..56ec222 100644
 +        println("\t{}.s64 = {}.s64 + {}.ca - 1;", r(insn.operands[0]), r(insn.operands[1]), xer());
 +        println("\t{}.ca = {}.u8;", xer(), temp());
 +        if (strchr(insn.opcode->name, '.'))
-+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
 +        break;
 +
 +    case PPC_INST_SUBFZE:
@@ -823,13 +1134,13 @@ index fa91527..56ec222 100644
 +        println("\t{}.u64 = ~{}.u64 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), xer());
 +        println("\t{}.ca = {}.u8;", xer(), temp());
 +        if (strchr(insn.opcode->name, '.'))
-+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
 +        break;
 +
 +    case PPC_INST_MULHDU:
 +        println("\t{}.u64 = ((unsigned __int128){}.u64 * (unsigned __int128){}.u64) >> 64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
 +        if (strchr(insn.opcode->name, '.'))
-+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
++            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), so());
 +        break;
 +
 +    // ---- Floating point ----
@@ -865,7 +1176,7 @@ index fa91527..56ec222 100644
      default:
          return false;
      }
-@@ -2381,6 +2709,11 @@ bool Recompiler::Recompile(const Function& fn)
+@@ -2381,6 +2715,11 @@ bool Recompiler::Recompile(const Function& fn)
          name = fmt::format("sub_{}", fn.base);
      }
  
@@ -877,7 +1188,7 @@ index fa91527..56ec222 100644
  #ifdef XENON_RECOMP_USE_ALIAS
      println("__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
  #endif
-@@ -2512,20 +2845,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2512,20 +2851,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
  
          if (config.skipLr)
              println("#define PPC_CONFIG_SKIP_LR");      
@@ -900,24 +1211,26 @@ index fa91527..56ec222 100644
  
          println("");
  
-@@ -2602,6 +2925,12 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2602,6 +2931,14 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
          SaveCurrentOutData("ppc_func_mapping.cpp");
      }
  
 +    if (config.ctrAsLocalVariable || config.xerAsLocalVariable || config.reservedRegisterAsLocalVariable ||
 +        config.crRegistersAsLocalVariables || config.nonArgumentRegistersAsLocalVariables || config.nonVolatileRegistersAsLocalVariables)
 +    {
-+        functionsKeepingRegistersInContext = FindFunctionsKeepingRegistersInContext(*this);
++        bool writesSummaryOverflow = false;
++        functionsKeepingRegistersInContext = FindFunctionsKeepingRegistersInContext(*this, writesSummaryOverflow);
++        summaryOverflowInContext = config.xerAsLocalVariable && writesSummaryOverflow;
 +    }
 +
      for (size_t i = 0; i < functions.size(); i++)
      {
          if ((i % 256) == 0)
 diff --git a/XenonRecomp/recompiler.h b/XenonRecomp/recompiler.h
-index 8242db5..b6a1f92 100644
+index 8242db5..e505e26 100644
 --- a/XenonRecomp/recompiler.h
 +++ b/XenonRecomp/recompiler.h
-@@ -34,6 +34,11 @@ struct Recompiler
+@@ -34,6 +34,14 @@ struct Recompiler
      std::string out;
      size_t cppFileIndex = 0;
      RecompilerConfig config;
@@ -926,15 +1239,18 @@ index 8242db5..b6a1f92 100644
 +    // being recompiled is one of them.
 +    std::unordered_set<size_t> functionsKeepingRegistersInContext;
 +    bool keepRegistersInContext = false;
++    // Something writes XER's summary overflow (mtxer): it is read and
++    // written in the context by every function, whatever keeps its carry.
++    bool summaryOverflowInContext = false;
  
      bool LoadConfig(const std::string_view& configFilePath);
  
 diff --git a/XenonRecomp/register_flow.cpp b/XenonRecomp/register_flow.cpp
 new file mode 100644
-index 0000000..1f7e840
+index 0000000..d73dfc8
 --- /dev/null
 +++ b/XenonRecomp/register_flow.cpp
-@@ -0,0 +1,1610 @@
+@@ -0,0 +1,1612 @@
 +#include "register_flow.h"
 +#include "recompiler.h"
 +
@@ -2252,7 +2568,7 @@ index 0000000..1f7e840
 +    }
 +}
 +
-+std::unordered_set<size_t> FindFunctionsKeepingRegistersInContext(const Recompiler& recompiler)
++std::unordered_set<size_t> FindFunctionsKeepingRegistersInContext(const Recompiler& recompiler, bool& writesSummaryOverflow)
 +{
 +    const auto& config = recompiler.config;
 +
@@ -2262,13 +2578,19 @@ index 0000000..1f7e840
 +
 +    std::vector<FunctionFlow> functions;
 +    functions.reserve(recompiler.functions.size());
-+    bool writesSummaryOverflow = false;
++    writesSummaryOverflow = false;
 +    for (auto& function : recompiler.functions)
 +        functions.push_back(Build(recompiler, function, indices, writesSummaryOverflow));
 +
 +    // The registers that become locals, as Recompile's r, f, v, cr, ctr, xer
-+    // and reserved choose them. Summary overflow only counts if something
-+    // writes it: otherwise it is zero in the context and in a local alike.
++    // and reserved choose them. Summary overflow is not one of them: where
++    // nothing writes it, it is zero in the context and in a local alike, and
++    // where something does (mtxer), Recompile reads and writes it in the
++    // context in every function. As a local it kept every register of half
++    // of Advanced Warfare's and Modern Warfare 3's functions in the context:
++    // one routine that restores a saved context writes it, every compare
++    // reads it, and so it was live at the entry of every function that
++    // compares before it calls, and of their callers.
 +    Registers local;
 +    if (config.nonArgumentRegistersAsLocalVariables)
 +    {
@@ -2297,11 +2619,7 @@ index 0000000..1f7e840
 +    if (config.ctrAsLocalVariable)
 +        local.set(CTR);
 +    if (config.xerAsLocalVariable)
-+    {
 +        local.set(CA);
-+        if (writesSummaryOverflow)
-+            local.set(SO);
-+    }
 +    if (config.reservedRegisterAsLocalVariable)
 +        local.set(RESERVED);
 +
@@ -2547,10 +2865,10 @@ index 0000000..1f7e840
 +}
 diff --git a/XenonRecomp/register_flow.h b/XenonRecomp/register_flow.h
 new file mode 100644
-index 0000000..2902237
+index 0000000..44816dc
 --- /dev/null
 +++ b/XenonRecomp/register_flow.h
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,12 @@
 +#pragma once
 +
 +#include "pch.h"
@@ -2560,7 +2878,9 @@ index 0000000..2902237
 +// The functions that must keep every register in the context although the
 +// *_as_local options make registers locals: those a value reaches, or leaves,
 +// in a register the calling convention does not carry. See register_flow.cpp.
-+std::unordered_set<size_t> FindFunctionsKeepingRegistersInContext(const Recompiler& recompiler);
++// `writesSummaryOverflow`: whether any instruction writes XER's summary
++// overflow, which then stays in the context in every function.
++std::unordered_set<size_t> FindFunctionsKeepingRegistersInContext(const Recompiler& recompiler, bool& writesSummaryOverflow);
 diff --git a/XenonUtils/ppc_context.h b/XenonUtils/ppc_context.h
 index 31a86cd..6adb52b 100644
 --- a/XenonUtils/ppc_context.h
