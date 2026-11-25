@@ -48,6 +48,64 @@ signed with another, and a lost key means every player uninstalling.
    as the changelog; say so when the game code has to be rebuilt) and
    publish. Drafts are invisible to the apps.
 
+## When the game code has to be rebuilt
+
+An app takes only game code whose statement is its own
+([game-library.md](game-library.md#what-they-agree-on)), so a release that
+changes the recompiler, its patch, a title's configuration,
+`tools/genshared.py` or `runtime/mmio_hook.h` stops every player's game
+until the code is built again. Such changes are gathered into one release,
+and its notes say so in their first lines.
+
+What the player sees: the game does not start, and the app says that the
+game code was built for another version of the app. An app that can build
+it offers **Build on this device** there (a few minutes; the game files and
+the saves are kept); otherwise, and for a PC build, `git pull` and
+`setup\setup.cmd -GameOnly` (`bash setup/setup.sh --game-only`), which
+fetches and builds the recompiler again when its patch changed and
+recompiles the trees made with the old one.
+
+When the recompiler or its patch is what changed, the build tools' package
+changes with it, since the recompiler is inside: raise `TOOLCHAIN_VERSION`,
+run **Build tools package**, and name the new release and hash in
+`setup/toolchain.json` ([The toolchain release](#the-toolchain-release))
+before the apps are released. The updated app then finds the old package,
+says it is another version and downloads the new one over it. Android
+takes the newer package over the older one and never the other way: an app
+that was not updated cannot go back to the older tools on a device that has
+the newer ones, and builds again only once it is updated too. Its game code
+is not touched by this and goes on running.
+
+Tried on the AYN Thor with the drafted `toolchain-v2` (served as [Trying
+the update without publishing](#trying-the-update-without-publishing)
+says) and Modern Warfare 3: the updated app over game code built on a PC
+before the change says so, **Build on this device** opens the build
+screen, which finds toolchain 1 and downloads 2 over it, and the build
+took 4 minutes 7 seconds for both libraries (`mw3 51df2c158616`, `mw3mp
+abfe2d558ce8`); Black Tuesday then ran at 119 frames a second. On Windows,
+`setup\setup.cmd -Game mw3 -GameOnly` over a folder left by the version
+before fetched and built the recompiler again, recompiled both executables
+and built the same two statements in a minute and a half.
+
+**November 2026: toolchain 2.** The recompiler keeps XER's summary overflow
+in the context ([building.md](building.md#local-changes-to-xenonrecomp)):
+half of Advanced Warfare's and Modern Warfare 3's functions no longer keep
+every register there. The patch is in every title's statement, so all four
+games' code is rebuilt once, although Modern Warfare 2's and Call of Duty
+4's comes out the same. The statements before and after (the first twelve
+characters, as setup and the app's log print them):
+
+| Library | Before | After |
+|---|---|---|
+| mw2 | `d5de1f8e8711` | `eb135c3b4d1d` |
+| mw2mp | `94e6825e2bf7` | `3110ad8a6857` |
+| mw3 | `49cb73ddd14a` | `51df2c158616` |
+| mw3mp | `ea9e4d15ac5e` | `abfe2d558ce8` |
+| cod4 | `94ec5f58a992` | `d2625531ad9f` |
+| cod4mp | `a4c71519c558` | `116e3c0c3a14` |
+| aw | `c5cef5aeaede` | `2d5c2fcf4eac` |
+| awmp | `6bc76440aa55` | `e269159b7302` |
+
 ## What must not reach the public repositories
 
 The public repositories are made from this one's `android` branch with

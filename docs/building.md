@@ -553,10 +553,31 @@ failing with `0xc0000139` before it can run a single check.
   functions by data flow over every instruction, with what each reads and
   writes taken from what `recompiler.cpp` emits for it, and what a call reads
   and writes from the callee, to a fixed point over the call graph. They keep
-  every register in the context (about 140 of 28,000 in each executable; the
-  recompiler prints the count and why), and so do the register save/restore
-  helpers, which the other functions skip. `PPCContext` keeps every register:
-  the `PPC_CONFIG_*_AS_LOCAL` defines are no longer emitted.
+  every register in the context (the recompiler prints the count and why:
+  137 and 140 of 28,000 in Modern Warfare 2's executables, about 1,000 of
+  36,000 in Modern Warfare 3's, 1,048 and 1,406 of 51,000 in Advanced
+  Warfare's, a third of Call of Duty 4's 18,000), and so do the register
+  save/restore helpers, which the other functions skip. `PPCContext` keeps
+  every register: the `PPC_CONFIG_*_AS_LOCAL` defines are no longer emitted.
+
+  XER's summary overflow is never a local. Where nothing writes it, it is
+  zero in the context and in a local alike; where something does, every
+  function reads and writes it in the context (`ctx.xer`, beside a local
+  carry). Until November 2026 it became a local as soon as one instruction
+  wrote it, and Advanced Warfare and Modern Warfare 3 each have one routine
+  that does (`mtxer`, restoring a saved context). Every compare copies the
+  bit into its condition field, so it was read at the entry of every
+  function that compares before it calls, and of their callers: 26,439 of
+  Advanced Warfare's 51,720 functions and 19,055 of Modern Warfare 3's
+  35,999 kept every register in the context for it, loading and storing a
+  field for each instruction. With the bit in the context they are 1,048
+  and 1,015, Advanced Warfare's code is 15% smaller, and its Fusion on the
+  AYN Thor went from 115.6 frames a second to 118.8
+  ([rendering.md](rendering.md#more-than-60-frames-a-second)). The patch is
+  part of what the game code is checked against, so this changed the
+  statement of all eight libraries, though Modern Warfare 2's and Call of
+  Duty 4's recompiled trees came out byte for byte the same
+  ([android-releases.md](android-releases.md#when-the-game-code-has-to-be-rebuilt)).
 - **`XenonAnalyse/main.cpp`**: jump-table patterns for XDK 8276's instruction
   order, which schedules the index shift between the `lis` and the `addi`; the
   table and base address pairs are located by opcode rather than fixed offset,

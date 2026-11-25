@@ -4,6 +4,37 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Changed
+- **The game code has to be built again, once, for all four games.** After
+  this update the game does not start with the game code you have: the app
+  says that it was built for another version of the app and offers **Build
+  on this device** in the same message (a few minutes; your game files and
+  saves are kept, and no disc image is asked for). The app fetches new
+  build tools first (`toolchain-v2`, 43 MB, over the old ones). With a PC
+  instead: `git pull`, then `setup\setup.cmd -GameOnly` (`-Game mw2`,
+  `-Game cod4`, `-Game aw`; on Linux `bash setup/setup.sh --game-only`),
+  which builds the recompiler again and recompiles by itself. Why: the
+  recompiler kept every register of half of Advanced Warfare's and Modern
+  Warfare 3's functions in memory for one bit of the processor's state
+  that one routine writes
+  ([docs/building.md](docs/building.md#local-changes-to-xenonrecomp)).
+  With that bit left where it is, Advanced Warfare's Fusion on the AYN Thor
+  goes from 115.6 frames a second to 118.8, from 82.9% of frames on time to
+  93.1% and from 356 stutters in seven minutes to 95; Modern Warfare 3's
+  Black Tuesday there from 88 stutters to 31 and a match with six bots from
+  69 to 30; nothing is slower on the Retroid Pocket Flip 2
+  ([docs/rendering.md](docs/rendering.md#more-than-60-frames-a-second)).
+  Modern Warfare 2's and Call of Duty 4's code comes out the same, but the
+  recompiler is part of what the app checks the game code against, so
+  theirs is rebuilt too
+  ([docs/android-releases.md](docs/android-releases.md#when-the-game-code-has-to-be-rebuilt)).
+- **A game code the app refuses leads to the build**: the message's button
+  opens **Build the game code** where the app can build it, and the text
+  names the device first and the PC second.
+- The app's **Open the guide** opens the README's quick start (the link
+  named a section no README has), and setup's last line for Advanced
+  Warfare names its README.
+
 ### Added
 - **Call of Duty: Advanced Warfare is published**, as the fourth port, in a
   repository of its own: [aw-recomp](https://github.com/yassinsolim/aw-recomp),

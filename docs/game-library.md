@@ -70,8 +70,11 @@ title's `config/*.toml`, the script that writes the shared header, the jump
 tables, the code's extent, the register context, the system calls imported
 and `runtime/mmio_hook.h`. The runtime compares the game library's
 (`mw2_game_abi`) with its own before using anything else of it, and refuses
-one that differs, naming the first line that does. The app then tells the
-player to run `setup\setup.cmd -GameOnly` (`-Game mw2 -GameOnly`). A library
+one that differs, naming the first line that does. The app then says that
+the game code was built for another version of the app and has to be built
+again: an app that can build it offers **Build on this device** in that
+message ([ondevice-build.md](ondevice-build.md)), and names
+`setup\setup.cmd -GameOnly` (`-Game mw2 -GameOnly`) for a PC. A library
 that asks for a symbol the runtime has not got fails in `dlopen` and is
 reported the same way.
 
@@ -102,7 +105,9 @@ a tree whose note is not what the checkout recompiles with.
   package replacing another is signed with the same key, so a package from
   another builder goes on after the old one is uninstalled.
 - An update that changes the statement stops the game until the game code is
-  rebuilt (on a PC, or by running the builder workflow again). The app says so when the game is started, not before the
-  update is installed; releases publish the statement
+  rebuilt (on the device, on a PC, or by running the builder workflow again).
+  The app says so when the game is started, not before the update is
+  installed; releases publish the statement
   (`mw3-recomp-<tag>-game-abi.txt`, `mw2-recomp-<tag>-game-abi.txt`) and setup
-  warns when what it built differs.
+  warns when what it built differs. Such changes are made together, in one
+  release ([android-releases.md](android-releases.md#when-the-game-code-has-to-be-rebuilt)).

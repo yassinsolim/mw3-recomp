@@ -911,6 +911,36 @@ periods of the one before, M% within 2.05` is the line a 120 Hz run is judged
 by: N is the share of frames that kept the display's rate, 100 - M the share
 that missed two blanks.
 
+What keeps a scene under the display's rate is not always the renderer.
+Advanced Warfare's Fusion on the AYN Thor missed 120 with the title's own
+threads presenting late: half of its recompiled functions kept every
+register in the context for one bit of XER
+([building.md](building.md#local-changes-to-xenonrecomp)). With the bit
+left in the context (November 2026; the game code of all four games is
+built again for it, once), old code against new under one app, each scene
+scripted the same way both times:
+
+| AYN Thor, 120 Hz | FPS | On time | Stutters | of them the title late |
+|---|---|---|---|---|
+| Advanced Warfare, Fusion, seven minutes, before | 115.6 | 82.9% | 356 | 230 |
+| after | 118.8 | 93.1% | 95 | 51 |
+| Advanced Warfare, Retreat with six bots, before | 119.0 | 94.5% | 24 | 13 |
+| after | 119.0 | 94.1% | 9 | 6 |
+| Modern Warfare 3, Black Tuesday, before | 118.1 | 92.1% | 88 | 51 |
+| after | 118.9 | 93.6% | 31 | 7 |
+| Modern Warfare 3, a match with six bots, before | 118.6 | 94.5% | 69 | 46 |
+| after | 119.0 | 95.1% | 30 | 18 |
+
+On the Retroid Pocket Flip 2 at 60 the rate was held before and is held
+after: Black Tuesday 59.9 and 59.8 frames a second with 80.8% and 80.5% of
+frames on time before, 59.8 twice with 87.0% and 85.6% after; the match
+60.0 with 78.5% and 86.7%; Advanced Warfare's Seoul and its Retreat match
+60.0 both ways. Modern Warfare 2's and Call of Duty 4's recompiled code is
+the same byte for byte, and what their runs differ by is what two runs of
+one build differ by (Thor: S.S.D.D. 116.6 and 117.8, a match on Rust 119.0
+and 118.9, Charlie Don't Surf 114.4 and 116.0, a match on Crash 119.1 and
+119.0).
+
 ### Sharpening on the way to the window
 
 `MW2_SHARPEN=<1 to 100>` (`sharpen.cpp`) draws the frame into the window
