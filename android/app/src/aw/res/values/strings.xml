@@ -3,18 +3,20 @@
     <!-- What the aw flavour says in place of the MW2 app's wording: the
          game's name, which game setup is told to build, the campaign's
          entry without Special Ops, which this game does not have, and what
-         is different about a game of two discs that is copied into the app
-         and takes longer to build. -->
+         is different about a game of two discs that takes longer to build. -->
     <string name="wordmark">ADVANCED WARFARE</string>
     <string name="wordmark_recompiled">AW RECOMPILED</string>
     <string name="title_campaign">CAMPAIGN</string>
     <string name="setup_command">setup\\setup.cmd -Game aw</string>
     <string name="game_code_missing">Step 1 is not done: the game code is not on this device. It is made from your own discs.\nOn your PC, run setup\\setup.cmd -Game aw (on Linux: bash setup/setup.sh --game aw) with this device connected over USB.</string>
     <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game aw -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
-    <string name="status_disc_found">Game disc found:\n%1$s\nInstall &amp; Play copies it, then asks for the install disc.</string>
-    <string name="install_hint">This game has two discs. Point this at the image (.iso) of your own game disc, on this device or its memory card, and tap Install; then at the image of the install disc when it asks. Both are copied into the app, about 12 GB together.</string>
+    <string name="status_disc_found">Game disc found:\n%1$s\nInstall &amp; Play plays from it where it is, and from the install disc\'s image beside it or chosen next: nothing is copied.</string>
+    <string name="install_hint">This game has two discs, the game disc and the install disc, and needs both. Point this at their images (.iso), on this device or its memory card: tap one and the other is found beside it, choose the folder both are in, or select both in the Files app. The game plays from the images where they are, with nothing copied; or both can be copied into the app, about 12 GB.</string>
+    <string name="install_mode_link_hint">Nothing is copied and it is ready in a second. Both images have to stay where they are: the game reads its files out of them. Saves, settings and mods are kept in the app as always.</string>
     <string name="install_mode_copy_hint">About 7 GB from the game disc and 4 GB from the install disc, on the device\'s own storage; a minute or two each. The images are not needed afterwards.</string>
+    <string name="install_done_link">The game is set up to play from the two disc images. Keep both where they are.</string>
+    <string name="change_source_hint">Opens the install screen: play from the two disc images instead of the copied files (and free their 12 GB), copy the files in instead, or point at an image that has moved.</string>
     <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, SLEDGEHAMMER GAMES OR MICROSOFT.</string>
-    <string name="setup_steps">1. BUILD THE GAME CODE (%1$s): on this device, with no PC: choose \"Build the game code\" and your game disc\'s image (.iso); it took about 13 minutes on a Snapdragon 865. Or on a PC: run %3$s with this device connected over USB.\n2. INSTALL &amp; PLAY (%2$s): copies the game out of your two disc images (.iso), the game disc and then the install disc; about 12 GB on this device. The images may lie on an SD card.</string>
-    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs the game disc\'s two executables, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build took about 13 minutes on a Retroid Pocket Flip 2 (Snapdragon 865), the one device it was measured on, and takes longer on a slower or hot one; it carries on while you use other apps, and from where it was if it is interrupted.</string>
+    <string name="setup_steps">1. BUILD THE GAME CODE (%1$s): on this device, with no PC: choose \"Build the game code\" and your game disc\'s image (.iso); it took about 13 minutes on a Snapdragon 865. Or on a PC: run %3$s with this device connected over USB.\n2. INSTALL &amp; PLAY (%2$s): plays from your two disc images (.iso), the game disc and the install disc, where they lie, also on an SD card; or copies them into the app, about 12 GB.</string>
+    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs your game disc\'s image (.iso), which is only read, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build took about 13 minutes on a Retroid Pocket Flip 2 (Snapdragon 865), the one device it was measured on, and takes longer on a slower or hot one; it carries on while you use other apps, and from where it was if it is interrupted.</string>
 </resources>

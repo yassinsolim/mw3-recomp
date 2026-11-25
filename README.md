@@ -33,8 +33,10 @@ Other games: [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
 
 1. Install the APK from [Releases](https://github.com/yassinsolim/mw3-recomp/releases/latest)
    and open it.
-2. Tap **Build on this device** and pick your `.iso` with the Files app (it is
-   only read). The app downloads its build tools once (43 MB); Android asks
+2. Tap **Build on this device**. An `.iso` on the device or its SD card is
+   found by itself where Android lets the app look; otherwise pick it with the Files app, or browse
+   to it and tap it (or **Use this folder** in the folder it is in). It is
+   only read. The app downloads its build tools once (43 MB); Android asks
    twice to allow installing them.
 3. Tap **Build** and wait about **5 to 8 minutes** (4 min 40 s on the AYN
    Thor, 8 min on the Flip 2). You can leave the app or lock the screen; it carries

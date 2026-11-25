@@ -7,7 +7,9 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.system.Os
 import android.system.OsConstants
+import android.os.Environment
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -60,36 +62,112 @@ internal class DiscImage(private val channel: FileChannel) {
         return buffer
     }
 
-    /** The file's place in the image and its size, or null when the root folder has none of that name. */
-    fun find(name: String): Pair<Long, Long>? {
+    /** What a disc image is to this app. */
+    enum class Kind {
+        /** This game's game disc: the one with its executables. */
+        GAME,
+
+        /** Advanced Warfare's install disc: the one with its two content packages. */
+        INSTALL,
+
+        /** A disc of something else. */
+        OTHER,
+    }
+
+    /** This game's disc images among some files: its game discs and, for Advanced Warfare, its install discs. */
+    class Found(val games: List<File>, val installs: List<File>)
+
+    /**
+     * The entry [name] of the folder [table]: where it starts in the image
+     * and its size, of a file or (with [directory]) of a folder.
+     */
+    private fun entry(table: ByteBuffer, name: String, directory: Boolean): Pair<Long, Long>? {
         // The folder is a binary tree of entries, each at four times its
         // number; walked whole, so its order need not be trusted.
         val pending = ArrayDeque(listOf(0))
         val seen = HashSet<Int>()
         while (pending.isNotEmpty()) {
             val at = pending.removeLast() * 4
-            if (!seen.add(at) || at + 14 > root.limit()) continue
-            val left = root.getShort(at).toInt() and 0xFFFF
-            val right = root.getShort(at + 2).toInt() and 0xFFFF
+            if (!seen.add(at) || at + 14 > table.limit()) continue
+            val left = table.getShort(at).toInt() and 0xFFFF
+            val right = table.getShort(at + 2).toInt() and 0xFFFF
             if (left == 0xFFFF) continue
-            val length = root.get(at + 13).toInt() and 0xFF
-            if (at + 14 + length > root.limit()) continue
+            val length = table.get(at + 13).toInt() and 0xFF
+            if (at + 14 + length > table.limit()) continue
             if (left != 0) pending.addLast(left)
             if (right != 0) pending.addLast(right)
-            val directory = root.get(at + 12).toInt() and 0x10 != 0
-            val entry = String(root.array(), at + 14, length, Charsets.ISO_8859_1)
-            if (!directory && entry.equals(name, ignoreCase = true)) {
-                val sector = root.getInt(at + 4).toLong() and 0xFFFFFFFFL
-                val size = root.getInt(at + 8).toLong() and 0xFFFFFFFFL
+            val folder = table.get(at + 12).toInt() and 0x10 != 0
+            val entry = String(table.array(), at + 14, length, Charsets.ISO_8859_1)
+            if (folder == directory && entry.equals(name, ignoreCase = true)) {
+                val sector = table.getInt(at + 4).toLong() and 0xFFFFFFFFL
+                val size = table.getInt(at + 8).toLong() and 0xFFFFFFFFL
                 return Pair(base + sector * SECTOR, size)
             }
         }
         return null
     }
 
+    /** The folder at [path] below the root ("" is the root), or null when the image has none. */
+    private fun folder(path: String): ByteBuffer? {
+        var table = root
+        for (part in path.split('/').filter { it.isNotEmpty() }) {
+            val (at, size) = entry(table, part, directory = true) ?: return null
+            if (size <= 0 || size > (1 shl 24)) return null
+            table = try {
+                read(at, size.toInt())
+            } catch (_: IOException) {
+                return null
+            }
+        }
+        return table
+    }
+
+    /**
+     * The file's place in the image and its size, or null when the image has
+     * none of that name: one at the root, or by its path ("<folder>/<file>").
+     */
+    fun find(name: String): Pair<Long, Long>? =
+        folder(name.substringBeforeLast('/', ""))?.let { entry(it, name.substringAfterLast('/'), directory = false) }
+
+    /** The number of the title the executable [name] belongs to, from its header (tools/xexinfo.py), or null. */
+    private fun titleOf(name: String): Long? {
+        val (at, size) = find(name) ?: return null
+        return try {
+            // { "XEX2", flags, the image's offset, reserved, the security
+            //   info's offset, the count of optional headers } and then those,
+            //   { key, value } each; the execution info's value is where it is.
+            val header = read(at, 24).order(ByteOrder.BIG_ENDIAN)
+            val count = header.getInt(20)
+            if (header.getInt(0) != 0x58455832 || count !in 1..64 || 24 + count * 8L > size) return null
+            val entries = read(at + 24, count * 8).order(ByteOrder.BIG_ENDIAN)
+            for (index in 0 until count) {
+                val where = entries.getInt(index * 8 + 4).toLong() and 0xFFFFFFFFL
+                if (entries.getInt(index * 8) != EXECUTION_INFO || where + 16 > size) continue
+                return read(at + where + 12, 4).order(ByteOrder.BIG_ENDIAN).int.toLong() and 0xFFFFFFFFL
+            }
+            null
+        } catch (_: IOException) {
+            null
+        }
+    }
+
+    /**
+     * What this image is to this app. An install disc is told first, by the
+     * folder its packages are in: Advanced Warfare's has the campaign's
+     * executable at its root as well.
+     */
+    fun kind(): Kind = when {
+        Title.isAw && folder("content/0000000000000000/%08X/00000002".format(Title.titleId)) != null -> Kind.INSTALL
+        Title.carried.all { find(it.executable) != null } && titleOf(Title.carried.first().executable) == Title.titleId -> Kind.GAME
+        else -> Kind.OTHER
+    }
+
     companion object {
         const val SECTOR = 2048L
         val MAGIC = "MICROSOFT*XBOX*MEDIA".toByteArray()
+
+        /** The key of an executable's optional header that holds its title's number. */
+        private const val EXECUTION_INFO = 0x00040006
 
         fun isDocument(image: String): Boolean = image.startsWith("content://")
 
@@ -153,27 +231,81 @@ internal class DiscImage(private val channel: FileChannel) {
             return Uri.parse(image).lastPathSegment ?: image
         }
 
-        /**
-         * Disc images where players leave them, on the device's own storage and
-         * on each memory card: the Download folder's, largest first. Empty
-         * without the permission to list those folders.
-         */
-        fun inDownloads(context: Context): List<File> {
-            val roots = mutableListOf(File("/sdcard"))
+        /** The device's storage and each memory card's, by their roots. */
+        fun storages(context: Context): List<File> = buildList {
+            add(Environment.getExternalStorageDirectory())
             // A card's root, from the app's own folder on it
             // (<root>/Android/data/<package>/files).
-            for (folder in context.getExternalFilesDirs(null).drop(1)) {
-                val root = folder?.absolutePath?.substringBefore("/Android/data/", "") ?: continue
-                if (root.isNotEmpty()) roots += File(root)
+            for (own in context.getExternalFilesDirs(null).drop(1)) {
+                val root = own?.absolutePath?.substringBefore("/Android/data/", "") ?: continue
+                if (root.isNotEmpty()) add(File(root))
             }
-            return roots.flatMap { root ->
-                File(root, "Download").listFiles { file ->
-                    file.isFile && file.name.endsWith(".iso", ignoreCase = true) && file.length() > SMALLEST
-                }?.toList() ?: emptyList()
-            }.sortedByDescending { it.length() }
+        }
+
+        /**
+         * What [image], a path or a document's address, is to this app; null
+         * when it is not an Xbox 360 disc image or cannot be read.
+         */
+        fun kindOf(context: Context, image: String): Kind? = try {
+            val channel = if (isDocument(image)) {
+                context.contentResolver.openFileDescriptor(Uri.parse(image), "r")
+                    ?.let { ParcelFileDescriptor.AutoCloseInputStream(it).channel }
+            } else {
+                FileInputStream(image).channel
+            }
+            channel?.use { DiscImage(it).kind() }
+        } catch (_: Throwable) {
+            // Not readable, not an image, or a provider that took the
+            // permission back: all the same to the one asking.
+            null
+        }
+
+        private fun isImageFile(file: File): Boolean =
+            file.name.endsWith(".iso", ignoreCase = true) && file.isFile && file.length() > SMALLEST
+
+        private fun sorted(context: Context, images: List<File>): Found {
+            val kinds = images.associateWith { kindOf(context, it.path) }
+            return Found(images.filter { kinds[it] == Kind.GAME }, images.filter { kinds[it] == Kind.INSTALL })
+        }
+
+        /** The disc images of this game lying in [folder] itself: what a player means who chooses the folder they are in. */
+        fun inFolder(context: Context, folder: File): Found =
+            sorted(context, folder.listFiles { file -> isImageFile(file) }.orEmpty().sortedBy { it.name })
+
+        /**
+         * The disc images of this game on the device's own storage and on
+         * each memory card, wherever players keep them: the Download folders
+         * first, then every folder down to [DEEPEST] below a storage's root
+         * (ROMs/xbox 360/<game>/ is three), nearer ones first. Each image is
+         * told by what is in it, not by its name. Empty without the
+         * permission to list those folders. It reads folders and so is not
+         * for the main thread.
+         */
+        fun search(context: Context): Found {
+            val images = ArrayList<File>()
+            var level = storages(context)
+            var visited = 0
+            for (depth in 0..DEEPEST) {
+                val next = ArrayList<File>()
+                for (folder in level) {
+                    // A storage of very many folders is not walked whole.
+                    if (++visited > MOST_FOLDERS) break
+                    for (entry in folder.listFiles().orEmpty()) {
+                        if (entry.name.startsWith(".")) continue
+                        if (isImageFile(entry)) images += entry
+                        // Android/ is other apps' folders, which no app may read.
+                        else if (entry.isDirectory && !(depth == 0 && entry.name == "Android")) next += entry
+                    }
+                }
+                level = next
+            }
+            // Stable: within Download and within the rest, the nearer first.
+            return sorted(context, images.sortedBy { it.parentFile?.name != Environment.DIRECTORY_DOWNLOADS })
         }
 
         /** No disc of these games is smaller; a file that is, is something else. */
         const val SMALLEST = 500_000_000L
+        private const val DEEPEST = 4
+        private const val MOST_FOLDERS = 3000
     }
 }

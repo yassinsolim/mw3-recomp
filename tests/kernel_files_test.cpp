@@ -512,6 +512,33 @@ int main()
         std::string cut = package.substr(0, size_t(blockAt(0x40)));
         { std::ofstream(base / "cut-short", std::ios::binary) << cut; }
         assert(!ReadVolume::OpenPackage(base / "cut-short", error));
+
+        // The same package lying inside another file, as Advanced Warfare's
+        // lie in its install disc's image: read from its place there, by a
+        // path and by a descriptor the caller holds open, and never past its
+        // own end into what follows it.
+        const size_t before = 0x3800;
+        const fs::path holder = base / "holder.iso";
+        { std::ofstream(holder, std::ios::binary) << Pattern(before) << package << Pattern(0x1000); }
+        const int held = open(holder.string().c_str(), O_RDONLY);
+        assert(held >= 0);
+        for (const std::string& source : { holder.string(), "fd:" + std::to_string(held) })
+        {
+            const auto inside = ReadVolume::OpenPackage(source, before, package.size(), error);
+            assert(inside && inside->Header().displayName == u"Test Pack" && inside->RootFiles().size() == 3);
+            const ReadVolume::Entry* entry = inside->Find("maps\\big.ff");
+            assert(entry && entry->size == big.size());
+            std::string read(big.size() + 64, '\0');
+            const int descriptor = inside->Acquire();
+            assert(inside->Read(descriptor, *entry, 0, read.data(), read.size()) == big.size());
+            inside->Release(descriptor);
+            read.resize(big.size());
+            assert(read == big);
+        }
+        close(held);
+        // A range that is not a package, and one past the file's end.
+        assert(!ReadVolume::OpenPackage(holder.string(), 0, before, error) && !error.empty());
+        assert(!ReadVolume::OpenPackage(holder.string(), uint64_t(1) << 40, package.size(), error));
     }
 
     // ---- the disc image under the game folder --------------------------------

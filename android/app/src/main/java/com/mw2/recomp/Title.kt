@@ -72,14 +72,24 @@ enum class Title(val library: String, val executable: String) {
         /** com.aw.recomp*, Call of Duty: Advanced Warfare, which goes the same way. */
         val isAw: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.aw.")
 
+        /** The title's number, which a disc's executables carry: what tells this game's disc from another's (DiscImage.kind). */
+        val titleId: Long = when {
+            isAw -> 0x41560914L
+            isCod4 -> 0x415607E6L
+            isMw3 -> 0x415608CBL
+            else -> 0x41560817L
+        }
+
         /**
          * Advanced Warfare is two discs: whether the install disc's two
          * content packages, which the game mounts as a console does from its
-         * hard disk, are still to be copied beside the game folder
-         * (runtime/install/install.cpp, runtime/kernel/content.cpp).
+         * hard disk, are still to come: neither copied beside the game folder
+         * (runtime/install/install.cpp) nor read from the install disc's
+         * image [installDisc] where it lies (Prefs.installDiscImage,
+         * runtime/kernel/content.cpp).
          */
-        fun installDiscMissing(gameDirectory: String): Boolean {
-            if (!isAw || gameDirectory.isEmpty()) return false
+        fun installDiscMissing(gameDirectory: String, installDisc: String): Boolean {
+            if (!isAw || gameDirectory.isEmpty() || installDisc.isNotEmpty()) return false
             val packages = File(File(gameDirectory).absoluteFile.parentFile, "dlc")
             return !listOf("41560914051BF3C0", "4156091407406280").all { File(packages, it).isFile }
         }

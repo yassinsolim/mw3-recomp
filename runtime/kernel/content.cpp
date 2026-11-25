@@ -28,7 +28,10 @@
 #include "../guest.h"
 #include "../log.h"
 #include "../env.h"
+#include "../../launcher/disc.h"
 
+#include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cctype>
 #include <cstring>
@@ -147,12 +150,56 @@ namespace
         std::shared_ptr<ReadVolume> update;     // the title update's, for a build of its executable
     };
 
+    // Takes `volume`, the package `where` opened under the name `host`: this
+    // title's downloadable content when it is not listed already, or its
+    // title update's package.
+    void AddPackage(const std::shared_ptr<ReadVolume>& volume, const std::string& host, const std::string& where,
+                    const std::string& error, Packages& packages)
+    {
+        if (!volume)
+        {
+            LOGW("content: %s %s; it is not used", where.c_str(), error.c_str());
+            return;
+        }
+        const ReadVolume::Package& header = volume->Header();
+        if (header.titleId == T_TITLE_ID && header.contentType == kTitleUpdate)
+        {
+#if defined(AW_TITLE_TU17)
+            // A console has one. Of several (updates of two pressings of
+            // the disc make the same executable and differ in a language's
+            // folder) the first found serves.
+            if (!packages.update)
+            {
+                LOGI("content: title update %s (%zu files)", where.c_str(), volume->RootFiles().size());
+                packages.update = volume;
+            }
+#else
+            LOGI("content: %s is a title update, whose files are for the executable it makes; this is the disc's",
+                 where.c_str());
+#endif
+            return;
+        }
+        if (header.titleId != T_TITLE_ID || header.contentType != kMarketplaceContent)
+        {
+            LOGW("content: %s is for title %08X, content type %08X, not this title's downloadable content",
+                 where.c_str(), header.titleId, header.contentType);
+            return;
+        }
+        std::vector<Downloaded>& found = packages.content;
+        const std::string name = SafeName(host).substr(0, kContentFileMax - 1);
+        bool listed = false;
+        for (const Downloaded& other : found) listed = listed || other.name == name;
+        if (listed || name.empty()) return;
+        LOGI("content: downloadable content %s (%zu files, licence bits %08X)", where.c_str(),
+             volume->RootFiles().size(), header.licenceBits);
+        found.push_back({ name, volume });
+    }
+
     // Every package of this title's downloadable content under `folder`, which
     // may be the console's own tree (Content\0000000000000000\<title>\00000002)
     // copied whole, or the packages alone; and its title update's package.
     void FindDownloaded(const fs::path& folder, Packages& packages)
     {
-        std::vector<Downloaded>& found = packages.content;
         constexpr int kDeepest = 6;
         std::error_code ec;
         for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
@@ -161,52 +208,53 @@ namespace
             if (it.depth() >= kDeepest) it.disable_recursion_pending();
             std::error_code entryError;
             if (!it->is_regular_file(entryError)) continue;
-            const std::string host = it->path().filename().string();
             std::string error;
             const auto volume = ReadVolume::OpenPackage(it->path(), error);
-            if (!volume)
-            {
-                LOGW("content: %s %s; it is not used", it->path().string().c_str(), error.c_str());
-                continue;
-            }
-            const ReadVolume::Package& header = volume->Header();
-            if (header.titleId == T_TITLE_ID && header.contentType == kTitleUpdate)
-            {
-#if defined(AW_TITLE_TU17)
-                // A console has one. Of several (updates of two pressings of
-                // the disc make the same executable and differ in a language's
-                // folder) the first found serves.
-                if (!packages.update)
-                {
-                    LOGI("content: title update %s (%zu files)", it->path().string().c_str(), volume->RootFiles().size());
-                    packages.update = volume;
-                }
-#else
-                LOGI("content: %s is a title update, whose files are for the executable it makes; this is the disc's",
-                     it->path().string().c_str());
-#endif
-                continue;
-            }
-            if (header.titleId != T_TITLE_ID || header.contentType != kMarketplaceContent)
-            {
-                LOGW("content: %s is for title %08X, content type %08X, not this title's downloadable content",
-                     it->path().string().c_str(), header.titleId, header.contentType);
-                continue;
-            }
-            const std::string name = SafeName(host).substr(0, kContentFileMax - 1);
-            bool listed = false;
-            for (const Downloaded& other : found) listed = listed || other.name == name;
-            if (listed || name.empty()) continue;
-            LOGI("content: downloadable content %s (%zu files, licence bits %08X)", it->path().string().c_str(),
-                 volume->RootFiles().size(), header.licenceBits);
-            found.push_back({ name, volume });
+            AddPackage(volume, it->path().filename().string(), it->path().string(), error, packages);
+        }
+    }
+
+    // The packages a disc image holds where a console's hard disk has them
+    // after the disc's install (content/0000000000000000/<title>/00000002/):
+    // Advanced Warfare's install disc, read where it lies with nothing copied
+    // out. `image` is named as the disc image is (volume.h).
+    void FindInImage(const std::string& image, Packages& found)
+    {
+        std::string error;
+        const auto listing = install::Source::Open(install::FromUtf8(image), error);
+        if (!listing)
+        {
+            LOGW("content: the install disc's image %s: %s; its content is not used", image.c_str(), error.c_str());
+            return;
+        }
+        char folder[64];
+        std::snprintf(folder, sizeof folder, "content/0000000000000000/%08x/00000002/", unsigned(T_TITLE_ID));
+        const size_t length = std::strlen(folder);
+        // By name, as a folder of them is listed: the order the image's own
+        // tree gives them is not the order the title has met them in.
+        std::vector<const install::Source::File*> packages;
+        for (const auto& file : listing->DeepFiles())
+        {
+            std::string lower = file.name;
+            for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+            if (lower.size() > length && lower.compare(0, length, folder) == 0 &&
+                lower.find('/', length) == std::string::npos)
+                packages.push_back(&file);
+        }
+        std::sort(packages.begin(), packages.end(), [](const auto* a, const auto* b) { return a->name < b->name; });
+        for (const auto* file : packages)
+        {
+            const auto volume = ReadVolume::OpenPackage(image, file->offset, file->size, error);
+            AddPackage(volume, file->name.substr(length), image + ":" + file->name, error, found);
         }
     }
 
     // Looked for once, when the title first asks: MW2_DLC_DIR, the `dlc`
-    // folder beside the game folder, and the one beside the disc image.
-    // `gameRoot` is for the one that asks before the kernel is told the game
-    // folder (ReadTitleUpdateFile).
+    // folder beside the game folder, the one beside the disc image, and the
+    // install disc's image (MW2_INSTALL_DISC_IMAGE). Copies in a folder come
+    // first: a player who has them need not have the image in. `gameRoot` is
+    // for the one that asks before the kernel is told the game folder
+    // (ReadTitleUpdateFile).
     const Packages& InstalledPackages(const fs::path* gameRoot = nullptr)
     {
         static const Packages packages = [gameRoot]
@@ -227,6 +275,7 @@ namespace
             FindDownloaded(fs::absolute(gameRoot ? *gameRoot : GameRoot()).parent_path() / "dlc", found);
             if (const auto& disc = Disc(); disc && !disc->Path().empty())
                 FindDownloaded(fs::absolute(disc->Path()).parent_path() / "dlc", found);
+            if (const char* image = env::Text("MW2_INSTALL_DISC_IMAGE")) FindInImage(image, found);
             return found;
         }();
         return packages;

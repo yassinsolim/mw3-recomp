@@ -34,8 +34,10 @@ Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
 
 1. Install the APK from [Releases](https://github.com/yassinsolim/cod4-recomp/releases/latest)
    and open it.
-2. Tap **Build on this device** and pick your `.iso` with the Files app (it is
-   only read). The app downloads its build tools once (43 MB); Android asks
+2. Tap **Build on this device**. An `.iso` on the device or its SD card is
+   found by itself where Android lets the app look; otherwise pick it with the Files app, or browse
+   to it and tap it (or **Use this folder** in the folder it is in). It is
+   only read. The app downloads its build tools once (43 MB); Android asks
    twice to allow installing them.
 3. Tap **Build** and wait about **2 to 4 minutes** (2 min 12 s on the AYN
    Thor, 3 min 49 s on the Flip 2). You can leave the app or lock the screen;

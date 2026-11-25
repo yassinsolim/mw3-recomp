@@ -92,16 +92,18 @@ namespace install
     // disc this build was recompiled from. With `link`, only what the game
     // folder must hold itself is copied, the executables and the launcher's
     // picture, for a game that reads everything else from the image where it
-    // lies (kernel/volume.h). Returns false with `error` set, which is a
+    // lies (kernel/volume.h); of Advanced Warfare's install disc nothing is
+    // copied, and its packages are only checked. Returns false with `error` set, which is a
     // sentence to show a player. `report` is called from a thread of this
     // function's while the copy runs.
     using Report = void (*)(const char* file, uint64_t done, uint64_t total, void* user);
     bool InstallFrom(const std::filesystem::path& from, std::string& error,
                      Report report = nullptr, void* user = nullptr, bool link = false);
-    // The bytes of the game folder's copies of the image's files, which a
-    // game played from the image no longer needs: a file of the same name and
-    // size as the image's. With `remove`, they are deleted. A mod's files and
-    // an update's have other names or sizes, and stay.
+    // The bytes of the app's copies of the image's files, which a game
+    // played from the image no longer needs: a file of the same name and
+    // size as the image's, in the game folder, or beside it for a package of
+    // Advanced Warfare's install disc. With `remove`, they are deleted. A
+    // mod's files and an update's have other names or sizes, and stay.
     uint64_t CopiedFiles(const std::filesystem::path& from, bool remove);
     // Stops the copy going on now, if there is one. What was copied stays,
     // and the next install carries on from there.

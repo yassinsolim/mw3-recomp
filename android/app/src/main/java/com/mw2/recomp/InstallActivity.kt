@@ -26,7 +26,7 @@ import kotlin.concurrent.thread
 /**
  * Setting the player's own copy of the game up to be played.
  *
- * Two ways, and the player chooses:
+ * Two ways, and the player chooses; the choice is kept (Prefs.installByCopy):
  *
  *   From the image   the game reads its files out of the disc image where
  *                    it lies (runtime/kernel/volume.h), on the device or on
@@ -35,6 +35,12 @@ import kotlin.concurrent.thread
  *   Copied           what the game needs is copied into the app's storage,
  *                    about 7 GB, from an image or from a folder a disc was
  *                    extracted to; the source is not needed afterwards.
+ *
+ * Advanced Warfare is two discs, the game disc and the install disc, and
+ * both go the same way: played from the images, the install disc's two
+ * packages are read out of its image as well (runtime/kernel/content.cpp).
+ * They are chosen together -- found beside each other, in the folder the
+ * player chose, or both picked in the Files app -- or one after the other.
  *
  * The work is the runtime's (runtime/install/install.cpp): it reads a disc
  * image or a folder, checks the executables against the disc this build was
@@ -66,15 +72,22 @@ class InstallActivity : AppCompatActivity() {
     private lateinit var cancel: Button
     private lateinit var linkMode: android.widget.RadioButton
     private lateinit var copyMode: android.widget.RadioButton
+    private lateinit var modeNote: TextView
 
     private val handler = Handler(Looper.getMainLooper())
-    /** A path, or a document's address (DiscImage.kt). */
+    /** What the game is installed from: a path, of an image or of a folder of a disc's files, or a document's address (DiscImage.kt). */
     private var source: String = ""
 
-    /** Whether the install running, or the last to finish, plays from the image. */
+    /** Advanced Warfare's second disc, the install disc, named as [source] is; set up after it. */
+    private var installDisc: String = ""
+
+    /** Whether the install running, or the last to finish, plays from the images. */
     private var linked = false
 
-    /** The bytes of earlier copies the game folder still holds once it plays from the image. */
+    /** What that install read, in its order. */
+    private var ran: List<String> = emptyList()
+
+    /** The bytes of earlier copies the app still holds once it plays from the images. */
     private var copies = 0L
 
     @Volatile
@@ -103,8 +116,12 @@ class InstallActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
-        val uri = result.data?.data ?: return@registerForActivityResult
-        chooseDocument(uri)
+        val several = result.data?.clipData
+        if (several != null) {
+            for (index in 0 until several.itemCount) chooseDocument(several.getItemAt(index).uri)
+        } else {
+            chooseDocument(result.data?.data ?: return@registerForActivityResult)
+        }
     }
 
     private val tick = object : Runnable {
@@ -136,12 +153,19 @@ class InstallActivity : AppCompatActivity() {
         linkMode = findViewById(R.id.mode_link)
         copyMode = findViewById(R.id.mode_copy)
 
+        modeNote = findViewById(R.id.mode_note)
         sourceText.text = getString(R.string.no_source)
+        // The player's own choice, kept: a tap, not what the screen sets.
+        linkMode.setOnClickListener { prefs.installByCopy = false }
+        copyMode.setOnClickListener { prefs.installByCopy = true }
+        if (prefs.installByCopy) copyMode.isChecked = true
 
         pick.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "*/*"
+            // Advanced Warfare's two discs can be chosen in one go.
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, Title.isAw)
             document.launch(intent)
         }
         choose.setOnClickListener {
@@ -182,14 +206,13 @@ class InstallActivity : AppCompatActivity() {
             }
         })
 
-        val initial = intent.getStringExtra(EXTRA_INITIAL_PATH)
-        // A path the launcher found, or the document the player chose on
-        // the build screen, which the launcher has opened once already.
-        if (!initial.isNullOrEmpty() && (DiscImage.isDocument(initial) || File(initial).exists())) {
-            useSource(initial)
-            if (intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
-                start()
-            }
+        // What the launcher found, or the document the player chose on the
+        // build screen, which the launcher has opened once already.
+        for (found in listOf(intent.getStringExtra(EXTRA_INITIAL_PATH), intent.getStringExtra(EXTRA_INSTALL_DISC))) {
+            if (!found.isNullOrEmpty() && (DiscImage.isDocument(found) || File(found).exists())) useSource(found)
+        }
+        if ((source.isNotEmpty() || installDisc.isNotEmpty()) && intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
+            start()
         }
         ContextCompat.registerReceiver(
             this, tuDownloadDone,
@@ -209,22 +232,93 @@ class InstallActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_INITIAL_PATH = "initial_path"
+
+        /** Advanced Warfare's install disc, when the launcher found it too. */
+        const val EXTRA_INSTALL_DISC = "install_disc"
         const val EXTRA_AUTO_START = "auto_start"
 
-        /** The [Title] (by name) to start once the files are in. */
+        /** The title the launcher was asked for, or the app's first. */
         const val EXTRA_TITLE = "title"
     }
 
+    private fun isFolder(image: String): Boolean = !DiscImage.isDocument(image) && File(image).isDirectory
+
+    /** Whether [folder] is Advanced Warfare's install disc extracted: it has the folder the packages are in. */
+    private fun isInstallDiscFolder(folder: File): Boolean =
+        Title.isAw && File(folder, "content/0000000000000000/41560914/00000002").isDirectory
+
+    /**
+     * Takes what the player chose, or the launcher found. A disc image is
+     * told by what is in it (DiscImage.kind): Advanced Warfare's install
+     * disc goes beside the game disc, whichever was chosen first. A folder
+     * is either a disc's files extracted, which can only be copied, or
+     * simply where the images lie -- a player who keeps both discs in one
+     * folder chooses that folder -- and then the images in it are taken.
+     */
     private fun useSource(image: String) {
-        source = image
-        sourceText.text = getString(R.string.chosen, DiscImage.label(this, image))
-        // A folder of extracted files has no image to play from, and
-        // Advanced Warfare's two discs are copied: the install disc's
-        // packages have to be files, and one image cannot stand for both.
-        val folder = !DiscImage.isDocument(image) && File(image).isDirectory
-        linkMode.isEnabled = !folder && !Title.isAw
-        if (linkMode.isEnabled) linkMode.isChecked = true else copyMode.isChecked = true
-        begin.isEnabled = NativeBridge.isLoaded()
+        if (isFolder(image)) {
+            val folder = File(image)
+            when {
+                isInstallDiscFolder(folder) -> installDisc = image
+                Title.carried.any { File(folder, it.executable).isFile } -> source = image
+                else -> {
+                    val found = DiscImage.inFolder(this, folder)
+                    if (found.games.isEmpty() && found.installs.isEmpty()) {
+                        AlertDialog.Builder(this)
+                            .setMessage(getString(R.string.folder_nothing, image))
+                            .setPositiveButton(R.string.close, null)
+                            .show()
+                        return
+                    }
+                    found.games.firstOrNull()?.let { source = it.path }
+                    found.installs.firstOrNull()?.let { installDisc = it.path }
+                }
+            }
+        } else if (DiscImage.kindOf(this, image) == DiscImage.Kind.INSTALL) {
+            installDisc = image
+        } else {
+            // Whatever else it is: the installer says what is wrong with an
+            // image that is not this game's (runtime/install/install.cpp).
+            source = image
+            // The install disc usually lies beside the game disc, and is
+            // taken with it; a document has no folder to look in.
+            if (Title.isAw && installDisc.isEmpty() && !DiscImage.isDocument(image)) {
+                File(image).parentFile?.let { DiscImage.inFolder(this, it).installs.firstOrNull() }
+                    ?.let { installDisc = it.path }
+            }
+        }
+        showSources()
+    }
+
+    /** What is chosen, and which of the two ways it can be set up. */
+    private fun showSources() {
+        sourceText.text = when {
+            source.isEmpty() && installDisc.isEmpty() -> getString(R.string.no_source)
+            !Title.isAw -> getString(R.string.chosen, DiscImage.label(this, source))
+            else -> {
+                val target = gameDirectory().absolutePath
+                getString(
+                    R.string.chosen_two,
+                    discLabel(source, safelyInstalled(gameDirectory())),
+                    discLabel(installDisc, !Title.installDiscMissing(target, prefs.installDiscImage)),
+                )
+            }
+        }
+        // A folder of extracted files has no image to play from. The
+        // player's choice is kept for the next image all the same: only
+        // what they tap changes it (Prefs.installByCopy).
+        val extracted = isFolder(source) || isFolder(installDisc)
+        linkMode.isEnabled = !extracted
+        modeNote.visibility = if (extracted) View.VISIBLE else View.GONE
+        if (extracted || prefs.installByCopy) copyMode.isChecked = true else linkMode.isChecked = true
+        begin.isEnabled = NativeBridge.isLoaded() && (source.isNotEmpty() || installDisc.isNotEmpty())
+    }
+
+    /** One of Advanced Warfare's two discs as the source's box names it. */
+    private fun discLabel(image: String, done: Boolean): String = when {
+        image.isNotEmpty() -> DiscImage.label(this, image)
+        done -> getString(R.string.disc_already_set_up)
+        else -> getString(R.string.disc_not_chosen)
     }
 
     private fun gameDirectory(): File {
@@ -395,6 +489,9 @@ class InstallActivity : AppCompatActivity() {
         val target = gameDirectory()
         target.mkdirs()
         val link = linkMode.isEnabled && linkMode.isChecked
+        // Asked for by hand or by the launcher, the way it is done is the
+        // player's choice from here on.
+        if (linkMode.isEnabled) prefs.installByCopy = !link
 
         val free = StatFs(target.absolutePath).availableBytes
         if (!link && free < 7L * 1024 * 1024 * 1024) {
@@ -415,13 +512,11 @@ class InstallActivity : AppCompatActivity() {
     }
 
     private fun reallyStart(target: File, link: Boolean) {
-        val from = if (File(source).isDirectory) source else DiscImage.source(this, source)
-        if (from == null) {
-            finished(getString(R.string.source_unreadable, DiscImage.label(this, source)), target)
-            return
-        }
+        // The game disc first: Advanced Warfare's install disc comes after it.
+        val queue = listOf(source, installDisc).filter { it.isNotEmpty() }
         running = true
         linked = link
+        ran = queue
         setBusy(true)
         handler.post(tick)
 
@@ -429,15 +524,29 @@ class InstallActivity : AppCompatActivity() {
         // runs on a thread of its own and the screen polls it.
         thread(name = "install") {
             var left = 0L
-            val error = try {
-                NativeBridge.nativeInstall(from, target.absolutePath, link).also {
-                    if (it == null && link) left = NativeBridge.nativeCopiedFiles(from, target.absolutePath, false)
+            var error: String? = null
+            for (image in queue) {
+                val from = if (isFolder(image)) image else DiscImage.source(this, image)
+                if (from == null) {
+                    error = getString(R.string.source_unreadable, DiscImage.label(this, image))
+                    break
                 }
-            } catch (failure: Throwable) {
-                failure.message ?: "unexpected failure"
+                error = try {
+                    NativeBridge.nativeInstall(from, target.absolutePath, link).also {
+                        if (it == null && link) left += NativeBridge.nativeCopiedFiles(from, target.absolutePath, false)
+                    }
+                } catch (failure: Throwable) {
+                    failure.message ?: "unexpected failure"
+                }
+                // The game's own process opens the image for itself.
+                DiscImage.close(from)
+                if (error != null) break
+                // What the game reads this disc from, said as soon as it is
+                // set up: each disc on its own, since one may be set up
+                // without the other being touched.
+                if (image == installDisc) prefs.installDiscImage = if (link) image else ""
+                else prefs.discImage = if (link) image else ""
             }
-            // The game's own process opens the image for itself.
-            DiscImage.close(from)
             handler.post {
                 copies = left
                 finished(error, target)
@@ -446,7 +555,7 @@ class InstallActivity : AppCompatActivity() {
     }
 
     private fun setBusy(busy: Boolean) {
-        begin.isEnabled = !busy && source.isNotEmpty() && NativeBridge.isLoaded()
+        begin.isEnabled = !busy && (source.isNotEmpty() || installDisc.isNotEmpty()) && NativeBridge.isLoaded()
         choose.isEnabled = !busy
         pick.isEnabled = !busy
         progress.visibility = if (busy) View.VISIBLE else View.GONE
@@ -465,12 +574,13 @@ class InstallActivity : AppCompatActivity() {
                 startTuUpdate(target)
                 return
             }
-            // Advanced Warfare is installed from two images, in either
-            // order: after one, the screen asks for the other.
+            // Advanced Warfare is installed from two images, together or
+            // one after the other in either order: after one alone, the
+            // screen asks for the other.
             if (Title.isAw) {
                 val other = when {
                     !safelyInstalled(target) -> R.string.aw_game_disc_needed
-                    Title.installDiscMissing(target.absolutePath) -> R.string.aw_install_disc_needed
+                    Title.installDiscMissing(target.absolutePath, prefs.installDiscImage) -> R.string.aw_install_disc_needed
                     else -> null
                 }
                 if (other != null) {
@@ -479,6 +589,7 @@ class InstallActivity : AppCompatActivity() {
                     // handheld's screen (Retroid Pocket Flip 2).
                     progressText.text = getString(other)
                     source = ""
+                    installDisc = ""
                     sourceText.text = getString(other)
                     begin.isEnabled = false
                     return
@@ -502,14 +613,16 @@ class InstallActivity : AppCompatActivity() {
     }
 
     private fun installedDone(target: File) {
-        // The image first: the game folder is what says the game is installed.
-        prefs.discImage = if (linked) source else ""
+        // The images were said as each was set up, before this: the game
+        // folder is what says the game is installed.
         prefs.gameDirectory = target.absolutePath
         progressText.text = getString(if (linked) R.string.install_done_link else R.string.install_done)
         // An imported copy has done its job and is the size of a disc, unless
-        // it is the image the game now plays from.
+        // it is an image the game now plays from.
         val imported = File(getExternalFilesDir(null) ?: filesDir, "import")
-        if (!linked || !source.startsWith(imported.absolutePath)) imported.deleteRecursively()
+        if (listOf(prefs.discImage, prefs.installDiscImage).none { it.startsWith(imported.absolutePath) }) {
+            imported.deleteRecursively()
+        }
         if (linked && copies > 0) {
             offerToRemoveCopies(target)
             return
@@ -534,8 +647,8 @@ class InstallActivity : AppCompatActivity() {
                 setBusy(true)
                 progress.isIndeterminate = true
                 thread(name = "remove-copies") {
-                    val from = DiscImage.source(this, source)
-                    if (from != null) {
+                    for (image in ran) {
+                        val from = DiscImage.source(this, image) ?: continue
                         try {
                             NativeBridge.nativeCopiedFiles(from, target.absolutePath, true)
                         } catch (_: Throwable) {

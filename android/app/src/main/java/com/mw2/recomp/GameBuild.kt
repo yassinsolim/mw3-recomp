@@ -244,6 +244,10 @@ object GameBuild {
         }
     }
 
+    /** Whether [folder] holds a disc's files extracted: each of the executables is in it. */
+    fun inGameFolder(context: Context, folder: File): Boolean =
+        kit(context)?.titles.orEmpty().let { titles -> titles.isNotEmpty() && titles.all { File(folder, it.executable).isFile } }
+
     // ---- the build -------------------------------------------------------------
 
     /** Lets [run] work again after a [stop]: the player's asking, never the build's own doing, so that a stop is not lost to a run just starting. */

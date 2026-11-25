@@ -361,6 +361,7 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 .setPositiveButton(R.string.reset) { _, _ ->
                     prefs.gameDirectory = ""
                     prefs.discImage = ""
+                    prefs.installDiscImage = ""
                     showPaths()
                 }
                 .show()
@@ -709,11 +710,13 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
     /** Where the game is read from: the folder, and the disc image when it is played from one. */
     private fun showPaths() {
         val paths: TextView = findViewById(R.id.paths)
-        val disc = prefs.discImage
+        val discs = listOf(prefs.discImage, prefs.installDiscImage).filter { it.isNotEmpty() }
         paths.text = when {
             prefs.gameDirectory.isEmpty() -> getString(R.string.paths_none)
-            disc.isEmpty() -> getString(R.string.paths_line, prefs.gameDirectory)
-            else -> getString(R.string.paths_line_disc, DiscImage.label(this, disc), prefs.gameDirectory)
+            discs.isEmpty() -> getString(R.string.paths_line, prefs.gameDirectory)
+            else -> getString(
+                R.string.paths_line_disc, discs.joinToString("\n") { DiscImage.label(this, it) }, prefs.gameDirectory,
+            )
         }
     }
 

@@ -293,6 +293,28 @@ class Prefs(context: Context) {
         }
 
     /**
+     * Advanced Warfare's second disc, the install disc, when its two content
+     * packages are read out of its image where it lies (kernel/content.cpp),
+     * named as [discImage] names one. Empty when they were copied beside the
+     * game folder, and in every other game.
+     */
+    var installDiscImage: String
+        get() = store.getString(KEY_INSTALL_DISC_IMAGE, "") ?: ""
+        set(value) {
+            store.edit().putString(KEY_INSTALL_DISC_IMAGE, value).commit()
+        }
+
+    /**
+     * Whether the player chose, on the install screen, to copy the game
+     * files into the app rather than play from the disc image: the choice
+     * is theirs and is kept, also across a source that allows only one of
+     * the two (a folder of extracted files can only be copied).
+     */
+    var installByCopy: Boolean
+        get() = store.getBoolean(KEY_INSTALL_BY_COPY, false)
+        set(value) = store.edit().putBoolean(KEY_INSTALL_BY_COPY, value).apply()
+
+    /**
      * The disc image the player chose on the build screen, as [discImage]
      * names one: Install & Play offers it, so an image is chosen once.
      */
@@ -572,6 +594,8 @@ class Prefs(context: Context) {
         private const val KEY_BUNDLED_DRIVER_DIR = "bundledDriverDirectory"
         private const val KEY_GAME_DIR = "gameDirectory"
         private const val KEY_DISC_IMAGE = "discImage"
+        private const val KEY_INSTALL_DISC_IMAGE = "installDiscImage"
+        private const val KEY_INSTALL_BY_COPY = "installByCopy"
         private const val KEY_CHOSEN_IMAGE = "chosenImage"
         private const val KEY_LAST_BROWSED = "lastBrowsed"
         private const val KEY_WELCOME = "seenWelcome"

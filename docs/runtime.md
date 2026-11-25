@@ -305,6 +305,18 @@ chains of 4 KB blocks between hash tables; the file layer reads both through
 the device's storage in the time it takes from copied files, and from a
 memory card half a second later on the heaviest level.
 
+**A package inside a disc image.** Advanced Warfare's second disc, the
+install disc, holds the two content packages a console copies to its hard
+disk (`content\0000000000000000\41560914\00000002\`). A file of a disc image
+is one run of its bytes, so a package there is an STFS volume that starts at
+an offset of the image: `ReadVolume::OpenPackage(source, offset, size)`, the
+same reader with every position counted from there. `MW2_INSTALL_DISC_IMAGE`
+(a path or `fd:<number>`, as `MW2_DISC_IMAGE`; the app sets it when the
+player plays from the images) names that image, and `content.cpp` mounts the
+packages in it after any copied to a `dlc` folder, in the order of their
+names. Nothing is copied out
+([AW-BRINGUP.md](AW-BRINGUP.md#played-from-the-two-images-25-november-2026)).
+
 Resolution is case-insensitive, one component at a time. Deletion follows NT:
 a file marked for deletion goes when its last handle closes. Reads go through a
 host buffer and are copied into guest memory, because a system call writing

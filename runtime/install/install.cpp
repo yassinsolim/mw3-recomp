@@ -485,6 +485,23 @@ namespace
                     wanted.push_back({ &file, packages / install::FromUtf8(file.name.substr(std::strlen(kPackagePath))) });
             if (!wanted.empty())
             {
+                // Played from the image, the packages stay in it, where the
+                // runtime reads them (kernel/content.cpp): nothing is copied,
+                // and each is only seen to be a package.
+                if (link)
+                {
+                    for (const Wanted& item : wanted)
+                    {
+                        char magic[4];
+                        if (item.file->size < sizeof magic || !source->Read(*item.file, 0, magic, sizeof magic) ||
+                            (std::memcmp(magic, "LIVE", 4) != 0 && std::memcmp(magic, "PIRS", 4) != 0))
+                        {
+                            error = "The install disc's image is damaged: " + item.file->name + " is not a content package.";
+                            return false;
+                        }
+                    }
+                    return true;
+                }
                 std::error_code ec;
                 fs::create_directories(packages, ec);
                 if (ec) { error = "Cannot create " + Utf8(fs::absolute(packages)) + ": " + ec.message(); return false; }
@@ -828,17 +845,35 @@ uint64_t install::CopiedFiles(const fs::path& from, bool remove)
     const auto source = install::Source::Open(from, error);
     if (!source) return 0;
     std::error_code ec;
-    const auto count = [&](const install::Source::File& file)
+    const auto count = [&](const install::Source::File& file, const fs::path& copy)
     {
-        const fs::path copy = g_gameFolder / install::FromUtf8(file.name);
         if (!fs::is_regular_file(copy, ec) || fs::file_size(copy, ec) != file.size) return;
         bytes += file.size;
         if (remove) fs::remove(copy, ec);
     };
+#ifdef AW_TITLE
+    // The install disc gave its packages, copied beside the game folder
+    // (Install), and nothing else: the files at its root have the names of
+    // some of the game disc's, whose copies are not this disc's to remove.
+    const fs::path packages = fs::path(g_gameFolder).parent_path() / kPackageFolder;
+    bool installDisc = false;
+    for (const auto& file : source->DeepFiles())
+    {
+        if (!IsPackage(file.name)) continue;
+        installDisc = true;
+        count(file, packages / install::FromUtf8(file.name.substr(std::strlen(kPackagePath))));
+    }
+    if (installDisc)
+    {
+        if (remove) fs::remove(packages, ec);
+        if (remove) LOGI("install: removed %.1f GB of copies of the install disc's packages", bytes / 1e9);
+        return bytes;
+    }
+#endif
     for (const auto& file : source->Files())
-        if (IsGameFile(file.name) && !IsArt(file.name)) count(file);
+        if (IsGameFile(file.name) && !IsArt(file.name)) count(file, g_gameFolder / install::FromUtf8(file.name));
     for (const auto& file : source->FolderFiles())
-        if (IsFolderFile(file.name)) count(file);
+        if (IsFolderFile(file.name)) count(file, g_gameFolder / install::FromUtf8(file.name));
     // The disc's folder goes when it is left empty, and only then.
     if (remove) fs::remove(g_gameFolder / kDiscFolder, ec);
     if (remove) LOGI("install: removed %.1f GB of copies of the disc image's files", bytes / 1e9);

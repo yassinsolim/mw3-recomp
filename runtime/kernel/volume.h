@@ -52,6 +52,12 @@ namespace kernel
         // A read-only content package (LIVE or PIRS), as a console keeps a
         // downloaded one under Content\0000000000000000\<title>\00000002.
         static std::shared_ptr<ReadVolume> OpenPackage(const std::filesystem::path& file, std::string& error);
+        // The same lying inside another file, `size` bytes of `source` from
+        // `offset`: a package of a disc image, read where it is (Advanced
+        // Warfare's install disc holds the two a console copies to its hard
+        // disk). `source` is named as OpenDisc's.
+        static std::shared_ptr<ReadVolume> OpenPackage(const std::string& source, uint64_t offset, uint64_t size,
+                                                       std::string& error);
 
         ~ReadVolume();
         ReadVolume(const ReadVolume&) = delete;
@@ -87,6 +93,7 @@ namespace kernel
         std::string name_;
         std::filesystem::path path_;    // empty: only the descriptor is known
         int descriptor_ = -1;
+        uint64_t base_ = 0;             // where the volume starts in its file
         uint64_t size_ = 0;
         std::unordered_map<std::string, Entry> entries_;
         std::vector<std::string> rootFiles_;

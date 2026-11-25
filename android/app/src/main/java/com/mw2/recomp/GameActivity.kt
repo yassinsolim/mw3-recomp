@@ -479,6 +479,18 @@ class GameActivity : AppCompatActivity(), NativeListener {
             }
             NativeBridge.nativeSetOption("MW2_DISC_IMAGE", source)
         }
+        // Advanced Warfare's install disc, when its packages are read out of
+        // its image too (kernel/content.cpp): the title does not start
+        // without them.
+        val installDisc = prefs.installDiscImage
+        if (installDisc.isNotEmpty()) {
+            val source = DiscImage.source(this, installDisc)
+            if (source == null) {
+                fail(getString(R.string.status_disc_missing, DiscImage.label(this, installDisc)))
+                return
+            }
+            NativeBridge.nativeSetOption("MW2_INSTALL_DISC_IMAGE", source)
+        }
         // The camouflage packs this APK was built with, where the runtime
         // reads them: Modern Warfare 3's multiplayer lists them.
         if (isMw3Multiplayer) CamoPacks.installBundled(this, gameDirectory)

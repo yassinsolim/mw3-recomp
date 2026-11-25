@@ -11,7 +11,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
-import android.os.Environment
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -35,8 +34,9 @@ import kotlin.concurrent.thread
  * said as done or with the one button that does it:
  *
  *  1. the disc's executables, from the installed game files where they are
- *     there already, from a disc image in Download, or out of the one the
- *     player picks;
+ *     there already, from a disc image found on the device or a memory card,
+ *     or out of the one the player picks; the player is never asked for
+ *     the executables themselves;
  *  2. the toolchain package (Toolchain.kt), downloaded from the app's own
  *     release and installed through the system's prompt;
  *  3. the build, which GameBuildService keeps going with the app in the
@@ -95,8 +95,7 @@ class BuildActivity : AppCompatActivity() {
     private val browser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val path = result.data?.getStringExtra(FileBrowserActivity.EXTRA_PATH)
         if (result.resultCode == Activity.RESULT_OK && path != null) {
-            // A folder is one holding the disc's files; anything else an image of it.
-            if (File(path).isDirectory) takeExecutables(null) { GameBuild.takeFromGameFolder(this, path) }
+            if (File(path).isDirectory) takeFromFolder(File(path))
             else takeExecutables(path) { FileInputStream(path).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
         }
     }
@@ -185,28 +184,52 @@ class BuildActivity : AppCompatActivity() {
                     false
                 }
             }
-            // A disc image in Download, where players usually leave one and
-            // the launcher looks for it too: the first whose executables are
-            // this game's is used unasked, since it is only read. Images of
-            // other games, and files this app may not read, are passed over.
+            // A disc image of this game anywhere on the device or a memory
+            // card (DiscImage.search), which the launcher looks for too: the
+            // first whose executables are a version this app supports is
+            // used unasked, since it is only read. Nothing is found where
+            // the app may not list folders; the player chooses one then.
             if (!have && !taking) {
-                val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val images = downloads.listFiles { file -> file.isFile && file.name.endsWith(".iso", ignoreCase = true) }.orEmpty()
-                have = images.sortedBy { it.name }.any { image ->
-                    try {
-                        FileInputStream(image).channel.use { GameBuild.takeFromDiscImage(this, it) }
-                        // Known to be this game's now, which the launcher's
-                        // own search by name is not sure of.
-                        prefs.chosenImage = image.path
-                        true
-                    } catch (_: IOException) {
-                        false
-                    }
-                }
+                have = DiscImage.search(this).games.any { takeFromImageFile(it) }
             }
             handler.post { executables = have }
         }
         handler.post(tick)
+    }
+
+    /** Takes the executables out of [image] and remembers it for Install & Play; false when it is not a version this app supports. */
+    private fun takeFromImageFile(image: File): Boolean = try {
+        FileInputStream(image).channel.use { GameBuild.takeFromDiscImage(this, it) }
+        prefs.chosenImage = image.path
+        true
+    } catch (_: IOException) {
+        false
+    }
+
+    /**
+     * A folder the player chose in the browser: one holding a disc's
+     * extracted files, or the one their disc image lies in, which is what a
+     * player who keeps the image in a folder of its own means by it.
+     */
+    private fun takeFromFolder(folder: File) {
+        if (GameBuild.inGameFolder(this, folder)) {
+            takeExecutables(null) { GameBuild.takeFromGameFolder(this, folder.path) }
+            return
+        }
+        taking = true
+        thread(name = "build-executables") {
+            val found = DiscImage.inFolder(this, folder).games.any { takeFromImageFile(it) }
+            handler.post {
+                taking = false
+                executables = found
+                if (!found && !isFinishing) {
+                    AlertDialog.Builder(this)
+                        .setMessage(getString(R.string.build_folder_nothing, folder.path))
+                        .setPositiveButton(R.string.close, null)
+                        .show()
+                }
+            }
+        }
     }
 
     override fun onPause() {

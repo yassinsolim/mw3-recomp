@@ -79,10 +79,14 @@ class FileBrowserActivity : AppCompatActivity() {
         val images = visible.filter { it.isFile && looksLikeImage(it) }
             .sortedBy { it.name.lowercase() }
         val parent = folder.parentFile
-        hasParent = parent != null && parent.canRead()
-        // At the top of a storage there is no way up to the others: the
-        // device's own and each memory card's are listed there instead.
-        others = if (hasParent) emptyList() else storages().filter { it != folder }
+        // The top of a storage is the top here: above a memory card's is
+        // /storage, which can be read but leads nowhere -- the device's own
+        // storage cannot be listed from it -- so the way back was lost once
+        // the card had been opened. The device's own and each memory
+        // card's are listed there instead.
+        val storages = DiscImage.storages(this)
+        hasParent = parent != null && parent.canRead() && folder !in storages
+        others = if (hasParent) emptyList() else storages.filter { it != folder }
         children = buildList {
             if (hasParent && parent != null) add(parent)
             addAll(others)
@@ -95,17 +99,6 @@ class FileBrowserActivity : AppCompatActivity() {
         grant.visibility = if (canRead && !needsPermission()) View.GONE else View.VISIBLE
         if (!canRead) {
             here.text = getString(R.string.storage_explained, packageName)
-        }
-    }
-
-    /** The device's storage and each memory card's, by their roots. */
-    private fun storages(): List<File> = buildList {
-        add(Environment.getExternalStorageDirectory())
-        // A card's root, from the app's own folder on it
-        // (<root>/Android/data/<package>/files).
-        for (own in getExternalFilesDirs(null).drop(1)) {
-            val root = own?.absolutePath?.substringBefore("/Android/data/", "") ?: continue
-            if (root.isNotEmpty()) add(File(root))
         }
     }
 

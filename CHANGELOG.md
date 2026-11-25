@@ -5,6 +5,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **Advanced Warfare plays from its two disc images where they are.** It
+  copied both discs into the app, 12 GB on the device's own storage; now
+  **Play from the disc image** is the default, as in the other games: the
+  game disc is read through the image, and the install disc's two content
+  packages are read in place inside the second image (`MW2_INSTALL_DISC_IMAGE`,
+  `ReadVolume::OpenPackage` from an offset;
+  [docs/runtime.md](docs/runtime.md)). The app keeps 60 MB of its own.
+  Copying is still there, the choice is kept (it used to flip to Copy by
+  itself), and **Settings → Change where the game is read from** switches an
+  installed game over and offers to remove the copies (11.99 GB on the
+  Retroid Pocket Flip 2). Measured there with both images on its SD card
+  against the copies on its own storage: Seoul 14.0, 13.7 and 13.9 s from
+  the images and 13.9 and 13.7 s from the copies (from `devmap seoul` to
+  the first frames of the level), Retreat 7.7, 7.8 and 7.2 s against 7.8,
+  7.5 and 7.1 s (from Start Game to the team menu over the map)
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#played-from-the-two-images-25-november-2026)).
 - **Setup installs only on a phone it was told.** A run that asks nothing
   (`-Yes`, `--yes`, or no terminal) installs only on the phone `-Device`
   (`--device`) names, and on none when that phone is not connected: it
@@ -282,6 +298,25 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **A folder of disc images is taken as that, in all four games.** A player
+  who keeps his `.iso` files in a folder of their own
+  (`<SD card>/Roms/xbox 360/Call Of Duty - Advanced Warfare/`) and chose that
+  folder was treated as having chosen a disc's extracted files: the build
+  screen said there was no `default.xex` in it, and the install screen
+  switched to **Copy the game files into the app** and failed the same way.
+  Now the images in a chosen folder are told by what is in them (the title's
+  number in the executable, Advanced Warfare's install disc by its package
+  folder) and taken: both of Advanced Warfare's at once. The browser says
+  that an `.iso` can be tapped, a folder with nothing of this game says so,
+  and when a folder really is extracted files the install screen says why
+  **Play from the disc image** is greyed out instead of only switching.
+- **A disc image is found wherever it lies.** The build screen and the
+  launcher looked in the Download folders only; they now look through the
+  device's storage and each memory card, four folders deep, for an image of
+  this game under whatever name. Advanced Warfare's install disc is found
+  with its game disc, and the two can be selected together in the Files app.
+- The app's browser lost the way back to the device's own storage once a
+  memory card had been opened; the top of each storage now lists the others.
 - **Advanced Warfare no longer flickers.** A few times a second one frame
   was brighter than its neighbours, the whole picture with the HUD (seven
   times in eight seconds of the multiplayer's lobby and ten in twelve

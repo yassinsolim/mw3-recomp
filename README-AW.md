@@ -32,27 +32,35 @@ Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
   RAM recommended. Tested: AYN Thor (Snapdragon 8 Gen 2) and Retroid Pocket
   Flip 2 (Snapdragon 865, the same chip as the Retroid Pocket 5). Mali GPUs
   are untested with this game.
-- **About 12 GB free on the device's own storage**: the app copies the game
-  out of the two images (7.3 GB from the game disc, 4 GB from the install
-  disc), plus about 1 GB while the game code is built. The two `.iso` files
-  themselves (17.5 GB) can lie on an SD card and can be deleted once the game
-  is installed.
+- **Both `.iso` files stay on the device or its SD card** (17.5 GB): by
+  default the game plays straight from them and copies nothing but its two
+  executables, so the device's own storage needs only about 1 GB while the
+  game code is built. Or the app can copy the game out of the two images
+  (7.3 GB from the game disc, 4 GB from the install disc, about 12 GB on the
+  device's own storage), after which the images are no longer needed.
 
 ## Quick start (no PC)
 
 1. Install the APK from [Releases](https://github.com/yassinsolim/aw-recomp/releases/latest)
    and open it.
-2. Tap **Build on this device** and pick your **game disc's** `.iso` with the
-   Files app (it is only read). The app downloads its build tools once
-   (43 MB); Android asks twice to allow installing them.
+2. Tap **Build on this device**. With storage access allowed, the app finds
+   your **game disc's** `.iso` by itself wherever it lies on the device or
+   the SD card; otherwise pick it with the Files app, or browse to it and
+   tap the `.iso` (or **Use this folder** in the folder it is in). The image
+   is only read, and you never have to extract anything from it. The app
+   downloads its build tools once (43 MB); Android asks twice to allow
+   installing them.
 3. Tap **Build** and wait about **13 minutes** (measured on the Retroid
    Pocket Flip 2; this game is the largest of the four). You can leave the
    app or lock the screen; it carries on. Keep the device charging: the build
    uses every core.
-4. Tap **Install & Play**. The app copies the game out of the game disc's
-   `.iso` (under a minute on the Flip 2), then **asks for the second disc**:
-   tap **Choose with the Files app** and pick the install disc's `.iso`, then
-   **Install** (under a minute again). The game starts by itself.
+4. Tap **Install & Play**. With both images in one folder the app takes the
+   install disc along with the game disc and the game starts within seconds,
+   **playing from the two images where they are**. If it asks for the second
+   disc, choose the install disc's `.iso` (in the Files app you can select
+   both at once) and tap **Install**. To copy the game into the app instead,
+   open **Install the game files**, choose **Copy the game files into the
+   app** and tap **Install**; the app remembers which of the two you chose.
 5. Play: **Campaign**, **Multiplayer**, or **Exo Survival** from the game's
    own main menu, with the touch overlay or a Bluetooth/USB controller. The
    first start asks you to move the brightness slider and then the screen
@@ -113,6 +121,7 @@ defaults. Other hardware is untested.
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Thor and Flip 2 met in Team Deathmatch, 119 and 60 FPS |
 | Exo Survival | ⚠️ | starts from the campaign's menu and plays, alone or two together; see Known limits |
 | Setting up with no PC, from a fresh install of v0.1.0 | ✅ | Flip 2: the game code built in 13 min 8 s, each disc copied in about 40 s, 18 minutes from opening the app to the game's title screen. Not run on the Thor |
+| Playing from both images on an SD card, nothing copied | ✅ | Flip 2: found on the card by itself, the game starts 2 s after **Install & Play**; Seoul loads in 14 s and a match on Retreat in under 8 s, the same as from copied files |
 | Your own map packs (with a PC: `setup -Dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Not run on the Flip 2 |
 | Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive |
 | Combat Readiness Program, split screen | ❔ | not tested on a device |
@@ -166,20 +175,26 @@ What has been checked and what is open, in detail:
   ([docs/relay.md](docs/relay.md)). **LAN** plays on your own WiFi only.
 - **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
   in Android, or the refresh-rate tile in the quick settings.
-- **Free the space.** Once the game is installed, the two `.iso` files are no
-  longer read: you can delete them or keep them on an SD card.
+- **Free the space, or keep it.** Played from the images, the game needs
+  both `.iso` files where they are (an SD card is fine) and almost nothing
+  on the device's own storage. Copied into the app, it needs about 12 GB
+  there and the `.iso` files can go. **Settings → Change where the game is
+  read from** switches between the two and offers to remove the copies.
 
 ## Troubleshooting
 
 | Problem | What to do |
 |---|---|
 | "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
-| The build screen already says "found" | A game disc image in the Download folder under its usual name is found by itself; nothing to pick |
+| The build screen already says "found" | With storage access allowed, a game disc image anywhere on the device or its SD card is found by itself; nothing to pick |
+| "…holds neither a disc image (.iso) of this game nor a disc's extracted files" | The folder you chose has no image of this game in it: open the folder the `.iso` is in and tap the `.iso` itself, or use **Choose with the Files app** |
+| "Play from the disc image" is greyed out | What is chosen is a folder of extracted game files, which can only be copied; the screen says so. Choose the `.iso` itself to play without copying |
+| "The disc image the game is played from is not there any more" | The SD card is out, or an `.iso` was moved or deleted: put it back, or choose it again with **Install the game files** |
 | "The game code does not match this version" | After an update: tap **Build the game code** again |
 | "…is not a version of the game this app supports" | The `.iso` is another game, the install disc where the game disc is wanted, or not the USA/Europe disc this port was made for |
 | The app keeps asking for the second disc | The game needs both: choose the other disc's `.iso` (the install disc after the game disc) |
 | Nothing happens on the Brightness screen | Move the slider left or right first, then press **A**; the same on the next screen |
-| Not enough space | The game needs about 12 GB on the device's own storage; keep the `.iso` files on an SD card |
+| Not enough space | Play from the images (the default), which copies nothing; copying needs about 12 GB on the device's own storage |
 | The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |

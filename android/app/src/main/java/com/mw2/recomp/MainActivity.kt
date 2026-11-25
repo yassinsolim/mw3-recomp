@@ -56,6 +56,14 @@ class MainActivity : AppCompatActivity() {
     /** The disc image Install & Play would use: a path, or the document the player chose for the build. */
     private var detectedImage: String? = null
 
+    /**
+     * This game's disc images on the device and its memory cards
+     * (DiscImage.search), from the last search to end; a search is made
+     * each time the launcher comes to the front with something to install.
+     */
+    private var searched: DiscImage.Found? = null
+    private var searching = false
+
     /** When the artwork on screen was taken from the disc's package; 0 while it is the haze. */
     @Volatile
     private var artShown = 0L
@@ -369,6 +377,7 @@ class MainActivity : AppCompatActivity() {
         // A build of the game code the system ended carries on (GameBuildService.kt).
         if (GameBuild.offered(this)) GameBuildService.resumeIfInterrupted(this)
         showArt()
+        searchDiscs()
         refresh()
         // The launcher asks for the mode the game will ask for (the limit may
         // have been changed in Settings since), and says so when the system
@@ -458,8 +467,11 @@ class MainActivity : AppCompatActivity() {
         showSetupSteps(gameCode, installed)
 
         if (installed) {
-            // A game played from its disc image needs the image where it was.
-            val disc = prefs.discImage
+            // A game played from its disc image needs the image where it
+            // was, and Advanced Warfare its install disc's as well.
+            val disc = listOf(prefs.discImage, prefs.installDiscImage).firstOrNull {
+                it.isNotEmpty() && DiscImage.source(this, it).also { source -> DiscImage.close(source) } == null
+            } ?: prefs.discImage
             val discGone = disc.isNotEmpty() && DiscImage.source(this, disc).also { DiscImage.close(it) } == null
             play.isEnabled = gameCode && !discGone
             play.text = if (Title.both) "▶ " + getString(R.string.title_campaign) else "▶ LAUNCH GAME"
@@ -574,17 +586,45 @@ class MainActivity : AppCompatActivity() {
     private fun setupGuide(): String =
         "https://github.com/${BuildConfig.UPDATE_REPO.ifEmpty { "yassinsolim/mw3-recomp" }}#quick-start-no-pc"
 
-    /** The install screen, from the disc image found on the device when there is one. */
+    /**
+     * The install screen, from the disc image found on the device when there
+     * is one, and with Advanced Warfare's install disc when that was found.
+     */
     private fun install(title: Title = firstTitle) {
+        val installDisc = searched?.installs?.firstOrNull()?.path
+            ?.takeIf { Title.installDiscMissing(installFolder(), prefs.installDiscImage) }
         startActivity(
             Intent(this, InstallActivity::class.java).apply {
                 putExtra(InstallActivity.EXTRA_TITLE, title.name)
-                detectedImage?.let {
-                    putExtra(InstallActivity.EXTRA_INITIAL_PATH, it)
-                    putExtra(InstallActivity.EXTRA_AUTO_START, true)
-                }
+                detectedImage?.let { putExtra(InstallActivity.EXTRA_INITIAL_PATH, it) }
+                installDisc?.let { putExtra(InstallActivity.EXTRA_INSTALL_DISC, it) }
+                putExtra(InstallActivity.EXTRA_AUTO_START, detectedImage != null || installDisc != null)
             },
         )
+    }
+
+    /** Where the game files are, or would be put: the install disc's packages are looked for beside it. */
+    private fun installFolder(): String =
+        prefs.gameDirectory.ifEmpty { File(getExternalFilesDir(null) ?: filesDir, "game").absolutePath }
+
+    /**
+     * Looks for this game's disc images while there is something to install
+     * from one, off the main thread: it lists folders down the storage. What
+     * it finds is shown when it ends.
+     */
+    private fun searchDiscs() {
+        val wanted = Title.carried.any { !it.installed(prefs.gameDirectory) } ||
+            Title.installDiscMissing(installFolder(), prefs.installDiscImage)
+        if (!wanted || searching) return
+        searching = true
+        thread(name = "disc-search", isDaemon = true) {
+            val found = DiscImage.search(this)
+            runOnUiThread {
+                searching = false
+                searched = found
+                if (!isFinishing && !isDestroyed) refresh()
+            }
+        }
     }
 
     /** The image chosen on the build screen, while it can still be read. */
@@ -642,14 +682,14 @@ class MainActivity : AppCompatActivity() {
                 File(getExternalFilesDir(null) ?: filesDir, "mw2.iso")
             )
         }
-        // Any other image in a Download folder, the device's or a memory
-        // card's: under another name, it may still be the game's.
-        val anyDownloadIso = DiscImage.inDownloads(this).firstOrNull {
+        // Any other image of this game on the device or a memory card,
+        // under whatever name and in whatever folder (DiscImage.search).
+        val anyImage = searched?.games?.firstOrNull {
             // Lean ISO has no MP zones; don't offer it as fallback for MP.
             !isMp || !it.name.contains("lean", ignoreCase = true)
         }
 
-        return candidateIsos.firstOrNull { it.exists() && it.length() > DiscImage.SMALLEST } ?: anyDownloadIso
+        return candidateIsos.firstOrNull { it.exists() && it.length() > DiscImage.SMALLEST } ?: anyImage
     }
 
     /**
@@ -659,7 +699,7 @@ class MainActivity : AppCompatActivity() {
      * install alone does not end in a game.
      */
     private fun launch(title: Title) {
-        if (title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory)) {
+        if (title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory, prefs.installDiscImage)) {
             startGame(title)
             return
         }

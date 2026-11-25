@@ -82,6 +82,11 @@
     <string name="begin_install">Install</string>
     <string name="no_source">Nothing chosen yet.</string>
     <string name="chosen">Source:\n%1$s</string>
+    <string name="chosen_two">Game disc:\n%1$s\nInstall disc:\n%2$s</string>
+    <string name="disc_not_chosen">not chosen yet</string>
+    <string name="disc_already_set_up">already set up</string>
+    <string name="mode_note_folder">“Play from the disc image” is not available: what is chosen is a folder of extracted game files, not a disc image, so it can only be copied. To play without copying, choose the disc image (.iso) itself. Your choice is kept for the next image.</string>
+    <string name="folder_nothing">%1$s holds neither a disc image (.iso) of this game nor a disc\'s extracted files. Open the folder the image is in and tap the .iso file itself, or use “Choose with the Files app”.</string>
     <string name="installing">%1$s  (%2$d%%)</string>
     <string name="install_done">The game files are installed.</string>
     <!-- Advanced Warfare: the player's own map packs (DlcActivity, docs/dlc.md). -->
@@ -107,8 +112,8 @@
     <string name="dlc_cancelled">Stopped before it was finished.</string>
     <string name="dlc_remove">Remove</string>
     <string name="dlc_remove_ask">Remove this package from the phone (%1$.2f GB)? Your copy on the console is not touched.</string>
-    <string name="aw_install_disc_needed">The game disc is installed. Now choose the image of the second disc, the install disc: the game needs its files too.</string>
-    <string name="aw_game_disc_needed">The install disc is copied. Now choose the image of the game disc.</string>
+    <string name="aw_install_disc_needed">The game disc is set up. Now choose the image of the second disc, the install disc: the game needs its files too.</string>
+    <string name="aw_game_disc_needed">The install disc is set up. Now choose the image of the game disc.</string>
     <string name="install_failed">The install did not finish:\n%1$s</string>
     <string name="install_cancelled">Cancelled. What was copied is kept, so starting again carries on from there.</string>
     <string name="install_running_warning">The install is still running. Leaving now stops it; it can be carried on later.</string>
@@ -136,6 +141,7 @@
 
     <!-- the file browser -->
     <string name="use_this_folder">Use this folder</string>
+    <string name="browser_hint">Tap a disc image (.iso) to choose it. “Use this folder” is for the folder the images are in, or one holding a disc\'s extracted files.</string>
     <string name="allow_storage">Allow storage access</string>
     <string name="storage_explained">Android only lets an app read files outside its own folder once you allow it. Without that, use “Choose with the Files app”, which needs no permission, or put the disc image in Android/data/%1$s/files and pick it from there.</string>
     <string name="up_one">..  (up one)</string>
@@ -402,13 +408,14 @@
     <string name="build_title">Build the game code on this device</string>
     <string name="build_entry">Build the game code</string>
     <string name="build_entry_running">Building the game code…</string>
-    <string name="build_detail">The game code is made from your own disc and is in no download. This device can make it itself, with no PC: it takes the disc\'s two executables, a compiler package installed once, and some minutes of work that goes on in the background.</string>
+    <string name="build_detail">The game code is made from your own disc and is in no download. This device can make it itself, with no PC: it takes your disc image (.iso), which is only read, a compiler package installed once, and some minutes of work that goes on in the background.</string>
     <string name="build_code_missing">The game code is not on this device yet: it is made from your own disc.\nChoose \"Build the game code\" to make it here, or run setup\\setup.cmd on a PC with this device connected over USB.</string>
     <string name="build_code_outdated">This update of the app needs the game code built again.\nChoose \"Build the game code\": your game files and saves are kept.</string>
-    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs the disc\'s two executables, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build took two to eight minutes on the devices it was measured on, by game and device, and takes longer on a slower or hot one; it carries on while you use other apps, and from where it was if it is interrupted.</string>
-    <string name="build_have_executables">1. The game\'s executables: found, and a version this app supports.</string>
-    <string name="build_taking_executables">1. The game\'s executables: reading them from the disc image…</string>
-    <string name="build_need_executables">1. The game\'s executables: not here yet. Choose the disc image (.iso) of your own copy; it is only read. One in the Download folder is found by itself.</string>
+    <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs your disc image (.iso), which is only read, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build took two to eight minutes on the devices it was measured on, by game and device, and takes longer on a slower or hot one; it carries on while you use other apps, and from where it was if it is interrupted.</string>
+    <string name="build_have_executables">1. Your disc: found, and a version this app supports.</string>
+    <string name="build_taking_executables">1. Your disc: reading the game code\'s source out of the image…</string>
+    <string name="build_need_executables">1. Your disc: not found yet. Choose the disc image (.iso) of your own copy, on this device or its memory card; it is only read, and nothing has to be extracted from it. With storage access allowed, an image anywhere on the device or the card is found by itself.</string>
+    <string name="build_folder_nothing">%1$s holds no disc image (.iso) of this game. Open the folder the image is in and tap the .iso file itself, or use “Choose the disc image with the Files app”.</string>
     <string name="build_have_toolchain">2. The toolchain package: installed (%1$s).</string>
     <string name="build_toolchain_downloading">2. The toolchain package: downloading… Android asks whether to install it when it has arrived.</string>
     <string name="build_need_toolchain">2. The toolchain package: not installed.</string>

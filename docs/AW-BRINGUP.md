@@ -1450,3 +1450,68 @@ of the game beside the owner's (the patcher alone was run there, and makes
 the right executable); `setup -Dlc` copying the packages to a phone (they
 were pushed with adb to the same folder); a match by normal play in Exo
 Zombies past round 1.
+
+## Played from the two images (25 November 2026)
+
+A tester with a Retroid Pocket 5 kept both `.iso` files in a folder of their
+own on the SD card (`Roms/xbox 360/Call Of Duty - Advanced Warfare/`) and
+chose that folder. v0.1.0 took any folder for a disc's extracted files: the
+build screen answered that there was no `default.xex` in it, and the install
+screen switched to **Copy the game files into the app**, which then failed
+the same way. Chosen as files, the images did work in v0.1.0, and both discs
+were copied: 12 GB on the device's own storage. Reproduced with that layout
+on the Flip 2 and the Thor from a build of the published commit
+(`private-captures\aw\sd-repro-*.png`, `sd-flip-repro-*.png`).
+
+What changed:
+
+- **A folder of images** is taken as the images in it. Each is told by what
+  it holds, never by its name (`DiscImage.kind`): the install disc by its
+  package folder, the game disc by both executables and the title's number
+  in the campaign's. The build screen and the install screen both do this,
+  in every title.
+- **Both discs are played where they lie.** The game disc goes through the
+  image volume as in the other titles; the install disc's two packages are
+  STFS volumes that start at an offset of the second image, and
+  `ReadVolume::OpenPackage(source, offset, size)` reads them there
+  ([runtime.md](runtime.md)). With `link`, the installer copies nothing of
+  the install disc and only sees that each package is one.
+- **The choice between the two ways is the player's** (`Prefs.installByCopy`):
+  only a tap changes it. A source that allows one way only (a folder of
+  extracted files) shows Copy, says why under the two options, and leaves
+  the choice as it was for the next image.
+- **Images are looked for** on the device's storage and each memory card,
+  four folders below the root (`DiscImage.search`), where it was the
+  Download folders only.
+
+Seen on the Retroid Pocket Flip 2 (`com.aw.recomp.sd`, release-signed; both
+images in `ROMs/xbox 360/Call Of Duty - Advanced Warfare/` on its SD card
+and none in Download; `private-captures\aw\sd2-*.png`, `.log`):
+
+| | Seen |
+|---|---|
+| Over a build of v0.1.0 with its game code and both discs copied | the game does not start: "built for another version of the app", **Build on this device**; the build screen names the old toolchain package, and with toolchain 2 in its place builds again in 11 min 35 s; the game then starts from the copies |
+| **Settings → Change where the game is read from**, the folder chosen in the app's browser | both images named, each under its disc; **Play from the disc image** stays chosen; chosen as Copy, it stays Copy over another pick and over leaving the screen; a folder with a `default.xex` in it shows the reason in place of the option; an empty folder says that it holds nothing of this game |
+| **Install** from the images, then **Remove** | set up in a second; the 11.99 GB of copies offered and removed, 60 MB left in the app |
+| From a new install (data cleared, no toolchain package) | the game disc found on the card by itself, with no storage permission given; with the folder moved two folders deeper it is not found, and **Browse**, the folder, **Use this folder** takes it; toolchain 2 downloaded (the drafted `toolchain-v2`, served as [android-releases.md](android-releases.md#trying-the-update-without-publishing) says, its hash checked by the app) and installed; the build 13 min 24 s with 24 GB being copied to the card meanwhile; **Install & Play** starts the game 1.7 s later from both images |
+| Seoul (`devmap seoul`, to the first thirty frames of the level, which are its opening) | from the images 14.0, 13.7 and 13.9 s; from the copies 13.9 and 13.7 s (15.2 s once with a file copy running beside it) |
+| A match: System Link, Create Game, Start Game on Retreat, to the team menu over the map (timed from the tap, a quarter of a second either way) | from the images 7.7, 7.8 and 7.2 s; from the copies 7.8, 7.5 and 7.1 s; then Auto-Assign, the class and the match's countdown at 60 FPS |
+
+The first run of each was the first read of those files since the images
+were put on the card; the device was not restarted between runs, so what
+Android held in memory from one run was there for the next, either way.
+
+The other titles, the same day and device, each from its image alone in a
+folder of its own on the card (`ROMs/xbox 360/Modern Warfare 2/` and so on;
+another copy of each lay in Download), the folder chosen with **Use this
+folder** on the install screen: Modern Warfare 2, Modern Warfare 3 and Call
+of Duty 4 each name the image in it as the source, keep **Play from the disc
+image** and set the game up from it. Their game code was then built on the
+device with toolchain 2 (Modern Warfare 2 in 5 min 12 s, Call of Duty 4 in
+4 min 26 s, Modern Warfare 3 in 7 min 15 s) and each started from the card's
+image: Modern Warfare 2 to its title screen, Call of Duty 4 into its opening
+scene, Modern Warfare 3 into its opening film, at 60 FPS.
+
+Not tried: a Retroid Pocket 5 itself (the Flip 2 has the same chip and the
+same maker's Android 13), a card slower than this one, and a level played
+through from the images.

@@ -170,10 +170,16 @@ else. In the launcher, **Build the game code** (`BuildActivity.kt`) says what
 is there and offers the one button for what is missing:
 
 1. **The executables.** `default.xex` and `default_mp.xex` are taken from the
-   installed game files, from a disc image in Download, or out of the image
-   the player picks (`DiscImage.kt` reads the image's folder; nothing else of
-   it is read). Each is kept only if its SHA-256 is a build the app supports,
-   so an image of another game is passed over.
+   installed game files, from a disc image of this game found on the device
+   or a memory card (`DiscImage.search`: every folder down to four below a
+   storage's root, each image told by the title number in its executable and
+   not by its name; it finds nothing where the app may not list folders), or
+   out of the image the player picks, with the Files app or in the app's
+   browser, where the folder the image lies in can be chosen as well
+   (`DiscImage.kt` reads the image's folders; nothing else of it is read).
+   Each is kept only if its SHA-256 is a build the app supports, so an image
+   of another game is passed over. The player is never asked for the
+   executables themselves.
 2. **The toolchain package.** Found through the package manager
    (`Toolchain.kt`). When it is missing the app downloads
    `recomp-toolchain.apk` from the release `setup/toolchain.json` names (one

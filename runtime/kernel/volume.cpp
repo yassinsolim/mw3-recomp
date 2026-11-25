@@ -115,13 +115,13 @@ size_t ReadVolume::ReadAt(int descriptor, uint64_t at, void* out, size_t size) c
 #ifdef _WIN32
         // No shared descriptor here: every reader has its own, and the one
         // the volume keeps is read only while it is being opened.
-        if (_lseeki64(descriptor, int64_t(at + done), SEEK_SET) < 0) break;
+        if (_lseeki64(descriptor, int64_t(base_ + at + done), SEEK_SET) < 0) break;
         const int got = _read(descriptor, static_cast<char*>(out) + done,
                               unsigned(std::min<size_t>(size - done, 1u << 30)));
 #else
         // At a position, not from the descriptor's own: one descriptor may
         // serve several of the title's threads at once.
-        const ssize_t got = pread(descriptor, static_cast<char*>(out) + done, size - done, off_t(at + done));
+        const ssize_t got = pread(descriptor, static_cast<char*>(out) + done, size - done, off_t(base_ + at + done));
 #endif
         if (got <= 0) break;
         done += size_t(got);
@@ -203,8 +203,18 @@ std::shared_ptr<ReadVolume> ReadVolume::OpenDisc(const std::string& source, std:
 
 std::shared_ptr<ReadVolume> ReadVolume::OpenPackage(const fs::path& file, std::string& error)
 {
+    return OpenPackage(install::Utf8(file), 0, UINT64_MAX, error);
+}
+
+std::shared_ptr<ReadVolume> ReadVolume::OpenPackage(const std::string& source, uint64_t offset, uint64_t size,
+                                                    std::string& error)
+{
     std::shared_ptr<ReadVolume> volume(new ReadVolume);
-    if (!volume->OpenFile(install::Utf8(file))) { error = "cannot be opened"; return nullptr; }
+    if (!volume->OpenFile(source) || offset >= volume->size_) { error = "cannot be opened"; return nullptr; }
+    // From here every position is the package's own: a range past the
+    // file's end is cut to it, and a package cut short says so below.
+    volume->base_ = offset;
+    volume->size_ = std::min(size, volume->size_ - offset);
     const int fd = volume->descriptor_;
 
     uint8_t header[0x1000];
