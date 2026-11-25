@@ -36,8 +36,8 @@ Modern Warfare 3 is: the game code from the disc's own executables (no title
 update), and the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
 Call of Duty 4 (docs/COD4-BRINGUP.md) is built for Android and Windows as
 Modern Warfare 3 is, with the published app (com.cod4.recomp).
-Advanced Warfare (docs/AW-BRINGUP.md) is built for Android and Windows, with
-an app built here (com.aw.recomp: none is published, so -Dev is implied).
+Advanced Warfare (docs/AW-BRINGUP.md) is built for Android and Windows too,
+with the published app (com.aw.recomp).
 .PARAMETER Iso
 The disc image. Asked for when not given.
 .PARAMETER InstallIso
@@ -621,8 +621,6 @@ $TestCopy = $Instance -gt 1
 $Split = $ForAndroid -and -not $TestCopy
 if (($GameOnly -or $Dev -or $Suffix) -and -not $Split) { throw '-GameOnly, -Dev and -Suffix are for the Android app.' }
 if ($GameOnly -and $Dev) { throw '-GameOnly leaves the app alone; -Dev builds it. Choose one.' }
-# Advanced Warfare has no published app: the one built here is the only one.
-if ($Aw -and $Split -and -not $GameOnly) { $Dev = $true }
 if ($Suffix -and -not ($GameOnly -or $Dev)) { throw '-Suffix goes with -Dev or -GameOnly: the published app has the one name.' }
 $AppPackage = "com.$Game.recomp$Suffix"
 # The Windows game is an executable for each title asked for. The Android app

@@ -15,7 +15,8 @@ least played: expect rough edges.
 > extracted files or the generated code**: they contain the game.
 
 Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
-(also builds for Windows) · [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp)
+(also builds for Windows) · [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
+[Advanced Warfare](https://github.com/yassinsolim/aw-recomp)
 
 ## What you need
 

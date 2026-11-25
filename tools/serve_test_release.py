@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serve one made-up release of the Android app, to test updating without publishing.
 
-    python tools/serve_test_release.py <newer.apk> [--game mw3|mw2|cod4] [--tag v1.0.1] [--port 8765]
+    python tools/serve_test_release.py <newer.apk> [--game mw3|mw2|cod4|aw] [--tag v1.0.1] [--port 8765]
                                        [--toolchain recomp-toolchain.apk]
 
 It answers as GitHub's list of releases does (the fields the app reads), with
@@ -24,7 +24,7 @@ from pathlib import Path
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("apk", type=Path)
-    parser.add_argument("--game", choices=("mw3", "mw2", "cod4"), default="mw3")
+    parser.add_argument("--game", choices=("mw3", "mw2", "cod4", "aw"), default="mw3")
     parser.add_argument("--tag", default="v1.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--toolchain", type=Path)

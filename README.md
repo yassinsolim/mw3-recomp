@@ -14,7 +14,8 @@ audio, controllers).
 > the generated code**: they contain the game.
 
 Other games: [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
-[Call of Duty 4](https://github.com/yassinsolim/cod4-recomp)
+[Call of Duty 4](https://github.com/yassinsolim/cod4-recomp) ·
+[Advanced Warfare](https://github.com/yassinsolim/aw-recomp)
 
 ## What you need
 

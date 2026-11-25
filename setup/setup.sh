@@ -138,8 +138,6 @@ sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 abi_hash() { tr -d '\r' < "$1" | sha256sum | cut -d' ' -f1; }
 
 case "$GAME" in mw3|mw2|cod4|aw) ;; *) die "--game must be mw3, mw2, cod4 or aw, not '$GAME'" ;; esac
-# Advanced Warfare has no published app: the one built here is the only one.
-[ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ] && DEV=1
 [ -n "$INSTALL_ISO" ] && [ "$GAME" != aw ] && die '--install-iso is for --game aw: the other games have the one disc.'
 [ -n "$INSTALL_ISO" ] && [ ! -f "$INSTALL_ISO" ] && die "--install-iso: no file at $INSTALL_ISO"
 [[ "$SUFFIX" =~ ^(\.[a-z][a-z0-9]*)?$ ]] || die "--suffix must look like .dev"

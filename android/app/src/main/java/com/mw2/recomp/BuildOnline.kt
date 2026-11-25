@@ -23,8 +23,11 @@ import java.nio.channels.FileChannel
  * setup/recomp-builder). Nothing leaves the device here.
  */
 object BuildOnline {
-    /** Only the published app has its game code built elsewhere, and a repository that says how. */
-    val offered: Boolean = GameLibrary.separate && BuildConfig.UPDATE_REPO.endsWith("-recomp")
+    /**
+     * Only the published app has its game code built elsewhere, and a repository that says how.
+     * Not Advanced Warfare's: setup/recomp-builder does not build that game.
+     */
+    val offered: Boolean = GameLibrary.separate && BuildConfig.UPDATE_REPO.endsWith("-recomp") && !Title.isAw
 
     /** mw3, mw2 or cod4: what the build calls the game, from the repository the app is published in. */
     private val game: String = BuildConfig.UPDATE_REPO.substringAfter('/').removeSuffix("-recomp")

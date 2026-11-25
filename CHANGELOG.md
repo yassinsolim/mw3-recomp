@@ -5,6 +5,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Call of Duty: Advanced Warfare is published**, as the fourth port, in a
+  repository of its own: [aw-recomp](https://github.com/yassinsolim/aw-recomp),
+  v0.1.0 (`com.aw.recomp`, the campaign, the multiplayer and Exo Survival
+  in one app; `README-AW.md` is its front page, with what was measured and
+  what was not). You need both discs as `.iso`: the game disc and the
+  install disc. The app builds the game code on the device, asks for the
+  install disc after the game disc, and updates itself from that
+  repository; `setup\setup.cmd -Game aw` and `setup/setup.sh --game aw`
+  now download the published app instead of building one
+  (`.github/workflows/android-release-aw.yml`,
+  [docs/android-releases.md](docs/android-releases.md)). Known limits, as
+  published: no level has been played from start to finish by a person,
+  Exo Survival's later waves were reached only with test tools, and the
+  campaign saves at every checkpoint where the console did not.
 - **Fewer drops to 45 frames a second on a Snapdragon 865**
   ([docs/android.md](docs/android.md#the-campaigns-slow-places-24-november-2026)),
   in all four games' campaigns on the Retroid Pocket Flip 2:

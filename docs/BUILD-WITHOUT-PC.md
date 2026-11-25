@@ -19,7 +19,9 @@ Either way you use your own disc image (`.iso`), and what is built is for
 your own devices only.
 
 In the steps below, *mw2* stands for your game: `mw3` (Modern Warfare 3),
-`mw2` (Modern Warfare 2) or `cod4` (Call of Duty 4).
+`mw2` (Modern Warfare 2), `cod4` (Call of Duty 4) or `aw` (Advanced Warfare,
+which has two discs: add `--install-iso <the install disc's image>`; GitHub
+does not build that game).
 
 ## A Linux PC
 
@@ -104,7 +106,9 @@ browser, and a [GitHub account](https://github.com/signup) (free).
 1. In the phone's browser, open the game's releases page:
    [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp/releases/latest),
    [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp/releases/latest) or
-   [Call of Duty 4](https://github.com/yassinsolim/cod4-recomp/releases/latest).
+   [Call of Duty 4](https://github.com/yassinsolim/cod4-recomp/releases/latest)
+   ([Advanced Warfare](https://github.com/yassinsolim/aw-recomp/releases/latest)
+   is built on the device or on a PC only).
 2. Under **Assets**, tap the file ending in `.apk`. When the download is
    done, tap **Open** (or open it from the notification). Android asks once
    whether your browser may install apps: tap **Settings**, switch **Allow

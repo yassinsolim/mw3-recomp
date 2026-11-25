@@ -944,6 +944,7 @@ class MainActivity : AppCompatActivity() {
                     val wantTitle = when {
                         Title.isMw3 -> "mw3"
                         Title.isCod4 -> "cod4-recomp"
+                        Title.isAw -> "aw-recomp"
                         Title.both -> "mw2-recomp"
                         isMp() -> "multiplayer"
                         else -> "campaign"

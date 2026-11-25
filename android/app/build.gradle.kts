@@ -92,8 +92,8 @@ android {
         // workflows set MW2_VERSION_CODE from the tag (v1.2.3 is 10203,
         // docs/android-releases.md); this is what a build without one carries.
         // 107: v0.1.7, over 106 (v0.1.6), 105, 104, 103, 102, 101, 100 and 16
-        // (v0.0.2-alpha). Call of Duty 4's releases count from v0.1.0 (100)
-        // in a repository of their own.
+        // (v0.0.2-alpha). Call of Duty 4's and Advanced Warfare's releases
+        // count from v0.1.0 (100), each in a repository of its own.
         versionCode = setting("MW2_VERSION_CODE")?.toIntOrNull() ?: 107
         // Which build this is, carried inside the apk. "The wrong apk" has
         // cost more than one evening, and every time the only way to settle
@@ -310,7 +310,7 @@ android {
         // recompiled code, which is in the player's own game package
         // (com.aw.recomp.game). The game disc's version only, with the
         // install disc's two packages beside the game folder
-        // (docs/AW-BRINGUP.md). Not published anywhere: no update repository.
+        // (docs/AW-BRINGUP.md).
         create("aw") {
             dimension = "title"
             applicationId = awApplicationId
@@ -318,7 +318,9 @@ android {
             // Violet, and a chevron in place of the bars (src/aw/res/drawable),
             // so the four games tell apart on one home screen.
             resValue("color", "icon_accent", "#A98BFF")
-            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            // The public repository's releases carry this app, without the
+            // recompiled code (.github/workflows/android-release-aw.yml).
+            buildConfigField("String", "UPDATE_REPO", "\"yassinsolim/aw-recomp\"")
             if (gameSplit) buildConfigField("String", "GAME_PACKAGE", "\"$awApplicationId.game\"")
             manifestPlaceholders["gamePackage"] = "$awApplicationId.game"
             buildConfigField("String", "LIBRARY_SP", "\"aw\"")
