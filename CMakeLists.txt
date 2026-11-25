@@ -128,7 +128,7 @@ endif()
 # default_mp.xex (the multiplayer). Each is recompiled into its own tree by
 # build.sh (TITLE=sp|mp), and the runtime names the title's functions through
 # runtime/title.h, which this definition selects.
-set(MW2_TITLE "sp" CACHE STRING "Which executable to build: sp, mp, mw3, mw3mp, cod4, cod4mp, aw, or awmp")
+set(MW2_TITLE "sp" CACHE STRING "Which executable to build: sp, mp, mw3, mw3mp, cod4, cod4mp, aw, awmp, or awmp17")
 # Modern Warfare 3's two executables are titles of their own: mw3 is its
 # campaign (default.xex) and mw3mp its multiplayer (default_mp.xex,
 # docs/MW3-MP-BRINGUP.md). MW2_IS_MW3 is set for both.
@@ -137,7 +137,9 @@ set(MW2_TITLE "sp" CACHE STRING "Which executable to build: sp, mp, mw3, mw3mp, 
 # runtime/title.h has an entry for it -- so MW2_IS_MW3 and MW3_TITLE are set
 # for them too, and MW2_IS_COD4 and COD4_TITLE say what is their own.
 # Advanced Warfare's are aw and awmp (docs/AW-BRINGUP.md), built the same way,
-# with MW2_IS_AW and AW_TITLE for what is their own.
+# with MW2_IS_AW and AW_TITLE for what is their own. awmp17 is its multiplayer
+# as title update 17 makes it, which the downloadable content needs
+# (AW_TITLE_TU17 beside AW_TITLE_MP; docs/dlc.md).
 set(MW2_IS_MW3 OFF)
 set(MW2_IS_COD4 OFF)
 set(MW2_IS_AW OFF)
@@ -172,21 +174,24 @@ elseif(MW2_TITLE STREQUAL "cod4" OR MW2_TITLE STREQUAL "cod4mp")
     else()
         set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_cod4")
     endif()
-elseif(MW2_TITLE STREQUAL "aw" OR MW2_TITLE STREQUAL "awmp")
+elseif(MW2_TITLE STREQUAL "aw" OR MW2_TITLE STREQUAL "awmp" OR MW2_TITLE STREQUAL "awmp17")
     set(MW2_IS_MW3 ON)
     set(MW2_IS_AW ON)
     if(NOT MW3_RECOMP_ONLY)
         message(FATAL_ERROR "Advanced Warfare configures as Modern Warfare 3 does: -DMW3_RECOMP_ONLY=ON -DMW3_LINK_PROBE=ON")
     endif()
     add_compile_definitions(MW3_TITLE=1 AW_TITLE=1)
-    if(MW2_TITLE STREQUAL "awmp")
+    if(MW2_TITLE STREQUAL "awmp17")
+        set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_aw_mp_tu17")
+        add_compile_definitions(AW_TITLE_MP=1 AW_TITLE_TU17=1)
+    elseif(MW2_TITLE STREQUAL "awmp")
         set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_aw_mp")
         add_compile_definitions(AW_TITLE_MP=1)
     else()
         set(MW2_PPC_DIR "${CMAKE_SOURCE_DIR}/ppc_aw")
     endif()
 else()
-    message(FATAL_ERROR "MW2_TITLE must be sp, mp, mw3, mw3mp, cod4, cod4mp, aw, or awmp, not '${MW2_TITLE}'")
+    message(FATAL_ERROR "MW2_TITLE must be sp, mp, mw3, mw3mp, cod4, cod4mp, aw, awmp, or awmp17, not '${MW2_TITLE}'")
 endif()
 # And which version of it: the one title update 6 makes of the disc's (tu6),
 # or the disc's own (tu0), recompiled into ppc_tu0/ and ppc_mp_tu0/.
@@ -519,6 +524,8 @@ if(ANDROID)
     # The title-update package reader (dependency-free STFS): the TU6 apps
     # apply the update on the device after copying the disc.
     list(APPEND RUNTIME_SOURCES "${CMAKE_SOURCE_DIR}/launcher/package.cpp")
+endif()
+if(ANDROID OR MW2_TITLE STREQUAL "awmp17")
     # XenonRecomp's patcher, which turns the disc's executables into the
     # update's. Present when the tree was recompiled on this machine (build.sh
     # clones it); absent for a bare checkout, where TU6 apps report that the
@@ -526,8 +533,10 @@ if(ANDROID)
     set(XENON "${CMAKE_SOURCE_DIR}/XenonRecomp")
     if(EXISTS "${XENON}/XenonUtils/xex_patcher.cpp" AND EXISTS "${XENON}/XenonUtils/xex_patcher.h")
         enable_language(C)
+        # The patcher itself is runtime/install/xex_patcher_moves.cpp, among
+        # the runtime's sources above: it includes XenonUtils/xex_patcher.cpp
+        # where MW2_HAVE_XEX_PATCHER says the patcher is here.
         list(APPEND RUNTIME_SOURCES
-            "${XENON}/XenonUtils/xex_patcher.cpp"
             "${XENON}/XenonUtils/memory_mapped_file.cpp"
             "${XENON}/thirdparty/libmspack/libmspack/mspack/lzxd.c"
             "${XENON}/thirdparty/tiny-AES-c/aes.c")
@@ -537,6 +546,10 @@ if(ANDROID)
             "${XENON}/thirdparty/libmspack/libmspack/mspack"
             "${XENON}/thirdparty/tiny-AES-c"
             "${XENON}/thirdparty/TinySHA1")
+    elseif(MW2_TITLE STREQUAL "awmp17")
+        # It makes its executable from the disc's and the update's patch at
+        # every start (runtime/install/install.cpp).
+        message(FATAL_ERROR "awmp17 needs XenonRecomp/ for its patcher (setup/setup.ps1 or android/fetch_deps.sh clones it)")
     endif()
 endif()
 
@@ -605,7 +618,7 @@ if(MW2_TITLE STREQUAL "mw3mp")
     set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists_mw3.info")
 elseif(MW2_TITLE STREQUAL "cod4mp")
     set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists_cod4.info")
-elseif(MW2_TITLE STREQUAL "awmp")
+elseif(MW2_TITLE STREQUAL "awmp" OR MW2_TITLE STREQUAL "awmp17")
     set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists_aw.info")
 else()
     set(playlists_path "${CMAKE_SOURCE_DIR}/relay/playlists.info")
@@ -997,7 +1010,7 @@ if(MW2_USE_SDL)
         "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
         "${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp"
         "${imgui_SOURCE_DIR}/backends/imgui_impl_sdlrenderer3.cpp"
-        "${XENON}/XenonUtils/xex_patcher.cpp"
+        "${CMAKE_SOURCE_DIR}/runtime/install/xex_patcher_moves.cpp"
         "${XENON}/XenonUtils/memory_mapped_file.cpp"
         "${XENON}/thirdparty/libmspack/libmspack/mspack/lzxd.c"
         "${XENON}/thirdparty/tiny-AES-c/aes.c")
@@ -1007,7 +1020,7 @@ if(MW2_USE_SDL)
         "${XENON}/XenonUtils" "${XENON}/thirdparty/simde"
         "${XENON}/thirdparty/libmspack/libmspack/mspack"
         "${XENON}/thirdparty/tiny-AES-c" "${XENON}/thirdparty/TinySHA1")
-    target_compile_definitions(launcher PRIVATE ${MW2_HASH_DEFINITIONS} NOMINMAX)
+    target_compile_definitions(launcher PRIVATE ${MW2_HASH_DEFINITIONS} NOMINMAX MW2_HAVE_XEX_PATCHER=1)
     # What release this is, for the launcher to look for a newer one (see
     # MW2_RELEASE_TAG above). A build without one does not update.
     if(WIN32)

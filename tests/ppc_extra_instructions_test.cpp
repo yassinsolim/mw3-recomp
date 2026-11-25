@@ -37,11 +37,15 @@ void PpcVcmpgtsb(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b);
 void PpcVaddsws(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b);
 void PpcVpkuhus_abb(PPCVRegister& d, PPCVRegister& a);
 void PpcVpkuwus_abb(PPCVRegister& d, PPCVRegister& a);
+void PpcVpkuhus_aaa(PPCVRegister& d);
+void PpcVpkuwus_aaa(PPCVRegister& d);
 void PpcVupkd3dHalf2(PPCVRegister& d, PPCVRegister& b);
 void PpcVupkd3dHalf4(PPCVRegister& d, PPCVRegister& b);
+void PpcVupkd3dHalf4_aa(PPCVRegister& d);
 void PpcLvehx(PPCVRegister& d, PPCRegister& b);
 void PpcMulhd(PPCRegister& d, PPCRegister& a, PPCRegister& b);
 bool PpcBdnzt_eq(PPCRegister& ctr, PPCCRRegister& cr);
+void PpcRecordCr0(PPCRegister& result, PPCCRRegister& cr, PPCXERRegister& xer);
 
 // The guest memory lvehx reads: four vectors, each byte its own address.
 alignas(16) static uint8_t memory[64];
@@ -290,6 +294,11 @@ int main()
         const Bytes a = Random();
         assert(Run(PpcVpkuhus_abb, a) == ModelVpkuhus(a, a));
         assert(Run(PpcVpkuwus_abb, a) == ModelVpkuwus(a, a));
+        // With the result's register the operands' too.
+        PPCVRegister halves = ToRegister(a), words = ToRegister(a);
+        PpcVpkuhus_aaa(halves);
+        PpcVpkuwus_aaa(words);
+        assert(FromRegister(halves) == ModelVpkuhus(a, a) && FromRegister(words) == ModelVpkuwus(a, a));
     }
 
     // vupkd3d128, half floats. 0x3C00 is 1, 0xC000 is -2, 0x3800 is 0.5,
@@ -312,6 +321,10 @@ int main()
         const Bytes four = Halves({0xDEAD, 0xBEEF, 0xDEAD, 0xBEEF, uint16_t(h), other, uint16_t(~h), uint16_t(other ^ 0x8000)});
         assert(Run(PpcVupkd3dHalf4, four) == ModelHalf4(four));
         assert(Run(PpcVupkd3dHalf2, four) == ModelHalf2(four));
+        // In place, as title update 17's multiplayer has it.
+        PPCVRegister inPlace = ToRegister(four);
+        PpcVupkd3dHalf4_aa(inPlace);
+        assert(FromRegister(inPlace) == ModelHalf4(four));
     }
 
     // lvehx: the halfword at the address (its low bit dropped) arrives where
@@ -375,6 +388,25 @@ int main()
         int compared = 0;
         do { cr.eq = left[compared] == right[compared]; compared++; } while (PpcBdnzt_eq(ctr, cr));
         assert(compared == 3 && !cr.eq && ctr.u64 == 1);
+    }
+
+    // The recording forms' cr0: the result's low word, signed, against zero,
+    // and the summary overflow carried over.
+    {
+        auto record = [](uint64_t result, bool overflow)
+        {
+            PPCRegister r; r.u64 = result;
+            PPCXERRegister xer{}; xer.so = overflow;
+            PPCCRRegister cr{}; cr.lt = cr.gt = cr.eq = cr.so = 1;
+            PpcRecordCr0(r, cr, xer);
+            assert(r.u64 == result);
+            return cr.lt * 8 + cr.gt * 4 + cr.eq * 2 + cr.so;
+        };
+        assert(record(0, false) == 2);                      // the interpreter's false
+        assert(record(1, false) == 4);
+        assert(record(0x80000000u, false) == 8);
+        assert(record(0xFFFFFFFF00000000ull, false) == 2);  // only the low word counts
+        assert(record(7, true) == 5);
     }
 
     std::puts("ppc_extra_instructions_test: twelve instructions and two unpacks as defined");

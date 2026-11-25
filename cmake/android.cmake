@@ -141,48 +141,60 @@ if(MW2_BOTH_TITLES AND (MW2_TITLE STREQUAL "mw3" OR MW2_TITLE STREQUAL "sp" OR M
     # $CACHE{...}: what the app's build asked for (-O3). The plain variables
     # already carry the NDK toolchain's own flags, which the second configure
     # adds again for itself.
-    ExternalProject_Add(multiplayer_library
-        SOURCE_DIR "${CMAKE_SOURCE_DIR}"
-        BINARY_DIR "${CMAKE_BINARY_DIR}/${multiplayer_library}"
-        CMAKE_ARGS
-            "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
-            "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
-            "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-            "-DCMAKE_C_FLAGS=$CACHE{CMAKE_C_FLAGS}"
-            "-DCMAKE_CXX_FLAGS=$CACHE{CMAKE_CXX_FLAGS}"
-            "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
-            "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
-            "-DANDROID_ABI=${ANDROID_ABI}"
-            "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
-            "-DANDROID_NDK=${ANDROID_NDK}"
-            "-DANDROID_STL=${ANDROID_STL}"
-            "-DMW2_TITLE=${multiplayer_title}"
-            "-DMW2_VERSION=${MW2_VERSION}"
-            -DMW2_BOTH_TITLES=ON
-            "-DMW2_SPLIT=${MW2_SPLIT}"
-            "-DMW3_RECOMP_ONLY=${MW3_RECOMP_ONLY}"
-            "-DMW3_LINK_PROBE=${MW3_LINK_PROBE}"
-            "-DMW2_DIAGNOSTICS=${MW2_DIAGNOSTICS}"
-            "-DMW2_LOGGING=${MW2_LOGGING}"
-            "-DMW2_LTO=${MW2_LTO}"
-            "-DMW2_RELEASE_TAG=${MW2_RELEASE_TAG}"
-            "-DMW3_XEX_SHA256_SP=${MW3_XEX_SHA256_SP}"
-            "-DMW3_XEX_SHA256_MP=${MW3_XEX_SHA256_MP}"
-            "-DMW2_XEX_SHA256_SP=${MW2_XEX_SHA256_SP}"
-            "-DMW2_XEX_SHA256_MP=${MW2_XEX_SHA256_MP}"
-        BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target mw2
-        # Every build asks it: only its own ninja knows whether a source changed.
-        BUILD_ALWAYS ON
-        USES_TERMINAL_BUILD ON
-        # Only this library: the build above made the driver's hook libraries
-        # a second time, and the app has this build's own.
-        INSTALL_COMMAND "${CMAKE_COMMAND}" -E make_directory "${multiplayer_directory}"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            <BINARY_DIR>/lib${multiplayer_library}.so "${multiplayer_directory}/lib${multiplayer_library}.so")
-    # One tree at a time: each is a hundred and fifty translation units of a
-    # gigabyte or more of compiler apiece, and two ninjas at once ask for
-    # twice the machine. A target the app's build asks for by name (mw2) has
-    # to depend on it, or it would not be built at all.
-    add_dependencies(ppc_recomp multiplayer_library)
-    add_dependencies(mw2 multiplayer_library)
+    function(mw2_other_library target title library)
+        ExternalProject_Add(${target}
+            SOURCE_DIR "${CMAKE_SOURCE_DIR}"
+            BINARY_DIR "${CMAKE_BINARY_DIR}/${library}"
+            CMAKE_ARGS
+                "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
+                "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+                "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+                "-DCMAKE_C_FLAGS=$CACHE{CMAKE_C_FLAGS}"
+                "-DCMAKE_CXX_FLAGS=$CACHE{CMAKE_CXX_FLAGS}"
+                "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+                "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
+                "-DANDROID_ABI=${ANDROID_ABI}"
+                "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
+                "-DANDROID_NDK=${ANDROID_NDK}"
+                "-DANDROID_STL=${ANDROID_STL}"
+                "-DMW2_TITLE=${title}"
+                "-DMW2_VERSION=${MW2_VERSION}"
+                -DMW2_BOTH_TITLES=ON
+                "-DMW2_SPLIT=${MW2_SPLIT}"
+                "-DMW3_RECOMP_ONLY=${MW3_RECOMP_ONLY}"
+                "-DMW3_LINK_PROBE=${MW3_LINK_PROBE}"
+                "-DMW2_DIAGNOSTICS=${MW2_DIAGNOSTICS}"
+                "-DMW2_LOGGING=${MW2_LOGGING}"
+                "-DMW2_LTO=${MW2_LTO}"
+                "-DMW2_RELEASE_TAG=${MW2_RELEASE_TAG}"
+                "-DMW3_XEX_SHA256_SP=${MW3_XEX_SHA256_SP}"
+                "-DMW3_XEX_SHA256_MP=${MW3_XEX_SHA256_MP}"
+                "-DMW2_XEX_SHA256_SP=${MW2_XEX_SHA256_SP}"
+                "-DMW2_XEX_SHA256_MP=${MW2_XEX_SHA256_MP}"
+            BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target mw2
+            # Every build asks it: only its own ninja knows whether a source changed.
+            BUILD_ALWAYS ON
+            USES_TERMINAL_BUILD ON
+            # Only this library: the build above made the driver's hook libraries
+            # a second time, and the app has this build's own.
+            INSTALL_COMMAND "${CMAKE_COMMAND}" -E make_directory "${multiplayer_directory}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                <BINARY_DIR>/lib${library}.so "${multiplayer_directory}/lib${library}.so")
+        # One tree at a time: each is a hundred and fifty translation units of a
+        # gigabyte or more of compiler apiece, and two ninjas at once ask for
+        # twice the machine. A target the app's build asks for by name (mw2) has
+        # to depend on it, or it would not be built at all.
+        add_dependencies(ppc_recomp ${target})
+        add_dependencies(mw2 ${target})
+    endfunction()
+    mw2_other_library(multiplayer_library "${multiplayer_title}" "${multiplayer_library}")
+    # Advanced Warfare's multiplayer a second time, as title update 17 makes
+    # it: the one a player's own map packs are for (docs/dlc.md). The app
+    # starts it instead of the disc's when the update's package is beside the
+    # packs (android/app, Title.kt). An app with the game code in its own
+    # libraries (MW2_SPLIT=OFF) has it where its tree was recompiled.
+    if(MW2_IS_AW AND (MW2_SPLIT STREQUAL "runtime" OR EXISTS "${CMAKE_SOURCE_DIR}/ppc_aw_mp_tu17/ppc_func_mapping.cpp"))
+        mw2_other_library(multiplayer_update_library "awmp17" "awmp17")
+        add_dependencies(multiplayer_update_library multiplayer_library)
+    endif()
 endif()

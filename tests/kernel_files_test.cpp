@@ -493,6 +493,17 @@ int main()
         CloseHandle(o.handle);
         UnmountDevice("mappack1");
         assert(Create("mappack1:\\even.bin", GENERIC_READ, FILE_OPEN).status == X_STATUS_OBJECT_NAME_NOT_FOUND);
+
+        // A folder's own files, by name: what a listing of the folder holds.
+        assert(volume->FilesIn("maps") == std::vector<std::string>{ "Big.ff" });
+        assert(volume->FilesIn("MAPS\\").size() == 1 && volume->FilesIn("nowhere").empty());
+        // A folder whose files answer at the root as well (an update's
+        // language folder), and never over a file the root has.
+        MountVolume("update", volume, "Maps");
+        assert(FullAttributes("update:\\big.ff") == X_STATUS_SUCCESS && uint64_t(*GuestPtr<be64>(kInfo + 40)) == big.size());
+        assert(FullAttributes("update:\\maps\\big.ff") == X_STATUS_SUCCESS);
+        assert(FullAttributes("update:\\odd.bin") == X_STATUS_SUCCESS && uint64_t(*GuestPtr<be64>(kInfo + 40)) == odd.size());
+        UnmountDevice("update");
         assert(Slurp(packageFile) == package);
 
         // What is not such a package is refused, with the reason.

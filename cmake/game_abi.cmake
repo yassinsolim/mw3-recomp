@@ -36,7 +36,10 @@ endif()
 # three facts of it the runtime is compiled against, recorded from a tree by
 # -DMW2_ABI_RECORD=ON below. Numbers and the names of system calls; none of
 # the game's code.
-if(MW2_TITLE STREQUAL "awmp")
+if(MW2_TITLE STREQUAL "awmp17")
+    set(abi_toml "${CMAKE_SOURCE_DIR}/config/AWMP.tu17.toml")
+    set(abi_tables "${CMAKE_SOURCE_DIR}/config/awmp_switch_tables.tu17.toml")
+elseif(MW2_TITLE STREQUAL "awmp")
     set(abi_toml "${CMAKE_SOURCE_DIR}/config/AWMP.toml")
     set(abi_tables "${CMAKE_SOURCE_DIR}/config/awmp_switch_tables.toml")
 elseif(MW2_TITLE STREQUAL "aw")

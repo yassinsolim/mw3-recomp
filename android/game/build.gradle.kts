@@ -65,8 +65,11 @@ tasks.configureEach {
     if (name.startsWith("merge") && name.endsWith("JniLibFolders")) {
         doFirst {
             val all = gameLibraries?.let { File(it, "arm64-v8a").listFiles() }.orEmpty()
-            val own = setOf("lib${game}game.so", "lib${game}mpgame.so")
-            if (all.none { it.name in own }) {
+            // Advanced Warfare's may hold a third: its multiplayer as the
+            // title update makes it, for a player's own map packs (docs/dlc.md).
+            val own = setOf("lib${game}game.so", "lib${game}mpgame.so") + if (game == "aw") setOf("libawmp17game.so") else emptySet()
+            val needed = setOf("lib${game}game.so", "lib${game}mpgame.so")
+            if (all.none { it.name in needed }) {
                 throw GradleException(
                     "No game libraries: give -PgameLibraries=<folder holding arm64-v8a/lib${game}game.so>. " +
                         "setup/setup.ps1 builds them from your disc and runs this for you."
@@ -76,7 +79,7 @@ tasks.configureEach {
             if (others.isNotEmpty()) {
                 throw GradleException(
                     "${others.joinToString { it.name }} in $gameLibraries/arm64-v8a would be packaged too: " +
-                        "the folder must hold only ${own.joinToString(" and ")}."
+                        "the folder must hold only ${own.joinToString(", ")}."
                 )
             }
         }

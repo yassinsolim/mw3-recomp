@@ -42,6 +42,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var installButton: Button
     private lateinit var secondButton: Button
     private lateinit var botsButton: Button
+    private lateinit var zombiesButton: Button
+    private lateinit var dlcButton: Button
     private lateinit var buildButton: Button
     private lateinit var modsButton: Button
     private lateinit var tu6Button: Button
@@ -124,6 +126,8 @@ class MainActivity : AppCompatActivity() {
         installButton = findViewById(R.id.install)
         secondButton = findViewById(R.id.other_app)
         botsButton = findViewById(R.id.entry_bots)
+        zombiesButton = findViewById(R.id.entry_zombies)
+        dlcButton = findViewById(R.id.entry_dlc)
         buildButton = findViewById(R.id.entry_build)
         modsButton = findViewById(R.id.entry_mods)
         tu6Button = findViewById(R.id.entry_tu6)
@@ -190,6 +194,16 @@ class MainActivity : AppCompatActivity() {
             } else {
                 launchOtherApp()
             }
+        }
+        zombiesButton.setOnClickListener {
+            select(zombiesButton)
+            showDetail(getString(R.string.entry_zombies), getString(R.string.zombies_detail))
+            if (Title.MULTIPLAYER.installed(prefs.gameDirectory)) startGame(Title.MULTIPLAYER, TitleUpdate.zombiesLaunchData)
+        }
+        dlcButton.setOnClickListener {
+            select(dlcButton)
+            showDetail(getString(R.string.dlc_title), getString(R.string.dlc_detail))
+            startActivity(Intent(this, DlcActivity::class.java))
         }
         botsButton.setOnClickListener {
             select(botsButton)
@@ -432,6 +446,11 @@ class MainActivity : AppCompatActivity() {
         detectedImage = if (missing.isEmpty()) null else chosenImage() ?: findDisc()?.absolutePath
         refreshSecondEntry(gameDirectory)
         refreshBotsEntry()
+        // The player's own map packs: offered once there is a game to add
+        // them to, and Exo Zombies while the update they need is in use.
+        TitleUpdate.refresh(this)
+        dlcButton.visibility = if (Dlc.offered && installed) android.view.View.VISIBLE else android.view.View.GONE
+        zombiesButton.visibility = if (TitleUpdate.inUse && installed) android.view.View.VISIBLE else android.view.View.GONE
         // The app is published without the game's code: the files alone do
         // not make it ready (GameLibrary.kt). Which of the two a player still
         // has to do is said before either is started.
@@ -689,7 +708,7 @@ class MainActivity : AppCompatActivity() {
         return File(directory).name
     }
 
-    private fun startGame(title: Title) {
+    private fun startGame(title: Title, launchData: String = "") {
         if (!nativeReady) return
         // Every way into a run comes through here: without the title's game
         // code (GameLibrary.kt) one only ends in "The game could not start",
@@ -705,10 +724,10 @@ class MainActivity : AppCompatActivity() {
         // Spec Ops / multiplayer); the touch controls and the first controller
         // are both player one. Warn once: two viewports cost frames and heat.
         if (!prefs.seenPadWarning && physicalPadCount() >= 2) {
-            showSplitscreenWarning(title)
+            showSplitscreenWarning(title, launchData)
             return
         }
-        GameActivity.start(this, title)
+        GameActivity.start(this, title, launchData)
     }
 
     private fun showDetail(title: String, text: String) {
@@ -889,15 +908,15 @@ class MainActivity : AppCompatActivity() {
         return count
     }
 
-    private fun showSplitscreenWarning(title: Title) {
+    private fun showSplitscreenWarning(title: Title, launchData: String) {
         AlertDialog.Builder(this)
             .setTitle(R.string.splitscreen_title)
             .setMessage(R.string.splitscreen_warning)
-            .setPositiveButton(R.string.play_anyway) { _, _ -> GameActivity.start(this, title) }
+            .setPositiveButton(R.string.play_anyway) { _, _ -> GameActivity.start(this, title, launchData) }
             .setNegativeButton(R.string.cancel, null)
             .setNeutralButton(R.string.dont_show_again) { _, _ ->
                 prefs.seenPadWarning = true
-                GameActivity.start(this, title)
+                GameActivity.start(this, title, launchData)
             }
             .show()
     }

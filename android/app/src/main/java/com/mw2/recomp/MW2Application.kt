@@ -25,6 +25,7 @@ class MW2Application : Application() {
         super.onCreate()
         Trail.install(this)
         Trail.note(this, "app: process started")
+        TitleUpdate.refresh(this)
     }
 }
 

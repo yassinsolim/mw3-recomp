@@ -401,6 +401,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         prefs = Prefs(this)
 
         Trail.note(this, "game: starting")
+        TitleUpdate.refresh(this)
         val request = RunRequest.read(this)
         // Launch data is for the run it was left for, not for whichever run
         // comes after it.
@@ -1690,9 +1691,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
          * for the player's name before it, with the device's own filled in:
          * the other players see it, and few look for it in Settings.
          */
-        fun start(activity: Activity, title: Title, then: () -> Unit = {}) {
+        fun start(activity: Activity, title: Title, launchData: String = "", then: () -> Unit = {}) {
             val go = {
-                RunRequest(title, "").write(activity)
+                RunRequest(title, launchData).write(activity)
                 activity.startActivity(Intent(activity, GameActivity::class.java))
                 then()
             }

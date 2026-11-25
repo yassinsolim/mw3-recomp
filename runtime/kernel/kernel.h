@@ -105,7 +105,14 @@ namespace kernel
     void MountDevice(const std::string& name, const std::filesystem::path& root);
     // A read-only volume as a drive: a downloadable content package, read
     // where it lies (volume.h).
-    void MountVolume(const std::string& name, std::shared_ptr<class ReadVolume> volume);
+    // `alsoAtRoot` names a folder of it whose files are found at the drive's
+    // root as well: the title asks for a fastfile of a language that is not
+    // the one it runs in at the root (content.cpp, the title update).
+    // `english` are other volumes whose english\ files answer where this one
+    // has none: an update of another pressing has no English, and the
+    // player's packs have some of what it would have brought.
+    void MountVolume(const std::string& name, std::shared_ptr<class ReadVolume> volume,
+                     const std::string& alsoAtRoot = {}, std::vector<std::shared_ptr<class ReadVolume>> english = {});
     void UnmountDevice(const std::string& name);
     const std::filesystem::path& SaveRoot();
     // Downloadable content: the player's own packages for this title, found in
@@ -113,6 +120,17 @@ namespace kernel
     // those from `next` on that fit in the buffer, moves `next` past them and
     // returns how many.
     uint32_t ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next);
+    // The title update's package among them, as the drive `update:`, for a
+    // build of the executable the update makes (content.cpp).
+    void MountTitleUpdate();
+    // One of its files, whole, for the game folder `gameRoot` (before
+    // Initialise): false when there is no update's package, or no such file.
+    bool ReadTitleUpdateFile(const std::filesystem::path& gameRoot, const std::string& name, std::vector<uint8_t>& bytes);
+    // The three letters its localised fastfiles begin with ("sna") when the
+    // update is of a pressing in another language than the game runs in and
+    // so has none of English's; empty otherwise. Whether it has a fastfile.
+    const std::string& UpdateLanguage();
+    bool UpdateHasZone(const std::string& zone);
     // What is kept under a player's number -- his rank, offline and Live, and
     // the settings of a profile at the second to fourth controllers -- renamed
     // to another number, where that one has none yet (kernel/xam.cpp).

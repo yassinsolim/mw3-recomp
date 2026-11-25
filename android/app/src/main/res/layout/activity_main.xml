@@ -80,6 +80,11 @@
 
                 <Button android:id="@+id/other_app" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+                <!-- Advanced Warfare with the player's own title update (MainActivity shows it). -->
+                <Button android:id="@+id/entry_zombies" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_zombies"
+                    android:visibility="gone" />
                 <!-- Modern Warfare 3's multiplayer only (MainActivity shows it). -->
                 <Button android:id="@+id/entry_bots" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
@@ -90,6 +95,11 @@
                 <Button android:id="@+id/entry_build" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
                     android:text="@string/build_entry"
+                    android:visibility="gone" />
+                <!-- Advanced Warfare, once the game files are there (MainActivity shows it). -->
+                <Button android:id="@+id/entry_dlc" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_dlc"
                     android:visibility="gone" />
                 <Button android:id="@+id/entry_mods" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"

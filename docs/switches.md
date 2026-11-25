@@ -48,6 +48,7 @@ them as unset whatever the environment says, and also drops the keys `F5`, `F7`,
 | `MW2_LOG_ALL=1` | | writes every line as it comes. Without it a line that repeats is written once and then counted -- the 1st, 2nd, 4th, 8th ... with the size of the repetition beside it, which is never above the truth and within a factor of two of it -- and two lines that differ only in an address, a size or a shader hash are one kind of line. A run that logs one thing a thousand times buries the line that says what it was |
 | `MW2_CONSOLE="30:map af_caves;45:god"` | R | queues commands into the title's console command buffer at the given wall-clock seconds; see [gameplay.md](gameplay.md) |
 | `MW2_CUSTOM_MAPS=1` | R | the multiplayer loads fastfiles nobody signed: a map converted from the PC game. Off, it refuses them as the console does, and the launcher's shader pass reads only the game's own fastfiles ([gameplay.md](gameplay.md)) |
+| `MW2_DLC_DIR=<folder>[;<folder>...]` | R | where a title's content packages are looked for besides the `dlc` folder beside the game folder: the player's own map packs, Advanced Warfare's install disc's packages and its title update, each folder searched six levels deep ([dlc.md](dlc.md)) |
 | `MW2_MOD_DIR=<folder>` | R | Modern Warfare 3: the mods folder, instead of `mods/` in the game folder: one folder per mod, on when `mods.txt` there names it ([mods.md](mods.md)). The same folder is laid over the game's read-only devices |
 | `MW2_SCRIPT_DUMP=<folder>` | R | Modern Warfare 3: every script of the game's own that a level loads is written there as source, by its path, for reading or for a mod to start from ([mods.md](mods.md)) |
 | `MW2_TRACE_MODS=1` | R | Modern Warfare 3: logs each script and raw file the game asks its asset database for, once: the paths a mod's file can stand for |
@@ -135,6 +136,7 @@ walking to it.
 | `MW2_TRACE_BOTS=1` | the bots: the menus' names, each menu answer, where every bot is and what it is doing every five seconds, and each target that went down while a bot fired at it |
 | `MW2_TRACE_MATCH=1` | Modern Warfare 3's multiplayer, on the host: at every landing, how long the player was in the air, how high it rose, how fast it was moving, which way it faced, how far down it looked and where it landed -- what the `MW2_MATCH_` options and `MW2_FOV`'s turn rate come to, and where a player stands |
 | `MW2_TRACE_POINTER=1` | Windows, Modern Warfare 3: each menu the mouse points in, with the items that can be chosen and their rectangles on the frame, and every item the pointer gives the focus |
+| `MW2_TRACE_UPDATE_TEXT=1` | Advanced Warfare with a title update of another language than the disc: every string that only the update has, and each one shown in the update's language ([dlc.md](dlc.md#why-the-title-update-and-how-it-is-used)) |
 | `MW2_TRACE_FILES=1` | every file opened, read and written. The files asked for and not found are listed at exit regardless |
 | `MW2_TRACE_XMA=1` | every XMA decoder kick with its buffers, and FFmpeg's log |
 | `MW2_DUMP=<hex>[:words][,...]` | blocks of guest memory to print when the watchdog fires (16 words by default) |

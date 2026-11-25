@@ -44,6 +44,12 @@ The disc image. Asked for when not given.
 Advanced Warfare's second disc, the install disc, whose two content packages
 the game mounts as a console does after installing them to its hard disk.
 Asked for when they are not yet in aw\install.
+.PARAMETER Dlc
+Advanced Warfare: the folder with your own downloadable content, copied off
+your console's hard disk (Content\0000000000000000\41560914, which holds the
+map packs in 00000002 and the title update in 000B0000; docs/dlc.md). The
+multiplayer is then built a second time, as the title update makes it, which
+is the one the map packs and Exo Zombies are for. The folder is only read.
 .PARAMETER Title
 both (default), sp (campaign and Special Ops) or mp (multiplayer): which
 Windows executables to build. The Android app always holds both.
@@ -113,6 +119,7 @@ param(
     [ValidateSet('mw3', 'mw2', 'cod4', 'aw')][string]$Game = 'mw3',
     [string]$Iso,
     [string]$InstallIso,
+    [string]$Dlc,
     [ValidateSet('both', 'sp', 'mp')][string]$Title,
     [ValidateSet('android', 'pc', 'both')][string]$Build,
     [switch]$Install,
@@ -216,6 +223,12 @@ $Titles = if ($Mw2) { @{
             Tables = 'aw_switch_tables.toml'; Files = 207; Jump = 210; Stepped = 415 }
     mp = @{ Name = 'awmp'; Lib = 'awmp'; Label = 'multiplayer'; Xex = 'default_mp'; Ppc = 'ppc_aw_mp'; Toml = 'AWMP.toml'
             Tables = 'awmp_switch_tables.toml'; Files = 204; Jump = 230; Stepped = 415 }
+    # The multiplayer as title update 17 makes it, for a player's own map
+    # packs (-Dlc): its executable is made here from the disc's and the
+    # update's patch, in a folder of its own.
+    mp17 = @{ Name = 'awmp17'; Lib = 'awmp17'; Label = 'multiplayer with the title update (map packs, Exo Zombies)'; Xex = 'default_mp'
+              Folder = 'aw/tu17'; Ppc = 'ppc_aw_mp_tu17'; Toml = 'AWMP.tu17.toml'
+              Tables = 'awmp_switch_tables.tu17.toml'; Files = 213; Jump = 137; Stepped = 415 }
 } } else { @{
     sp = @{ Name = 'mw3'; Lib = 'mw3'; Label = 'campaign and Special Ops'; Xex = 'default'; Ppc = 'ppc_mw3'; Toml = 'MW3.toml'
             Tables = 'mw3_switch_tables.toml'; Files = 146; Jump = 128 }
@@ -298,19 +311,31 @@ function Test-Tree($t) {
     (Test-Path $note) -and ([IO.File]::ReadAllText($note).Replace("`r", '') -eq (RecompiledWith $t))
 }
 
+# Where a title's executable is, from the repository: the disc's folder, or
+# the title's own (the one an update makes).
+function XexOf($t) { "$(if ($t.Folder) { $t.Folder } else { $Disc })/$($t.Xex).xex" }
+
 # Whether an extracted executable is a disc build this port supports, as one
 # line of text; throws when it is not. Modern Warfare 3's builds are listed by
 # tools/check_mw3_xex.py, Call of Duty 4's by tools/check_cod4_xex.py and
 # Advanced Warfare's by tools/check_aw_xex.py;
 # Modern Warfare 2 has the one disc (CMakeLists.txt, MW2_XEX_SHA256_SP/MP).
 function Test-Xex($python, $t) {
-    $xexRel = "$Disc/$($t.Xex).xex"
+    $xexRel = XexOf $t
     if ($Cod4) { return Exec $python @('tools/check_cod4_xex.py', $xexRel) -Cwd $Repo }
     if ($Aw) { return Exec $python @('tools/check_aw_xex.py', $xexRel) -Cwd $Repo }
     if (-not $Mw2) { return Exec $python @('tools/check_mw3_xex.py', $xexRel) -Cwd $Repo }
     $sha = Sha256Of (Join-Path $Repo $xexRel)
     if ($sha -ne $t.Sha) { throw "${xexRel}: SHA-256 $sha is not the Modern Warfare 2 disc's ($($t.Sha))" }
     "${xexRel}: the Modern Warfare 2 disc's (1.0.557)"
+}
+
+# MSVC/Windows SDK include and library paths, for this process only.
+function Use-VsTools($vcvars) {
+    cmd /c "`"$vcvars`" >nul 2>&1 && set" | ForEach-Object {
+        if ($_ -match '^(INCLUDE|LIB|LIBPATH|PATH)=(.*)$') { Set-Item "env:$($Matches[1])" $Matches[2] }
+    }
+    if (-not $env:INCLUDE) { throw "vcvars64.bat did not set INCLUDE ($vcvars)" }
 }
 
 # Downloads a pinned file into .toolchain\dl (once) and checks its hash.
@@ -637,11 +662,15 @@ $AppPackage = "com.$Game.recomp$Suffix"
 # multiplayer test copy (-Instance) needs only its own.
 $PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
 $Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
+# With the player's map packs, the multiplayer the title update makes as well.
+# (@(): one key alone is a string, and += would append to its text.)
+if ($Dlc -and 'mp' -in $Keys) { $Keys = @($Keys) + 'mp17' }
+if ($Dlc -and 'mp' -in $PcKeys) { $PcKeys = @($PcKeys) + 'mp17' }
 
 # Call of Duty 4's Windows game has a folder of its own beside Modern Warfare 3's.
 $PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } elseif ($Aw) { 'pc-aw' } else { 'pc' })
 $needIso = ($ForPc -and -not (Test-Path (Join-Path $PcFolder 'game\default.xex'))) -or
-           @($Keys | Where-Object { -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
+           @($Keys | Where-Object { -not $Titles[$_].Folder -and -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
 while ($needIso -and -not ($Iso -and (Test-Path -LiteralPath $Iso -PathType Leaf))) {
     if ($Iso) { Warn "no file at $Iso" }
     if (-not $Interactive) { throw 'Give the disc image with -Iso <path>.' }
@@ -662,6 +691,17 @@ while ($needInstallIso -and -not ($InstallIso -and (Test-Path -LiteralPath $Inst
     $InstallIso = (Read-Host "Path to the image of $GameName's install disc (.iso)").Trim().Trim('"')
 }
 if ($InstallIso) { $InstallIso = (Resolve-Path -LiteralPath $InstallIso).Path }
+# A player's own downloadable content (docs/dlc.md): the packages are read
+# where they lie. $DlcRoot is the folder that holds them all, $DlcFiles the
+# packages (the install disc's two among them are skipped: aw\install has
+# them), $DlcUpdate the title update's.
+$DlcRoot = $null; $DlcFiles = @(); $DlcUpdate = $null
+if ($Dlc) {
+    if (-not $Aw) { throw '-Dlc is for Advanced Warfare (-Game aw).' }
+    if ($TestCopy) { throw '-Dlc is not for -Instance.' }
+    if (-not (Test-Path -LiteralPath $Dlc -PathType Container)) { throw "-Dlc: no folder at $Dlc" }
+    $Dlc = (Resolve-Path -LiteralPath $Dlc).Path
+}
 
 New-Item -ItemType Directory -Force $Tc, $Dl, $Out, $Logs | Out-Null
 
@@ -737,6 +777,8 @@ if ($needInstallIso) {
 }
 foreach ($key in @($Keys)) {
     $t = $Titles[$key]
+    # One an update makes is made in step 4, with the recompiler's patcher.
+    if ($t.Folder) { continue }
     $xexRel = "$Disc/$($t.Xex).xex"
     if (-not (Test-Path (Join-Path $Repo $xexRel))) {
         Step "extract $($t.Xex).xex from the disc image (read-only)"
@@ -751,7 +793,23 @@ foreach ($key in @($Keys)) {
         } else { throw "$($t.Xex).xex is not a disc build this port supports: $($_.Exception.Message)" }
     }
 }
+if ('mp' -notin $Keys) { $Keys = @($Keys | Where-Object { $_ -ne 'mp17' }) }
 $PcKeys = @($PcKeys | Where-Object { $_ -in $Keys })
+if ($Dlc) {
+    Step 'look at the downloadable content (read-only)'
+    foreach ($line in @(Exec $Python @('tools/aw_dlc.py', $Dlc) -Cwd $Repo)) {
+        if ("$line" -match '^root (.+)$') { $DlcRoot = $Matches[1] }
+        elseif ("$line" -match '^update (.+)$') { if (-not $DlcUpdate) { $DlcUpdate = $Matches[1] } }
+        elseif ("$line" -match '^pack ([^\t]+)\t(.*)$') {
+            if ((Split-Path -Leaf $Matches[1]) -notin $InstallPackages) { $DlcFiles += $Matches[1]; Note "$($Matches[2])" }
+        }
+    }
+    if (-not $DlcUpdate) {
+        throw "No title update is in $Dlc. The map packs are for the updated game: copy Content\0000000000000000\41560914\000B0000 off the console as well (docs\dlc.md)."
+    }
+    Note "title update: $(Split-Path -Leaf $DlcUpdate)"
+    $DlcFiles += $DlcUpdate
+}
 if ($ForAndroid -and -not $TestCopy -and $Keys.Count -lt 2) {
     throw 'The Android app holds the campaign and the multiplayer, and needs both executables to be disc builds this port supports.'
 }
@@ -807,11 +865,7 @@ if ($toRecompile.Count -and -not ((Test-Path $XenonExe) -and (Test-Path $Analyse
         Exec $GitTools.Git @('-C', $Xenon, 'apply', (Join-Path $Repo 'patches\xenonrecomp-mw2.patch'))
     }
     Step 'build XenonRecomp (clang-cl + MSVC libraries)'
-    # MSVC/Windows SDK include and library paths, for this process only.
-    cmd /c "`"$vcvars`" >nul 2>&1 && set" | ForEach-Object {
-        if ($_ -match '^(INCLUDE|LIB|LIBPATH|PATH)=(.*)$') { Set-Item "env:$($Matches[1])" $Matches[2] }
-    }
-    if (-not $env:INCLUDE) { throw "vcvars64.bat did not set INCLUDE ($vcvars)" }
+    Use-VsTools $vcvars
     $fwd = { param($p) $p -replace '\\', '/' }
     Exec $CMake @('-S', $Xenon, '-B', "$Xenon\build", '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
                   "-DCMAKE_MAKE_PROGRAM=$(& $fwd $Ninja)",
@@ -826,16 +880,50 @@ if ($toRecompile.Count -and -not ((Test-Path $XenonExe) -and (Test-Path $Analyse
     Exec $CMake @('--build', "$Xenon\build", '--target', 'XenonAnalyse', 'XenonRecomp') -Log 'xenon_build.log' -Quiet
 }
 
+# The executable the title update makes of the disc's multiplayer: the
+# update's own patch applied to it by XenonRecomp's patcher (tools/xexpatch.cpp),
+# as a console does when it starts an updated game. Kept in the git-ignored
+# aw\tu17, for the recompiler; the game itself makes it again at every start.
+if ('mp17' -in $Keys) {
+    $t = $Titles['mp17']
+    $updated = Join-Path $Repo (XexOf $t)
+    if (-not (Test-Path $updated)) {
+        Step 'apply the title update''s patch to default_mp.xex'
+        New-Item -ItemType Directory -Force (Split-Path -Parent $updated) | Out-Null
+        $patcher = Join-Path $Xenon 'build\xexpatch.exe'
+        if (-not (Test-Path $patcher)) {
+            $libraries = @((Join-Path $Xenon 'build\XenonUtils\XenonUtils.lib'), (Join-Path $Xenon 'build\thirdparty\disasm\disasm.lib'))
+            $vcvars = Find-VsTools
+            if (-not $vcvars -or @($libraries | Where-Object { -not (Test-Path $_) }).Count -or -not (Test-Path "$Llvm\bin\clang-cl.exe")) {
+                throw 'The patcher is built with the recompiler''s libraries, which are not here: run setup once with -Recomp, then again with -Dlc.'
+            }
+            Use-VsTools $vcvars
+            Exec "$Llvm\bin\clang-cl.exe" (@('/nologo', '/std:c++20', '/O1', '/EHsc', '/MT', '/D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH',
+                                              "/I$Xenon\XenonUtils", "/I$Xenon\thirdparty\simde", (Join-Path $Repo 'tools\xexpatch.cpp')) + $libraries +
+                                            @("/Fe$patcher", "/Fo$Xenon\build\")) -Log 'xexpatch_build.log' -Quiet
+        }
+        $patch = Join-Path (Split-Path -Parent $updated) 'default_mp.xexp'
+        Exec $Python @('tools/aw_dlc.py', $Dlc, '--patch', $patch) -Cwd $Repo -Log 'extract_update_patch.log' -Quiet
+        Exec $patcher @((Join-Path $Repo "$Disc\default_mp.xex"), $patch, "$updated.part") -Log 'xexpatch.log' -Quiet
+        Move-Item -Force "$updated.part" $updated
+    }
+    try { Test-Xex $Python $t }
+    catch {
+        Remove-Item -Force $updated
+        throw "That title update does not make the executable this port is for (title update 17's): $($_.Exception.Message)"
+    }
+}
+
 foreach ($key in @($Keys)) {
     $t = $Titles[$key]
-    $xexRel = "$Disc/$($t.Xex).xex"
+    $xexRel = XexOf $t
     $ppcDir = Join-Path $Repo $t.Ppc
     $env:MW2_TITLE = $t.Name; $env:MW2_VERSION = 'tu0'
     if ($key -in $toRecompile) {
         Step "recompile $($t.Xex).xex ($($t.Label)); this takes a while"
         # tools/xexdump.py decrypts with openssl.exe, found on PATH.
         $savedPath = $env:PATH; $env:PATH = "$OpenSslDir;$env:PATH"
-        try { Exec $Python @('tools/xexdump.py', $xexRel, "$Disc/$($t.Xex).pe") -Cwd $Repo -Log "$($t.Name)_xexdump.log" -Quiet }
+        try { Exec $Python @('tools/xexdump.py', $xexRel, ($xexRel -replace '\.xex$', '.pe')) -Cwd $Repo -Log "$($t.Name)_xexdump.log" -Quiet }
         finally { $env:PATH = $savedPath }
         Exec $AnalyseExe @($xexRel, "config/$($t.Tables)") -Cwd $Repo -Log "$($t.Name)_analyse.log" -Quiet
         # Call of Duty 4 has a kind of jump table the analyser does not
@@ -1033,10 +1121,19 @@ if ($ForPc) {
                       '-DMW2_DIAGNOSTICS=ON', '-DMW2_PORTABLE=OFF', '-DMW2_LTO=OFF') -Log "pc_$($t.Name)_configure.log" -Quiet
         Exec $CMake @('--build', $buildDir, '--target', 'mw2') -Log "pc_$($t.Name).log" -Quiet
         Copy-Item (Join-Path $buildDir "$($t.Name).exe") (Join-Path $pc "$($t.Name).exe") -Force
-        $launcher = if ($key -eq 'mp') { 'Multiplayer.cmd' } else { 'Campaign.cmd' }
+        $launcher = if ($key -eq 'mp17') { 'Multiplayer with map packs.cmd' } elseif ($key -eq 'mp') { 'Multiplayer.cmd' } else { 'Campaign.cmd' }
         $lines = '@echo off', "rem Settings are in .env beside this file (docs/switches.md); the log is $Game.log.",
                  'cd /d "%~dp0"', "$($t.Name).exe game\$($t.Xex).xex game"
         [IO.File]::WriteAllText((Join-Path $pc $launcher), (($lines -join "`r`n") + "`r`n"))
+        if ($key -eq 'mp17') {
+            # Exo Zombies is the same executable in another mode, which the
+            # updated campaign's menu names in the launch data: 0x3F8 bytes,
+            # the first word 11 and the mode, 5, at 0x3D8 (docs/AW-BRINGUP.md).
+            $data = '0000000b' + ('00' * 0x3D4) + '00000005' + ('00' * 0x1C)
+            $lines = '@echo off', 'rem Exo Zombies: the multiplayer with the title update, started in its zombies mode.',
+                     'cd /d "%~dp0"', "set MW2_LAUNCH_DATA=$data", "$($t.Name).exe game\$($t.Xex).xex game"
+            [IO.File]::WriteAllText((Join-Path $pc 'Exo Zombies.cmd'), (($lines -join "`r`n") + "`r`n"))
+        }
     }
     if ($Game -eq 'mw3' -and @($Keys) -contains 'mp') { Install-CamoPacks (Join-Path $pcGame 'camos') }
     $envFile = Join-Path $pc '.env'
@@ -1062,6 +1159,12 @@ if ($ForPc) {
                     elseif ($Aw) { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=aw.log`nMW2_DLC_DIR=$InstallFolder`n" }
                     else { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n" }
         [IO.File]::WriteAllText($envFile, $settings)
+    }
+    # The player's packs are read where they lie too: their folder is named
+    # after the install disc's (runtime/kernel/content.cpp takes several).
+    if ($DlcRoot) {
+        $lines = @([IO.File]::ReadAllLines($envFile) | Where-Object { $_ -notmatch '^MW2_DLC_DIR=' })
+        [IO.File]::WriteAllText($envFile, (($lines + "MW2_DLC_DIR=$InstallFolder;$DlcRoot") -join "`n") + "`n")
     }
 }
 
@@ -1136,7 +1239,9 @@ if ($ForAndroid -and $Apks.Count -and $NoInstall) {
                 Step 'adb push the install disc''s packages (4 GB) to the app''s dlc folder'
                 $dlc = "/sdcard/Android/data/$AppPackage/files/dlc"
                 Exec $Adb @('-s', $serial, 'shell', "mkdir -p $dlc") | Out-Null
-                foreach ($package in @(Get-ChildItem -Recurse -File $InstallFolder)) {
+                $packages = @(Get-ChildItem -Recurse -File $InstallFolder) + @($DlcFiles | ForEach-Object { Get-Item -LiteralPath $_ })
+                if ($DlcFiles.Count) { Step ("adb push your map packs and the title update ({0:N1} GB)" -f ((($DlcFiles | ForEach-Object { (Get-Item -LiteralPath $_).Length }) | Measure-Object -Sum).Sum / 1GB)) }
+                foreach ($package in $packages) {
                     $there = "$(Exec $Adb @('-s', $serial, 'shell', "stat -c %s $dlc/$($package.Name) 2>/dev/null || echo 0"))".Trim()
                     if ($there -ne "$($package.Length)") { Exec $Adb @('-s', $serial, 'push', $package.FullName, "$dlc/$($package.Name)") | Out-Null }
                 }
@@ -1154,6 +1259,7 @@ Step 'done'
 foreach ($item in $Apks) { Note "APK: $($item.Apk)" }
 if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
+    if ('mp17' -in $PcKeys) { Note 'With your map packs: "Multiplayer with map packs.cmd" and "Exo Zombies.cmd" (docs\dlc.md).' }
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
 else {

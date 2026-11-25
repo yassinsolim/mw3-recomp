@@ -1286,3 +1286,167 @@ movie, which draws no world; the game goes on.
 fresh clone of the public repository at v0.1.0 (the tools already
 downloaded): 5 min 8 s, and the game code states what the release's
 `aw-recomp-v0.1.0-game-abi.txt` does.
+
+## Map packs and Exo Zombies (25 November 2026)
+
+For a player: [dlc.md](dlc.md#advanced-warfare-map-packs-and-exo-zombies).
+The owner's own packages, copied off his console's hard disk, were only
+read; their inventory is there too.
+
+### Does the disc's version take the packs? No
+
+Read from `default_mp.pe` (version `0xA`) and from the update's executable:
+
+| | the disc's multiplayer | title update 17's |
+|---|---|---|
+| `dlc1.id` to `dlc5.id`, `seasonpass.id`, `dlcinstall<n>.id` | known | known |
+| `dlccompat<n>.id`, `compatibility_packs.csv`, `compatibility_pack<n>_mp` | no such strings | known; `restart_compatibility_tasks`, "Couldn't connect to server because the data is incompatible" |
+| a zombies mode (`zombies` beside `horde` where the game type is told, `common_zm_mp`, `ui_zm_mp`, `mp_zombie_*`) | the disc has a `common_zombie_mp.ff` and no code that names a zombies mode | known |
+| `mp/ingamestore/s1_mdlcEntitlements.csv`, the list of every pack the title knows a package by | not asked for | built into a table at `8236B4F8`; with none of its rows the title leaves with `DLC_DLCREMOVED` (`82549724`) |
+
+So the packs' maps could at best be listed by the disc's executable, and Exo
+Zombies not at all; the packs' fastfiles are the updated game's besides. The
+update is supported instead, as a build of its own beside the disc's.
+
+### The build: `awmp17`
+
+`default_mp.xexp` out of the player's own update package, applied to the
+disc's `default_mp.xex` by XenonRecomp's patcher (`tools/xexpatch.cpp`;
+setup builds it against the recompiler's libraries). The image is
+`0x2F60000` bytes at `0x82000000`, entry `0x82145960`, version 0.0.17.x,
+SHA-256 `9112629a...af55` from either of the owner's two updates. 22,969
+functions in `.pdata`; `config/AWMP.tu17.toml` is the disc multiplayer's
+configuration with every address found again (`tools/find_in_title.py`
+between the two images: each helper matches once), and the block
+`AW_TITLE_TU17` of `runtime/title.h` has each hooked function found again by
+its strings, its callers or its instructions, as the disc's block says for
+each. What the update's code needed beyond the disc's:
+
+- **Record forms of two rotates.** The recompiler writes `rlwimi.` and
+  `rldicl.` without their comparison ("has RC bit enabled but no comparison
+  was generated": eight places). One is the Lua interpreter's test of a
+  boolean (`824B496C`), and with cr0 stale every `if not x` went the wrong
+  way: "unable to load module" for a module that was there. A hook after
+  each sets cr0 from the result (`PpcRecordCr0`,
+  `tools/extra_instructions.py`).
+- **`vupkd3d128` in place** (the destination is the source): two more forms
+  of the half-float unpack.
+- **A jump table with no bound before it** (`826B46E8`: 45 halfword
+  distances, the index trusted). XenonAnalyse reads a table's length from
+  its guard, so it passed this one over, and the first case reached was "an
+  indirect call with no recompiled function" on the way into System Link.
+  `tools/intext_switch_tables.py` adds tables of that shape, taking cases
+  while they are instructions of the function. The update's executable
+  has 137 tables by the analyser and the tool to the disc's 230.
+- **The patcher's copies as moves.** The update's patch moves parts of the
+  image over themselves and XenonRecomp's patcher uses `memcpy` for it.
+  Windows' and the Retroid Pocket Flip 2's copy such bytes in order; the AYN
+  Thor's does not, and there the same disc and update made an image with
+  another SHA-256 (27,793 bytes differed between `0x3E60A` and `0x536AB` of
+  the file), which the start refuses. `runtime/install/xex_patcher_moves.cpp`
+  compiles the patcher with `memmove`; the recompiler's own source and this
+  repository's patch to it are untouched, so no statement changes.
+- **A package's folder listed as the folder.** The title lists every
+  package's root and each language folder into one list of 1,440 names
+  (`8236A840`, `82369330`: `DLC_DLCOVERFLOW` past it). A folder used to be
+  answered with the root's files, and the owner's packages overflowed it.
+- **The update's language** (`runtime/aw_update_language.cpp`; dlc.md has
+  why). Two limits of the title's decide how: 13,360 localised strings
+  ("Exceeded limit of 13360 'localize' assets" with two languages loaded),
+  and the lists of names that go over the network by number
+  (`NetConstStrings`, asset type `0x33`, checked at `82684B98` before every
+  match against the ranges at `8205FF40`: 690 localised strings, 255
+  hints). Two languages' lists of one fastfile are more, and the match ended
+  in `EXE_TRANSMITERROR`; English's list is left out where the update's of
+  the same fastfile was taken. Both players have the update's then, as two
+  consoles have.
+- **Exo Zombies' start.** The mode is the word of the launch data the
+  multiplayer reads Exo Survival's from: 5 (4 is Exo Survival). The updated
+  campaign's menu would write it; the launcher does (`TitleUpdate.kt`'s
+  launch data, `Exo Zombies.cmd`). Its files are asked for before any
+  package is mounted, from `update:` and the disc alone, and the English of
+  them is in Compatibility Pack 1: the `update:` drive answers `english\`
+  from the player's packs where the update has none
+  (`kernel::MountVolume`).
+
+The bots' rules, the unlock switch and the patient host (`aw_bots.cpp`,
+`aw_unlock_all.cpp`, `aw_server.cpp`) are the disc build's, at the update's
+addresses.
+
+**On a phone** the app carries a third runtime library (`libawmp17.so`,
+3 MB) and the game package a third code library (`libawmp17game.so`, from
+`setup -Dlc`); `Title.runLibrary` chooses it for the multiplayer while a
+title update's package is in the `dlc` folder and that code is there. The
+executable is made in memory at every start from the disc's and the
+update's patch (`install.cpp`), so nothing but the packages is added to the
+phone. The game code of this build is **not built on the device**: the
+app's build kit has the disc's two titles, and the update's would need the
+patched executable made there first and twelve more minutes of compiling;
+the app says to run setup with `-Dlc` instead.
+
+### Seen on Windows (RTX 5080)
+
+`setup\setup.cmd -Game aw -Build pc -Title mp -Dlc <folder>` from the
+packages to the game in 1 min 32 s with the tools there (the patcher built,
+the patch applied, 213 files, 137 tables, 415 stepped). Evidence in
+`private-captures\aw\pc-dlc-*`.
+
+| | Seen | Evidence |
+|---|---|---|
+| The packs listed and mounted | thirteen packages as `dlc1:` to `dlc13:`, the update as `update:`; the menu's version 1.20.1388426.0 | `pc-dlc-tu17-sideshow.log` |
+| The maps listed | Map Select, Bonus Maps: Atlas Gorge, Drift, Sideshow, Core, Urban, Skyrise, Kremlin, Parliament, Compound, Fracture, Overload, Quarantine, Swarm (the thirteen of the owner's packs; Ascendance's four are absent with its package) | `pc-dlc-tu17-bonus-maps-list.png` |
+| A pack's map in a match with bots | System Link, Create Game, Sideshow (Havoc), Team Deathmatch, three bots a side: team select with the map's own minimap, then in play, 2 to 1 | `pc-dlc-tu17-sideshow-team-select.png`, `-in-match.png` |
+| Two copies through the relay on a pack's map | `mw3.yassin.app:3074`: one hosts Atlas Gorge with four bots, the other's Join Game lists "dlcA, Atlas Gorge, 1 (12), Team Deathmatch", joins and plays (2 to 2 at 9:21) | `pc-dlc-relay-*` |
+| Exo Zombies | `Exo Zombies.cmd`: the intro movie, the EXO ZOMBIES menu (Xbox Live, Local Play, System Link, Story, Store) in English, System Link, Start Game: Outbreak loads and round 1 starts. Standing still the player is down after 32 seconds, as the game is | `pc-dlc-tu17-exo-zombies-menu.png`, `-zombies-outbreak-round1.png` |
+| Exo Zombies' rounds, **with a test harness that is not in the source** (a player takes no damage and what hit him takes it instead) | rounds 1 to 6 in five minutes, 13,120 points, no fault | `pc-dlc-tu17-zombies-outbreak-round6-test-harness.png`, `.log` |
+
+Again after the rebase onto the flicker fix and with the patcher's moves
+(`pc-dlc-tu17-*-rebased*`): Skyrise (Supremacy) with three bots a side, in
+play at 3 to 1; Outbreak with the same test harness, round 6 and 8,720
+points after five and a half minutes.
+
+### The strings left in the update's language
+
+854 with the owner's Latin American Spanish update, counted by the runtime
+as the fastfiles load (`update text: ... have no English in the player's
+files`; `MW2_TRACE_UPDATE_TEXT=1` names each). By the first word of their
+names: 342 `LOOT_` and 90 `CHARACTERGEARSET_` (the supply drops' gear and
+its sets, in the armoury and Create an Operator), 111 `MDLC2_` to `MDLC4_`
+and `DLC4_` (the packs' weapons and their variants), 82 `CHALLENGE_`, 64
+`MPUI_` (the later packs' map descriptions and the added reticles' names),
+63 `LUA_MENU_` (the store's and the armoury's labels), 37 `PERKS_` (the
+reticles' descriptions), 18 `CALLINGCARDS_`, 15 `PRESENCE_`, and 32 others
+(the store's products, e-sports labels). Seen on screen: Map Select's
+description of Skyrise and of Kremlin is Spanish under an English name
+(`pc-dlc-tu17-map-description-spanish-skyrise.png`,
+`thor-dlc-bonus-maps-kremlin.png`); by the time a match with bots was in
+play 315 of them had been asked for, gear's names for the most part. The
+menus' own entries, the maps' and modes' names, the HUD and Exo Zombies'
+menu are English.
+
+### Seen on the AYN Thor (Adreno 740, 120 Hz, Turnip 27.0.0)
+
+`com.aw.recomp.dlc`, a debug build of this branch beside the owner's app,
+with the game code of all three libraries from `setup -Dlc` on the PC and
+the owner's packages in `files/dlc` (9.2 GB with the install disc's two).
+Frame rates are the HUD's and, where a figure has a decimal, the per-second
+report's (`MW2_REPORT_SECONDS=1`). Evidence in
+`private-captures\aw\thor-dlc-*`.
+
+| | Seen | Evidence |
+|---|---|---|
+| The first start | refused: "the title update in the dlc folder makes another executable"; the patcher's `memcpy` (above). With the moves the same files start | `thor-dlc-kremlin.log` |
+| The launcher | **Add DLC** and **Exo Zombies** entries; Add DLC took Atlas Gorge's package from a folder of the phone's storage and listed it | `thor-dlc-launcher-entries.png`, `thor-dlc-add-dlc-*.png` |
+| Multiplayer | the update's menu (1.20.1388426.0), Map Select, Bonus Maps with the thirteen maps | `thor-dlc-bonus-maps-kremlin.png` |
+| A pack's map with bots | System Link, Kremlin (Supremacy), Team Deathmatch with six bots: in play for four minutes, 119 FPS at the HUD (the first visit, with over 500 pipelines compiled as it went and some 90 stutters logged) | `thor-dlc-kremlin-in-match.png`, `-2.png`, `.log` |
+| A match through the relay with a PC | `mw3.yassin.app:3074`: the Windows build hosts Atlas Gorge with four bots, the Thor's Join Game lists "dlcPC, Atlas Gorge, 1 (12), Team Deathmatch", joins (2/12 in the host's lobby) and plays: 119.9 frames a second over the last minute, 94.3% of frames on time | `thor-dlc-relay-*`, `pc-dlc-relay-lobby-thor-joined.png`, `pc-dlc-relay-host-with-thor.log` |
+| Exo Zombies | the launcher's entry: the EXO ZOMBIES menu, System Link, Outbreak, round 1 at 119 FPS | `thor-dlc-exo-zombies-menu.png`, `thor-dlc-zombies-outbreak-round1.png` |
+| Exo Zombies' rounds, **with the test harness that is not in the source** | round 7 and 12,880 points after five minutes; 119.9 frames a second over the last four, 95.7% on time, no fault | `thor-dlc-zombies-outbreak-round7-test-harness.png`, `.log` |
+| The campaign beside it | starts (the disc's, as before) | |
+
+**Not seen:** two phones together on a pack's map (the second device was a
+PC); the Retroid Pocket Flip 2, whose storage had no room for a second copy
+of the game beside the owner's (the patcher alone was run there, and makes
+the right executable); `setup -Dlc` copying the packages to a phone (they
+were pushed with adb to the same folder); a match by normal play in Exo
+Zombies past round 1.

@@ -61,7 +61,105 @@
 // 3's, and every entry was found in its own executables by laying the
 // function beside the one MW3's campaign block names (the sequence of
 // instructions' kinds compared over the whole function), then read.
-#if defined(AW_TITLE) && defined(AW_TITLE_MP)
+#if defined(AW_TITLE) && defined(AW_TITLE_MP) && defined(AW_TITLE_TU17)
+
+// The multiplayer as title update 17 makes it (version 0.0.17.x, built in
+// August 2015; ppc_aw_mp_tu17/, config/AWMP.tu17.toml; docs/AW-BRINGUP.md,
+// "Title update 17"). The downloadable content is for this executable: the
+// disc's knows neither the Compatibility Packs nor Exo Zombies. Each entry is
+// the disc's (the block below, where what each is for is written), found
+// again in this image; the engine was compiled anew, so only the libraries'
+// functions kept their bytes.
+#define MW2_TITLE_NAME  "AW multiplayer (title update 17)"
+#define T_ENTRY_POINT   0x82145960u          // the XEX header's ENTRY_POINT
+
+#define T_Com_Error            82450EF8   // the first eight instructions of the disc's; of the functions that leave by longjmp (821ED5F0) the one with 592 callers
+#define T_Cbuf_AddText         82472B80   // the disc's first twelve instructions, and the same "p<digit> " prefix parse (112, 80, 48, 50, 32)
+#define T_D3D_Present          82119608   // the disc's, instruction for instruction (2096 bytes)
+#define T_D3D_ArenaWait        8210D670   // the same (180 bytes)
+#define T_DEV_PresentInterval  14000u     // the flip packet writer, sub_821188C8, is the disc's sub_8210D9A0 word for word
+#define T_DEV_ProgressBlock    11024u
+// The one function that builds the memory export's words 4B00.... and
+// 4B021A01 (`oris rN,rN,0x4b02; ori rN,rN,0x1a01`), with the disc's
+// arguments in the disc's registers and one caller, as there.
+#define T_Image_FlushMove      822AA300
+// The disc's first twelve instructions and its size (356 bytes): the same
+// loads of what it is handed, into the vidConfig at 8465E564.
+#define T_R_SetVidConfigOfSizes 822A7D78
+
+// the kernel's data imports: the import records 0x000100AD, 0x00010059 and
+// 0x00010193, each present once
+#define T_DATA_TimeStampBundlePtr 0x820008A0u
+#define T_DATA_DebugMonitorPtr    0x82000994u
+#define T_DATA_ModuleHandlePtr    0x8200090Cu
+
+// The variadic function with the most callers in the interpreter's library
+// (1324): it formats, then throws -100 through sub_826FABD8, which leaves by
+// longjmp.
+#define T_Lua_Error            826FD9D0
+
+// The leaf that stores the five bytes at +0x20..+0x24 of a block from the two
+// dvars bot_AutoConnectDefault (82095E68) and bot_DifficultyDefault
+// (sub_8241BD10 registers both and keeps their pointers at 83EAF130 and
+// 83EAF12C), the disc's instruction for instruction but for one store. Its
+// one caller, sub_8224D8A0,
+// is the match rules' function, whose blocks are at the address below.
+#define T_MatchRules_BotDefaults  8224D648
+#define T_DATA_MatchRules           0x849B5100u
+#define T_MATCHRULES_BOT_CONNECT    0x20u
+#define T_MATCHRULES_BOT_DIFFICULTY 0x21u
+#define T_MATCHRULES_BOT_LIMIT      0x23u
+
+// Seven of the users of "mp/unlocktable.csv" call the second (controller,
+// table, row), which fetches the controller's stats and calls the first
+// (controller, stats, table, row, needed), as on the disc.
+#define T_Unlock_RowLocked              82466B70
+#define T_Unlock_RowLockedForController 82467480
+
+// The one user of the names sv_timeout (820967E0) and sv_connectTimeout
+// (820967EC), with the same defaults (10 and 40); the pointers the two
+// registrations return are stored at the addresses below.
+#define T_SV_RegisterDvars          823E3D28
+#define T_DATA_SvTimeoutDvar        0x83EEF7C0u
+#define T_DATA_SvConnectTimeoutDvar 0x83EEF7BCu
+#define T_DVAR_INTEGER              12u
+
+// The fastfile database (aw_update_language.cpp), read from this image:
+//   T_DB_LoadZone(name, flags): the one user of "%s.ff" (8208BDF0). It
+//     opens the zone's file, raises DLC_DLCREMOVED for one that is nowhere,
+//     and takes one of the 297 zone records; its caller sub_82549940 goes
+//     through a list of names with it.
+//   T_DB_LinkAsset(type, header*): one of the two users of "Attempting to
+//     override asset '%s' from zone '%s' with zone '%s'" (82543E40 the
+//     other, which it calls). It looks the asset's name up and adds the
+//     asset or keeps the one there is, and returns the record, whose word
+//     at +4 is the header then in use. Its one caller, sub_825479A8, is
+//     what each kind's loader (55 of them) hands a new asset to: it enters
+//     the database's count of readers first, which the loader leaves, so
+//     the hook is on the inner function.
+//   T_DB_FindAsset(type, name, make a default): 615 callers; the Lua
+//     loader calls it with type 0x35 and a path, the entitlements' reader
+//     with 0x2D and "mp/ingamestore/s1_mdlcEntitlements.csv".
+// The types are indices into the table of their names at 82834BA0
+// ("physpreset", "phys_collmap", ...): 9 "sound", 32 "localize".
+#define T_DB_LoadZone          82549618
+#define T_DB_LinkAsset         825475D8
+#define T_ASSET_RECORD_HEADER   4u
+#define T_DB_FindAsset         82544098
+#define T_ASSET_LOCALIZE       32u
+// The 24 lists 82684B98 asks for by this type before a match ("Missing
+// NetConstStrings asset '%s' for current map", 82079B60).
+#define T_ASSET_NETCONSTSTRINGS 0x33u
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(AW_TITLE) && defined(AW_TITLE_MP)
 
 #define MW2_TITLE_NAME  "AW multiplayer"
 #define T_ENTRY_POINT   0x8213A6D0u          // the XEX header's ENTRY_POINT

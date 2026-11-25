@@ -160,6 +160,16 @@ size_t ReadVolume::Read(int descriptor, const Entry& entry, uint64_t position, v
     return done;
 }
 
+std::vector<std::string> ReadVolume::FilesIn(const std::string& folder) const
+{
+    const std::string in = Key(folder) + "\\";
+    std::vector<std::string> names;
+    for (const std::string& path : folderFiles_)
+        if (path.size() > in.size() && Key(path.substr(0, in.size())) + "\\" == in && path.find('\\', in.size()) == std::string::npos)
+            names.push_back(path.substr(in.size()));
+    return names;
+}
+
 const ReadVolume::Entry* ReadVolume::Find(const std::string& relative) const
 {
     const auto it = entries_.find(Key(relative));
@@ -295,6 +305,7 @@ std::shared_ptr<ReadVolume> ReadVolume::OpenPackage(const fs::path& file, std::s
                 return nullptr;
             }
             if (path.find('\\') == std::string::npos) volume->rootFiles_.push_back(path);
+            else volume->folderFiles_.push_back(path);
         }
         volume->entries_[Key(path)] = std::move(entry);
     }

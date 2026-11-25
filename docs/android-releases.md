@@ -106,6 +106,11 @@ characters, as setup and the app's log print them):
 | aw | `c5cef5aeaede` | `2d5c2fcf4eac` |
 | awmp | `6bc76440aa55` | `e269159b7302` |
 
+Advanced Warfare's multiplayer as its title update makes it
+([dlc.md](dlc.md#advanced-warfare-map-packs-and-exo-zombies)) is a library
+of its own with a statement of its own, `awmp17 06fc007e86fc`, first made
+with this recompiler; adding it changed no other library's statement.
+
 ## What must not reach the public repositories
 
 The public repositories are made from this one's `android` branch with

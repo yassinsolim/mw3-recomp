@@ -33,15 +33,25 @@ object GameLibrary {
      */
     fun built(context: Context, title: Title): File = File(File(context.filesDir, "game-code"), "lib${title.library}game.so")
 
-    /** The title's library in the game package, or null when it is not installed. */
-    private fun packaged(context: Context, title: Title): File? {
+    /** A library of the game package, or null when it is not installed. */
+    private fun packaged(context: Context, library: String): File? {
         val folder = try {
             context.packageManager.getApplicationInfo(BuildConfig.GAME_PACKAGE, 0).nativeLibraryDir
         } catch (_: PackageManager.NameNotFoundException) {
             return null
         }
-        return File(folder, "lib${title.library}game.so").takeIf { it.isFile }
+        return File(folder, "lib${library}game.so").takeIf { it.isFile }
     }
+
+    /** The title's library in the game package, or null when it is not installed. */
+    private fun packaged(context: Context, title: Title): File? = packaged(context, title.library)
+
+    /**
+     * Whether the game code of the multiplayer as its title update makes it
+     * is here (TitleUpdate): in the game package, from a PC's setup with
+     * -Dlc. It is not built on the device.
+     */
+    fun updateReady(context: Context): Boolean = !separate || packaged(context, TitleUpdate.LIBRARY) != null
 
     /**
      * The title's libraries on this device, the one built here first: it is
@@ -49,7 +59,8 @@ object GameLibrary {
      * newer than it is still reached when the runtime refuses this one.
      */
     private fun files(context: Context, title: Title): List<File> =
-        listOfNotNull(built(context, title).takeIf { it.isFile }, packaged(context, title))
+        if (title.runLibrary != title.library) listOfNotNull(packaged(context, title.runLibrary))
+        else listOfNotNull(built(context, title).takeIf { it.isFile }, packaged(context, title))
 
     /** Whether there is game code on this device at all: what the launcher says before a run. */
     fun installed(context: Context): Boolean =

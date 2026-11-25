@@ -19,6 +19,7 @@
 // and reads fastfiles out of. Those are the player's own files from their
 // console, kept in a `dlc` folder as the console has them, and read where
 // they lie (volume.h, docs/dlc.md).
+#include <algorithm>
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "kernel.h"
@@ -130,17 +131,28 @@ namespace
     constexpr uint32_t kContentDisplayName = 8, kContentDisplayMax = 128;
     constexpr uint32_t kContentDataSize = 0x134;
 
+    // XCONTENTTYPE_INSTALLER: what a title update is, which the console keeps
+    // under Content\0000000000000000\<title>\000B0000.
+    constexpr uint32_t kTitleUpdate = 0x000B0000;
+
     struct Downloaded
     {
         std::string name;               // as XCONTENT_DATA names it
         std::shared_ptr<ReadVolume> volume;
     };
 
+    struct Packages
+    {
+        std::vector<Downloaded> content;
+        std::shared_ptr<ReadVolume> update;     // the title update's, for a build of its executable
+    };
+
     // Every package of this title's downloadable content under `folder`, which
     // may be the console's own tree (Content\0000000000000000\<title>\00000002)
-    // copied whole, or the packages alone.
-    void FindDownloaded(const fs::path& folder, std::vector<Downloaded>& found)
+    // copied whole, or the packages alone; and its title update's package.
+    void FindDownloaded(const fs::path& folder, Packages& packages)
     {
+        std::vector<Downloaded>& found = packages.content;
         constexpr int kDeepest = 6;
         std::error_code ec;
         for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
@@ -158,6 +170,23 @@ namespace
                 continue;
             }
             const ReadVolume::Package& header = volume->Header();
+            if (header.titleId == T_TITLE_ID && header.contentType == kTitleUpdate)
+            {
+#if defined(AW_TITLE_TU17)
+                // A console has one. Of several (updates of two pressings of
+                // the disc make the same executable and differ in a language's
+                // folder) the first found serves.
+                if (!packages.update)
+                {
+                    LOGI("content: title update %s (%zu files)", it->path().string().c_str(), volume->RootFiles().size());
+                    packages.update = volume;
+                }
+#else
+                LOGI("content: %s is a title update, whose files are for the executable it makes; this is the disc's",
+                     it->path().string().c_str());
+#endif
+                continue;
+            }
             if (header.titleId != T_TITLE_ID || header.contentType != kMarketplaceContent)
             {
                 LOGW("content: %s is for title %08X, content type %08X, not this title's downloadable content",
@@ -176,20 +205,116 @@ namespace
 
     // Looked for once, when the title first asks: MW2_DLC_DIR, the `dlc`
     // folder beside the game folder, and the one beside the disc image.
-    const std::vector<Downloaded>& DownloadedContent()
+    // `gameRoot` is for the one that asks before the kernel is told the game
+    // folder (ReadTitleUpdateFile).
+    const Packages& InstalledPackages(const fs::path* gameRoot = nullptr)
     {
-        static const std::vector<Downloaded> content = []
+        static const Packages packages = [gameRoot]
         {
-            std::vector<Downloaded> found;
-            if (const char* named = env::Text("MW2_DLC_DIR")) FindDownloaded(fs::path(named), found);
-            FindDownloaded(fs::absolute(GameRoot()).parent_path() / "dlc", found);
+            Packages found;
+            // One folder or several, with semicolons between: the install
+            // disc's packages and the player's packs need not be in one.
+            if (const char* named = env::Text("MW2_DLC_DIR"))
+            {
+                const std::string folders = named;
+                for (size_t at = 0; at <= folders.size();)
+                {
+                    const size_t end = std::min(folders.find(';', at), folders.size());
+                    if (end > at) FindDownloaded(fs::path(folders.substr(at, end - at)), found);
+                    at = end + 1;
+                }
+            }
+            FindDownloaded(fs::absolute(gameRoot ? *gameRoot : GameRoot()).parent_path() / "dlc", found);
             if (const auto& disc = Disc(); disc && !disc->Path().empty())
                 FindDownloaded(fs::absolute(disc->Path()).parent_path() / "dlc", found);
             return found;
         }();
-        return content;
+        return packages;
+    }
+
+    const std::vector<Downloaded>& DownloadedContent() { return InstalledPackages().content; }
+}
+
+#if defined(AW_TITLE_TU17)
+namespace
+{
+    // An update is made for one pressing of the disc and carries the
+    // localised fastfiles of that pressing's language alone, in the
+    // language's folder. The folders and the three letters their files begin
+    // with are the title's own (it asks for each language's
+    // <letters>_code_post_gfx_mp.ff as it starts). The game runs in English:
+    // the game disc has no other.
+    struct UpdateFolder { std::string folder, letters; };
+    const UpdateFolder& ForeignFolder()
+    {
+        static const UpdateFolder found = []() -> UpdateFolder
+        {
+            static constexpr const char* kLanguages[][2] = {
+                { "french", "fra" }, { "german", "deu" }, { "italian", "ita" }, { "spanish", "spa" },
+                { "british", "bri" }, { "russian", "rus" }, { "polish", "pol" }, { "korean", "kor" },
+                { "taiwanese", "tai" }, { "japanese", "jpn" }, { "chinese", "chi" }, { "thai", "tha" },
+                { "czech", "cze" }, { "spanishna", "sna" }, { "portuguese", "por" }, { "arabic", "ara" },
+            };
+            const auto& update = InstalledPackages().update;
+            if (!update || update->Find("english")) return {};
+            for (const auto& language : kLanguages)
+                if (update->Find(language[0])) return { language[0], language[1] };
+            return {};
+        }();
+        return found;
     }
 }
+
+// The executable is made from the disc's and the update's patch before the
+// kernel starts (install.cpp), so the packages are looked for then, beside
+// the game folder it names. No disc image is mounted yet: this title is not
+// played from one.
+bool kernel::ReadTitleUpdateFile(const fs::path& gameRoot, const std::string& name, std::vector<uint8_t>& bytes)
+{
+    const auto& update = InstalledPackages(&gameRoot).update;
+    const ReadVolume::Entry* entry = update ? update->Find(name) : nullptr;
+    if (!entry || entry->directory) return false;
+    bytes.resize(size_t(entry->size));
+    const int descriptor = update->Acquire();
+    const size_t read = update->Read(descriptor, *entry, 0, bytes.data(), bytes.size());
+    update->Release(descriptor);
+    return read == bytes.size();
+}
+
+const std::string& kernel::UpdateLanguage() { return ForeignFolder().letters; }
+
+bool kernel::UpdateHasZone(const std::string& zone)
+{
+    const auto& update = InstalledPackages().update;
+    return update && !ForeignFolder().folder.empty() && update->Find(ForeignFolder().folder + "\\" + zone + ".ff");
+}
+
+// The console mounts a title update as `update:` before the title starts, and
+// the title looks there first for every file of its own. This executable is
+// the update's, and loads the update's fastfiles (patch_*.ff, the zombies' UI)
+// on its way to the menu: without them its menus do not start.
+void kernel::MountTitleUpdate()
+{
+    if (const auto& update = InstalledPackages().update)
+    {
+        // English the update would have brought and a pack has: the zombies'
+        // text, which the title asks for before it mounts a pack
+        // (english\eng_code_post_gfx_zm_mp.ff, in Compatibility Pack 1).
+        std::vector<std::shared_ptr<ReadVolume>> english;
+        if (!ForeignFolder().folder.empty())
+            for (const Downloaded& pack : DownloadedContent())
+                if (pack.volume->Find("english")) english.push_back(pack.volume);
+        MountVolume("update", update, ForeignFolder().folder, std::move(english));
+        LOGK("content: mounted update: on %s (the title update, read-only)", update->Name().c_str());
+        if (!ForeignFolder().folder.empty())
+            LOGI("content: the update is of another pressing than the disc: its localised fastfiles are %s's,"
+                 " loaded for their tables and not their text (aw_update_language.cpp)", ForeignFolder().folder.c_str());
+    }
+    else
+        LOGE("content: no title update's package was found beside the downloadable content; this is the"
+             " update's executable and needs its files (docs/dlc.md)");
+}
+#endif
 
 uint32_t kernel::ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next)
 {

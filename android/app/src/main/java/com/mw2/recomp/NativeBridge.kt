@@ -27,7 +27,7 @@ object NativeBridge {
     fun load(title: Title): Boolean {
         loadedTitle?.let { return it == title }
         return try {
-            System.loadLibrary(title.library)
+            System.loadLibrary(title.runLibrary)
             loadedTitle = title
             true
         } catch (error: Throwable) {

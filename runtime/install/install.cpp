@@ -21,13 +21,16 @@
 #ifdef MW2_USE_SDL
 #include <SDL3/SDL.h>
 #endif
+#ifdef MW2_HAVE_XEX_PATCHER
+#include <xex_patcher.h>
+#endif
+#if defined(AW_TITLE_TU17)
+#include "../kernel/kernel.h"
+#endif
 #ifdef MW2_ANDROID
 #include "../android/android.h"
 #include "../../launcher/disc.h"
 #include "../../launcher/package.h"
-#ifdef MW2_HAVE_XEX_PATCHER
-#include <xex_patcher.h>
-#endif
 // A TU6 build configured without the update's hashes (no mw2/update/ and no
 // -DMW2_UPDATE_SHA256_*): ApplyTu6 refuses at run time rather than trusting
 // any bytes, and this keeps it compiling.
@@ -135,6 +138,43 @@ namespace
 
     enum class Installed { Yes, No, Unreadable };
 
+#if defined(AW_TITLE_TU17)
+    // Advanced Warfare's multiplayer as title update 17 makes it. The game
+    // folder has the disc's default_mp.xex and the dlc folder the player's
+    // own update package; the update's executable is the first with the
+    // second's default_mp.xexp applied, made here at every start and kept
+    // nowhere. Its image is the one this build was recompiled from, by its
+    // SHA-256: updates of two pressings (base versions 0x10 and 0x15) make
+    // the same image and differ in the header.
+    constexpr const char* kUpdateImageSha256 = "9112629a870d860e17f4f30abe3c1c60ae2919d9697e58ddf12552ab74efaf55";
+
+    bool ApplyTitleUpdate(std::vector<uint8_t>& file, const fs::path& gameRoot, std::string& error)
+    {
+        std::vector<uint8_t> patch, updated;
+        if (!kernel::ReadTitleUpdateFile(gameRoot, "default_mp.xexp", patch))
+        {
+            error = "The map packs' multiplayer needs the game's title update, and no update package is in the dlc folder (docs/dlc.md).";
+            return false;
+        }
+        if (XexPatcher::apply(file.data(), file.size(), patch.data(), patch.size(), updated, false) != XexPatcher::Result::Success)
+        {
+            error = "The title update in the dlc folder does not apply to this disc's default_mp.xex.";
+            return false;
+        }
+        file = std::move(updated);
+        return true;
+    }
+
+    bool IsUpdateImage(const std::vector<uint8_t>& image, std::string& error)
+    {
+        install::crypto::Sha256 hash;
+        hash.Update(image.data(), image.size());
+        if (hash.FinalHex() == kUpdateImageSha256) return true;
+        error = "the title update in the dlc folder makes another executable than the one this build is for (title update 17's)";
+        return false;
+    }
+#endif
+
     // The title's image from game/, if the executable there is the one this
     // build was made from.
     Installed LoadInstalled(std::vector<uint8_t>& image, std::vector<uint8_t>& xexHeader, std::string& error)
@@ -149,8 +189,15 @@ namespace
         install::crypto::Sha256 hash;
         hash.Update(file.data(), file.size());
         if (hash.FinalHex() != kSha256) return Installed::No;
+#if defined(AW_TITLE_TU17)
+        if (!ApplyTitleUpdate(file, g_gameFolder, error)) return Installed::Unreadable;
+#endif
         if (!install::xex::Header(file, xexHeader, error) ||
+#if defined(AW_TITLE_TU17)
+            !install::xex::Image(file, image, error) || !IsUpdateImage(image, error))
+#else
             !install::xex::Image(file, image, error))
+#endif
         {
             error = Utf8(path) + ": " + error;
             return Installed::Unreadable;
@@ -682,7 +729,20 @@ bool install::LoadImageFile(const fs::path& path, std::vector<uint8_t>& image, s
     if (file.size() >= 4 && std::memcmp(file.data(), "XEX2", 4) == 0)
     {
         std::string error;
+#if defined(AW_TITLE_TU17)
+        // The disc's executable, in its game folder: the update is applied.
+        // One that is the update's already is taken as it is.
+        crypto::Sha256 hash;
+        hash.Update(file.data(), file.size());
+        if (hash.FinalHex() == kSha256 && !ApplyTitleUpdate(file, fs::absolute(path).parent_path(), error))
+        {
+            LOGE("%s: %s", Utf8(path).c_str(), error.c_str());
+            return false;
+        }
+        if (!xex::Header(file, xexHeader, error) || !xex::Image(file, image, error) || !IsUpdateImage(image, error))
+#else
         if (!xex::Header(file, xexHeader, error) || !xex::Image(file, image, error))
+#endif
         {
             LOGE("%s: %s", Utf8(path).c_str(), error.c_str());
             return false;

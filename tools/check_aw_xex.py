@@ -22,8 +22,24 @@ SUPPORTED_SHA256_MP = (
     "3ef96359f96ee7994e43de70f56a9c2a019d5b841f11318ca2dffdb717b265f8",
 )
 
+# The multiplayer as title update 17 makes it (aw/tu17/default_mp.xex, the
+# update's default_mp.xexp applied to the disc's): entry 0x82145960, image
+# size 0x2F60000, recompiled with config/AWMP.tu17.toml. This is the SHA-256
+# of its image, the file from the header's end on, and not of the file: the
+# updates of two pressings of the disc (base versions 0x10 and 0x15) make the
+# same image under headers that differ.
+UPDATE_IMAGE_SHA256_MP = (
+    "9112629a870d860e17f4f30abe3c1c60ae2919d9697e58ddf12552ab74efaf55",
+)
+
+
+def is_update(path: Path) -> bool:
+    return path.resolve().parent.name.lower() == "tu17"
+
 
 def supported(path: Path) -> tuple[str, ...]:
+    if is_update(path):
+        return UPDATE_IMAGE_SHA256_MP
     return SUPPORTED_SHA256_MP if path.name.lower() == "default_mp.xex" else SUPPORTED_SHA256
 
 
@@ -35,6 +51,10 @@ def verify(path: Path, expected: tuple[str, ...] | None = None) -> None:
         if prefix[:4] != b"XEX2":
             raise ValueError("Advanced Warfare executable does not have an XEX2 header")
         digest = hashlib.sha256(prefix)
+        if is_update(path):
+            # The image alone: from the offset the header gives (its third word).
+            stream.seek(int.from_bytes(prefix[8:12], "big"))
+            digest = hashlib.sha256()
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     if digest.hexdigest() not in expected:

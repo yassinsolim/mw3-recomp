@@ -42,6 +42,31 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Warfare names its README.
 
 ### Added
+- **Advanced Warfare: your own map packs and Exo Zombies.** The packs you
+  bought on your Xbox 360 (Havoc, Ascendance, Supremacy, Reckoning, Atlas
+  Gorge), with the free Compatibility Packs and the game's title update, are
+  read from your own copies off the console's hard disk
+  (`Content\0000000000000000\41560914`): the maps are under **Bonus Maps**
+  in a private match or System Link, and **Exo Zombies** has its own entry
+  in the launcher. The project ships none of it and downloads none. The
+  packs are for the updated game, so the multiplayer is built a second time
+  from your disc and your update: `setup\setup.cmd -Game aw -Dlc <folder>`
+  does that and copies the packages to the phone; the app's **Add DLC**
+  copies packages from a folder or the Files app and says what is still
+  missing. The updated multiplayer plays with others who have the update,
+  as on a console; without the update's package the multiplayer is the
+  disc's, as before. Not in it: the campaign with the update, building the
+  updated multiplayer's code on the device, `setup.sh` on Linux. With an
+  update made for a disc in another language than English (the one tested
+  is Latin American Spanish) some of the later packs' descriptions and
+  menu labels stay in that language (854 strings, most of them the supply
+  drops' gear). Seen on Windows and on the AYN Thor (a pack's map with
+  bots, a match against a PC through the project's server and Exo Zombies,
+  all at 119 FPS; Exo Zombies' later rounds only with test tools); not run
+  on the Retroid Pocket Flip 2
+  ([docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies),
+  [docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#map-packs-and-exo-zombies-25-november-2026)).
+- `MW2_DLC_DIR` takes several folders, with semicolons between.
 - **Call of Duty: Advanced Warfare is published**, as the fourth port, in a
   repository of its own: [aw-recomp](https://github.com/yassinsolim/aw-recomp),
   v0.1.0 (`com.aw.recomp`, the campaign, the multiplayer and Exo Survival

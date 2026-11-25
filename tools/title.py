@@ -56,6 +56,12 @@ AW = dict(xex="aw/tu0/default.xex", image="aw/tu0/default.pe", ppc="ppc_aw",
 AWMP = dict(xex="aw/tu0/default_mp.xex", image="aw/tu0/default_mp.pe", ppc="ppc_aw_mp",
             toml="config/AWMP.toml", tables="config/awmp_switch_tables.toml", build="build-awmp",
             syms="config/awmp_symbols.txt")
+# And its multiplayer as title update 17 makes it (the update's default_mp.xexp
+# applied to the disc's executable), which the downloadable content needs:
+# the Compatibility Packs and Exo Zombies (docs/AW-BRINGUP.md, "Title update 17").
+AWMP17 = dict(xex="aw/tu17/default_mp.xex", image="aw/tu17/default_mp.pe", ppc="ppc_aw_mp_tu17",
+              toml="config/AWMP.tu17.toml", tables="config/awmp_switch_tables.tu17.toml", build="build-awmp17",
+              syms="config/awmp17_symbols.txt")
 
 VERSIONS = ("tu6", "tu0")
 VERSION = os.environ.get("MW2_VERSION", "tu6")
@@ -77,6 +83,7 @@ TITLES["cod4"] = COD4
 TITLES["cod4mp"] = COD4MP
 TITLES["aw"] = AW
 TITLES["awmp"] = AWMP
+TITLES["awmp17"] = AWMP17
 
 NAME = os.environ.get("MW2_TITLE", "sp")
 if NAME not in TITLES:

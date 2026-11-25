@@ -1,0 +1,148 @@
+package com.mw2.recomp
+
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.ListView
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import java.io.IOException
+import kotlin.concurrent.thread
+
+/**
+ * Add DLC: the player's own map packs and title update, copied off their
+ * console's hard disk (docs/dlc.md), chosen as a folder (the console's
+ * Content\0000000000000000\41560914, or wherever the files were put) or as
+ * files, and copied into the dlc folder (Dlc.kt). Lists what is there; a long
+ * press removes one.
+ */
+class DlcActivity : AppCompatActivity() {
+
+    private lateinit var status: TextView
+    private lateinit var list: ListView
+    private lateinit var progress: ProgressBar
+    private lateinit var addFolder: Button
+    private lateinit var addFiles: Button
+    private var packages: List<Dlc.Package> = emptyList()
+
+    @Volatile
+    private var cancelled = false
+
+    private val pickFolder = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val tree = result.data?.data ?: return@registerForActivityResult
+        add { Dlc.filesUnder(this, tree) }
+    }
+
+    private val pickFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val data = result.data ?: return@registerForActivityResult
+        val chosen = ArrayList<Uri>()
+        data.clipData?.let { clip -> (0 until clip.itemCount).mapTo(chosen) { clip.getItemAt(it).uri } }
+        if (chosen.isEmpty()) data.data?.let { chosen.add(it) }
+        add { chosen.map { Dlc.single(this, it) } }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_dlc)
+        title = getString(R.string.dlc_title)
+        status = findViewById(R.id.dlc_status)
+        list = findViewById(R.id.dlc_list)
+        progress = findViewById(R.id.dlc_progress)
+        addFolder = findViewById(R.id.dlc_add_folder)
+        addFiles = findViewById(R.id.dlc_add_files)
+
+        addFolder.setOnClickListener { pickFolder.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)) }
+        addFiles.setOnClickListener {
+            // The console's packages have no extension and no type a picker knows.
+            pickFiles.launch(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                    .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
+            )
+        }
+        list.setOnItemLongClickListener { _, _, position, _ ->
+            val item = packages[position]
+            AlertDialog.Builder(this)
+                .setTitle(item.header.name)
+                .setMessage(getString(R.string.dlc_remove_ask, item.file.length() / 1e9))
+                .setPositiveButton(R.string.dlc_remove) { _, _ ->
+                    Dlc.remove(this, item)
+                    refresh()
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+            true
+        }
+        refresh()
+    }
+
+    override fun onDestroy() {
+        cancelled = true
+        super.onDestroy()
+    }
+
+    private fun refresh() {
+        TitleUpdate.refresh(this)
+        packages = Dlc.installed(this)
+        val packs = packages.count { !it.header.update }
+        status.text = when {
+            packages.isEmpty() -> getString(R.string.dlc_none)
+            TitleUpdate.inUse -> getString(R.string.dlc_ready, packs)
+            TitleUpdate.codeMissing -> getString(R.string.dlc_code_missing, packs, getString(R.string.setup_command))
+            else -> getString(R.string.dlc_update_missing, packs)
+        }
+        list.adapter = ArrayAdapter(
+            this, android.R.layout.simple_list_item_1,
+            packages.map { item ->
+                getString(
+                    if (item.header.update) R.string.dlc_item_update else R.string.dlc_item_pack,
+                    item.header.name, item.file.length() / 1e9,
+                )
+            },
+        )
+    }
+
+    /** Copies what [find] names, off the main thread: a pack is a gigabyte and more. */
+    private fun add(find: () -> List<Dlc.Source>) {
+        cancelled = false
+        addFolder.isEnabled = false
+        addFiles.isEnabled = false
+        progress.progress = 0
+        progress.visibility = View.VISIBLE
+        status.text = getString(R.string.dlc_copying)
+        thread(name = "add-dlc") {
+            val message = try {
+                val added = Dlc.add(
+                    this, find(),
+                    { done, total -> runOnUiThread { progress.progress = if (total > 0) (done * 1000 / total).toInt() else 0 } },
+                    { cancelled },
+                )
+                when {
+                    added.copied.isNotEmpty() -> getString(R.string.dlc_added, added.copied.joinToString(", "))
+                    added.already > 0 -> getString(R.string.dlc_already)
+                    else -> getString(R.string.dlc_nothing_found)
+                }
+            } catch (error: IOException) {
+                error.message ?: error.toString()
+            } catch (error: SecurityException) {
+                error.message ?: error.toString()
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                progress.visibility = View.GONE
+                addFolder.isEnabled = true
+                addFiles.isEnabled = true
+                refresh()
+                AlertDialog.Builder(this).setTitle(R.string.dlc_title).setMessage(message).setPositiveButton(R.string.close, null).show()
+            }
+        }
+    }
+}

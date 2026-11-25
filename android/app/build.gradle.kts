@@ -160,6 +160,9 @@ android {
                 cppFlags += (setting("MW2_NATIVE_OPTIMISATION") ?: "-O3")
             }
         }
+        // The multiplayer's library as a title update makes it, for an app
+        // whose game has one (Advanced Warfare's, below); none otherwise.
+        buildConfigField("String", "LIBRARY_MP_UPDATE", "\"\"")
     }
 
     // The disc carries two executables and each is recompiled into a tree of
@@ -325,6 +328,11 @@ android {
             manifestPlaceholders["gamePackage"] = "$awApplicationId.game"
             buildConfigField("String", "LIBRARY_SP", "\"aw\"")
             buildConfigField("String", "LIBRARY_MP", "\"awmp\"")
+            // The multiplayer as title update 17 makes it, which a player's
+            // own map packs are for: a third library (cmake/android.cmake),
+            // started in place of the disc's while the update's package is
+            // beside the packs (Title.kt, docs/dlc.md).
+            buildConfigField("String", "LIBRARY_MP_UPDATE", "\"awmp17\"")
             externalNativeBuild {
                 cmake {
                     arguments += listOf(

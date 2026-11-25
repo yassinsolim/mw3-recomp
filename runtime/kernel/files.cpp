@@ -232,6 +232,12 @@ namespace
         fs::path root;                      // empty: there is only the volume
         std::shared_ptr<ReadVolume> volume;
         bool writable = false;
+        // A folder of the volume whose files are answered at its root too
+        // (MountVolume): empty for none.
+        std::string alsoAtRoot;
+        // Other volumes whose files of the language the game runs in answer
+        // where this one has none (MountVolume).
+        std::vector<std::shared_ptr<ReadVolume>> english;
     };
     std::mutex g_mountLock;
     std::map<std::string, Mount> g_mounts;
@@ -246,9 +252,22 @@ namespace
 
     // A file or folder of the device's volume, where its folder has none of
     // that name.
-    const ReadVolume::Entry* InVolume(const Mount& at, const std::string& relative)
+    struct InVolumeFile
     {
-        return (at.volume && !relative.empty()) ? at.volume->Find(relative) : nullptr;
+        std::shared_ptr<ReadVolume> volume;
+        const ReadVolume::Entry* entry = nullptr;
+        explicit operator bool() const { return entry != nullptr; }
+    };
+    InVolumeFile InVolume(const Mount& at, const std::string& relative)
+    {
+        if (!at.volume || relative.empty()) return {};
+        if (const ReadVolume::Entry* entry = at.volume->Find(relative)) return { at.volume, entry };
+        if (!at.alsoAtRoot.empty() && relative.find_first_of("\\/") == std::string::npos)
+            if (const ReadVolume::Entry* entry = at.volume->Find(at.alsoAtRoot + "\\" + relative)) return { at.volume, entry };
+        if (Lower(relative).rfind("english\\", 0) == 0)
+            for (const auto& other : at.english)
+                if (const ReadVolume::Entry* entry = other->Find(relative)) return { other, entry };
+        return {};
     }
 
     // Where a name that is not there yet would go. Only ever used under a mount,
@@ -380,20 +399,21 @@ namespace
         }
         if (!existed)
             existed = !relative.empty() && !root.empty() && ResolveInsensitive(root, relative, resolved);
-        if (const ReadVolume::Entry* entry = existed ? nullptr : InVolume(at, relative))
+        if (const InVolumeFile found = existed ? InVolumeFile{} : InVolume(at, relative))
         {
+            const ReadVolume::Entry* entry = found.entry;
             if (disposition == FILE_CREATE) return X_STATUS_OBJECT_NAME_COLLISION;
             auto f = std::make_shared<FileObject>();
             f->path = relative;
-            f->volume = at.volume;
+            f->volume = found.volume;
             f->entry = entry;
             f->size = entry->size;
             f->isDirectory = entry->directory;
-            if (!entry->directory) f->descriptor = at.volume->Acquire();
+            if (!entry->directory) f->descriptor = found.volume->Acquire();
             information = FILE_OPENED;
             handleOut = InsertHandle(f);
             if (TraceFiles())
-                LOGK("open %s -> %s in %s (read-only)", guestPath.c_str(), relative.c_str(), at.volume->Name().c_str());
+                LOGK("open %s -> %s in %s (read-only)", guestPath.c_str(), relative.c_str(), found.volume->Name().c_str());
             return X_STATUS_SUCCESS;
         }
         if (!existed)
@@ -466,10 +486,11 @@ void kernel::MountDevice(const std::string& name, const fs::path& root)
     g_mounts[Lower(name)] = Mount{ root, nullptr, true };
 }
 
-void kernel::MountVolume(const std::string& name, std::shared_ptr<ReadVolume> volume)
+void kernel::MountVolume(const std::string& name, std::shared_ptr<ReadVolume> volume, const std::string& alsoAtRoot,
+                         std::vector<std::shared_ptr<ReadVolume>> english)
 {
     std::lock_guard g(g_mountLock);
-    g_mounts[Lower(name)] = Mount{ {}, std::move(volume), false };
+    g_mounts[Lower(name)] = Mount{ {}, std::move(volume), false, alsoAtRoot, std::move(english) };
 }
 
 void kernel::UnmountDevice(const std::string& name)
@@ -703,7 +724,7 @@ PPC_FUNC(__imp__NtQueryFullAttributesFile)
     const Mount at = DeviceOf(device);
     fs::path resolved;
     const bool onHost = !relative.empty() && !at.root.empty() && ResolveInsensitive(at.root, relative, resolved);
-    const ReadVolume::Entry* entry = onHost ? nullptr : InVolume(at, relative);
+    const ReadVolume::Entry* entry = onHost ? nullptr : InVolume(at, relative).entry;
     if (!onHost && !entry)
     {
         NoteMissing("NtQueryFullAttributesFile", name);
@@ -792,8 +813,12 @@ namespace
         auto wanted = [&](const std::string& name) { return pattern.empty() || MatchesPattern(pattern.c_str(), name.c_str()); };
         if (folder.volume)
         {
-            for (const std::string& name : folder.volume->RootFiles())
-                if (const ReadVolume::Entry* entry = folder.volume->Find(name); entry && wanted(name))
+            // The package's root, or one of its folders (a language's): the
+            // title adds every name it is told to one list of 1440, and a
+            // folder answered with the root's files filled it twice over.
+            const std::string in = folder.path.string();
+            for (const std::string& name : in.empty() ? folder.volume->RootFiles() : folder.volume->FilesIn(in))
+                if (const ReadVolume::Entry* entry = folder.volume->Find(in.empty() ? name : in + "\\" + name); entry && wanted(name))
                     folder.listing.push_back({ name, entry->size, entry->directory });
             return;
         }

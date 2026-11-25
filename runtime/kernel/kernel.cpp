@@ -296,6 +296,9 @@ void kernel::Initialise(const std::filesystem::path& gameRoot, const std::vector
     g_gameRoot = gameRoot;
     LOGI("game root: %s%s", gameRoot.string().c_str(),
          std::filesystem::exists(gameRoot) ? "" : "  (does not exist)");
+#if defined(AW_TITLE_TU17)
+    MountTitleUpdate();
+#endif
 }
 
 const std::filesystem::path& kernel::GameRoot() { return g_gameRoot; }

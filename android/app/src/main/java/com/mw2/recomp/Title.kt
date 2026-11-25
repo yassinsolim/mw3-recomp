@@ -15,6 +15,14 @@ enum class Title(val library: String, val executable: String) {
     CAMPAIGN(BuildConfig.LIBRARY_SP, "default.xex"),
     MULTIPLAYER(BuildConfig.LIBRARY_MP, "default_mp.xex");
 
+    /**
+     * The library a run of this title loads: the multiplayer's is the title
+     * update's while a player's own update is in use (TitleUpdate), and the
+     * game code's library goes by the same name.
+     */
+    val runLibrary: String
+        get() = if (this == MULTIPLAYER && TitleUpdate.inUse) TitleUpdate.LIBRARY else library
+
     /** Whether this app carries the title at all. */
     val carried: Boolean
         get() = library.isNotEmpty()

@@ -100,6 +100,10 @@ void PpcVpkuwus_abb(PPCVRegister& d, PPCVRegister& a)
     const simde__m128i limited = simde_mm_min_epu32(Load(a), simde_mm_set1_epi32(0xFFFF));
     Store(d, simde_mm_packus_epi32(limited, limited));
 }
+// The two with the one register for all three, as title update 17's
+// multiplayer has them (8229AA60).
+void PpcVpkuhus_aaa(PPCVRegister& d) { PpcVpkuhus_abb(d, d); }
+void PpcVpkuwus_aaa(PPCVRegister& d) { PpcVpkuwus_abb(d, d); }
 
 // vupkd3d128 vD,vB,12 and 20: the packed vertex formats of two and of four
 // half floats, for which the recompiler writes a trap. The halves are the last
@@ -133,6 +137,13 @@ void PpcVupkd3dHalf4(PPCVRegister& d, PPCVRegister& b)
 {
     for (int i = 0; i < 4; i++) d.f32[i] = HalfToFloat(b.u16[i]);
 }
+// The same with one register for both (title update 17's multiplayer has one,
+// 82267028): the halves are read before the first float is stored over them.
+void PpcVupkd3dHalf4_aa(PPCVRegister& d)
+{
+    const uint16_t halves[4] = { d.u16[0], d.u16[1], d.u16[2], d.u16[3] };
+    for (int i = 0; i < 4; i++) d.f32[i] = HalfToFloat(halves[i]);
+}
 
 // lvehx vD,0,rB: the halfword at rB into its place in vD, the rest undefined.
 // As the recompiler does for lvewx, the whole aligned vector is loaded.
@@ -154,6 +165,18 @@ bool PpcBdnzt_eq(PPCRegister& ctr, PPCCRRegister& cr)
 {
     --ctr.u64;
     return ctr.u32 != 0 && cr.eq;
+}
+
+// rlwimi. and rldicl., the forms that record (title update 17's multiplayer:
+// two and six places; the six are the interpreter's test of a boolean, the
+// value's word moved down and compared with zero by the move itself). The
+// recompiler writes the operation and no comparison, and the branch after it
+// took whatever cr0 held: `if Engine.HasSpeechFeature() then` was true. The
+// hook follows the instruction and sets cr0 from its result as the
+// recompiler's own recording forms do: the low word, signed, against zero.
+void PpcRecordCr0(PPCRegister& result, PPCCRRegister& cr, PPCXERRegister& xer)
+{
+    cr.compare<int32_t>(result.s32, 0, xer);
 }
 
 #endif
