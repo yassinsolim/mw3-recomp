@@ -1823,3 +1823,38 @@ change passed its one run there that afternoon, and other builds without
 the change failed it the same day (`local-flicker` at 160.8 s and at
 162.1 s). The change is in what a package is checked for and which are
 listed when the game starts; nothing it touches draws.
+
+## A tester's field of view, a blurred square and one gun (26 November 2026)
+
+A Retroid Pocket 5 (Adreno 650) on v0.1.2, two recordings
+(`private-captures\awfeedback4\video-*`). His settings, read off the game
+menu: display resolution 100%, sun shadows On, field of view 110, render
+multiplier 1x, FPS limit 60.
+
+- **The field of view was 65 again after every death.** The app sent
+  `cg_fov`, which the scripts put back at each spawn. It is `MW2_FOV` now, in
+  the campaign and both multiplayers ([gameplay.md](gameplay.md#field-of-view)).
+  Seen on Windows in the update's multiplayer on Drift with ten bots: 110
+  before and after a death, where `cg_fov 110` was 65 after it
+  (`pc-fov-*`). Not yet seen on a phone.
+- **A blurred square at a boost dodge: open.** Greenband, Team Deathmatch
+  with bots. For some forty frames after a dodge a rectangle in the middle
+  of the picture, about 530 by 220 of 1280 by 720, shows the scene smeared
+  along the dodge (`video-160247-blurred-square-4.3s.jpg`). Windows does not
+  draw it: not at the console's scene, not with the scene at 70% of its width
+  (`MW2_SCENE_SHARE=70`), not with it and the whole scene in turn every two
+  frames, and not at the 832x480 scene an Adreno 6xx is given. What is left
+  is the phone itself.
+- **One gun drawn as sheets across the screen: open.** Drift (Havoc), Team
+  Deathmatch with bots; the HUD names the weapon "ASM1 Custom". In two
+  frames of three the weapon is gone, and in the third dark flat polygons
+  cover the lower two thirds of the picture, for as long as he walks or
+  sprints; while he aims it happens once in some dozens of frames, and with
+  the second weapon out not at all (`video-154751-*`). The period is three
+  frames of the recording's sixty a second. Windows, the update's
+  multiplayer on Drift from the same spawn, the first custom class (ASM1,
+  foregrip, advanced rifling, red dot sight), sun shadows on, with and
+  without bots and at the 832x480 scene: every frame of a sprint is right
+  (`pc-drift-asm1-832x480-shadows-no-fault.jpg`). The flat, unlit shapes are
+  what a shadow map's casters look like drawn into the scene, which is where
+  to look first on an Adreno 650 with sun shadows On.

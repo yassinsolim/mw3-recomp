@@ -283,6 +283,41 @@ Measured with `MW2_TRACE_MATCH=1`, the right stick held 0.4 s three times: 83
 degrees a press from the hip at 65 and 80 at 100; 26 down a red dot sight at
 65 and 23 at 100.
 
+Advanced Warfare reads the switch in its campaign and in both builds of its
+multiplayer, and the Android app's slider sets it there too. Until 26
+November 2026 the app sent `cg_fov`, which this title's scripts put back to
+65 at every spawn as Modern Warfare 3's do: a tester's view of 110 was 65
+again after each death. The four functions, found from the pointer each
+executable keeps to `cg_fovScale`:
+
+| | campaign | multiplayer (disc) | multiplayer (title update 17) |
+|---|---|---|---|
+| `T_CG_ViewFov` | `822199C8`, not hooked | `82630250` | `825DD8B8` |
+| `T_CG_CullZoom` | `822174B8` | `8262DEF8` | `825DB658` |
+| `T_CG_SetViewFov` | `82216E88`: the view's two tangents, cg `+0x27010` and `+0x27014` | `8262E608`: the sensitivity scale, cg `+0x44914` | `825DBDD8`: the sensitivity scale, cg `+0x43114` |
+| `T_AimAssist_FovScale` (the turn rate's scale) | `82106710`, state `+276` | `827D0A18`, state `+260` | `827734F0`, state `+260` |
+
+The multiplayer multiplies `cg_fovScale` by a scale of the scripts' for each
+client (the omnvar `fov_scale`, `sub_8262DE80`) wherever it reads it, so the
+aim assist's hook does not read the setting: it takes the hip's half angle
+back out of the scale the title has just stored. Seen on Windows in the
+update's multiplayer (Drift, ten bots): at `MW2_FOV=110` the view is as wide
+after a death and a respawn as before it, where `cg_fov 110` is back to 65.
+The turn rate's scale is 1.0 from the hip at 65 and at 110, and the
+sensitivity scale 1.0 from the hip at both and, down the ASM1's red dot
+sight, 0.57 at 65 and 0.47 at 110.
+
+The campaign's angle is left the title's. Its `CG_SetViewFov` writes the
+angle it is handed back into `cg_fov` and into the view a script's change
+over a time starts from, so a scaled angle was scaled again the next frame:
+the drop into Seoul, whose script walks the view, was drawn at the title's
+bound of 170 degrees. The hook scales the two tangents of half the view that
+the function has just kept instead, which is what the view and the weapon
+are drawn with; the sensitivity scale is then the console's untouched. The
+setting is not a script's to write, so a checkpoint, a death and the next
+level keep it. Seen on Windows in Induction at 65 and at 110
+(`private-captures\awfeedback4\pc-fov-campaign-seoul-65-vs-110.jpg`).
+
 Everything the title draws is scaled by the same factor, as its own
 `cg_fovScale` does: a sight zooms in less at a wider view, and a scripted zoom
 or split screen's narrower view keeps its proportion. The weapon in the

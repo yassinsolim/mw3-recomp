@@ -53,6 +53,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Advanced Warfare: the field of view lasts through a death.** A tester set
+  110 in the game menu and had 65 again after every respawn: the app sent
+  the title's `cg_fov`, which its scripts put back at each spawn. The
+  setting is now the runtime's (`MW2_FOV`, `runtime/field_of_view.cpp`), as
+  in Modern Warfare 3's multiplayer, in the campaign and both builds of the
+  multiplayer; turning from the hip keeps the console's speed at any view.
+  The campaign scales the view's tangents rather than its angle, which that
+  executable writes back into its own settings (docs/gameplay.md).
 - **The PC launcher's REPORT A BUG opens the right repository.** It sent
   every game's report to `PaulCombal/mw2-recompiled`, the upstream project's
   tracker. It now opens the bug report form of the game's own repository

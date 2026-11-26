@@ -90,6 +90,14 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private val isMw3Multiplayer: Boolean
         get() = isMultiplayer && Title.isMw3
 
+    /**
+     * The titles whose field of view is the runtime's own (MW2_FOV): Modern
+     * Warfare 3's multiplayer and Advanced Warfare, whose scripts put cg_fov
+     * back at every spawn.
+     */
+    private val fovIsRuntimes: Boolean
+        get() = isMw3Multiplayer || Title.isAw
+
     /** What the other title left for this run (RunRequest), as hexadecimal. */
     private var launchData = ""
 
@@ -707,9 +715,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
         startHardwareMonitor()
         watchingSince = SystemClock.elapsedRealtime()
         handler.post(statsTick)
-        // Modern Warfare 3's multiplayer takes the field of view as MW2_FOV
-        // (applyOptions): its scripts put cg_fov back at every spawn.
-        if (!isMw3Multiplayer) handler.postDelayed({ if (started) applyFov() }, 2500)
+        // A title with the runtime's field of view has it from the start
+        // (applyOptions).
+        if (!fovIsRuntimes) handler.postDelayed({ if (started) applyFov() }, 2500)
     }
 
     // ---- the screen ---------------------------------------------------------
@@ -1080,15 +1088,15 @@ class GameActivity : AppCompatActivity(), NativeListener {
         if (isMw3Multiplayer || (isMultiplayer && Title.isAw)) {
             NativeBridge.nativeSetOption("MW2_UNLOCK_ALL", if (prefs.unlockAllItems) "1" else "")
         }
-        // Modern Warfare 3's multiplayer: the host's match options, the field
-        // of view and voice chat (the other titles read none of them here).
+        if (fovIsRuntimes) NativeBridge.nativeSetOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
+        // Modern Warfare 3's multiplayer: the host's match options and voice
+        // chat (the other titles read none of them here).
         if (isMw3Multiplayer) {
             NativeBridge.nativeSetOption("MW2_MATCH_GRAVITY", prefs.matchGravity.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_SPEED", prefs.matchSpeed.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_JUMP", prefs.matchJump.toString())
             NativeBridge.nativeSetOption("MW2_MATCH_SPRINT", if (prefs.matchUnlimitedSprint) "1" else "")
             NativeBridge.nativeSetOption("MW2_MATCH_FALL_DAMAGE", if (prefs.matchFallDamage) "1" else "0")
-            NativeBridge.nativeSetOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
             NativeBridge.nativeSetOption("MW2_MAP_VOTE", if (prefs.mapVote) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE", if (voiceChat) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE_PTT", if (prefs.voicePushToTalk) "1" else "0")
@@ -1410,12 +1418,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
     }
 
     /**
-     * The field of view as each title takes it. Modern Warfare 3's
-     * multiplayer has the runtime's own (MW2_FOV), since its scripts put
-     * cg_fov back at every spawn; the others are given cg_fov.
+     * The field of view as each title takes it: the runtime's own (MW2_FOV)
+     * where the title's scripts would put cg_fov back, and cg_fov elsewhere.
      */
     private fun applyFov() {
-        if (isMw3Multiplayer) NativeBridge.nativeApplyOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
+        if (fovIsRuntimes) NativeBridge.nativeApplyOption("MW2_FOV", prefs.fov.coerceAtLeast(65).toString())
         else NativeBridge.nativeRunConsoleCommand("cg_fov ${prefs.fov}")
     }
 

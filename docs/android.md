@@ -236,7 +236,7 @@ One panel of the app's own in every title (Modern Warfare 2, Modern Warfare 3, C
   | Display resolution, Sharpening, Fill the screen | Sharpening is `vk::sharpen::Set`; the surface is given another size (`SurfaceHolder.setFixedSize`), the presenter makes its swapchain again; the title's own frame is untouched | live |
   | FPS limit | Auto (`adaptive::PlayerSetLimit(0)`: from the screen's rate, and under it what the device keeps, [above](#what-a-device-is-given-and-what-it-is-measured-for)) or a number, which stays. `frame_rate::SetLimit`: the pacing follows at the next present (`d3d_hooks.cpp`, `Pace`), the surface votes again for the display's rate and the window asks for the mode; back on the console's 60 the title's `com_maxfps` and `r_vsync` are reset to its own | live |
   | Sun shadows | `sm_enable` at the next present (`live::SetSunShadows`); Auto is what the frames are measured to have room for (`adaptive.h`), asked again at every present | live |
-  | Field of view | Modern Warfare 3's multiplayer: `MW2_FOV`'s scale (`live::SetFieldOfView`); the others: the title's `cg_fov` | live |
+  | Field of view | Modern Warfare 3's multiplayer and Advanced Warfare: `MW2_FOV`'s scale (`live::SetFieldOfView`), which a spawn does not undo; the others: the title's `cg_fov` | live |
   | Detail at distance | Modern Warfare 2's disc version only (`live::SetDetailBias`) | live |
   | Texture memory | the texture cache's budget (`android::perf::SetTextureBudgetMB`) | live |
   | Frames per second shown | the overlay's view | live |
