@@ -3,8 +3,10 @@
 The test app is the debug build under another package name (`-PappSuffix=.vq`),
 installed fresh for a round and removed after it. It plays from the disc
 image in the phone's Download folder and takes the executables from the
-owner's installed game, which is read and never written. Switches go in
-through `options.txt`, which only a debug build reads.
+owner's installed game, which is read and never written, or for a game the
+owner's app is not read for from a folder of test files on the phone
+(scenarios.TEST_FILES). Switches go in through `options.txt`, which only a
+debug build reads.
 """
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -201,18 +203,14 @@ class Device:
             if "Success" not in said:
                 raise RuntimeError(f"installing {name}: {said[-300:]}")
 
-    def provision(self, game, image, whole_game=False, more_prefs=None):
-        """The executables beside the owner's files (read only) and the preferences of a set-up app."""
-        package, external, owner = self.package(game), self.external(game), self.owner_game(game)
-        if not self.has(f"{owner}/default.xex"):
-            raise RuntimeError(f"{owner} has no game: install it in the owner's app first")
+    def provision(self, game, image, files, more_prefs=None):
+        """The executables out of `files` (which is only read) and the preferences of a set-up app."""
+        package, external = self.package(game), self.external(game)
+        if not self.has(f"{files}/default.xex"):
+            raise RuntimeError(f"{files} has no game")
         self.shell(f"mkdir -p {external}/game")
-        if whole_game:
-            # Advanced Warfare is played from its installed files, not from the image alone.
-            self.shell(f"cp -r {owner}/. {external}/game/", timeout=3600)
-        else:
-            self.shell(f"cd {owner} && for f in default.xex default_mp.xex nxeart; do "
-                       f"[ -e $f ] && cp -r $f {external}/game/; done")
+        self.shell(f"cd {files} && for f in default.xex default_mp.xex nxeart; do "
+                   f"[ -e $f ] && cp -r $f {external}/game/; done")
         # The app reads the image where it lies, which needs all-files access.
         self.shell(f"appops set {package} MANAGE_EXTERNAL_STORAGE allow")
         values = {"gameDirectory": f"{external}/game", "discImage": image or "", "seenWelcome": True,

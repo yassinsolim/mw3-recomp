@@ -23,6 +23,16 @@ DISC_IMAGES = {
     "aw": ["Call of Duty - Advanced Warfare (USA, Europe) (En,Fr,De,Es,It,Pl,Ru) (Game Disc).iso", "aw.iso"],
 }
 
+# The games the owner's app is not read for, and the folder in a phone's
+# storage their test files are pushed to once instead. Advanced Warfare's
+# install is the owner's and eleven gigabytes; the folder has the two
+# executables (`aw/tu0/default.xex`, `default_mp.xex` of a set-up checkout)
+# and the install disc's two packages (`aw/install/content/.../00000002/*`),
+# and the game is played from the Game Disc's image like the others.
+TEST_FILES = {
+    "aw": "/sdcard/Download/visualqa-aw",
+}
+
 # The devices the suite runs on: the name of each one's lock, and its serial.
 DEVICES = {
     "thor": "f4ecf93d",  # AYN Thor, Adreno 740, 120 Hz
@@ -71,9 +81,15 @@ class Scenario:
     # Seconds of the run from which there is a fight on screen; None for a scenario that stays calm.
     combat_from: float = None
     options: dict = field(default_factory=dict)
-    # Advanced Warfare reads its installed files, so the owner's game folder is copied whole.
-    whole_game: bool = False
-    devices: tuple = ("thor", "flip")
+    # Seconds of play (from the log's "in play at") after which the level is over by its own design
+    # and what the screen shows is no longer judged; None for a level that lasts the run.
+    over_after: float = None
+
+    def over_at(self, log):
+        """The second of the run from which nothing is judged, or None."""
+        if self.over_after is None or log is None or log.in_play_at is None:
+            return None
+        return log.in_play_at + self.over_after
 
     def input_script(self):
         steps = walk(self.play_from, self.seconds - 2, self.combat_from)
@@ -117,18 +133,20 @@ SUITE = [
     Scenario("mw3-bots", "mw3", "MULTIPLAYER", 170, "46:set ui_mapname mp_dome" + _BOTS_JOIN,
              "30:a,36:down,37:a,48:a,58:a,62:a,66:a", _MATCH_PLAY,
              "Modern Warfare 3, Dome: empty, then six bots", combat_from=_MATCH_FIGHT),
-    Scenario("mw3-survival", "mw3", "CAMPAIGN", 150, "24:set specialops 1;25:map so_survival_mp_dome;65:god",
-             _TO_LEVEL, 70, "Modern Warfare 3, Survival on Dome", combat_from=70),
+    # The first wave kills a player who only walks 38 to 57 seconds after play begins (`god` and
+    # `notarget` do nothing in Special Ops, with `devmap` either), and the results screen then
+    # stands still, which is not a frozen picture: the mission is judged for its first 35 seconds.
+    Scenario("mw3-survival", "mw3", "CAMPAIGN", 100, "24:set specialops 1;25:map so_survival_mp_dome",
+             _TO_LEVEL, 55, "Modern Warfare 3, Survival on Dome: the first wave", combat_from=55, over_after=35),
     Scenario("cod4-campaign", "cod4", "CAMPAIGN", 150, "25:devmap bog_b;65:god", _TO_LEVEL, 65,
              "Call of Duty 4, The Bog: the first visit that stalled", combat_from=65),
     Scenario("cod4-bots", "cod4", "MULTIPLAYER", 170, _LOCAL_MATCH + "mp_crash" + _BOTS_JOIN, _INTO_MATCH, _MATCH_PLAY,
              "Call of Duty 4, Crash: empty, then six bots", combat_from=_MATCH_FIGHT),
     Scenario("aw-campaign", "aw", "CAMPAIGN", 210, "24:set ui_autoContinue 1;25:devmap seoul;65:god", _TO_LEVEL, 65,
-             "Advanced Warfare, Induction (Seoul): the drop and the street", combat_from=65, whole_game=True,
-             devices=("flip",)),
+             "Advanced Warfare, Induction (Seoul): the drop and the street", combat_from=65),
     Scenario("aw-match", "aw", "MULTIPLAYER", 200, "45:set ui_mapname mp_prison",
              "20:down:0.07,22:down:0.07,24:a,38:down:0.07,40:a,54:a,100:a,106:a,112:a", 125,
-             "Advanced Warfare, Riot in a private match, empty: its sun shadows", whole_game=True, devices=("flip",)),
+             "Advanced Warfare, Riot in a private match, empty: its sun shadows"),
 ]
 
 

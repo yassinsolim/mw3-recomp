@@ -52,7 +52,13 @@ folder; `visualqa-out/` is ignored).
    `options.txt`), fresh, beside the owner's app. The executables are copied
    from the owner's installed game, which is only read, and the game is
    played from the disc image in the phone's Download folder. Advanced
-   Warfare's installed files are copied whole.
+   Warfare is not read from the owner's app (its install is eleven
+   gigabytes): its two executables and its install disc's two packages are
+   pushed once to `/sdcard/Download/visualqa-aw` (from a set-up checkout:
+   `aw/tu0/default.xex`, `default_mp.xex` and the two files under
+   `aw/install/content/`), and it is played from the Game Disc's image in
+   Download like the others. A game whose image or files are not on the
+   phone is skipped and said.
 3. Writes the scenario's switches (`MW2_CONSOLE`, `MW2_INPUT_SCRIPT`,
    `MW2_RUN_SECONDS`, `MW2_REPORT`, `MW2_REPORT_SECONDS`, `MW2_STUTTERS`,
    `MW2_DUMP_FRAMES`) and starts the title.
@@ -169,10 +175,10 @@ burst of fire every twelve seconds).
 | `mw2-bots` | Modern Warfare 2, Rust: empty for 40 s, then six bots | the empty part |
 | `mw3-campaign` | Modern Warfare 3, Black Tuesday: the street fight | nothing: a fight throughout |
 | `mw3-bots` | Modern Warfare 3, Dome: empty for 40 s, then six bots | the empty part |
-| `mw3-survival` | Modern Warfare 3, Survival on Dome | nothing |
+| `mw3-survival` | Modern Warfare 3, Survival on Dome, the first 35 s of play: the first wave kills a player who only walks (`god` does nothing in Special Ops), and the results screen that stands after it is not judged | nothing |
 | `cod4-campaign` | Call of Duty 4, The Bog (the first visit that stalled) | nothing |
 | `cod4-bots` | Call of Duty 4, Crash: empty for 40 s, then six bots | the empty part |
-| `aw-campaign` | Advanced Warfare, Induction (the phones that have its files) | nothing |
+| `aw-campaign` | Advanced Warfare, Induction | nothing |
 | `aw-match` | Advanced Warfare, Riot in a private match, empty | the whole run |
 
 Every other check (`flicker`, `blocks`, black and white frames, `frozen`,

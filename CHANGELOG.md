@@ -78,7 +78,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   on the recordings of the faults players and testers found, and
   `visualqa.py calibrate` measures them again. `--suite` runs a campaign
   level and a match against bots of each title on both phones and is run
-  before a release; a run that was not on the bundled Turnip driver fails
+  before a release; a run that was not on the bundled Turnip driver fails.
+  A post, a shadow's band or a ribbed wall passing in a fast turn is no
+  longer taken for a patch that flashed (it is looked for in the frames
+  either side), and with that one such frame in calm play fails a run: the
+  faults the suite found were single frames. Advanced Warfare is played
+  from its Game Disc's image with test files of its own, on both phones,
+  and Survival is judged up to the results screen its first wave ends on
   ([docs/visualqa.md](docs/visualqa.md)).
 - **Advanced Warfare: the app says which Compatibility Packs are missing.**
   The updated game needs all six, whichever map packs you bought, and with
