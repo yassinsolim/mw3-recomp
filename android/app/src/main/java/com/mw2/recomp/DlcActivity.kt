@@ -127,7 +127,9 @@ class DlcActivity : AppCompatActivity() {
         val buildable = TitleUpdate.codeMissing && GameBuild.offered(this)
         val state = GameBuildService.State(this)
         val building = buildable && (state.wanted || GameBuild.progress.running)
-        status.text = when {
+        // The system's picker hands its answer over before this screen is
+        // resumed, and a resume looks again: a copy under way keeps its word.
+        status.text = if (progress.visibility == View.VISIBLE) getString(R.string.dlc_copying) else when {
             packages.isEmpty() -> getString(R.string.dlc_none)
             TitleUpdate.inUse -> getString(R.string.dlc_ready, packs)
             building -> getString(
@@ -137,8 +139,10 @@ class DlcActivity : AppCompatActivity() {
             )
             buildable && state.error.isNotEmpty() -> getString(R.string.dlc_build_failed, packs, state.error)
             TitleUpdate.codeMissing -> getString(R.string.dlc_code_missing, packs, getString(R.string.setup_command))
+            // Everything but a Compatibility Pack: the note below is the whole of it.
+            TitleUpdate.missingPacks.isNotEmpty() -> getString(R.string.dlc_update_here, packs)
             else -> getString(R.string.dlc_update_missing, packs)
-        }
+        } + packsMissing(packages)
         build.visibility = if (buildable && !building) View.VISIBLE else View.GONE
         handler.removeCallbacks(tick)
         if (building) handler.postDelayed(tick, 2000)
@@ -151,6 +155,18 @@ class DlcActivity : AppCompatActivity() {
                 )
             },
         )
+    }
+
+    /**
+     * Which Compatibility Packs are still to add, as a paragraph after what
+     * else is said, or nothing: the title's own word for it is a notice
+     * that they are being downloaded, and nothing downloads here.
+     */
+    private fun packsMissing(packages: List<Dlc.Package>): String {
+        if (packages.isEmpty()) return ""
+        val missing = Dlc.missingCompatibilityPacks(packages)
+        if (missing.isEmpty()) return ""
+        return "\n\n" + getString(R.string.dlc_packs_missing, Dlc.compatibilityPackNames(this, missing))
     }
 
     /** Copies what [find] names, off the main thread: a pack is a gigabyte and more. */
@@ -174,7 +190,8 @@ class DlcActivity : AppCompatActivity() {
                     runOnUiThread { if (!isFinishing && !isDestroyed) GameBuildService.start(this, automatic = false) }
                 }
                 when {
-                    added.copied.isNotEmpty() -> getString(R.string.dlc_added, added.copied.joinToString(", "))
+                    added.copied.isNotEmpty() ->
+                        getString(R.string.dlc_added, added.copied.joinToString(", ")) + packsMissing(Dlc.installed(this))
                     added.already > 0 -> getString(R.string.dlc_already)
                     else -> getString(R.string.dlc_nothing_found)
                 }

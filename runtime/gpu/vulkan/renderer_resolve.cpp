@@ -172,23 +172,32 @@ namespace vk::renderer::detail
     // out in. Nothing waits for it: the title gets the luminance a frame or
     // two late (the report says how late), which an adaptation spread over
     // many frames does not show.
+    //
+    // Under MW2_SCALE the surface is that many times wider and taller, and
+    // the title still reads 16x16: each of its texels is written as the mean
+    // of the texels drawn for it. Without it a match at 2x is the same
+    // white wash.
     constexpr uint32_t kLuminanceFormat = 36;       // k_32_FLOAT
-    constexpr uint32_t kLuminanceTexels = 1024;     // the most one copy holds
+    constexpr uint32_t kLuminanceTexels = 1024;     // the most one copy holds, in the title's texels
     constexpr uint32_t kLuminanceCopies = 16;       // two a frame, a few frames in flight
 
     struct LuminanceCopy
     {
         uint32_t destination = 0, pitch = 0, x = 0, y = 0, width = 0, height = 0, endian = 0;
+        uint32_t scale = 1;         // how many times wider and taller the copy is than the title's rectangle
         uint32_t place = 0;         // which of the buffer's kLuminanceCopies
         uint32_t slot = 0;
         uint64_t serial = 0, frame = 0;
     };
     std::vector<LuminanceCopy> g_luminanceCopies;
 
+    // One copy's room in the buffer: the title's texels at the renderer's scale.
+    size_t LuminancePlaceBytes() { return size_t(kLuminanceTexels) * g.scale * g.scale * 4; }
+
     bool MakeLuminanceBack()
     {
         if (g.luminanceBack) return g.luminanceBackMapped != nullptr;
-        const VkDeviceSize bytes = VkDeviceSize(kLuminanceCopies) * kLuminanceTexels * 4;
+        const VkDeviceSize bytes = VkDeviceSize(kLuminanceCopies) * LuminancePlaceBytes();
         VkBufferCreateInfo info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         info.size = bytes;
         info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -225,12 +234,22 @@ namespace vk::renderer::detail
         {
             if (!SubmissionFinished(copy.slot, copy.serial)) { g_luminanceCopies[kept++] = copy; continue; }
             uint8_t* texture = guest::Base() + kernel::FromPhysical(copy.destination);
-            const uint8_t* from = g.luminanceBackMapped + size_t(copy.place) * kLuminanceTexels * 4;
+            const uint8_t* from = g.luminanceBackMapped + size_t(copy.place) * LuminancePlaceBytes();
+            const size_t row = size_t(copy.width) * copy.scale;
             for (uint32_t y = 0; y < copy.height; y++)
                 for (uint32_t x = 0; x < copy.width; x++)
                 {
+                    float sum = 0.0f;
+                    for (uint32_t v = 0; v < copy.scale; v++)
+                        for (uint32_t u = 0; u < copy.scale; u++)
+                        {
+                            float drawn;
+                            std::memcpy(&drawn, from + ((size_t(y) * copy.scale + v) * row + x * copy.scale + u) * 4, 4);
+                            sum += drawn;
+                        }
+                    const float mean = sum / float(copy.scale * copy.scale);
                     uint32_t texel;
-                    std::memcpy(&texel, from + (size_t(y) * copy.width + x) * 4, 4);
+                    std::memcpy(&texel, &mean, 4);
                     switch (copy.endian)
                     {
                     case 1: texel = ((texel & 0x00FF00FFu) << 8) | ((texel >> 8) & 0x00FF00FFu); break;
@@ -251,14 +270,16 @@ namespace vk::renderer::detail
     }
 
     // Called with `image` readable (TRANSFER_SRC_OPTIMAL), in the resolve's
-    // own copy. A copy with no place free in the buffer is left out: the
+    // own copy; the rectangle is in the title's texels and `scale` is the
+    // surface's. A copy with no place free in the buffer is left out: the
     // title keeps the luminance it last got.
     void ReadLuminanceBack(VkImage image, const gpu::RegisterFile& r, uint32_t x, uint32_t y,
-                           uint32_t width, uint32_t height)
+                           uint32_t width, uint32_t height, uint32_t scale)
     {
         const gpu::CopyDestInfo info{ r[gpu::RB_COPY_DEST_INFO] };
         const gpu::CopyDestPitch pitch{ r[gpu::RB_COPY_DEST_PITCH] };
-        if (info.Format() != kLuminanceFormat || width * height > kLuminanceTexels || !MakeLuminanceBack())
+        if (info.Format() != kLuminanceFormat || width * height > kLuminanceTexels || scale > g.scale ||
+            !MakeLuminanceBack())
             return;
         uint32_t place = 0;
         const auto taken = [&](const LuminanceCopy& copy) { return copy.place == place; };
@@ -267,16 +288,16 @@ namespace vk::renderer::detail
             place++;
         if (place == kLuminanceCopies) return;
         VkBufferImageCopy region{};
-        region.bufferOffset = VkDeviceSize(place) * kLuminanceTexels * 4;
+        region.bufferOffset = VkDeviceSize(place) * LuminancePlaceBytes();
         region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-        region.imageOffset = { int32_t(x), int32_t(y), 0 };
-        region.imageExtent = { width, height, 1 };
+        region.imageOffset = Scaled(int32_t(x), int32_t(y), 0, scale);
+        region.imageExtent = { width * scale, height * scale, 1 };
         const VkBuffer buffer = g.luminanceBack;
         Record([=](VkCommandBuffer command) {
             vkCmdCopyImageToBuffer(command, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
         });
         g_luminanceCopies.push_back({ r[gpu::RB_COPY_DEST_BASE] & ~0xFFFu, pitch.Pitch(), x, y, width, height,
-                                      info.Endian(), place, g.slot, g.submissionSerial + 1, g.frames });
+                                      info.Endian(), scale, place, g.slot, g.submissionSerial + 1, g.frames });
     }
 }
 #endif
@@ -534,8 +555,8 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
             });
         }
 #ifdef AW_TITLE
-        if (source->format == VK_FORMAT_R32_SFLOAT && source->scale == 1)
-            ReadLuminanceBack(sourceImage, r, destX, destY, width, height);
+        if (source->format == VK_FORMAT_R32_SFLOAT)
+            ReadLuminanceBack(sourceImage, r, destX, destY, width, height, source->scale);
 #endif
         EndReadingColour(*source);
     }

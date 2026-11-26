@@ -91,6 +91,7 @@
     <string name="install_done">The game files are installed.</string>
     <!-- Advanced Warfare: the player's own map packs (DlcActivity, docs/dlc.md). -->
     <string name="entry_dlc">ADD DLC</string>
+    <string name="entry_dlc_missing">ADD DLC · %1$d MISSING</string>
     <string name="entry_zombies">EXO ZOMBIES</string>
     <string name="dlc_title">Add DLC</string>
     <string name="dlc_detail">Your own map packs and the game\'s title update, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
@@ -105,6 +106,9 @@
     <string name="dlc_build_failed">%1$d packages and the title update are here, but the game code of the updated multiplayer could not be built: %2$s</string>
     <string name="dlc_build_now">Build it now</string>
     <string name="dlc_update_missing">%1$d packages are here, but not the game\'s title update, which the map packs need: it is the file in Content\\0000000000000000\\41560914\\000B0000 on the console\'s hard disk. Until it is added multiplayer is the disc\'s version, without the map packs.</string>
+    <string name="dlc_update_here">%1$d packages and the title update are here.</string>
+    <string name="dlc_packs_missing">Still missing: %1$s. The updated game needs all six Compatibility Packs: without one it only tells you that required content was added to your downloads, and nothing downloads here. They are free and on your console\'s hard disk beside the map packs, in Content\\0000000000000000\\41560914\\00000002 (the console fetched them with the title update); add them here the same way. Until then multiplayer is the disc\'s version, without the map packs and Exo Zombies.</string>
+    <string name="dlc_compatibility_pack">Compatibility Pack %1$d</string>
     <string name="dlc_item_pack">%1$s  ·  %2$.2f GB</string>
     <string name="dlc_item_update">%1$s  ·  title update  ·  %2$.2f GB</string>
     <string name="dlc_copying">Copying…</string>

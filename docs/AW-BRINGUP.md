@@ -1555,3 +1555,76 @@ its notice that required content was added to the downloads and offered
 only the main menu: with one Compatibility Pack of six it does not go on.
 Not seen in this run either: a match on a pack's map and Exo Zombies from
 the library built on the phone.
+
+## The whole folder on the Flip 2, the Compatibility Packs, the render multiplier (26 November 2026)
+
+### Map packs and Exo Zombies from the library built on the phone
+
+`com.aw.recomp.fb3` on the Retroid Pocket Flip 2, the game folder on the
+memory card (8.9 GB were free on the device and 106 GB on the card, so the
+`dlc` folder beside it is on the card too), the disc's two libraries from a
+game package. **Add DLC → Choose a folder** on the owner's whole `41560914`
+(thirteen packages and the two updates, 10.05 GB): copied card to card in
+15 minutes, and the build started by itself. The device's slot ended at 91
+of 212 files; opened again, the app carried on from there and built the
+other 121 in 192 s. Evidence in `private-captures\aw\flip-fb3-*`.
+
+| | Seen | Evidence |
+|---|---|---|
+| The title's notice | none with all six Compatibility Packs: Multiplayer's menu, 1.20, at 60 FPS | `flip-fb3-updated-mp-all-six-packs-no-notice.jpg` |
+| The maps | Bonus Maps lists the thirteen of the owner's packs | `flip-fb3-bonus-maps-thirteen.jpg` |
+| A pack's map with bots | System Link, Compound (Supremacy), Team Deathmatch, three bots a side: 253 s in play, 60.6 frames a second (the lowest second 57), 8.5 ms of the graphics chip a frame, the longest frame 90 ms; 16 to 19 when it was left | `flip-fb3-compound-system-link-bots.jpg`, `.log` |
+| Exo Zombies | the launcher's entry: the intro movie, System Link, Create Game, Outbreak, round 1 at 60 FPS | `flip-fb3-zombies-outbreak-round1.jpg` |
+| Exo Zombies' rounds, **with the test harness that is not in the source** (a player takes no damage and what hit him takes it instead) | round 5 and 7,920 points after five minutes: 60.7 frames a second (no second under 60), 8.1 ms of the chip a frame, the longest frame 22 ms | `flip-fb3-zombies-outbreak-round5-test-harness.jpg`, `.log` |
+
+The match and the rounds ran in a build of the commit before this section's
+with that harness compiled in; the build with the changes below then
+started the updated multiplayer from the same library.
+
+### Which Compatibility Packs, and what the app says
+
+With Compatibility Pack 6 taken out of the `dlc` folder, and again with
+only Pack 3 taken out, the title stops at Multiplayer's menu with a notice
+(in the update's language) that the new required content is free and has
+to be downloaded, and offers Xbox Live or the main menu
+(`flip-fb3-notice-without-pack6-and-without-pack3.jpg`); with one of the
+six it was the notice of the run above. Every pack counts, then, and the
+title cannot say which is missing. The app does: a package is a
+Compatibility Pack by the marker `dlccompat<n>.id` at its root
+(`StfsPackage.rootFiles`, `Dlc.missingCompatibilityPacks`), and with one
+missing the multiplayer stays the disc's (`TitleUpdate.inUse`). Seen with
+Pack 3 out: the start screen's entry reads **ADD DLC · 1 MISSING** and Exo
+Zombies is not offered, Add DLC says "Still missing: Compatibility Pack 3"
+and where the packs are, and the log has `map packs: 10 packages and the
+title update; not here: Compatibility Pack 3`
+(`flip-fb3-launcher-add-dlc-1-missing.jpg`,
+`flip-fb3-add-dlc-names-compatibility-pack-3.jpg`). With the pack back the
+same build starts the update's multiplayer.
+
+### The render multiplier on the AYN Thor (26 November 2026)
+
+**Settings → Internal render multiplier** (`MW2_SCALE`), the game started
+again for each, the disc's multiplayer: System Link, Retreat, Team
+Deathmatch, six bots, the same script of walking and shooting, 120 Hz, sun
+shadows off as Auto has them there. The match's 75 seconds by the
+per-second report (`MW2_REPORT_SECONDS=1`), and the lobby with the operator
+close up:
+
+| multiplier | frame | match: frames a second (lowest second) | match: graphics chip, ms a frame | lobby: frames a second | lobby: ms a frame |
+|---|---|---|---|---|---|
+| 1x | 1280x720 | 119.7 (113) | 3.6 | 119.7 | 4.8 |
+| 2x | 2560x1440 | 113.5 (81) | 7.9 | 89.7 | 10.8 |
+| 3x | 3840x2160 | 71.7 (41) | 14.2 | 47.9 | 20.7 |
+
+**The picture.** Right at 1x. At 2x and 3x the menus and the lobby were
+right and the match was a white wash
+(`thor-mp-scale2-scale3-retreat-white-before.jpg`), the same on Windows
+(`pc-mp-scale2-retreat-white-before.jpg`): the luminance write-back above
+was left out under a scale, so the title took the scene for pitch dark.
+It now reads the surface at its drawn size and writes each texel as the
+mean of those drawn for it (`renderer_resolve.cpp`); on Windows the match
+is right at 2x and at 3x, the luminance written back 8,118 and 6,336 times
+one frame late (`pc-mp-scale2-retreat-exposure-fixed.jpg`,
+`pc-mp-scale3-retreat-exposure-fixed.jpg`). **Not seen:** the fixed build
+at 2x or 3x on the Thor; the table's two rows are of the white picture,
+which draws the same passes.

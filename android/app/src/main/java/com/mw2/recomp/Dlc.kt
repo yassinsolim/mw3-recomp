@@ -24,6 +24,14 @@ object Dlc {
     /** What the app installs itself, from the install disc: not a pack the player added. */
     private val installDisc = setOf("41560914051BF3C0", "4156091407406280")
 
+    /**
+     * How many Compatibility Packs the updated game asks for: title update 17
+     * is the game's last and wants all six. Each is a package with the marker
+     * `dlccompat<n>.id` at its root, which is what the title tells it by
+     * (docs/dlc.md); the name the console shows is another in another language.
+     */
+    private const val COMPATIBILITY_PACKS = 6
+
     /** A content package of this game: its name as the console shows it, and whether it is the title update. */
     class Header(val name: String, val update: Boolean)
 
@@ -80,6 +88,31 @@ object Dlc {
 
     /** The title update's package, the first by name as the runtime takes them (runtime/kernel/content.cpp). */
     fun update(context: Context): File? = installed(context).firstOrNull { it.header.update }?.file
+
+    /**
+     * The Compatibility Packs that are not among [packages], by number. With
+     * one missing the updated game shows only its notice that required
+     * content was added to the console's downloads, and offers the main
+     * menu: a download that never comes here, so the app says which to add.
+     */
+    fun missingCompatibilityPacks(packages: List<Package>): List<Int> {
+        val markers = packages.filterNot { it.header.update }.flatMapTo(HashSet<String>()) { StfsPackage.rootFiles(it.file) }
+        return (1..COMPATIBILITY_PACKS).filter { "dlccompat$it.id" !in markers }
+    }
+
+    /** [missing] as the player reads it: each pack by the name the console lists it under. */
+    fun compatibilityPackNames(context: Context, missing: List<Int>): String =
+        missing.joinToString(", ") { context.getString(R.string.dlc_compatibility_pack, it) }
+
+    /** What is in the dlc folder, for the log a player shares: in English, as the log is. */
+    fun describe(context: Context): String {
+        val packages = installed(context)
+        if (packages.isEmpty()) return "none"
+        val missing = missingCompatibilityPacks(packages)
+        return "${packages.count { !it.header.update }} packages and " +
+            (if (packages.any { it.header.update }) "the title update" else "no title update") +
+            if (missing.isEmpty()) "" else "; not here: " + missing.joinToString(", ") { "Compatibility Pack $it" }
+    }
 
     /** One document the player chose: where it is, its name and its size. */
     class Source(val uri: Uri, val name: String, val size: Long)
@@ -191,8 +224,9 @@ object Dlc {
  * executable than the disc's, so another library of the app and another of
  * the game code (awmp17; docs/dlc.md). The map packs and Exo Zombies are for
  * it, and it plays only with others who have it, as an updated console does.
- * It is what the multiplayer starts as while the update's package is in the
- * dlc folder and its game code is on the device; otherwise the disc's.
+ * It is what the multiplayer starts as while the update's package and every
+ * Compatibility Pack are in the dlc folder and its game code is on the
+ * device; otherwise the disc's.
  */
 object TitleUpdate {
     /** The library's name, "" in an app whose game has no such build. */
@@ -212,17 +246,28 @@ object TitleUpdate {
     var inUse: Boolean = false
         private set
 
-    /** Whether the update's package is there and only its game code is missing: what the launcher says. */
+    /** Whether the update's package is there and its game code is missing: the app builds it then. */
     @Volatile
     var codeMissing: Boolean = false
+        private set
+
+    /**
+     * The Compatibility Packs still to add while the update's package is
+     * there (Dlc.missingCompatibilityPacks): the multiplayer stays the disc's
+     * until there are none, and the launcher and Add DLC say which.
+     */
+    @Volatile
+    var missingPacks: List<Int> = emptyList()
         private set
 
     /** Looks again: as each process starts, and when the player adds or removes a package. */
     fun refresh(context: Context) {
         if (LIBRARY.isEmpty()) return
-        val update = Dlc.hasUpdate(context)
+        val packages = Dlc.installed(context)
+        val update = packages.any { it.header.update }
         val code = GameLibrary.updateReady(context)
-        inUse = update && code
+        missingPacks = if (update) Dlc.missingCompatibilityPacks(packages) else emptyList()
+        inUse = update && code && missingPacks.isEmpty()
         codeMissing = update && !code
     }
 }

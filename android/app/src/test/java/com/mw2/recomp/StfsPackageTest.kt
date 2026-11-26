@@ -1,8 +1,10 @@
 package com.mw2.recomp
 
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.io.File
 
 /**
  * StfsPackage.file against a package laid out here block by block: a disc's
@@ -70,5 +72,33 @@ class StfsPackageTest {
         "CON ".toByteArray().copyInto(other)
         assertNull(StfsPackage.file(other, "nxebg.jpg"))
         assertNull(StfsPackage.file(ByteArray(0x20000), "nxebg.jpg"))
+    }
+
+    /**
+     * A map pack is told by a marker at its root and is read from its file:
+     * a folder, and a file of the same kind of name inside it, are not names
+     * at the root.
+     */
+    @Test
+    fun namesTheFilesAtTheRootOfAPackageInAFile() {
+        val data = pack("dlccompat3.id", contents, chain, 201)
+        val folder = offset(0) + 0x40
+        "english".toByteArray().copyInto(data, folder)
+        data[folder + 0x28] = (0x80 or 7).toByte()
+        data[folder + 0x32] = 0xFF.toByte()
+        data[folder + 0x33] = 0xFF.toByte()
+        val inside = folder + 0x40
+        "dlccompat4.id".toByteArray().copyInto(data, inside)
+        data[inside + 0x28] = 13
+        data[inside + 0x33] = 1                     // parent: the folder, entry 1
+        val file = File.createTempFile("package", null)
+        try {
+            file.writeBytes(data)
+            assertEquals(listOf("dlccompat3.id"), StfsPackage.rootFiles(file))
+            file.writeBytes(data.copyOf(0x400))
+            assertEquals(emptyList<String>(), StfsPackage.rootFiles(file))
+        } finally {
+            file.delete()
+        }
     }
 }

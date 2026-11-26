@@ -510,8 +510,14 @@ class MainActivity : AppCompatActivity() {
         refreshBotsEntry()
         // The player's own map packs: offered once there is a game to add
         // them to, and Exo Zombies while the update they need is in use.
+        // Compatibility Packs still to add are counted on the entry itself:
+        // the multiplayer is the disc's until they are there, and the title
+        // would not say why.
         TitleUpdate.refresh(this)
         dlcButton.visibility = if (Dlc.offered && installed) android.view.View.VISIBLE else android.view.View.GONE
+        dlcButton.text = TitleUpdate.missingPacks.size.let { missing ->
+            if (missing == 0) getString(R.string.entry_dlc) else getString(R.string.entry_dlc_missing, missing)
+        }
         zombiesButton.visibility = if (TitleUpdate.inUse && installed) android.view.View.VISIBLE else android.view.View.GONE
         // The app is published without the game's code: the files alone do
         // not make it ready (GameLibrary.kt). Which of the two a player still

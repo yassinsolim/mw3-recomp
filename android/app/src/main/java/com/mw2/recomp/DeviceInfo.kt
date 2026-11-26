@@ -33,7 +33,7 @@ object DeviceInfo {
     private const val kTombstoneBytes = 8 shl 20
 
     /** One fact a line. Never throws: a fact that cannot be read says so. */
-    fun lines(context: Context): List<String> = listOf(
+    fun lines(context: Context): List<String> = listOfNotNull(
         "build: ${context.getString(R.string.app_name)} ${BuildConfig.VERSION_NAME}" +
             " (code ${BuildConfig.VERSION_CODE}, ${context.packageName}, built ${BuildConfig.BUILD_STAMP})",
         "phone: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE}), Android ${Build.VERSION.RELEASE}" +
@@ -42,6 +42,7 @@ object DeviceInfo {
         "memory: " + said { memory(context) },
         "gpu: " + said { gpu(context) },
         "game code: " + said { GameLibrary.describe(context) },
+        if (Dlc.offered) "map packs: " + said { Dlc.describe(context) } else null,
     )
 
     private fun said(fact: () -> String): String = try {

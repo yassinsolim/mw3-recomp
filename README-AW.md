@@ -205,6 +205,13 @@ private match or System Link, and **Exo Zombies** is an entry of its own on
 the app's start screen. Everybody in a match needs the update, and for a
 pack's map the pack.
 
+**All six Compatibility Packs are needed**, whichever map packs you bought.
+With one missing the updated game only shows a notice that required content
+was added to your downloads, and nothing downloads here. So the app looks
+for them itself: **Add DLC** names the ones still to add, its entry on the
+start screen reads **ADD DLC · 2 MISSING**, and until they are all there
+**Multiplayer** stays the disc's version.
+
 ## Tips
 
 - **Bots.** Tap **Bots** under Multiplayer on the app's start screen, then
@@ -220,6 +227,12 @@ pack's map the pack.
   ([docs/relay.md](docs/relay.md)). **LAN** plays on your own WiFi only.
 - **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
   in Android, or the refresh-rate tile in the quick settings.
+- **Sharper picture.** **Settings → Internal render multiplier** draws the
+  game at two or three times the console's 1280x720, from the next start of
+  the game. It costs the graphics chip in proportion: on an AYN Thor in a
+  match with six bots, 1x ran at 120 FPS (3.6 ms of the chip a frame), 2x at
+  114 FPS with seconds down to 81 (7.9 ms), 3x at 72 FPS (14.2 ms). 2x is
+  the most a Thor holds near its 120; weaker devices are best left at 1x.
 - **Free the space, or keep it.** Played from the images, the game needs
   both `.iso` files where they are (an SD card is fine) and almost nothing
   on the device's own storage. Copied into the app, it needs about 12 GB
@@ -248,6 +261,7 @@ pack's map the pack.
 | `setup.sh` says programs are needed | Run the one `sudo apt install …` line it prints, then the same command again; it carries on where it stopped. Its logs are in `out/logs/` |
 | "Unsupported Advanced Warfare executable" from setup | The image given as the game disc is the install disc, or another pressing. Update the folder (`git pull`): setup now sorts the two images out by itself and deletes an executable it refused. On an older folder, delete `aw/tu0/` and give the game disc's image as `--iso` |
 | **Add DLC** lists your packs but says the game code of the updated multiplayer is missing | The packs are in place; the updated multiplayer has not been built. A newer app builds it on the device by itself; otherwise run one of the two PC commands under [Map packs and Exo Zombies](#map-packs-and-exo-zombies) |
+| The start screen reads **ADD DLC · 2 MISSING**, or (app v0.1.7 and older) Multiplayer only shows a notice that required content was added to your downloads | The updated game needs all six free Compatibility Packs and you added fewer. **Add DLC** names the missing ones: they are in `Content\0000000000000000\41560914\00000002` on the console's hard disk beside the map packs. Copy them and add them the same way; until then Multiplayer is the disc's version |
 | The app refuses the game code after you built the updated multiplayer by hand | A game library built outside setup does not carry the statement the app checks. Run `setup.sh --dlc` (or `setup.cmd -Dlc`): it builds all three libraries the way the app expects and says whether they fit the published app |
 
 Bug reports are welcome with the log (the app's **Log** screen), the device

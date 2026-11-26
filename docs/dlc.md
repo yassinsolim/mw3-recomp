@@ -113,6 +113,17 @@ whose names begin `41560914` in `00000002` are the install disc's, which the
 app and setup already take from the install disc's image; copying them too
 does no harm.
 
+**All six Compatibility Packs.** With one missing the updated game stops at
+its multiplayer menu with a notice that required content was added to the
+console's downloads and will be there when the download ends, and offers
+only the main menu. Nothing downloads here, so the app looks for the packs
+itself, each by the marker `dlccompat<n>.id` at the root of its package
+(`Dlc.missingCompatibilityPacks`; the name a console shows is another in
+another language): **Add DLC** names the ones still to add, its entry on the
+start screen counts them (**ADD DLC · 2 MISSING**), the log's `map packs:`
+line lists them, and until all six are there the multiplayer is the disc's
+and Exo Zombies is not offered.
+
 **Copying them off the console.** Either way the files are only read. The
 owner's were read from a copy of his hard disk's `Content` folder; the steps
 below are the console's own menus and the tools' own descriptions, and were

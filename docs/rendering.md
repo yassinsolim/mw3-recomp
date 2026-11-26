@@ -479,7 +479,7 @@ frame is still "a colour resolve of 1280x720". The scale is lowered until
 
 The scale is a whole number, so the title's scissors and resolve rectangles
 land on pixel boundaries, and it applies to every surface, since the passes
-read each other's at matching sizes. Three things are not a plain
+read each other's at matching sizes. Four things are not a plain
 multiplication:
 
 - **Fetches of a resolve's copy.** The translated shader takes a texture's
@@ -492,6 +492,13 @@ multiplication:
   pass's: the title compares them with numbers of its own pixels.
 - **Depth bias.** The slope term is multiplied by the scale, as Xenia does: a
   slope is depth per pixel, and the pixels are smaller.
+- **A surface the title reads from memory** (Advanced Warfare). Its exposure
+  comes from a 16x16 surface of one float, the scene's luminance, written
+  back to the resolve's destination for the processor to read
+  ([AW-BRINGUP.md](AW-BRINGUP.md)). Under a scale that surface is 32x32 or
+  48x48, and each texel written back is the mean of the four or nine drawn
+  for it. Without the write-back the title takes the scene for pitch dark:
+  a match at 2x was a white wash on the AYN Thor and on Windows.
 
 The launcher's RESOLUTION entry keeps the scale in `.env` as
 `MW2_SCALE=<n>`, with the title's frame below

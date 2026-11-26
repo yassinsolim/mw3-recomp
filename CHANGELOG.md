@@ -5,6 +5,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Advanced Warfare: the app says which Compatibility Packs are missing.**
+  The updated game needs all six, whichever map packs you bought, and with
+  one missing it only showed its own notice that required content had been
+  added to your downloads, with nothing to do but return to the main menu:
+  a tester with one of the six got no further. The app now looks for them
+  itself (each package's `dlccompat<n>.id` marker): **Add DLC** names the
+  ones still to add and where they are on the console's disk, its entry on
+  the start screen reads **ADD DLC · 2 MISSING**, the log has a `map
+  packs:` line, and until all six are there **Multiplayer** stays the
+  disc's version instead of stopping at the notice.
 - **`MW2_TRACE_AIM=1`** (diagnostics builds, Advanced Warfare's disc
   multiplayer): the held weapon's sprint and aim times from its asset, every
   frame of an aim down the sight and how long it took. It answers a
@@ -384,6 +394,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Thor, Modern Warfare 2 (S.S.D.D.) drew the same frames with and without
   it at the same speed, Call of Duty 4 (The Bog) and Advanced Warfare
   (Lagos) played, and Modern Warfare 3 was run in its menus only.
+- **Advanced Warfare at 2x and 3x: the picture in a level was a white
+  wash.** With **Settings → Internal render multiplier** above 1x
+  (`MW2_SCALE`) the menus and the lobby were right and a match was all but
+  white, on the AYN Thor and on Windows. The title works its exposure out
+  from a 16x16 surface of the scene's luminance that it reads from memory,
+  and the write-back that gives it one was left out under a scale: the
+  title took every scene for pitch dark. The surface is now read at its
+  drawn size and each texel written as the mean of the four or nine drawn
+  for it ([docs/rendering.md](docs/rendering.md#resolution-scale)).
+- **Add DLC said "No map packs here yet" for the whole of a copy** from a
+  folder chosen with the system's picker (the screen's resume wrote over
+  "Copying…"): a quarter of an hour of it with a console's whole folder.
 - **`setup.sh` and Advanced Warfare's two discs.** Given the install disc
   as `--iso`, setup refused its `default.xex` as "Unsupported" and left it
   in `aw/tu0`, where the next run found it and refused the right disc too.
