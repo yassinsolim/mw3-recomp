@@ -88,15 +88,19 @@ says so; tap **Build the game code** (no disc image is asked for).
   update that needs new game code: `git pull`, then
   `setup\setup.cmd -Game aw -GameOnly`. `-Check` lists what it would do and
   changes nothing.
-- **Linux PC** (tested on Ubuntu 24.04, WSL2 included), with the phone
-  connected over USB:
+- **Linux PC** (tested on Ubuntu 24.04, WSL2 included; Linux Mint 22 is the
+  same underneath), with the phone connected over USB:
 
   ```sh
   git clone https://github.com/yassinsolim/aw-recomp.git && cd aw-recomp
   bash setup/setup.sh --game aw --iso ~/Downloads/AW-game-disc.iso --install-iso ~/Downloads/AW-install-disc.iso --install --push-iso
   ```
 
-  `--game-only` rebuilds the game code after an update.
+  It first names the system programs it lacks, with the one command that
+  installs them (`sudo apt install git curl unzip python3 openssl clang`),
+  and needs no `sudo` itself. The two images given the wrong way round are
+  taken the right way round. `--game-only` rebuilds the game code after an
+  update; `--no-install` builds without a phone and says what to copy to it.
 - **GitHub builds it for you**: not available for this game.
 
 How the on-device build works and what was measured:
@@ -122,8 +126,8 @@ defaults. Other hardware is untested.
 | Exo Survival | ⚠️ | starts from the campaign's menu and plays, alone or two together; see Known limits |
 | Setting up with no PC, from a fresh install of v0.1.0 | ✅ | Flip 2: the game code built in 13 min 8 s, each disc copied in about 40 s, 18 minutes from opening the app to the game's title screen. Not run on the Thor |
 | Playing from both images on an SD card, nothing copied | ✅ | Flip 2: found on the card by itself, the game starts 2 s after **Install & Play**; Seoul loads in 14 s and a match on Retreat in under 8 s, the same as from copied files |
-| Your own map packs (with a PC: `setup -Dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Flip 2: Atlas Gorge against a PC, 60 FPS |
-| Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive. Not run on the Flip 2 |
+| Your own map packs (**Add DLC**, or `setup -Dlc` / `setup.sh --dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Flip 2: Atlas Gorge against a PC, 60 FPS |
+| Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive. Flip 2, with the game code `setup.sh --dlc` built on Linux: its menu (version 1.20) and Outbreak load and run at 60 FPS; the match was left unattended and ended in round 1 after 30 s, nobody played it by hand |
 | Combat Readiness Program, split screen | ❔ | not tested on a device |
 
 ## Known limits
@@ -145,13 +149,10 @@ This is a first release. What has **not** been shown:
   the Thor holds 115 to 119, with Fusion at 115. The first visit to a level
   stutters while its graphics are compiled; later visits reuse what was.
 - **Sun shadows are off above 60 FPS** (a setting turns them on, at a cost).
-- **Map packs and Exo Zombies need a PC and your own files.** The app plays
-  the disc's version. With your own map packs, Compatibility Packs and title
-  update copied off your console, `setup\setup.cmd -Game aw -Dlc <folder>`
-  builds the updated multiplayer and the app gets **Add DLC** and **Exo
-  Zombies** entries ([docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies)).
-  Exo Zombies was seen on the AYN Thor only, its later rounds only with test tools;
-  the campaign stays the disc's.
+- **Map packs and Exo Zombies need your own files** off your console: see
+  [Map packs and Exo Zombies](#map-packs-and-exo-zombies). Exo Zombies was
+  seen on the AYN Thor only, its later rounds only with test tools; the
+  campaign stays the disc's.
 - **Online play is the project's own server**, not Xbox LIVE: no ranks carry
   over, the Friends list is empty, and everyone needs the same app version.
 - **Only two devices have run it.** Anything that is not a Snapdragon with an
@@ -159,6 +160,50 @@ This is a first release. What has **not** been shown:
 
 What has been checked and what is open, in detail:
 [docs/AW-BRINGUP.md](docs/AW-BRINGUP.md).
+
+## Map packs and Exo Zombies
+
+The app plays the disc's game. The map packs and Exo Zombies are for the
+updated game, and need three things of your own, copied off your console's
+hard disk (`Content\0000000000000000\41560914`, the whole folder): the map
+packs you bought, the free Compatibility Packs, and the game's title update.
+How to copy them, and what each is for:
+[docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies).
+
+The multiplayer then has to be built a second time, as the title update
+makes it. Three ways, each one step:
+
+1. **In the app (recommended, no PC): Add DLC**, then **Choose a folder** and
+   pick your `41560914` folder, wherever it is (the device's storage, an SD
+   card, a USB drive). The app copies the packages and lists them. App
+   versions after v0.1.1 then build the updated multiplayer on the device by
+   themselves, in the background; v0.1.1 lists the packages and says that
+   game code is still missing, which one of the next two builds.
+2. **Windows PC**, phone connected over USB:
+
+   ```bat
+   setup\setup.cmd -Game aw -Dlc "D:\AW\41560914"
+   ```
+3. **Linux PC**, phone connected over USB:
+
+   ```sh
+   bash setup/setup.sh --game aw --iso ~/AW-game-disc.iso --install-iso ~/AW-install-disc.iso --dlc ~/AW/41560914
+   ```
+
+   No phone on USB (you carry files on an SD card)? Add `--no-install`: it
+   builds `out/aw-game.apk` with the updated multiplayer in it and prints the
+   three things to do by hand (open that APK on the phone, copy the folder,
+   **Add DLC**).
+
+Either PC command reads your folder, builds the updated multiplayer into the
+game code beside the two it has, checks that it fits the published app, and
+copies your packages to the phone. Run again, it skips what is built.
+
+Afterwards **Multiplayer** starts as the updated game (its version reads
+1.20 at the top right), with the packs' maps under **Bonus Maps** in a
+private match or System Link, and **Exo Zombies** is an entry of its own on
+the app's start screen. Everybody in a match needs the update, and for a
+pack's map the pack.
 
 ## Tips
 
@@ -199,6 +244,11 @@ What has been checked and what is open, in detail:
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\aw`; accept the USB debugging prompt on the phone |
+| `setup.sh` says `unknown option: --dlc` | The folder is older than the option: `git pull` (or download the repository again), then run the same command |
+| `setup.sh` says programs are needed | Run the one `sudo apt install …` line it prints, then the same command again; it carries on where it stopped. Its logs are in `out/logs/` |
+| "Unsupported Advanced Warfare executable" from setup | The image given as the game disc is the install disc, or another pressing. Update the folder (`git pull`): setup now sorts the two images out by itself and deletes an executable it refused. On an older folder, delete `aw/tu0/` and give the game disc's image as `--iso` |
+| **Add DLC** lists your packs but says the game code of the updated multiplayer is missing | The packs are in place; the updated multiplayer has not been built. A newer app builds it on the device by itself; otherwise run one of the two PC commands under [Map packs and Exo Zombies](#map-packs-and-exo-zombies) |
+| The app refuses the game code after you built the updated multiplayer by hand | A game library built outside setup does not carry the statement the app checks. Run `setup.sh --dlc` (or `setup.cmd -Dlc`): it builds all three libraries the way the app expects and says whether they fit the published app |
 
 Bug reports are welcome with the log (the app's **Log** screen), the device
 and the level.

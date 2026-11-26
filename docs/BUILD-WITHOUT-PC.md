@@ -37,7 +37,9 @@ checked; nothing installed system-wide), reads the two executables out of
 your disc image (read-only), checks them, recompiles them, builds
 `out/mw2-game.apk`, downloads the published app, and offers to install both
 on a phone connected over USB with USB debugging on. A few programs have to
-be the system's own; it names the ones missing and offers to install them:
+be the system's own. It checks for them before anything else and prints the
+one command that installs those missing; at a keyboard it offers to run it
+(that is the only `sudo`, and a run with `--yes` never starts it):
 
 ```sh
 sudo apt install git curl unzip python3 openssl clang
@@ -52,6 +54,8 @@ sudo apt install git curl unzip python3 openssl clang
 | `--push-iso` | also copy the disc image to the phone's Download folder |
 | `--game-only` | build and install the game code only: what to run after `git pull` when the app says the game code does not match |
 | `--xex-dir <folder>` | take the two executables from a folder instead of a disc image |
+| `--dlc <folder>` | Advanced Warfare: your own map packs and title update ([dlc.md](dlc.md#advanced-warfare-map-packs-and-exo-zombies)); builds the updated multiplayer as well and copies the packages to the phone |
+| `--no-install` | build only; the last lines say what to copy to the phone by hand |
 | `--jobs <n>` | how many compilers run at once |
 | `--dev`, `--suffix .dev` | build the app here instead of downloading it; under another package name |
 | `--yes` | ask nothing |
@@ -68,8 +72,21 @@ Warfare was run the same way (`--game aw --iso ... --install-iso ... --dev
 --suffix .awc --yes --install --device <serial>`): 5 minutes 46 seconds
 with 6.5 GB in use at its fullest, installed on the Flip 2, where it plays
 ([AW-BRINGUP.md](AW-BRINGUP.md#setupsh-from-end-to-end-ubuntu-2404-under-wsl2)).
-Modern Warfare 3 and Call of Duty 4 go through the same script and have
-not been run on Linux yet.
+With `--dlc` (26 November 2026, the owner's own packages: eleven and title
+update 17): from a fresh clone of the public repository, with the two
+images given the wrong way round and no phone connected, the whole run
+took 15 minutes 47 seconds with 6.4 GB in use at its fullest, and the three
+libraries state what the published app v0.1.1 asks for (the updated
+multiplayer's `06fc007e86fc`, as on Windows). From a download with no
+`.git` folder and the tools already fetched it took 8 minutes 29 seconds;
+the same command again with a Retroid Pocket Flip 2 on USB skipped what
+was built, installed both packages and copied the 5.4 GB of packages in
+10 minutes 46 seconds (through a relay to Windows' adb, 12 MB a second).
+On the Flip 2 the app's **Add DLC** then listed the eleven packages and the
+title update as complete, and **Exo Zombies** reached its menu and loaded
+Outbreak (a map of the Havoc pack) at 60 frames a second; the pack maps
+under Bonus Maps were not opened in that run. Modern Warfare 3 and Call of
+Duty 4 go through the same script and have not been run on Linux yet.
 
 **An old PC, or little memory.** The recompiled code is a few hundred very
 large files. One compiler working on them took 320 MB at most, and

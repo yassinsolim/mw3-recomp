@@ -133,18 +133,31 @@ not walked through for this port.
   (`000B0000` beside the packs' `00000002`; on an old dashboard the
   console's cache partition instead).
 
-**On a phone, with a PC** (the multiplayer has to be built a second time, as
-the update makes it, and that is done on a PC; it is not built on the
-device):
+**With a PC** (the multiplayer has to be built a second time, as the update
+makes it; one command does it and copies the packages to a phone on USB):
 
     setup\setup.cmd -Game aw -Dlc <the folder you copied: ...\41560914>
 
-`-Dlc` reads the folder, makes the update's executable from your disc's and
-your update's patch, recompiles it, builds it into the game code beside the
-two it already has (`com.aw.recomp.game`, 110 MB with all three), and copies
-your packages to the phone's `Android/data/com.aw.recomp/files/dlc` (5.4 GB
-with all of the owner's). The app must be one built from this version or
-later; `-Dev` builds it here until a release has it.
+    bash setup/setup.sh --game aw --iso <game disc> --install-iso <install disc> --dlc <the folder you copied: .../41560914>
+
+`-Dlc` (`--dlc` on Linux) reads the folder, makes the update's executable
+from your disc's and your update's patch, recompiles it, builds it into the
+game code beside the two it already has (`com.aw.recomp.game`, 110 MB with
+all three), and copies your packages to the phone's
+`Android/data/com.aw.recomp/files/dlc` (5.4 GB with all of the owner's).
+The app must be v0.1.1 or later.
+
+On Linux the folder is looked at first, so one without the title update
+stops in seconds and says what to copy; the two disc images may be given
+either way round; and with no phone on USB (`--no-install`, or none
+connected) the last lines say what to carry over by hand: `out/aw-game.apk`,
+opened on the phone, then the folder, then **Add DLC**. Build the three
+libraries with setup and not by hand: the app loads a game library only
+when its statement is the one the app was built for
+([game-library.md](game-library.md)), and a tree recompiled by hand, with a
+step missed or run under another title's settings, states another and is
+refused on the phone (a tester's did: `d93b641063f2` where the app v0.1.1
+asks for `06fc007e86fc`, which is what setup makes on Windows and on Linux).
 
 **In the app, with no PC at all.** **Add DLC** (shown once the game is
 installed), then **Choose a folder** and pick the `41560914` folder (wherever

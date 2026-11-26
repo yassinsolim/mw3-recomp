@@ -104,6 +104,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Warfare names its README.
 
 ### Added
+- **Advanced Warfare's map packs with one command on Linux:
+  `setup.sh --dlc <folder>`.** A tester spent an evening on Linux Mint
+  trying to get his own map packs going: `setup.sh` had no `--dlc` (only
+  Windows' `setup.cmd -Dlc`), and the updated multiplayer he then built by
+  hand stated another build than the app asks for, so the app would not
+  load it. `bash setup/setup.sh --game aw --iso <game disc> --install-iso
+  <install disc> --dlc <your 41560914 folder>` now does what Windows does:
+  it looks at the folder first (no title update in it stops in seconds,
+  saying what to copy), makes the update's executable from your disc's and
+  your update's patch, recompiles it, builds it into the game code beside
+  the other two, checks that it fits the published app and copies your
+  packages to the phone. With no phone on USB (`--no-install`, or none
+  connected) the last lines say what to carry over by hand. Advanced
+  Warfare's README has a section for the three ways, the app's **Add DLC**
+  first ([README-AW.md](README-AW.md#map-packs-and-exo-zombies),
+  [docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies)).
 - **Advanced Warfare: your own map packs and Exo Zombies.** The packs you
   bought on your Xbox 360 (Havoc, Ascendance, Supremacy, Reckoning, Atlas
   Gorge), with the free Compatibility Packs and the game's title update, are
@@ -345,6 +361,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **`setup.sh` and Advanced Warfare's two discs.** Given the install disc
+  as `--iso`, setup refused its `default.xex` as "Unsupported" and left it
+  in `aw/tu0`, where the next run found it and refused the right disc too.
+  A refused executable is now deleted, the two images given the wrong way
+  round are taken the right way round, and the message otherwise says which
+  option takes which disc.
+- **`setup.sh` and the system's programs.** The programs it needs are
+  checked before anything else and named with the one command that
+  installs them (apt, dnf, pacman or zypper). It offers to run that
+  command only at a keyboard: with `--yes` it used to start `sudo` and wait
+  for a password nobody was there to type. A failing `apt-get update` (a
+  third-party repository's expired key) no longer stops it.
+- **`setup.sh --xex-dir` naming the repository's own folder** (`aw/tu0`)
+  stopped at `cp: ... are the same file`.
 - **A folder of disc images is taken as that, in all four games.** A player
   who keeps his `.iso` files in a folder of their own
   (`<SD card>/Roms/xbox 360/Call Of Duty - Advanced Warfare/`) and chose that

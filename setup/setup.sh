@@ -5,6 +5,7 @@
 # and Call of Duty: Advanced Warfare (--game aw, docs/AW-BRINGUP.md).
 #
 #   bash setup/setup.sh --game mw2 --iso ~/Downloads/MW2.iso
+#   bash setup/setup.sh --game aw --iso game.iso --install-iso install.iso --dlc ~/41560914
 #
 # It
 #   1. fetches the tools it needs into .toolchain/ beside the repository (a
@@ -41,6 +42,13 @@ usage: bash setup/setup.sh [options]
                         of it (4 GB) and copied to the phone with the app.
                         Without it the app's own installer asks for that
                         image on the phone
+  --dlc <folder>        Advanced Warfare: your own map packs, Compatibility
+                        Packs and title update, copied off your console's
+                        hard disk (Content/0000000000000000/41560914). The
+                        multiplayer is built a second time, as the update
+                        makes it, for the map packs and Exo Zombies, and
+                        the packages go to the phone with the app
+                        (docs/dlc.md). The folder is only read
   --xex-dir <folder>    take default.xex and default_mp.xex from this folder
                         instead of a disc image (also as <game>-default.xex,
                         the names the app's "Prepare files for building
@@ -67,7 +75,7 @@ usage: bash setup/setup.sh [options]
 EOF
 }
 
-GAME=mw3; ISO=; INSTALL_ISO=; XEX_DIR=; INSTALL=0; NO_INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
+GAME=mw3; ISO=; INSTALL_ISO=; DLC=; XEX_DIR=; INSTALL=0; NO_INSTALL=0; DEVICE=; PUSH_ISO=0; GAME_ONLY=0; DEV=0
 SUFFIX=; RECOMP=0; JOBS=; SDK=; TC=; CHECK=0; YES=0
 # As given, for the command printed when no phone was chosen (step 6).
 ARGS=("$@")
@@ -77,6 +85,7 @@ while [ $# -gt 0 ]; do
         --game) GAME=${2:?--game needs a name}; shift ;;
         --iso) ISO=${2:?--iso needs a file}; shift ;;
         --install-iso) INSTALL_ISO=${2:?--install-iso needs a file}; shift ;;
+        --dlc|-Dlc) DLC=${2:?--dlc needs a folder}; shift ;;
         --xex-dir) XEX_DIR=${2:?--xex-dir needs a folder}; shift ;;
         --install) INSTALL=1 ;;
         --no-install) NO_INSTALL=1 ;;
@@ -145,6 +154,8 @@ case "$GAME" in mw3|mw2|cod4|aw) ;; *) die "--game must be mw3, mw2, cod4 or aw,
 [ "$NO_INSTALL" = 1 ] && { [ "$INSTALL" = 1 ] || [ "$PUSH_ISO" = 1 ]; } && die '--no-install installs and copies nothing; --install and --push-iso do. Choose one.'
 [ -n "$INSTALL_ISO" ] && [ "$GAME" != aw ] && die '--install-iso is for --game aw: the other games have the one disc.'
 [ -n "$INSTALL_ISO" ] && [ ! -f "$INSTALL_ISO" ] && die "--install-iso: no file at $INSTALL_ISO"
+[ -n "$DLC" ] && [ "$GAME" != aw ] && die '--dlc is for Advanced Warfare (--game aw).'
+[ -n "$DLC" ] && [ ! -d "$DLC" ] && die "--dlc: no folder at $DLC"
 [[ "$SUFFIX" =~ ^(\.[a-z][a-z0-9]*)?$ ]] || die "--suffix must look like .dev"
 [ "$GAME_ONLY" = 1 ] && [ "$DEV" = 1 ] && die '--game-only leaves the app alone; --dev builds it. Choose one.'
 [ -n "$SUFFIX" ] && [ "$GAME_ONLY" = 0 ] && [ "$DEV" = 0 ] && die '--suffix goes with --dev or --game-only: the published app has the one name.'
@@ -193,7 +204,12 @@ case "$GAME" in
     # which the configuration steps over (config/AW.toml, tools/extra_instructions.py).
     aw)  GAME_NAME='Call of Duty: Advanced Warfare'; GUIDE=README-AW.md
          T_sp=(aw aw 'campaign' default ppc_aw AW.toml aw_switch_tables.toml 207 210 415)
-         T_mp=(awmp awmp 'multiplayer' default_mp ppc_aw_mp AWMP.toml awmp_switch_tables.toml 204 230 415) ;;
+         T_mp=(awmp awmp 'multiplayer' default_mp ppc_aw_mp AWMP.toml awmp_switch_tables.toml 204 230 415)
+         # The multiplayer as title update 17 makes it, for a player's own
+         # map packs (--dlc): its executable is made here from the disc's
+         # and the update's patch, in a folder of its own (the last word).
+         T_mp17=(awmp17 awmp17 'multiplayer with the title update (map packs, Exo Zombies)' default_mp ppc_aw_mp_tu17
+                 AWMP.tu17.toml awmp_switch_tables.tu17.toml 213 137 415 aw/tu17) ;;
     *)   GAME_NAME='Modern Warfare 3'; GUIDE=README.md
          T_sp=(mw3 mw3 'campaign and Special Ops' default ppc_mw3 MW3.toml mw3_switch_tables.toml 146 128 0)
          T_mp=(mw3mp mw3mp 'multiplayer' default_mp ppc_mw3_mp MW3MP.toml mw3mp_switch_tables.toml 153 156 0) ;;
@@ -205,11 +221,17 @@ esac
 MW2_SHA_default=990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff
 MW2_SHA_default_mp=aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde
 
-title() {   # title sp|mp: the row above, as T_NAME T_LIB T_LABEL T_XEX T_PPC T_TOML T_TABLES T_FILES T_JUMP T_STEPPED
+title() {   # title sp|mp|mp17: the row above, as T_NAME T_LIB T_LABEL T_XEX T_PPC T_TOML T_TABLES T_FILES T_JUMP T_STEPPED T_DIR
     local -n row=T_$1
     T_NAME=${row[0]}; T_LIB=${row[1]}; T_LABEL=${row[2]}; T_XEX=${row[3]}; T_PPC=${row[4]}
     T_TOML=${row[5]}; T_TABLES=${row[6]}; T_FILES=${row[7]}; T_JUMP=${row[8]}; T_STEPPED=${row[9]}
+    # The folder its executable is in: the disc's, unless the row names another.
+    T_DIR=${row[10]:-$DISC}
 }
+# The titles recompiled and built: with a player's map packs, the multiplayer
+# the title update makes as well.
+KEYS=(sp mp)
+[ -n "$DLC" ] && KEYS+=(mp17)
 
 # What a tree recompiled now is made with, as setup.ps1 notes it in the tree
 # and as cmake/game_abi.cmake builds the game library's statement from it.
@@ -228,7 +250,7 @@ tree_current() {
 # Whether the title's extracted executable is a disc build this port
 # supports, as one line of text; fails when it is not.
 check_xex() {
-    local rel=$DISC/$T_XEX.xex sha want
+    local rel=$T_DIR/$T_XEX.xex sha want
     case "$GAME" in
         cod4) (cd "$REPO" && python3 tools/check_cod4_xex.py "$rel") ;;
         aw)   (cd "$REPO" && python3 tools/check_aw_xex.py "$rel") ;;
@@ -335,10 +357,10 @@ if [ "$CHECK" = 1 ]; then
     missing=$(missing_sdk_packages | paste -sd' ')
     note "Android SDK packages: $([ -z "$missing" ] && echo present || echo "would install $missing")"
     note "XenonRecomp: $([ -x "$XENON_EXE" ] && echo built || echo "would clone hedge-dev/XenonRecomp at ${XENON_COMMIT:0:12}, patch and build it")"
-    for key in sp mp; do
+    for key in "${KEYS[@]}"; do
         title $key
         state='not extracted yet'
-        if [ -f "$REPO/$DISC/$T_XEX.xex" ]; then state="extracted; $(check_xex 2>&1 || true)"; fi
+        if [ -f "$REPO/$T_DIR/$T_XEX.xex" ]; then state="extracted; $(check_xex 2>&1 || true)"; fi
         if tree_current; then tree=recompiled
         elif [ -f "$REPO/$T_PPC/ppc_func_mapping.cpp" ]; then tree='recompiled with an older recompiler or configuration; would be recompiled'
         else tree='not recompiled'; fi
@@ -355,17 +377,31 @@ echo 'This builds the game from your own disc image. What it makes contains code
 echo 'from your copy of the game: keep it to your own devices, never share it.'
 echo
 if [ ${#NEEDED[@]} -gt 0 ]; then
+    # The one command that installs them, in the system's own words.
+    if command -v apt-get > /dev/null 2>&1; then install="sudo apt-get install -y ${NEEDED[*]}"
+    elif command -v dnf > /dev/null 2>&1; then install="sudo dnf install -y ${NEEDED[*]}"
+    elif command -v pacman > /dev/null 2>&1; then install="sudo pacman -S --needed ${NEEDED[*]/python3/python}"
+    elif command -v zypper > /dev/null 2>&1; then install="sudo zypper install -y ${NEEDED[*]}"
+    else install="(with your system's package manager) ${NEEDED[*]}"; fi
     echo "These programs are needed and are the system's to install: ${NEEDED[*]}"
-    [[ " ${NEEDED[*]} " == *' clang '* ]] && echo '(clang 17 or later: Ubuntu 24.04, Debian 13 and Fedora have one; on an older system, https://apt.llvm.org)'
-    if command -v apt-get > /dev/null 2>&1 && ask "Install them now with: sudo apt-get install -y ${NEEDED[*]} ?" y; then
+    [[ " ${NEEDED[*]} " == *' clang '* ]] && echo '(clang 17 or later: Ubuntu 24.04, Linux Mint 22, Debian 13 and Fedora have one; on an older system, https://apt.llvm.org)'
+    # Only for somebody at the keyboard who says yes: a run that asks
+    # nothing (--yes, or no terminal) stopped at sudo's password prompt
+    # with nobody there to type it.
+    if [ "$INTERACTIVE" = 1 ] && [[ "$install" == sudo* ]] && ask "Install them now with: $install ? (sudo asks for your password)" y; then
         # Root, as in a container, needs no sudo and often has none.
-        as_root=sudo
-        [ "$(id -u)" = 0 ] && as_root=
-        $as_root apt-get update
-        $as_root apt-get install -y "${NEEDED[@]}"
-        CLANG=$(find_clang) || die "the clang that apt installed is older than 17. Install a newer one (https://apt.llvm.org), then run setup again."
+        [ "$(id -u)" = 0 ] && install=${install#sudo }
+        # The package lists first, where apt has none yet (a new container).
+        # Not fatal: another repository's expired key fails the update and
+        # leaves the system's own lists as good as they were.
+        if [[ "$install" == *apt-get* ]]; then ${install%% apt-get*} apt-get update || warn 'apt-get update reported errors; carrying on with the package lists there are.'; fi
+        $install || die "That did not work. Install them yourself ($install), then run setup again."
+        hash -r
+        for tool in git curl unzip python3 openssl; do command -v "$tool" > /dev/null 2>&1 || die "$tool is still missing after: $install"; done
+        CLANG=$(find_clang) || die "the clang that was installed is older than 17. Install a newer one (https://apt.llvm.org), then run setup again."
     else
-        die "Install them (sudo apt install ${NEEDED[*]}, or your system's equivalent), then run setup again."
+        die "Install them with this one command, then run setup again (nothing else is installed system-wide, and setup never needs sudo itself):
+    $install"
     fi
 fi
 [ "$FREE_GB" -lt 8 ] && warn "only $FREE_GB GB free here: about 8 GB is wanted."
@@ -376,9 +412,8 @@ fi
 
 # ---- 1. what is needed -------------------------------------------------------
 APP_PACKAGE=com.$GAME.recomp$SUFFIX
-KEYS=(sp mp)
 need_source=0
-for key in "${KEYS[@]}"; do title $key; [ -f "$REPO/$DISC/$T_XEX.xex" ] || need_source=1; done
+for key in sp mp; do title $key; [ -f "$REPO/$T_DIR/$T_XEX.xex" ] || need_source=1; done
 if [ -n "$XEX_DIR" ]; then
     [ -d "$XEX_DIR" ] || die "--xex-dir: there is no folder $XEX_DIR"
 elif [ "$need_source" = 1 ] || [ "$PUSH_ISO" = 1 ]; then
@@ -392,6 +427,7 @@ elif [ "$need_source" = 1 ] || [ "$PUSH_ISO" = 1 ]; then
 fi
 [ -n "$ISO" ] && ISO=$(readlink -f "$ISO")
 [ -n "$INSTALL_ISO" ] && INSTALL_ISO=$(readlink -f "$INSTALL_ISO")
+[ -n "$DLC" ] && DLC=$(readlink -f "$DLC")
 # Advanced Warfare's install disc holds two content packages, which a console
 # copies to its hard disk before the game disc will start; they are read out
 # of the image once, into the git-ignored aw/install, and go to the phone as
@@ -404,6 +440,29 @@ missing_install_packages() {
 }
 
 mkdir -p "$TC" "$DL" "$OUT" "$LOGS"
+
+# A player's own downloadable content (docs/dlc.md), looked at before the
+# long steps so that a folder without the title update stops here and not an
+# hour in. The packages are read where they lie. DLC_FILES is what goes to
+# the phone: the packs (the install disc's two among them are left out,
+# aw/install has them) and the title update's package.
+DLC_ROOT=; DLC_UPDATE=; DLC_FILES=()
+if [ -n "$DLC" ]; then
+    step 'look at the downloadable content (read-only)'
+    listing=$(cd "$REPO" && PYTHONUTF8=1 python3 tools/aw_dlc.py "$DLC") || die "could not read $DLC"
+    while IFS= read -r line; do
+        case "$line" in
+            'root '*) DLC_ROOT=${line#root } ;;
+            'update '*) [ -n "$DLC_UPDATE" ] || DLC_UPDATE=${line#update } ;;
+            'pack '*)
+                path=${line#pack }; name=${path#*$'\t'}; path=${path%%$'\t'*}
+                [[ " ${INSTALL_PACKAGES[*]} " == *" $(basename "$path") "* ]] || { DLC_FILES+=("$path"); note "$name"; } ;;
+        esac
+    done <<< "$listing"
+    [ -n "$DLC_UPDATE" ] || die "No title update is in $DLC. The map packs are for the updated game: copy Content/0000000000000000/41560914/000B0000 off the console as well, beside the packs' 00000002 (docs/dlc.md), then run setup again."
+    note "title update: $(basename "$DLC_UPDATE")"
+    DLC_FILES+=("$DLC_UPDATE")
+fi
 
 # The most memory in use at once while this runs, for the last line: what a
 # PC with less should expect. Sampled, as no one process holds it.
@@ -449,21 +508,53 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 
 # ---- 3. the executables, out of the disc image or the folder ------------------
+# Reads the title's executable out of the disc image and says whether it is
+# a build this port supports. One that is not is deleted: left in the disc's
+# folder, the install disc's default.xex was found there by the next run,
+# which never read the right image and refused it too.
+xex_from_iso() {
+    local line
+    step "extract $T_XEX.xex from the disc image (read-only)"
+    (cd "$REPO" && logged "extract_$T_XEX.log" python3 tools/xdvdfs.py "$ISO" "$DISC" "$T_XEX.xex")
+    [ -f "$REPO/$rel" ] || die "$T_XEX.xex is not on that disc image: is $ISO $GAME_NAME for the Xbox 360?"
+    if line=$(check_xex 2>&1); then echo "$line"; return 0; fi
+    rm -f "$REPO/$rel"
+    return 1
+}
 for key in sp mp; do
     title $key
-    rel=$DISC/$T_XEX.xex
+    rel=$T_DIR/$T_XEX.xex
     if [ -n "$XEX_DIR" ]; then
-        # Under the app's name for it, or the disc's.
+        # Under the app's name for it, or the disc's. The disc's folder
+        # itself may be the one named: there is then nothing to copy.
         for candidate in "$XEX_DIR/$GAME-$T_XEX.xex" "$XEX_DIR/$T_XEX.xex"; do
-            if [ -f "$candidate" ]; then mkdir -p "$REPO/$DISC" && cp -f "$candidate" "$REPO/$rel"; break; fi
+            [ -f "$candidate" ] || continue
+            mkdir -p "$REPO/$T_DIR"
+            [ "$candidate" -ef "$REPO/$rel" ] || cp -f "$candidate" "$REPO/$rel"
+            break
         done
         [ -f "$REPO/$rel" ] || die "neither $GAME-$T_XEX.xex nor $T_XEX.xex is in $XEX_DIR"
-    elif [ ! -f "$REPO/$rel" ]; then
-        step "extract $T_XEX.xex from the disc image (read-only)"
-        (cd "$REPO" && logged "extract_$T_XEX.log" python3 tools/xdvdfs.py "$ISO" "$DISC" "$T_XEX.xex")
-        [ -f "$REPO/$rel" ] || die "$T_XEX.xex is not on that disc image: is it $GAME_NAME for the Xbox 360?"
+        check_xex || die "$T_XEX.xex in $XEX_DIR is not a disc build this port supports. The app holds the campaign and the multiplayer, and needs both executables to be."
+        continue
     fi
-    check_xex || die "$T_XEX.xex is not a disc build this port supports. The app holds the campaign and the multiplayer, and needs both executables to be."
+    if [ -f "$REPO/$rel" ] && line=$(check_xex 2> /dev/null); then echo "$line"; continue; fi
+    if [ -z "$ISO" ]; then
+        rm -f "$REPO/$rel"
+        die "$rel was not a disc build this port supports and has been deleted. Run setup again with --iso <your $GAME_NAME disc image>."
+    fi
+    xex_from_iso && continue
+    # Advanced Warfare's two discs both hold a default.xex, and the install
+    # disc's is the installer: the images given the other way round are
+    # taken the right way round rather than refused.
+    if [ "$GAME" = aw ] && [ -n "$INSTALL_ISO" ]; then
+        warn "$(basename "$ISO") is not the game disc: trying the two images the other way round."
+        swapped=$ISO; ISO=$INSTALL_ISO; INSTALL_ISO=$swapped
+        if xex_from_iso; then note "--iso is $(basename "$ISO") (the game disc), --install-iso is $(basename "$INSTALL_ISO")."; continue; fi
+    fi
+    if [ "$GAME" = aw ]; then
+        die "$T_XEX.xex on $(basename "$ISO") is not the one this port supports. Advanced Warfare has two discs: --iso takes the game disc's image and --install-iso the install disc's (whichever your copies are numbered). If that is how you gave them, your disc is a pressing this port has not been made for (it is for the USA/Europe disc)."
+    fi
+    die "$T_XEX.xex on $(basename "$ISO") is not a disc build this port supports. The app holds the campaign and the multiplayer, and needs both executables to be."
 done
 
 if [ -n "$INSTALL_ISO" ] && [ -n "$(missing_install_packages)" ]; then
@@ -479,9 +570,13 @@ for key in "${KEYS[@]}"; do
     title $key
     if [ "$RECOMP" = 1 ] || ! tree_current; then to_recompile+=("$key"); fi
 done
+# The recompiler's folder also builds the patcher that makes the updated
+# executable (below), so it is needed while that executable is not there.
+need_xenon=${#to_recompile[@]}
+[ -n "$DLC" ] && [ ! -f "$REPO/aw/tu17/default_mp.xex" ] && need_xenon=1
 # The recompiler itself, when this checkout names another commit of it or
 # patches it differently than the one built here: made again from nothing.
-if [ ${#to_recompile[@]} -gt 0 ] && [ -f "$XENON/CMakeLists.txt" ]; then
+if [ "$need_xenon" -gt 0 ] && [ -f "$XENON/CMakeLists.txt" ]; then
     head=$(git -C "$XENON" rev-parse HEAD 2> /dev/null || true)
     if [ "$head" != "$XENON_COMMIT" ] || ! git -C "$XENON" apply --reverse --check "$PATCH" 2> /dev/null; then
         [ -L "$XENON" ] && die "XenonRecomp/ is a link to a checkout that is not this repository's recompiler ($XENON_COMMIT with patches/xenonrecomp-mw2.patch); update what it points at."
@@ -489,7 +584,7 @@ if [ ${#to_recompile[@]} -gt 0 ] && [ -f "$XENON/CMakeLists.txt" ]; then
         rm -rf "$XENON"
     fi
 fi
-if [ ${#to_recompile[@]} -gt 0 ] && ! { [ -x "$XENON_EXE" ] && [ -x "$ANALYSE_EXE" ]; }; then
+if [ "$need_xenon" -gt 0 ] && ! { [ -x "$XENON_EXE" ] && [ -x "$ANALYSE_EXE" ]; }; then
     if [ ! -f "$XENON/CMakeLists.txt" ]; then
         step 'clone XenonRecomp'
         rm -rf "$XENON"
@@ -505,14 +600,46 @@ if [ ${#to_recompile[@]} -gt 0 ] && ! { [ -x "$XENON_EXE" ] && [ -x "$ANALYSE_EX
     logged xenon_build.log "$CMAKE" --build "$XENON/build" --target XenonAnalyse XenonRecomp -j "$JOBS"
 fi
 
+# The executable the title update makes of the disc's multiplayer: the
+# update's own patch applied to it by XenonRecomp's patcher, as a console
+# does when it starts an updated game. Kept in the git-ignored aw/tu17 for
+# the recompiler; the game itself makes it again at every start.
+if [ -n "$DLC" ]; then
+    title mp17
+    updated=$REPO/$T_DIR/$T_XEX.xex
+    if [ ! -f "$updated" ]; then
+        step "apply the title update's patch to default_mp.xex"
+        mkdir -p "$REPO/$T_DIR"
+        patcher=$XENON/build/xexpatch
+        if [ ! -x "$patcher" ]; then
+            # With the patcher as the game compiles it, its copies as moves
+            # (runtime/install/xex_patcher_moves.cpp): the archive's own is
+            # then never taken, and a C library whose memcpy copies
+            # backwards makes the same executable as any other.
+            logged xexpatch_build.log "$CLANG" -std=c++20 -O1 -w -DMW2_HAVE_XEX_PATCHER \
+                "-I$XENON/XenonUtils" "-I$XENON/thirdparty/simde" "-I$XENON/thirdparty/libmspack/libmspack/mspack" \
+                "-I$XENON/thirdparty/tiny-AES-c" "-I$XENON/thirdparty/TinySHA1" \
+                "$REPO/tools/xexpatch.cpp" "$REPO/runtime/install/xex_patcher_moves.cpp" \
+                "$XENON/build/XenonUtils/libXenonUtils.a" "$XENON/build/thirdparty/disasm/libdisasm.a" -o "$patcher"
+        fi
+        (cd "$REPO" && logged extract_update_patch.log python3 tools/aw_dlc.py "$DLC" --patch "$REPO/$T_DIR/default_mp.xexp")
+        logged xexpatch.log "$patcher" "$REPO/$DISC/default_mp.xex" "$REPO/$T_DIR/default_mp.xexp" "$updated.part"
+        mv -f "$updated.part" "$updated"
+    fi
+    if ! check_xex; then
+        rm -f "$updated"
+        die "The title update in $DLC does not make the executable this port is for (title update 17's, the last one: its package is named tu00000010_00000000 or the like). Connect the console to Xbox Live once so it fetches the last update, copy 000B0000 off it again, then run setup again."
+    fi
+fi
+
 cd "$REPO"
 for key in "${KEYS[@]}"; do
     title $key
-    rel=$DISC/$T_XEX.xex
+    rel=$T_DIR/$T_XEX.xex
     export MW2_TITLE=$T_NAME MW2_VERSION=tu0
     if [[ " ${to_recompile[*]} " == *" $key "* ]]; then
         step "recompile $T_XEX.xex ($T_LABEL); this takes a few minutes"
-        logged "${T_NAME}_xexdump.log" python3 tools/xexdump.py "$rel" "$DISC/$T_XEX.pe"
+        logged "${T_NAME}_xexdump.log" python3 tools/xexdump.py "$rel" "$T_DIR/$T_XEX.pe"
         logged "${T_NAME}_analyse.log" "$ANALYSE_EXE" "$rel" "config/$T_TABLES"
         # Call of Duty 4 and Advanced Warfare have a kind of jump table the
         # analyser does not recognise. Theirs alone: the other games' tables
@@ -764,17 +891,31 @@ else
         # Advanced Warfare's install disc: its packages go beside the game
         # folder, where the runtime looks for a title's installed content
         # (runtime/kernel/content.cpp). Files of the same size are skipped.
-        if [ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ] && [ -z "$(missing_install_packages)" ]; then
-            step "adb push the install disc's packages (4 GB) to the app's dlc folder"
+        if [ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ]; then
+            packages=()
+            if [ -z "$(missing_install_packages)" ]; then
+                step "adb push the install disc's packages (4 GB) to the app's dlc folder"
+                mapfile -t packages < <(find "$INSTALL_FOLDER" -type f)
+            fi
+            if [ ${#DLC_FILES[@]} -gt 0 ]; then
+                step "adb push your map packs and the title update ($(stat -c %s "${DLC_FILES[@]}" | awk '{ sum += $1 } END { printf "%.1f", sum / 1073741824 }') GB)"
+                packages+=("${DLC_FILES[@]}")
+                DLC_PUSHED=1
+            fi
             dlc=/sdcard/Android/data/$APP_PACKAGE/files/dlc
-            "$ADB" -s "$serial" shell "mkdir -p $dlc"
-            # adb reads its standard input to the end, and in this loop that
-            # is the list of packages: the first one's adb took the second's
-            # name and one package of the two reached the phone.
-            while IFS= read -r package; do
+            "$ADB" -s "$serial" shell "mkdir -p $dlc" < /dev/null
+            # Standard input from nowhere: adb reads its own to the end, and
+            # when that was the list of packages one of two reached the phone.
+            for package in "${packages[@]}"; do
                 there=$("$ADB" -s "$serial" shell "stat -c %s $dlc/$(basename "$package") 2>/dev/null || echo 0" < /dev/null | tr -d '\r')
-                [ "$there" = "$(stat -c %s "$package")" ] || "$ADB" -s "$serial" push "$package" "$dlc/$(basename "$package")" < /dev/null > /dev/null
-            done < <(find "$INSTALL_FOLDER" -type f)
+                [ "$there" = "$(stat -c %s "$package")" ] && continue
+                # Not fatal, as nothing in this step is: a full phone is said, with what to do.
+                if ! text=$("$ADB" -s "$serial" push "$package" "$dlc/$(basename "$package")" < /dev/null 2>&1); then
+                    warn "could not copy $(basename "$package") to the phone ($(tail -n 1 <<< "$text")). Is it full? Free some space on it and run the same command again: what is there already is skipped."
+                    DLC_PUSHED=
+                    break
+                fi
+            done
         fi
         if [ -n "$ISO" ] && { [ "$PUSH_ISO" = 1 ] || ask "Copy the disc image to the phone's Download folder for the app's installer (7-8 GB, several minutes)?" n; }; then
             step 'adb push the disc image to /sdcard/Download/'
@@ -795,4 +936,14 @@ else
     else
         note "On the phone: open the app, \"Install the game files\", choose the disc image. See $GUIDE."
     fi
+fi
+if [ -n "$DLC" ]; then
+    if [ -n "${DLC_PUSHED:-}" ]; then
+        note 'Your map packs and the title update are on the phone: Multiplayer now starts as the updated game, with the packs'"'"' maps under Bonus Maps (private match or System Link), and Exo Zombies is in the launcher.'
+    else
+        # Nothing went over USB: what to carry to the phone by hand, in order.
+        note "Your map packs were NOT copied to a phone. By hand: 1. copy $GAME_APK to the phone and open it there (it replaces the game code; if Android refuses it as a conflicting package, uninstall $APP_PACKAGE.game first: it holds no saves). 2. Copy $DLC_ROOT to the phone, or to its SD card. 3. In the app: Add DLC, Choose a folder, pick that folder."
+        note 'Or connect the phone with USB debugging on and run the same command again, naming it with --device <serial>: what is built is skipped and everything is copied.'
+    fi
+    note 'More: docs/dlc.md (Advanced Warfare: map packs and Exo Zombies).'
 fi
