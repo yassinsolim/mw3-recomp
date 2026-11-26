@@ -30,9 +30,10 @@ namespace
     // the page writable *before* doing so -- so a page is never writable while
     // it reads Watched for longer than it takes the writer's handler to finish.
     // The other half is as binding: a page that reads Loose is writable. A
-    // fault on one is answered as handled without another look, so a page
-    // left Loose and read-only is a write that faults for ever (the AYN Thor's
-    // render backend, a Find Game match of Modern Warfare 2 at its first frame).
+    // page left Loose and read-only was a write that faulted for ever (the
+    // AYN Thor's render backend, a Find Game match of Modern Warfare 2 at its
+    // first frame), so the orders below keep to it, and a fault on a Loose
+    // page makes it writable once more for the one way round them (Loosen).
     enum State : uint8_t
     {
         kNever = 0,     // never copied; writable; a fault here is not ours
@@ -99,14 +100,28 @@ namespace
     }
 
     // The writer's half of the protocol. Safe in a signal handler.
+    //
+    // A page found Loose is made writable all the same. A writer that read
+    // Watched, made the page writable and was put aside before it marked it
+    // could mark it an arming later: another writer had loosened the page, it
+    // was armed again (read-only, Watched), and the first writer's exchange
+    // found the Watched it expected. That left the page Loose and read-only
+    // with nobody to put it right: every write to it faulted, was answered
+    // "already loose" and faulted again, for ever. Black Ops III's zombies
+    // stopped there some twenty seconds into a match, a worker thread spinning
+    // on one store while the main thread waited for its job. Now the next
+    // fault on such a page repairs it.
     void Loosen(uint32_t page)
     {
         for (;;)
         {
             uint8_t state = g_state[page].load(std::memory_order_acquire);
-            if (state == kNever || state == kLoose) return;
+            if (state == kNever) return;
             Protect(page, 1, true);
-            if (g_state[page].compare_exchange_weak(state, kLoose, std::memory_order_acq_rel))
+            // Armed since it was read as Loose: round again, or the arming
+            // would end Watched over a page this just made writable.
+            if (state == kLoose ? g_state[page].load(std::memory_order_acquire) == kLoose
+                                : g_state[page].compare_exchange_weak(state, kLoose, std::memory_order_acq_rel))
                 return;
         }
     }

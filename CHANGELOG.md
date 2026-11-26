@@ -369,6 +369,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **A rare freeze for good in the middle of play, in all four games.** The
+  runtime watches the memory the game hands the GPU by making its pages
+  read-only, and a game thread that writes to one makes it writable again.
+  A thread put aside in the middle of that, while another thread wrote to
+  the page and the renderer watched it again, could leave the page
+  read-only and recorded as writable: every later write to it then failed
+  and was tried again for ever, with the picture stopped. The next write to
+  such a page now puts it right (`runtime/gpu/memory_watch.cpp`). It was
+  found in a title still being brought up, which stopped there in two
+  matches of six and in none of the thirteen played since. No freeze of the
+  four published games has been traced to it, but they run the same code
+  and could have met it. App only: no game code is built again. On an AYN
+  Thor, Modern Warfare 2 (S.S.D.D.) drew the same frames with and without
+  it at the same speed, Call of Duty 4 (The Bog) and Advanced Warfare
+  (Lagos) played, and Modern Warfare 3 was run in its menus only.
 - **`setup.sh` and Advanced Warfare's two discs.** Given the install disc
   as `--iso`, setup refused its `default.xex` as "Unsupported" and left it
   in `aw/tu0`, where the next run found it and refused the right disc too.
