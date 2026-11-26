@@ -188,32 +188,38 @@ its end.
 
 ## Where the suite stands
 
-On 26 November 2026, every run on the bundled Turnip, judged with the checks
-as they are now. Modern Warfare 2 and 3 and Call of Duty 4 were run on
-android `82c579e`, Advanced Warfare on the AYN Thor on `2ce5e12` (before the
-far shadow map's fix, `f2311ad`); the figure is the frames a second in play
-and the longest frame.
+On 26 November 2026, on the release's commit `821d28f`, every run on the
+bundled Turnip; the figures are the frames a second in play and the longest
+frame.
 
 | scenario | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
 |---|---|---|
-| `mw2-campaign` | PASS, 111.1, 84 ms | PASS, 60.2, 68 ms |
-| `mw2-bots` | PASS, 118.7, 51 ms | **FAIL**, 60.1, 58 ms: one frame at 72.4 s without the fuel tank's body, half a shed's wall and the sun's shadows (a real fault, the one-frame missing geometry: one frame in 40 s of calm play) |
-| `mw3-campaign` | PASS, 116.4, 79 ms | PASS, 60.1, 56 ms |
-| `mw3-bots` | PASS, 117.5, 78 ms | PASS, 60.0, 59 ms (an earlier run: one frame at 97.6 s with shadowed ground drawn sunlit, the sun shadow's fault) |
-| `mw3-survival` | PASS, 119.4, 61 ms | PASS, 60.1, 66 ms |
-| `cod4-campaign` | PASS, 117.5, 115 ms | PASS, 59.8, 213 ms |
-| `cod4-bots` | PASS, 119.5, 47 ms | not run |
-| `aw-campaign` | PASS, 116.4, 55 ms | not run |
-| `aw-match` | PASS, 118.8, 59 ms | not run |
-| `aw-shadows` | PASS, 118.9, 105 ms: no shadow lost in 100 s, before the fix | not run |
+| `mw2-campaign` | PASS, 118.7, 59 ms | PASS, 60.1, 67 ms |
+| `mw2-bots` | PASS, 119.0, 41 ms | PASS, 60.1, 58 ms |
+| `mw3-campaign` | PASS, 117.2, 46 ms | PASS, 59.8, 83 ms |
+| `mw3-bots` | PASS, 117.4, 77 ms | FAIL, 59.9, 62 ms: `local-flicker` at 93.5 s, the check's mistake (posts on a container passing in a fast turn) |
+| `mw3-survival` | PASS, 117.9, 44 ms | PASS, 60.1, 77 ms |
+| `cod4-campaign` | PASS, 118.0, 56 ms | PASS, 59.9, 90 ms |
+| `cod4-bots` | PASS, 119.2, 74 ms | PASS, 60.1, 145 ms |
+| `aw-campaign` | PASS, 118.3, 50 ms | PASS, 60.4, 47 ms |
+| `aw-match` | PASS, 118.4, 73 ms | PASS, 60.4, 92 ms |
+| `aw-shadows` | FAIL, 118.6, 74 ms: `blocks` at 185.6 s, the check's mistake (a rack of round pipes on Solar) | PASS, 60.3, 155 ms |
 
-What failed before and was the check's mistake, each now in the labelled
+No fault of the game's in the twenty runs. The two single-frame faults
+earlier runs found are not in them: Rust's frame with half its draws
+missing (the Flip 2 on `82c579e`, one frame in 40 s of calm play; mended
+in `7468331`) and the sun's shadow lost for a frame, which on Solar with
+the shadows on was 291 frames in 100 s on the Flip 2 before `f2311ad` and
+none after it (none in 100 s on the Thor before it either).
+
+The check's own mistakes found on the way are mended and in the labelled
 set or the tests: posts, a shadow's band and a ribbed wall passing in fast
-turns, a view reversing its turn and a beam crossing a dark shed in a jump
-(`local-flicker`, Rust and Dome on both phones); Survival's results screen
-(`frozen`); Solar's honeycomb wall and grille (`blocks`) and its bare walls
-sliding past (`missing`). A run that fails is looked at in its pictures
-before it is called a fault.
+turns, a view reversing its turn, a beam crossing a dark shed in a jump and
+a pillar passing behind the minimap (`local-flicker`); Survival's results
+screen (`frozen`); Solar's honeycomb wall and grille (`blocks`) and its
+bare walls sliding past (`missing`). The two in the table are not mended
+yet: a run that fails is looked at in its pictures before it is called a
+fault.
 
 ## Calibration
 

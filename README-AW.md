@@ -18,6 +18,13 @@ Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
 (also builds for Windows) · [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
 [Call of Duty 4](https://github.com/yassinsolim/cod4-recomp)
 
+## Official downloads
+
+- The only official APKs are on this project's [GitHub releases page](https://github.com/yassinsolim/aw-recomp/releases).
+- APKs re-uploaded elsewhere (file hosts, Reddit, Discord mirrors) are not ours. They may be modified or out of date, so we can't help with problems they cause.
+- The game is never provided. Build it from your own disc image, dumped from a disc you own. We don't link to download sites, and we can't help with downloaded copies.
+- Report problems through [GitHub issues](https://github.com/yassinsolim/aw-recomp/issues), with Log -> Share attached.
+
 ## What you need
 
 - **Both of your own *Call of Duty: Advanced Warfare* Xbox 360 discs, each as

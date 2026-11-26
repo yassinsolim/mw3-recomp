@@ -1084,10 +1084,11 @@ namespace
             if (messageIsError) return;
             const std::string file = Utf8(made.file);
             message = report::Open(made)
-                ? "The report is\n" + file + "\n\nThe issue page has opened in your browser. Describe what happened, "
-                  "drag that file into the text box, and submit."
-                : "The report is\n" + file + "\n\nNo browser could be opened. Attach that file to a new issue at\n"
-                  "github.com/PaulCombal/mw2-recompiled/issues";
+                ? "The report was saved as\n" + file + "\n\nThe issue page has opened in your browser, and the folder "
+                  "with the file. Describe what happened, then drag " + Utf8(made.file.filename()) +
+                  " into the Log box, and submit."
+                : "The report was saved as\n" + file + "\n\nNo browser could be opened. Open a new bug report at\n" +
+                  made.issues + "\nand drag that file into its Log box.";
         }
 
         std::vector<Entry> ProfileEntries() const

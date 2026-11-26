@@ -7,10 +7,9 @@ New
 - Updates are simpler: the app checks the game code itself, asks for a rebuild only when the code really changed, and then builds it by itself in the background.
 - Multiplayer: an invitation goes only to the player you pick, and a private match on a server is no longer announced to everyone. When System Link finds nobody, the app asks whether both devices are on the same Wi-Fi.
 - Fixed: the sound slowly fell behind the picture the longer you played.
-- Fixed: a piece of the scene could be missing for a single frame.
+- Fixed: a shadow, a model or the held weapon could go missing for a single frame.
 
 Known issues
-- Rarely, a sun shadow is missing for a single frame; being fixed.
 - Map packs are experimental. On Parish, buildings to one side can be missing for a moment after a respawn.
 - The first minutes on a fresh install stutter while shaders compile.
 - Multiplayer over the internet needs a relay server; see the README.

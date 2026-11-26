@@ -4,7 +4,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Docs
+- Issues on the four public repositories are now filed with a form: a bug report (game, app version, device, what happened, steps, the log, an optional screenshot or video) and a performance report (device, game, map or mode, the FPS seen, settings, the log). The log is required, and the form says how to get it (LOG, then SHARE, in the app; after a crash, open the app again first, the last run's log is kept). Blank issues are off, and the issue page links each game's README FAQ. The old text that sent players to the PC launcher's REPORT A BUG is gone (`.github/ISSUE_TEMPLATE/`).
+- The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
+
 ### Fixed
+- **The PC launcher's REPORT A BUG opens the right repository.** It sent
+  every game's report to `PaulCombal/mw2-recompiled`, the upstream project's
+  tracker. It now opens the bug report form of the game's own repository
+  (`yassinsolim/mw3-recomp`, `mw2-recomp`, `cod4-recomp` or `aw-recomp`, by the
+  build's title), with the game, the version and the machine filled in, and
+  the report file is named for the game. The form's Log box stays empty so
+  GitHub requires it; the launcher's message says which file to drag into it
+  and where it was saved, and names the right issues page when no browser
+  opens (`launcher/report.cpp`, `launcher/main.cpp`).
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose

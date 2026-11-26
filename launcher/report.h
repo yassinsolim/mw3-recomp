@@ -23,6 +23,7 @@ namespace report
     {
         std::filesystem::path file;     // the report
         std::string page;               // the new-issue page's address, filled in
+        std::string issues;             // this game's issues page, to name when no browser opens
     };
     // Whether a run was recorded and no report made of it: the launcher was
     // ended with the game, as Steam's "Exit game" does on a Steam Deck.
