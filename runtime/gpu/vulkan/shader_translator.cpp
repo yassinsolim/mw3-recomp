@@ -245,7 +245,14 @@ namespace
         // control flow instruction i, or 0.
         bool m_loopsOnly = false;
         std::vector<uint32_t> m_loopEnd;
-        bool Structured() const { return m_forwardJumpsOnly || m_loopsOnly; }
+        // True if its jumps all go forward and some span crosses another's:
+        // the title's if/else, a jump over the first arm and one out of it
+        // over the second. m_jumpTaken[i] is then a variable for the jump at
+        // control flow instruction i: whether it was reached and taken.
+        bool m_forwardCrossing = false;
+        std::vector<Id> m_jumpTaken;
+        void EmitCrossingJumps();
+        bool Structured() const { return m_forwardJumpsOnly || m_loopsOnly || m_forwardCrossing; }
         // The blocks the forward jumps open when they are lowered to
         // selections, and the loops theirs (block kInCase + its place here):
         // a block that dominates it, how deep it is under the entry block,
@@ -358,6 +365,7 @@ namespace
         m_linear = true;
         m_forwardJumpsOnly = true;
         uint32_t jumps = 0;
+        bool allForward = true, jumpsAlone = true;
         // Where the last forward jump lands: a jump from inside its span would
         // need a selection that is not nested in the first one's.
         uint32_t jumpEnd = 0;
@@ -381,6 +389,7 @@ namespace
             case ControlFlowOpcode::CondJmp:
                 m_linear = false;
                 jumps++;
+                if (cf.Target() <= i) allForward = false;
                 if (cf.Target() <= i || i < jumpEnd)
                     m_forwardJumpsOnly = false; // backward jump, self-loop or overlapping jump
                 jumpEnd = cf.Target();
@@ -388,11 +397,18 @@ namespace
             default:
                 m_linear = false;
                 m_forwardJumpsOnly = false;
+                jumpsAlone = false;
                 break;
             }
         }
         if (jumps == 0 && m_linear)
             m_forwardJumpsOnly = false;
+        // Forward jumps that cross. Black Ops III's lit surfaces are full of
+        // them: 30 of the 295 shaders of a match on Shadows of Evil, in 65
+        // draws of the scene a frame, which through the dispatcher were 26 of
+        // an Adreno 650's 39 ms a frame (23 frames a second; 58 with those
+        // draws left out).
+        m_forwardCrossing = jumps != 0 && allForward && jumpsAlone && !m_forwardJumpsOnly;
 
         // Backward jumps alone. A loop of the title's own (Black Ops III's
         // glow behind the weapon in the zombies' HUD is two, 11 by 11 turns
@@ -2381,6 +2397,19 @@ namespace
                      { boolPointer2, m_killed, uint32_t(StorageClass::Function),
                        m_module.ConstantFalseValue() });
         Module::EmitString(m_module.Debug(), Op::Name, { m_killed }, "killed");
+        if (m_forwardCrossing)
+        {
+            m_jumpTaken.assign(m_flow.size(), 0);
+            for (uint32_t i = 0; i < m_flow.size(); i++)
+            {
+                if (m_flow[i].Opcode() != ControlFlowOpcode::CondJmp) continue;
+                m_jumpTaken[i] = m_module.Allocate();
+                Module::Emit(m_module.Code(), Op::Variable,
+                             { boolPointer2, m_jumpTaken[i], uint32_t(StorageClass::Function),
+                               m_module.ConstantFalseValue() });
+                Module::EmitString(m_module.Debug(), Op::Name, { m_jumpTaken[i] }, "jump_taken");
+            }
+        }
 
         if (needsSequencer)
         {
@@ -2619,6 +2648,72 @@ namespace
             m_block = kInCase + uint32_t(m_jumpBlocks.size());
             m_jumpBlocks.push_back({ from, depth, 0 });
             i = jump;
+        }
+    }
+
+
+    // A program whose forward jumps cross (Analyze), without the dispatcher:
+    // each jump has a flag, set where the jump is reached and taken, and a
+    // run of control flow instructions that the same jumps pass over is a
+    // selection on none of their flags being set. No loop and no counter: a
+    // jump only ever leaves out what comes after it.
+    void Translator::EmitCrossingJumps()
+    {
+        auto& code = m_module.Code();
+        const uint32_t caseCount = uint32_t(m_flow.size());
+        // The jumps that pass over an instruction: before it, landing after it.
+        const auto over = [this](uint32_t at) {
+            std::vector<uint32_t> jumps;
+            for (uint32_t i = 0; i < at; i++)
+                if (m_flow[i].Opcode() == ControlFlowOpcode::CondJmp && m_flow[i].Target() > at) jumps.push_back(i);
+            return jumps;
+        };
+        for (uint32_t first = 0; first < caseCount;)
+        {
+            const std::vector<uint32_t> jumps = over(first);
+            uint32_t end = first + 1;
+            while (end < caseCount && over(end) == jumps) end++;
+
+            Id merge = 0;
+            const uint32_t from = m_block;
+            const uint32_t depth = from >= kInCase ? m_jumpBlocks[from - kInCase].depth + 1 : 1;
+            if (!jumps.empty())
+            {
+                Id skipped = Emit(Op::Load, m_bool, { m_jumpTaken[jumps[0]] });
+                for (size_t i = 1; i < jumps.size(); i++)
+                    skipped = Emit(Op::LogicalOr, m_bool, { skipped, Emit(Op::Load, m_bool, { m_jumpTaken[jumps[i]] }) });
+                const Id reached = Emit(Op::LogicalNot, m_bool, { skipped });
+                merge = m_module.Allocate();
+                const Id run = m_module.Allocate();
+                // Both blocks are dominated by the one that branches here.
+                (from >= kInCase ? m_jumpBlocks[from - kInCase].end : m_blockEnd[kInEntry]) = code.size();
+                Module::Emit(code, Op::SelectionMerge, { merge, kSelectionControlNone });
+                Module::Emit(code, Op::BranchConditional, { reached, run, merge });
+                Module::Emit(code, Op::Label, { run });
+                m_block = kInCase + uint32_t(m_jumpBlocks.size());
+                m_jumpBlocks.push_back({ from, depth, 0 });
+            }
+            for (uint32_t i = first; i < end; i++)
+            {
+                const ControlFlow& cf = m_flow[i];
+                if (cf.Opcode() != ControlFlowOpcode::CondJmp)
+                {
+                    EmitControlFlow(cf, i);
+                    if (!m_result.error.empty()) return;
+                    continue;
+                }
+                Id taken = JumpTaken(cf);
+                if (!taken) taken = Emit(Op::LogicalNot, m_bool, { m_module.ConstantFalseValue() });
+                Module::Emit(code, Op::Store, { m_jumpTaken[i], taken });
+            }
+            if (merge)
+            {
+                Module::Emit(code, Op::Branch, { merge });
+                Module::Emit(code, Op::Label, { merge });
+                m_block = kInCase + uint32_t(m_jumpBlocks.size());
+                m_jumpBlocks.push_back({ from, depth, 0 });
+            }
+            first = end;
         }
     }
 
@@ -2877,6 +2972,11 @@ namespace
                 }
                 i = target;
             }
+        }
+        else if (m_forwardCrossing)
+        {
+            EmitCrossingJumps();
+            if (!m_result.error.empty()) return;
         }
         else if (m_loopsOnly)
         {

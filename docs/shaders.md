@@ -196,7 +196,7 @@ or, where the pixel shaders read the arena as texels, from 20 on:
   and they leave; the rest go round. Inside a pass the record, every address
   made from it and every texture index are the same for the whole subgroup,
   and nearly every subgroup makes one pass. The loop goes round the program
-  in all four of its forms -- straight-line, forward jumps as selections,
+  in all its forms -- straight-line, forward jumps as selections (nested, or by flags where they cross),
   backward jumps as loops, and the dispatcher, whose own loop is nested in
   it -- from after the
   interpolators are copied into the registers to after the deferred discard,
@@ -655,7 +655,12 @@ Because forward jumps with no backward loops are acyclic DAGs, they map directly
 For fallback compatibility where loops may occur, `OpLoopMerge` specifies loop control parameter `kLoopControlDontUnroll = 0x2` to forbid driver unrolling.
 
 ### Backward Jumps As Loops
-A program whose only jumps go backward, each on a condition and each span inside or clear of every other, is emitted as nested `do { } while` loops (`Translator::EmitLoopSpan`), with no counter and no switch. Black Ops III's zombies draw a glow behind the weapon in the HUD with one (`A3D3B14EF13F3232`): two loops of 11 turns, 121 fetches a pixel. Through the dispatcher that was 3,200 turns of its loop for each pixel, and two quads of 40 by 34 pixels took 32 ms of an Adreno 650's frame (The Giant at 13 to 19 frames a second on a Retroid Pocket Flip 2) and 1.4 ms of an RTX 5080's; as loops they take 0.1 ms on the RTX 5080. A fetch inside takes its level of detail from the derivatives as the pixels' turns go together; inside the dispatcher's switch the same fetch got another level on an RTX 5080 (the glow came out brighter there than with the level stated). Programs that mix forward and backward jumps, overlap two forward jumps (the title's `if`/`else`) or use the sequencer's own loops and calls still go through the dispatcher: 9 of the 205 shaders of a match on The Giant, in a handful of HUD draws.
+A program whose only jumps go backward, each on a condition and each span inside or clear of every other, is emitted as nested `do { } while` loops (`Translator::EmitLoopSpan`), with no counter and no switch. Black Ops III's zombies draw a glow behind the weapon in the HUD with one (`A3D3B14EF13F3232`): two loops of 11 turns, 121 fetches a pixel. Through the dispatcher that was 3,200 turns of its loop for each pixel, and two quads of 40 by 34 pixels took 32 ms of an Adreno 650's frame (The Giant at 13 to 19 frames a second on a Retroid Pocket Flip 2, 58 since) and 1.4 ms of an RTX 5080's; as loops they take 0.1 ms on the RTX 5080. A fetch inside takes its level of detail from the derivatives as the pixels' turns go together; inside the dispatcher's switch the same fetch got another level on an RTX 5080 (the glow came out brighter there than with the level stated).
+
+### Forward Jumps That Cross
+The title's `if`/`else` is a jump over the first arm and, at that arm's end, a jump over the second: two forward spans that cross, which nested selections cannot say. Each jump of such a program has a flag, set where the jump is reached and taken, and each run of control flow instructions the same jumps pass over is a selection on none of their flags being set (`Translator::EmitCrossingJumps`): no loop, no counter. Black Ops III's lit surfaces are these: 30 of the 295 shaders of a match on Shadows of Evil, in 65 of the scene's draws a frame. Through the dispatcher they were 26 of the 39 ms an Adreno 650 took over a frame there (23 frames a second on the Flip 2; 58 with those draws left out, `MW2_SKIP_SHADER`).
+
+Programs that mix forward and backward jumps or use the sequencer's own loops and calls still go through the dispatcher: 2 of those 295.
 
 ### Non-Blocking Runtime Draw Path
 In-game draw calls encountering a pipeline miss must never block the presentation thread (`tid 25150`). On Android, uncompiled pipelines are queued to the background warmup scheduler (`warmup::g_warmupQueue`), and the current draw is skipped (`Skip("async pipeline compile")`) so frames continue presenting at locked 60 FPS while the background thread compiles.
