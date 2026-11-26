@@ -1005,7 +1005,7 @@ export MW2_TITLE=mw3 MW2_VERSION=tu0
 bash tools/recomp_mw3.sh                 # XEX -> ppc_mw3/ (never committed)
 python3 tools/genshared.py && python3 tools/gen_kernel_stubs.py
 unset MW2_TITLE MW2_VERSION
-bash android/fetch_deps.sh               # optional: libadrenotools
+bash android/fetch_deps.sh               # libadrenotools and the bundled Turnip driver: the app is not built without them
 cd android && echo "sdk.dir=$ANDROID_HOME" > local.properties
 MW2_LTO=OFF ./gradlew assembleMw3Tu0Debug
 ```
