@@ -215,6 +215,9 @@ class LogChecks(unittest.TestCase):
         found = log_checks(log_of([(second, 60, 17) for second in range(11, 60)], tail))
         self.assertEqual(found.get("unfinished"), detectors.FAIL)
         self.assertEqual(found.get("stall"), detectors.FAIL)
+        # A run somebody played and closed has no closing report either: analysing its recording does not fail on that.
+        log = log_of([(second, 60, 17) for second in range(11, 60)], "")
+        self.assertEqual(log_checks(log, by_hand=True).get("unfinished"), detectors.NOTE)
 
     def test_the_phones_own_driver_fails_a_run(self):
         text = LOG.format(seconds="", tail="[i] report: 5 frames in 1 s, 0 of them of the world")

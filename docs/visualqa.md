@@ -25,6 +25,14 @@ before it is merged, and the whole suite is a release gate
     # a recording somebody sent, with or without its log
     python tools/visualqa/visualqa.py --out <folder> analyse screen.mp4 --mask touch [--log game.log]
 
+A recording made by hand has menus and fights in it. With a log that has a
+line a second (`MW2_REPORT=1`, `MW2_REPORT_SECONDS=1`, `MW2_STUTTERS=1` in
+the run) `analyse` knows which seconds were play; without one it only
+remarks on patches that differ for a single frame, unless `--play` says the
+recording is calm play throughout or `--menu` that it is menus, and a log
+that ends without its closing report is a run somebody closed, not a
+failure. Whole-frame flicker, blocks and black frames are judged either way.
+
 The exit status is 1 when a run failed. `ADB`, `VISUALQA_APKS`,
 `VISUALQA_LOCK_DIR`, `VISUALQA_OWNER` and `VISUALQA_OUT` stand in for the
 options. Reports are text and JSON; the recordings and pictures beside them

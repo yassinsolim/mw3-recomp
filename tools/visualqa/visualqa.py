@@ -90,7 +90,7 @@ def measured(source, mask, cache, times=None):
 
 
 def examine(recordings, out, log=None, dumps=None, mask="hud", assume_play=True, combat_from=None, play_from=0.0,
-            expect_driver=None, thresholds=None):
+            expect_driver=None, thresholds=None, by_hand=False):
     """Checks a run's recordings (file, seconds of the run at its start), frames and log; returns the report."""
     thresholds = thresholds or detectors.Thresholds()
     out = Path(out)
@@ -131,7 +131,7 @@ def examine(recordings, out, log=None, dumps=None, mask="hud", assume_play=True,
             if finding.frame in saved:
                 pictures[id(finding)] = saved[finding.frame]
     if log is not None:
-        findings += detectors.from_log(log, thresholds, expect_driver, exempt)
+        findings += detectors.from_log(log, thresholds, expect_driver, exempt, by_hand)
     findings.sort(key=lambda finding: (finding.severity != detectors.FAIL, finding.seconds))
     report = {
         "verdict": detectors.verdict(findings),
@@ -306,8 +306,13 @@ def command_analyse(arguments):
         source = Path(source)
         out = Path(arguments.out) / "analyse" / source.stem
         log = gamelog.read(arguments.log) if arguments.log else None
+        # A recording made by hand has menus and fights in it, and without a
+        # log that has a line a second nothing says where: its single-frame
+        # patches are then remarked on, unless it is said to be calm play.
+        placed = arguments.play or arguments.menu or (log is not None and bool(log.seconds))
         report = examine([(source, arguments.offset)], out, log=log, mask=arguments.mask,
-                         assume_play=not arguments.menu, expect_driver=arguments.driver if log else None)
+                         assume_play=not arguments.menu, combat_from=None if placed else 0.0,
+                         expect_driver=arguments.driver if log else None, by_hand=True)
         write_report(report, out, str(source))
         failed |= report["verdict"] == "FAIL"
     return 1 if failed else 0
@@ -406,6 +411,8 @@ def main():
     analyse.add_argument("--offset", type=float, default=0.0, help="seconds of the run at the recording's first frame")
     analyse.add_argument("--mask", choices=sorted(frames.MASKS), default="touch")
     analyse.add_argument("--menu", action="store_true", help="the recording is of menus: the play-only checks are left out")
+    analyse.add_argument("--play", action="store_true",
+                         help="the recording is of calm play throughout: a patch that differs for one frame is a fault")
     analyse.add_argument("--driver", choices=("bundled", "system"), default=None)
     calibrate = commands.add_parser("calibrate", help="precision and recall on the labelled set")
     calibrate.add_argument("manifest", nargs="?", default=str(here / "calibration.json"))

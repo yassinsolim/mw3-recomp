@@ -311,7 +311,7 @@ def frozen(m, context, t):
     return findings
 
 
-def from_log(log, t, expect_driver=None, exempt=()):
+def from_log(log, t, expect_driver=None, exempt=(), by_hand=False):
     """The checks the log alone answers: whether the run ended, its driver, stalls, pacing, pop-in."""
     findings = []
     if expect_driver and log.driver is not None:
@@ -324,7 +324,8 @@ def from_log(log, t, expect_driver=None, exempt=()):
                 "its picture says nothing of a release"))
     if not log.finished:
         last = log.seconds[-1].second if log.seconds else 0
-        findings.append(Finding("unfinished", FAIL, float(last),
+        # A run somebody played and closed has no closing report either, and is not a run that died.
+        findings.append(Finding("unfinished", NOTE if by_hand else FAIL, float(last),
                                 f"the log has no closing report: the run stopped or was killed after second {last}"))
 
     def exempted(seconds):
