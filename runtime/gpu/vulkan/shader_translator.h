@@ -81,6 +81,9 @@ namespace shader
         bool addressedConstants = false;
         uint32_t colourMask = 0;            // colour targets a pixel shader writes
         bool writesDepth = false;
+        // A pixel shader with a kill instruction of its own: it decides which
+        // pixels there are even where nothing it computes is kept.
+        bool kills = false;
         bool writesMemory = false;          // uses the memory export path
         uint32_t instructionCount = 0;
         // Exports the hardware has no output for, dropped rather than failed.

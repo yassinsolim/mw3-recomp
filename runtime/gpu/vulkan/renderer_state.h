@@ -18,6 +18,7 @@
 #include "texture_cache.h"
 #include "pipeline.h"
 #include "recorder.h"
+#include "shader_build.h"
 #include "shader_translator.h"
 #include "util.h"
 #include "../registers.h"
@@ -531,6 +532,11 @@ namespace vk::renderer::detail
             bool recordedSeeded = false;
         };
         Awaited awaited;
+        // What is left of the time the consumer may stand still for those
+        // pipelines (WaitForPipeline), in microseconds, and the frame it
+        // was last added to in; full at the first wait.
+        struct PipelineWait { uint64_t left = 0, frame = 0; bool begun = false; };
+        PipelineWait pipelineWait;
         std::unordered_map<uint64_t, Shader> shaders;
         // The usable shaders of each type ShaderFor answered with lately, by
         // their hash: draws come in runs with the same pair, a pass goes
@@ -686,8 +692,16 @@ namespace vk::renderer::detail
         uint64_t prewarmMicroseconds = 0;
         uint32_t prewarmed = 0, prewarmWanted = 0;
         // MW2_ASYNC_PIPELINES: draws skipped for a pipeline still compiling,
-        // and the longest any pipeline was waited for, in frames.
-        uint64_t drawsAwaitingPipelines = 0, longestPipelineWait = 0;
+        // how many of them wrote no colour (a shadow caster, the depth
+        // prepass: what a frame checker sees go missing), and the longest
+        // any pipeline was waited for, in frames.
+        uint64_t drawsAwaitingPipelines = 0, depthDrawsAwaitingPipelines = 0, longestPipelineWait = 0;
+        // The pipelines the consumer built itself, and how long it stood
+        // still for them.
+        uint64_t pipelinesAtDraw = 0, pipelineAtDrawMicroseconds = 0;
+        // How often it stood still for one a worker was building, how
+        // often the pipeline came in that time, and the time.
+        uint64_t pipelineWaits = 0, pipelineWaitsMet = 0, pipelineWaitMicroseconds = 0;
         // Draws that found their slot's share of the arena full and were
         // made in the next slot's instead (vk::renderer::Draw).
         uint64_t arenaSpills = 0;
@@ -891,6 +905,27 @@ namespace vk::renderer::detail
     inline bool AsyncPipelines()
     {
         static const bool on = env::Number("MW2_ASYNC_PIPELINES") != 0;
+        return on;
+    }
+
+    // The name of the pixel shader of a draw that leaves no colour behind
+    // (shader_build.h).
+    inline uint64_t NoPixelHash()
+    {
+        static const uint64_t hash = vk::renderer::ShaderHash(vk::shaders::kNoPixelCode,
+                                                              std::size(vk::shaders::kNoPixelCode));
+        return hash;
+    }
+    // The blend that is not one (gpu::BlendControl::IsPassThrough), which
+    // such a draw's pipeline is made with.
+    inline constexpr uint32_t kPassThroughBlend = 0x00010001;
+
+    // MW2_DEPTH_ONLY_PIPELINES=0: a draw that writes no colour is drawn with
+    // whatever pixel shader, blend and mask the title left loaded, as it was
+    // before November 2026, for telling the two apart on a device.
+    inline bool DepthOnlyPipelines()
+    {
+        static const bool on = env::Number("MW2_DEPTH_ONLY_PIPELINES", 1) != 0;
         return on;
     }
 
@@ -1111,6 +1146,9 @@ namespace vk::renderer::detail
                         bool joins, bool pixelStateChanged);
     void ReportPrimitives();
 
+    // The pipeline of a draw the workers are compiling for, if it comes
+    // within what the consumer may wait (renderer_pipelines.cpp).
+    bool WaitForPipeline(const PipelineKey& key, VkPipeline& built);
     // The depth and stencil tests RB_DEPTHCONTROL asks for, as dynamic state.
     struct DepthTests
     {

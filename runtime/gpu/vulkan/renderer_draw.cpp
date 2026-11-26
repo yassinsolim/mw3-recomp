@@ -420,6 +420,21 @@ namespace vk::renderer::detail
     // the draw copies; nothing of the draw was recorded then, and what it
     // had copied is left where it lies (vk::renderer::Draw).
     void DrawInSlot(const gpu::RegisterFile& r, const DrawCall& call, bool& full);
+
+    // Whether a draw leaves no colour behind, whatever its pixel shader
+    // computes. In depth-only mode the console runs no pixel shader at all.
+    // With every channel masked it runs one, and that still decides which
+    // pixels there are when it kills some, when the alpha test or alpha to
+    // coverage reads what it wrote, and when it writes the depth itself or
+    // memory: such a draw keeps its shader.
+    bool WritesNoColour(const gpu::RegisterFile& r, gpu::EdramMode mode, const shader::Translation& pixel)
+    {
+        if (mode == gpu::EdramMode::DepthOnly) return true;
+        if (r[gpu::RB_COLOR_MASK] & 0xF) return false;
+        const gpu::ColorControl control{ r[gpu::RB_COLORCONTROL] };
+        return !pixel.kills && !pixel.writesDepth && !pixel.writesMemory && !control.AlphaToMask() &&
+               !(control.AlphaTest() && control.AlphaFunc() != 7);
+    }
 }
 
 void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall& call, bool& full)
@@ -449,6 +464,21 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     const gpu::ViewportControl viewportControl{ r[gpu::PA_CL_VTE_CNTL] };
     const gpu::EdramMode edramMode = gpu::EdramMode(r[gpu::RB_MODECONTROL] & 7);
     if (!surface.Pitch()) { Skip("no surface pitch"); return; }
+
+    // A draw that writes no colour is drawn with a pixel shader that does
+    // nothing and one blend and mask, whatever the title left loaded. The
+    // pipeline is then the vertex shader's alone. Named after the leftovers
+    // it was a new pipeline at every change of them: under
+    // MW2_ASYNC_PIPELINES the sun's shadow casters and the depth prepass
+    // were skipped for the frames it compiled in, and the models drawn
+    // against that prepass with them.
+    const bool depthOnly = DepthOnlyPipelines() && WritesNoColour(r, edramMode, pixel->translation);
+    if (depthOnly)
+    {
+        pixel = ShaderFor(shader::Type::Pixel, NoPixelHash(), vk::shaders::kNoPixelCode,
+                          std::size(vk::shaders::kNoPixelCode));
+        if (!pixel) { Skip("shader not translated"); return; }
+    }
 
     // MW2 clears EDRAM by drawing rectangles with the depth test ALWAYS, depth
     // writes on and the viewport transform off (see ClearAliasedDepth).
@@ -811,7 +841,7 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
 
     PipelineKey key;
     key.vertexShader = call.vertexHash;
-    key.pixelShader = call.pixelHash;
+    key.pixelShader = depthOnly ? NoPixelHash() : call.pixelHash;
     key.colourFormat = uint32_t(colourTarget->format);
     key.depthFormat = uint32_t(depthTarget->format);
     key.topology = uint32_t(topology);
@@ -822,8 +852,12 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     // not built into the pipeline.
     const uint32_t depthControl = noDepth ? 0 : r[gpu::RB_DEPTHCONTROL];
     const uint32_t modeCntl = r[gpu::PA_SU_SC_MODE_CNTL];
-    key.blendControl = r[gpu::RB_BLENDCONTROL0];
-    key.colourMask = r[gpu::RB_COLOR_MASK];
+    // One colour target, so four bits of the mask; and with none of them
+    // set the blend says nothing, so such a draw's pipeline is made with
+    // one blend (the title's prepass shaders came with two).
+    key.colourMask = depthOnly ? 0 : r[gpu::RB_COLOR_MASK] & 0xF;
+    const bool noColour = DepthOnlyPipelines() && !key.colourMask;
+    key.blendControl = noColour ? kPassThroughBlend : r[gpu::RB_BLENDCONTROL0];
     key.samples = colourTarget->samples;
     if (vk::pipeline::LegacyMode())
     {
@@ -836,21 +870,29 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     // MW2_ASYNC_PIPELINES: a draw whose pipeline is not built yet is skipped
     // while the workers compile it (PipelineWhenReady). A pair with
     // libraries is linked here all the same: that takes well under a
-    // millisecond, and loses no draw.
+    // millisecond, and loses no draw. So is a draw that writes no colour
+    // built here, its own pixel shader's or not: what it leaves out is not
+    // a surface that comes late but the shadows of a frame, or everything
+    // drawn against its depth, and its pipelines are a few in a map.
     //
     // The skip leaves nothing behind for the draws after it. No command was
     // queued and nothing in g.bound was touched, so the next draw sets what
     // it would have set anyway; and the indices this draw wrote lie between
     // bound.runEnd and the next draw's, so the next cannot join the run
     // before as though it followed it.
-    if (AsyncPipelines() && !(vertex->library && pixel->library))
+    if (AsyncPipelines() && !noColour && !(vertex->library && pixel->library))
     {
         bool compiling = false;
         {
             Stopwatch watch(g.pipelineNanoseconds);
             built = PipelineWhenReady(key, depthControl, modeCntl, compiling);
         }
-        if (compiling) { Skip("pipeline compiling in the background"); return; }
+        if (compiling)
+        {
+            if (!key.colourMask || edramMode == gpu::EdramMode::DepthOnly) g.depthDrawsAwaitingPipelines++;
+            Skip("pipeline compiling in the background");
+            return;
+        }
     }
     else
     {

@@ -11,6 +11,7 @@
 
 #include <atomic>
 
+#include <cstdio>
 #include <cstring>
 
 #ifdef MW2_HAVE_VULKAN
@@ -19,6 +20,40 @@ namespace vk::renderer::detail
 {
     namespace
     {
+        // MW2_FRAME_LOG=<file>: a line a frame of what the title asked for
+        // and what was drawn, the counts as they stand at the frame's end,
+        // for laying beside the frames a checker found a fault in
+        // (tools/visualqa): the frame, the seconds since the start,
+        // whether the world was drawn, the draws asked for and recorded,
+        // the draws skipped for any reason, those skipped for a pipeline
+        // still compiling and those of them that wrote no colour, the
+        // pipelines the consumer built itself with the milliseconds they
+        // took, and the times it stood still for a worker's, those that
+        // came in time and the milliseconds stood.
+        void LogFrame(bool world)
+        {
+            static std::FILE* const log = [] {
+                const char* path = env::Text("MW2_FRAME_LOG");
+                std::FILE* file = path ? std::fopen(path, "w") : nullptr;
+                if (file)
+                    std::fputs("frame,seconds,world,draws,recorded,skipped,awaiting,awaiting_no_colour,"
+                               "built_at_draw,built_at_draw_ms,waits,waits_met,wait_ms\n", file);
+                return file;
+            }();
+            if (!log) return;
+            uint64_t skipped = 0;
+            for (const auto& [why, count] : g.skipped) skipped += count;
+            std::fprintf(log, "%llu,%.4f,%d,%llu,%llu,%llu,%llu,%llu,%llu,%.1f,%llu,%llu,%.1f\n",
+                         (unsigned long long)g.frames, double(pacing::Microseconds()) / 1e6, int(world),
+                         (unsigned long long)g.draws, (unsigned long long)g.drawsRecorded,
+                         (unsigned long long)skipped, (unsigned long long)g.drawsAwaitingPipelines,
+                         (unsigned long long)g.depthDrawsAwaitingPipelines,
+                         (unsigned long long)g.pipelinesAtDraw, double(g.pipelineAtDrawMicroseconds) / 1e3,
+                         (unsigned long long)g.pipelineWaits, (unsigned long long)g.pipelineWaitsMet,
+                         double(g.pipelineWaitMicroseconds) / 1e3);
+            // A run that is stopped from outside keeps what it wrote.
+            if (!(g.frames & 63)) std::fflush(log);
+        }
         // The decisions the recorder waits for at segment boundaries
         // (CloseSegment), a frame slot's own: the slot is not used again
         // until the recorder has made its last frame's calls.
@@ -491,6 +526,7 @@ namespace vk::renderer::detail
         report::Done({ g.draws, g.segments, g.arenaWritten[kArenaConstants],
                        g.arenaWritten[kArenaVertices], g.arenaWritten[kArenaIndices] });
         report::Frame(worldDrawn);
+        LogFrame(worldDrawn);
         NoteFrame(worldDrawn);
         SceneFrame(worldDrawn);
         SetCutsceneActive(!worldDrawn);
