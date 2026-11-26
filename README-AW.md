@@ -232,7 +232,7 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
   game at two or three times the console's 1280x720, from the next start of
   the game. It costs the graphics chip in proportion: on an AYN Thor in a
   match with six bots, 1x ran at 120 FPS (3.6 ms of the chip a frame), 2x at
-  114 FPS with seconds down to 81 (7.9 ms), 3x at 72 FPS (14.2 ms). 2x is
+  114 FPS with seconds down to 78 (7.6 ms), 3x at 66 FPS (14.8 ms). 2x is
   the most a Thor holds near its 120; weaker devices are best left at 1x.
 - **Free the space, or keep it.** Played from the images, the game needs
   both `.iso` files where they are (an SD card is fine) and almost nothing

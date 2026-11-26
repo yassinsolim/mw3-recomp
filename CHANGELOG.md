@@ -95,6 +95,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   own driver on purpose; `setup.cmd` passes it, and says so, when the
   driver cannot be downloaded. A release never lacked the driver: the
   workflows fetch it.
+- **Modern Warfare 2 holds 120 better: no sun shadows above 60 frames a
+  second**, as the other three games already had it (**Settings → Graphics
+  → Sun shadows → On** keeps them; at 60 and under nothing changes). On
+  the AYN Thor its heaviest views, Team Player's, ran at 80 to 90 frames a
+  second with them and run at 102 to 112 without; S.S.D.D. spent 39 seconds
+  of 160 under 115 and spends none; the Gulag 63 and 17
+  ([docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)).
 - **An update of the app no longer asks you to build the game code again
   unless the code really changed, and then does it for you.** Nothing has
   to be built to get this: the game code you have is taken as it is, in all
@@ -193,6 +200,27 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Warfare's README has a section for the three ways, the app's **Add DLC**
   first ([README-AW.md](README-AW.md#map-packs-and-exo-zombies),
   [docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies)).
+- **What holds the AYN Thor under 120, scene by scene**, in all four games
+  ([docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)):
+  seventeen scenes measured, each thread and the graphics chip beside the
+  frame rate. Everything runs at 115 to 119 but Modern Warfare 2's Team
+  Player and the Gulag's heaviest seconds, held by the thread that reads
+  the game's draw commands and behind it by the graphics chip. Newer
+  graphics drivers (Mesa 26.3.1 and Mesa's main branch, built for this),
+  the driver's and the renderer's other modes, and the copies of that
+  thread given to a second one were measured there and none is faster, so
+  none of that changed. In 24 to 30 minutes of play in Modern Warfare 2,
+  Modern Warfare 3 and Advanced Warfare the clocks were never held back and
+  nothing reset.
+- **`MW2_PRESENT_AT_BLANK=1`: a frame on a 120 Hz screen 10 ms sooner, for
+  whoever would rather have that than every frame** (Android). The app
+  hands the screen one frame at each blank the system announces instead of
+  keeping the screen's queue full: 23.5 ms from the graphics chip to the
+  screen for 33 on the AYN Thor in light scenes. It is off unless asked
+  for, because the full queue is also what covers a frame that takes a
+  little too long: Advanced Warfare's Traffic ran at 117.5 to 118.9 frames
+  a second with it and at 119.1 without. `MW2_PRESENT_MODE` asks for
+  another present mode, to measure with.
 - **Advanced Warfare: your own map packs and Exo Zombies.** The packs you
   bought on your Xbox 360 (Havoc, Ascendance, Supremacy, Reckoning, Atlas
   Gorge), with the free Compatibility Packs and the game's title update, are

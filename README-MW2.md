@@ -91,7 +91,7 @@ untested.
 
 | | | Measured |
 |---|---|---|
-| Campaign | ✅ | Thor: S.S.D.D. 116 FPS, Team Player 102; Flip: S.S.D.D. 60, Team Player 53 to 59 |
+| Campaign | ✅ | Thor: S.S.D.D. 119 FPS, Team Player's heaviest views 102 to 112; Flip: S.S.D.D. 60, Team Player 53 to 59 |
 | Special Ops | ✅ | The Pit plays on the Flip at 60 FPS; not run on the Thor |
 | Multiplayer: System Link | ✅ | Thor and Flip in one match, 119 and 60 FPS; Rust 119 and 60 |
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch, Thor and Flip, 119 and 60 FPS |
@@ -119,6 +119,9 @@ Sources and methods: [docs/android.md](docs/android.md),
 - **Bots.** Tap **Bots** under Multiplayer, then **System Link → Create Game →
   Start Game**; bots only join matches your device hosts. They have no
   routes on the maps, so they feel their way round walls.
+- **Sun shadows are off above 60 FPS** (120 on the Thor): with them its
+  heaviest views ran at 80 to 90 FPS, without at 102 to 112. **Settings →
+  Graphics → Sun shadows → On** keeps them.
 - **Settings** are on the app's start screen: network, multiplayer, files,
   graphics. In a game, the pause menu has **Edit controls**.
 - **Online** play goes through the project's relay at `mw3.yassin.app:3074`,

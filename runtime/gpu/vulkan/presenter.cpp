@@ -214,6 +214,8 @@ namespace
         uint64_t shownWithin[5]{};           // 1, 2, 3, 4 and more blanks after it was finished
         std::atomic<uint64_t> guestPeriodNs{ 0 };
         std::atomic<int64_t> guestPeriodAt{ 0 };
+        // The blank the last frame was handed over at (PresentsAtBlank).
+        uint64_t lastBlank = 0;
     };
 
     Presenter g;
@@ -563,6 +565,30 @@ namespace
         return true;
     }
 
+    // MW2_PRESENT_MODE=mailbox|relaxed|immediate: how the swapchain queues
+    // frames, where the surface offers that mode. Unset is FIFO, which every
+    // surface has and which the display pacing is built on (one frame a
+    // blank, none dropped); the others are for measuring against it.
+    VkPresentModeKHR PresentMode()
+    {
+        const char* asked = env::Text("MW2_PRESENT_MODE");
+        if (!asked) return VK_PRESENT_MODE_FIFO_KHR;
+        const VkPresentModeKHR wanted = !std::strcmp(asked, "mailbox")     ? VK_PRESENT_MODE_MAILBOX_KHR
+                                        : !std::strcmp(asked, "relaxed")   ? VK_PRESENT_MODE_FIFO_RELAXED_KHR
+                                        : !std::strcmp(asked, "immediate") ? VK_PRESENT_MODE_IMMEDIATE_KHR
+                                                                           : VK_PRESENT_MODE_FIFO_KHR;
+        uint32_t count = 0;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(g.physical, g.surface, &count, nullptr);
+        std::vector<VkPresentModeKHR> modes(count);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(g.physical, g.surface, &count, modes.data());
+        const bool offered = std::find(modes.begin(), modes.end(), wanted) != modes.end();
+        static bool told = false;
+        if (!std::exchange(told, true))
+            LOGI("vulkan: MW2_PRESENT_MODE=%s: %s (the surface offers %u modes)", asked,
+                 offered ? "used" : "not offered, FIFO instead", count);
+        return offered ? wanted : VK_PRESENT_MODE_FIFO_KHR;
+    }
+
     bool CreateSwapchain()
     {
         VkSurfaceCapabilitiesKHR caps{};
@@ -646,7 +672,7 @@ namespace
             LOGW("vulkan: the surface will not take an identity transform; the picture may be"
                  " rotated");
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        info.presentMode = VK_PRESENT_MODE_FIFO_KHR;      // always supported
+        info.presentMode = PresentMode();
         info.clipped = VK_TRUE;
         // The one being replaced, if any, so the driver can carry over what it
         // can; it is destroyed once the new one exists.
@@ -1157,6 +1183,29 @@ namespace
                        target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
     }
 
+#ifdef MW2_ANDROID
+    // Where the display paces the title (frame_rate.h): whether the presenter
+    // hands the swapchain one frame for each blank the Choreographer
+    // announces, in place of handing them over as they come and waiting
+    // where the swapchain's queue is full. The full queue is a frame of
+    // delay, and a frame of room: on an AYN Thor at 120 a frame reached the
+    // screen 33.9 ms after the chip had finished it, and 23.5 ms counted
+    // here while every frame came inside its blank; where some do not
+    // (Advanced Warfare's Traffic, the renderer's thread at 7.5 of the 8.3
+    // ms) each of those is a blank without a frame, 118.1 frames a second
+    // with eight seconds under 115 for 119.1 with none, and the queue fills
+    // again behind them. So it is off unless MW2_PRESENT_AT_BLANK=1 asks.
+    bool PresentsAtBlank()
+    {
+        static const bool on = env::Flag("MW2_PRESENT_AT_BLANK") && android::blank::Start();
+        static bool told = false;
+        if (on && !std::exchange(told, true))
+            LOGI("vulkan: where the display paces the title, one frame is handed over at each blank"
+                 " (MW2_PRESENT_AT_BLANK)");
+        return on && frame_rate::Mode() == frame_rate::kByDisplay && g.periodNs > 0;
+    }
+#endif
+
     void DrawOneFrame(bool idle)
     {
         if (g.remakeSwapchain) RemakeSwapchain();
@@ -1166,6 +1215,15 @@ namespace
         if (vk::pipeline::Failed(vkWaitForFences(g.device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX),
                                  "the presenter's fence"))
             return;
+
+#ifdef MW2_ANDROID
+        // One frame a blank, counted here and not by the swapchain's queue
+        // (PresentsAtBlank): a frame that comes before the next blank has
+        // been announced waits for it, so the queue behind the screen never
+        // fills. Two periods at most: an app out of sight is announced none.
+        if (PresentsAtBlank())
+            g.lastBlank = android::blank::WaitPast(g.lastBlank, int64_t(2.0 * g.periodNs));
+#endif
 
         // FIFO: this is where the window waits for the display, with the
         // frame it will show still in the queue, so the queue's length is

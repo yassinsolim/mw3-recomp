@@ -1634,8 +1634,8 @@ close up:
 | multiplier | frame | match: frames a second (lowest second) | match: graphics chip, ms a frame | lobby: frames a second | lobby: ms a frame |
 |---|---|---|---|---|---|
 | 1x | 1280x720 | 119.7 (113) | 3.6 | 119.7 | 4.8 |
-| 2x | 2560x1440 | 113.5 (81) | 7.9 | 89.7 | 10.8 |
-| 3x | 3840x2160 | 71.7 (41) | 14.2 | 47.9 | 20.7 |
+| 2x | 2560x1440 | 114.2 (78) | 7.6 | 89.7 | 10.8 |
+| 3x | 3840x2160 | 66.1 (50) | 14.8 | 47.9 | 20.7 |
 
 **The picture.** Right at 1x. At 2x and 3x the menus and the lobby were
 right and the match was a white wash
@@ -1646,6 +1646,10 @@ It now reads the surface at its drawn size and writes each texel as the
 mean of those drawn for it (`renderer_resolve.cpp`); on Windows the match
 is right at 2x and at 3x, the luminance written back 8,118 and 6,336 times
 one frame late (`pc-mp-scale2-retreat-exposure-fixed.jpg`,
-`pc-mp-scale3-retreat-exposure-fixed.jpg`). **Not seen:** the fixed build
-at 2x or 3x on the Thor; the table's two rows are of the white picture,
-which draws the same passes.
+`pc-mp-scale3-retreat-exposure-fixed.jpg`). On the Thor the fixed build's match is
+right at 2x and at 3x as well (`thor-mp-scale2-scale3-retreat-exposure-fixed.jpg`,
+three views of each), the log saying `the scene's luminance (16x16 floats)
+is written back` in both; the table's match columns for 2x and 3x are of
+those two runs (the device at 86 to 88 C after half an hour of other
+runs), its lobby columns of the white picture, which draws the same
+passes there.

@@ -65,6 +65,18 @@ namespace android
     // what surfaceDestroyed waits for before it returns to Android.
     void WindowReleased();
 
+    // ---- the display's blanks (blank.cpp) ----------------------------------
+    namespace blank
+    {
+        // Starts counting the blanks the system's Choreographer announces.
+        // False where there is no Choreographer to ask.
+        bool Start();
+        // Waits until more than `count` have been announced, or for
+        // `timeoutNs`: an app that is not in front is announced none.
+        // Returns how many have been by then.
+        uint64_t WaitPast(uint64_t count, int64_t timeoutNs);
+    }
+
     // ---- the run ----------------------------------------------------------
     // False once the app has asked the run to end.
     bool Running();
