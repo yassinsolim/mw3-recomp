@@ -1,6 +1,7 @@
 """tools/visualqa's checks on pictures drawn here: no frame of a game is needed or kept."""
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 import cv2
@@ -9,6 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/visualqa"))
 
 import detectors  # noqa: E402
+import device  # noqa: E402
 import frames  # noqa: E402
 import gamelog  # noqa: E402
 import scenarios  # noqa: E402
@@ -225,6 +227,39 @@ class LogChecks(unittest.TestCase):
         self.assertEqual(log.driver, "system")
         self.assertEqual(log_checks(log, expect_driver="bundled").get("driver"), detectors.FAIL)
         self.assertNotIn("driver", log_checks(log, expect_driver="system"))
+
+
+class Locks(unittest.TestCase):
+    def test_reserved_device(self):
+        class Waited(Exception):
+            pass
+
+        def wait(seconds):
+            raise Waited
+
+        with tempfile.TemporaryDirectory() as folder:
+            reservation = Path(folder) / "thor.next"
+            reservation.write_text("DrawDrop\n")
+            asleep = device.time.sleep
+            device.time.sleep = wait
+            try:
+                # Free, and kept for somebody else: it is waited for, not taken.
+                other = device.DeviceLock(folder, "thor", "VisualQA", "test")
+                with self.assertRaises(Waited):
+                    other.acquire(say=lambda text: None)
+                self.assertFalse((Path(folder) / "thor.lock").exists())
+                # The one it is kept for takes it and removes the reservation.
+                named = device.DeviceLock(folder, "thor", "DrawDrop", "test")
+                named.acquire(say=lambda text: None)
+                self.assertTrue((Path(folder) / "thor.lock" / "owner.txt").is_file())
+                self.assertFalse(reservation.exists())
+                # Held: nobody else takes it.
+                with self.assertRaises(Waited):
+                    other.acquire(say=lambda text: None)
+                named.release()
+                self.assertFalse((Path(folder) / "thor.lock").exists())
+            finally:
+                device.time.sleep = asleep
 
 
 class Scenarios(unittest.TestCase):

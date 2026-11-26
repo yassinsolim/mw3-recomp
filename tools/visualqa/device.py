@@ -49,10 +49,23 @@ class DeviceLock:
         self.purpose = purpose
         self.taken = None
 
+    def reserved_for(self):
+        """Who the device is kept for next (`<name>.next`, which only the parent writes), or None."""
+        try:
+            return self.path.with_suffix(".next").read_text(errors="replace").strip() or None
+        except OSError:
+            return None
+
     def acquire(self, say=print):
         if self.path is None:
             return
         while True:
+            # A device kept for somebody else is not taken even when it is free.
+            named = self.reserved_for()
+            if named and named != self.owner:
+                say(f"waiting for {self.path.name}: reserved next for {named}")
+                time.sleep(LOCK_RETRY_SECONDS)
+                continue
             try:
                 # mkdir either makes the folder or fails: two agents cannot both take it.
                 self.path.mkdir()
@@ -68,6 +81,9 @@ class DeviceLock:
         self.taken = time.monotonic()
         until = datetime.now() + timedelta(seconds=SLOT_SECONDS)
         (self.path / "owner.txt").write_text(f"{self.owner} until {until:%H:%M} - {self.purpose}\n")
+        if named == self.owner:
+            # The one it was kept for removes the reservation once it holds the device.
+            self.path.with_suffix(".next").unlink(missing_ok=True)
         say(f"took {self.path.name} until {until:%H:%M}")
 
     def release(self):

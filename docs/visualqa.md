@@ -44,7 +44,9 @@ folder; `visualqa-out/` is ignored).
 1. Takes the phone's lock (`mkdir <lock-dir>/<thor|flip>.lock`, its owner and
    time in `owner.txt`), waiting two minutes at a time while somebody else
    has it, and holds it for the whole run. A suite gives the slot up after
-   28 minutes and queues again.
+   28 minutes and queues again. A phone kept for somebody else
+   (`<thor|flip>.next` naming another owner than `--owner`) is not taken
+   even when it is free; the one it names takes it and removes the file.
 2. Installs the test app and its game code under the package suffix `.vq`
    (`<game>.vq.apk`, `<game>-game.vq.apk`: the debug build, which reads
    `options.txt`), fresh, beside the owner's app. The executables are copied
