@@ -5,6 +5,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **`MW2_TRACE_AIM=1`** (diagnostics builds, Advanced Warfare's disc
+  multiplayer): the held weapon's sprint and aim times from its asset, every
+  frame of an aim down the sight and how long it took. It answers a
+  tester's question: the weapon that stays put after a sprint and is then
+  at the sight within a few frames is the title's own timing (the aim runs
+  under the sprint's end at the weapon's "from a sprint" rate; the ASM1:
+  200 ms of sprint-out, 300 ms of aim, both begun together), the same on
+  Windows ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-aim-after-a-sprint-26-november-2026)).
 - **Advanced Warfare: your map packs and Exo Zombies with the phone alone.**
   **Add DLC → Choose a folder**, pick your console's
   `Content\0000000000000000\41560914` folder (the packs in `00000002` and

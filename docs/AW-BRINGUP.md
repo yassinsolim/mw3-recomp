@@ -1463,3 +1463,95 @@ was pushed with adb. Evidence in `private-captures\aw\flip-dlc-*`.
 **Not seen:** two phones together on a pack's map (the second device was a
 PC both times); Exo Zombies and a match with bots alone on the Flip 2; a
 match by normal play in Exo Zombies past round 1.
+
+## The aim after a sprint (26 November 2026)
+
+A tester's recording (a Retroid Pocket 5, the disc's multiplayer): from a
+standstill the weapon comes up to the sight in about a quarter of a second;
+after a sprint or a slide it stays where it was, then is at the sight four or
+five frames later. He asked whether an animation is missing. Nothing is:
+this is what the title does with the times the weapon's own asset gives, and
+the Windows build does the same.
+
+**What the title does.** Letting go of a sprint with the left trigger held
+puts the weapon in its sprint-out state for the asset's sprint-out time, and
+the aim starts in that same frame: the aim fraction of the player state
+climbs all through the sprint-out, at the asset's slower "aim in from a
+sprint" rate. The field of view narrows with the fraction from the first
+frame. The view model does not follow it yet: it plays the sprint-out and
+only joins the aim towards that state's end, by when the fraction is at two
+thirds to four fifths. What the eye sees as the aim is the rest, 60 to
+100 ms: four to six frames at 60 a second.
+
+**The weapon's times** are in its definition (title.h, `T_DATA_WeaponTable`),
+in milliseconds:
+
+| | sprint in | sprint out | aim in | aim in from a sprint | aim out |
+|---|---|---|---|---|---|
+| ASM1 (`iw5_asm1_mp`, the first class's, and the other submachine guns) | 150 | 200 | 200 | 300 | 200 |
+| Bal-27, AK12 | 200 | 250 | 250 | 349 | 250 |
+| MORS | 300 | 300 | 349 | 449 | 400 |
+| Atlas 45 | 200 | 200 | 125 | 224 | 125 |
+
+**How it was measured.** `MW2_TRACE_AIM=1` (runtime/weapon_timing.cpp) logs
+the held weapon's times, then every frame of an aim with the player state's
+command time (the game's clock, so a long frame is a long step and not a
+wrong rate), the weapon state and the fraction, and a line for the whole
+aim. The player state and the table were found in the running Windows game:
+the floats that are 0 from the hip and 1 at the sight, of those the one
+that climbs by the frame's milliseconds, and the words beside it by what a
+sprint, a slide and a weapon switch change. A scripted pad
+(`MW2_INPUT_SCRIPT`) aims from a standstill, after a sprint, in a slide and
+after one.
+
+The ASM1 on Windows, one aim after a sprint (state 36 is the sprint-out):
+
+```
+aim: 69117 (+17 ms): weapon state 36 with 200 ms left, aim 0.057
+aim: 69150 (+33 ms): weapon state 36 with 167 ms left, aim 0.167
+aim: 69200 (+33 ms): weapon state 36 with 117 ms left, aim 0.333
+aim: 69251 (+35 ms): weapon state 36 with 66 ms left, aim 0.503
+aim: 69300 (+32 ms): weapon state 36 with 17 ms left, aim 0.667
+aim: 69351 (+34 ms): weapon state 0 with 0 ms left, aim 0.837
+aim: 69400 (+32 ms): weapon state 0 with 0 ms left, aim 1.000
+aim: at the sight 300 ms and 12 frames after it began in weapon state 36, which ended after 251 ms with the aim at 0.84
+```
+
+Each step is the frame's milliseconds over 300, the asset's number, and
+from a standstill over 200: the fraction is the title's arithmetic on its
+own clock, the same in every frame however long the frame was. Every frame
+of one such aim was dumped (`pc-mp-aim-after-sprint-frames.jpg`): the weapon
+is still in its sprint pose with the fraction at 0.48 and the view already
+narrower, beside the sight at 0.55 and on it at 0.83.
+
+**Not measured on the devices.** The trace is in the Android build, which
+ran on the Retroid Pocket Flip 2 (below), but no aim was traced there or on
+the AYN Thor: the same recompiled movement code runs on both, and only the
+frame's length differs.
+
+### The yellow wedge in the same recordings
+
+The tester's map is Solar with **Sun shadows** on: a translucent yellow or
+orange slab with stepped stripes over a third of the view, on every third
+frame for seconds. It is the sun-shadow flicker and not a second fault: a
+region that should be in shadow is lit for a frame, with the shadow map's
+stair-stepped edge, and Solar's sunlight is warm. On Windows on `mp_solar`
+with eight bots and `MW2_SHADOWS=1` a sunlit patch covers a wall for three
+dumped frames, is gone for the next four and back two frames later, the
+camera on the same wall (`pc-mp-solar-sun-shadow-flicker-wall.jpg`). The
+cause is open; Sun shadows on Auto or Off is the way round it.
+
+### The update's multiplayer built on the Flip 2 again (26 November 2026)
+
+`com.aw.recomp.fb2`, the game folder on the memory card (the settings'
+game directory; the packages are then copied beside it, to the card), the
+disc's two libraries from a game package. **Add DLC → Choose a folder** on
+a folder with the update, Havoc, Atlas Gorge, the Season Pass, the two
+installer packages and one Compatibility Pack of the six: copied in 6 min
+(5.6 GB, card to card), the build started by itself and took 361.1 s (212
+files, eight compilers), **Exo Zombies** appeared in the launcher and
+Multiplayer came up as 1.20 at 60 FPS (`flip-fb2-*`). The title then showed
+its notice that required content was added to the downloads and offered
+only the main menu: with one Compatibility Pack of six it does not go on.
+Not seen in this run either: a match on a pack's map and Exo Zombies from
+the library built on the phone.

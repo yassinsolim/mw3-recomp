@@ -11,6 +11,7 @@
 #include "../env.h"
 #include "../frame_rate.h"
 #include "../live_options.h"
+#include "../weapon_timing.h"
 #include "../guest.h"
 #include "../log.h"
 #ifdef MW2_ANDROID
@@ -204,6 +205,7 @@ GUEST_HOOK(T_D3D_Present)
     pacing::Note(pacing::kPresent);
     Pace(ctx.r3.u32);
     Shadows();
+    weapon_timing::Frame();
     GUEST_ORIG(T_D3D_Present)(ctx, base);
     HoldToLimit();
     pacing::Note(pacing::kPresentEnd);

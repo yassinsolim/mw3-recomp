@@ -248,6 +248,42 @@
 #define T_DATA_SvConnectTimeoutDvar 0x83D48734u
 #define T_DVAR_INTEGER              12u
 
+// The aim down the sight (weapon_timing.cpp, MW2_TRACE_AIM). Found in the
+// running game and not in the image: the floats of its memory that are 0 from
+// the hip and 1 at the sight, twice over, and of those the one that climbs by
+// a frame's milliseconds over the weapon's aim time; the words beside it by
+// what a sprint, a slide and a weapon switch change.
+//
+// The first local client's predicted player state: +0 the command time, +8
+// the movement flags (0x4000 sprinting, 0x10 aiming), +0x2EC the weapon state
+// (the low bits its kind: 32 a sprint's start, 35 sprinting, 36 its end, 70,
+// 71 and 73 the same of a slide; bit 0x800 flips at each change), +0x2F0 the
+// milliseconds that state has left, +0x2FC its animation (27, 28, 29 the
+// sprint's three), +0x510 the weapon held (the low word its index, above it
+// the attachments), +0x518 the aim, 0 to 1.
+#define T_DATA_PredictedPlayerState 0x8362E3CCu
+#define T_PS_COMMAND_TIME           0x0u
+#define T_PS_WEAPON_STATE           0x2ECu
+#define T_PS_WEAPON_STATE_KIND      0x7FFu
+#define T_PS_WEAPON_TIME            0x2F0u
+#define T_PS_HELD_WEAPON            0x510u
+#define T_PS_HELD_WEAPON_INDEX      0xFFFFu
+#define T_PS_AIM_FRACTION           0x518u
+// The weapons by index, 486 pointers into the array of 0xAE8-byte weapon
+// definitions at 82E530EC (index 0 is "none"). A definition: +0 its name,
+// and in milliseconds +0x45C the sprint's start, +0x464 its end, +0x6E4 the
+// aim in, +0x6E8 the aim in begun during a sprint's end, +0x6EC the aim out.
+// Checked against play: the ASM1's 150, 200, 200, 300 and 200 are the weapon
+// state's times and the aim's rates frame by frame, the combat knife's 300
+// and 300 its sprint's.
+#define T_DATA_WeaponTable          0x82A81D80u
+#define T_WEAPON_NAME               0x0u
+#define T_WEAPON_SPRINT_IN          0x45Cu
+#define T_WEAPON_SPRINT_OUT         0x464u
+#define T_WEAPON_AIM_IN             0x6E4u
+#define T_WEAPON_AIM_IN_FROM_SPRINT 0x6E8u
+#define T_WEAPON_AIM_OUT            0x6ECu
+
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
 #define T_DATA_ClientStates       0u
