@@ -13,6 +13,7 @@
 #include <cstdarg>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
@@ -51,6 +52,11 @@ namespace vk::renderer::detail
             bool counting = false;
             uint64_t framesAtStart = 0, submissions = 0;
             std::vector<uint64_t> results;
+            // MW2_TIME_PASSES_EACH: a target's passes are told apart by
+            // their place among its passes in the frame; how many of each
+            // target's this frame has opened so far.
+            bool each = false;
+            std::map<uint16_t, uint32_t> openedThisFrame;
         } t;
 
         uint16_t LabelFor(const std::string& name)
@@ -122,6 +128,7 @@ namespace vk::renderer::detail
         if (vkCreateQueryPool(g.device, &queries, nullptr, &t.pool) != VK_SUCCESS) return;
         t.table.push_back(Label{ "between passes: copies, resolves, clears, uploads" });
         t.from = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+        t.each = diag::Flag("MW2_TIME_PASSES_EACH");
         t.on = true;
         LOGI("renderer: timing the GPU's passes from %llu s into the run (MW2_TIME_PASSES)",
              (unsigned long long)seconds);
@@ -138,6 +145,7 @@ namespace vk::renderer::detail
         }
         t.slot = slot;
         t.open = kBetween;
+        t.openedThisFrame.clear();
         const VkQueryPool pool = t.pool;
         Record([=](VkCommandBuffer command) { vkCmdResetQueryPool(command, pool, slot * kMarks, kMarks); });
         Mark(kBetween);
@@ -151,6 +159,14 @@ namespace vk::renderer::detail
         std::snprintf(name, sizeof name, "%ux%u %ux %s", colour.width * colour.scale, colour.height * colour.scale,
                       samples, gpu::ColorTargetFormatName(colour.guestFormat) ?: "?");
         t.open = LabelFor(name);
+        if (t.each)
+        {
+            // One expensive pass among a target's several (a post effect
+            // among the HUD's) is lost in their sum.
+            const uint32_t place = ++t.openedThisFrame[t.open];
+            std::snprintf(name + std::strlen(name), sizeof name - std::strlen(name), ", its pass %u of the frame", place);
+            t.open = LabelFor(name);
+        }
     }
 
     void PassTimesClose()

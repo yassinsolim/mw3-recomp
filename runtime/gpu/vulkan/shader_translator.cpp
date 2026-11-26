@@ -92,6 +92,7 @@ namespace
         Id JumpTaken(const ControlFlow& cf);
         void EmitSequencerState();
         void EmitControlFlow(const ControlFlow& cf, uint32_t self);
+        void EmitLoopSpan(uint32_t first, uint32_t end);
         void UpdateAddressRegister(Id depth, Id iterator);
         void StorePredicate(Id value);
         Id PredicateIs(bool value);
@@ -238,10 +239,17 @@ namespace
         Id m_pixelConstants = 0;      // a pixel program's 256 float constants as a uniform block
         bool m_linear = false;        // true if control flow has no loops, jumps or calls
         bool m_forwardJumpsOnly = false; // true if control flow has only forward jumps (acyclic, no loops)
+        // True if its only jumps are backward ones, each on a condition and
+        // each span inside or clear of every other: loops, lowered to loops.
+        // m_loopEnd[i] is then the jump that closes the loop opening at
+        // control flow instruction i, or 0.
+        bool m_loopsOnly = false;
+        std::vector<uint32_t> m_loopEnd;
+        bool Structured() const { return m_forwardJumpsOnly || m_loopsOnly; }
         // The blocks the forward jumps open when they are lowered to
-        // selections (block kInCase + its place here): the block that
-        // dominates it, how deep it is under the entry block, and for one
-        // that branches on, the place ahead of that branch.
+        // selections, and the loops theirs (block kInCase + its place here):
+        // a block that dominates it, how deep it is under the entry block,
+        // and for one that branches on, the place ahead of that branch.
         struct JumpBlock { uint32_t parent; uint32_t depth; size_t end; };
         std::vector<JumpBlock> m_jumpBlocks;
 
@@ -385,6 +393,45 @@ namespace
         }
         if (jumps == 0 && m_linear)
             m_forwardJumpsOnly = false;
+
+        // Backward jumps alone. A loop of the title's own (Black Ops III's
+        // glow behind the weapon in the zombies' HUD is two, 11 by 11 turns
+        // of 26 control flow instructions) went 3,200 times round the
+        // dispatcher for each pixel: 32 ms of an Adreno 650's frame for two
+        // quads of 40 by 34 pixels, and half an RTX 5080's.
+        m_loopsOnly = jumps != 0;
+        m_loopEnd.assign(m_flow.size(), 0);
+        for (uint32_t i = 0; i < m_flow.size() && m_loopsOnly; i++)
+        {
+            const ControlFlow& cf = m_flow[i];
+            switch (cf.Opcode())
+            {
+            case ControlFlowOpcode::Nop:
+            case ControlFlowOpcode::Alloc:
+            case ControlFlowOpcode::MarkVsFetchDone:
+            case ControlFlowOpcode::Exec:
+            case ControlFlowOpcode::ExecEnd:
+            case ControlFlowOpcode::CondExec:
+            case ControlFlowOpcode::CondExecEnd:
+            case ControlFlowOpcode::CondExecPred:
+            case ControlFlowOpcode::CondExecPredEnd:
+            case ControlFlowOpcode::CondExecPredClean:
+            case ControlFlowOpcode::CondExecPredCleanEnd:
+                break;
+            case ControlFlowOpcode::CondJmp:
+                // One loop to an opening, and a condition to leave it by.
+                if (cf.Target() >= i || cf.IsUnconditional() || m_loopEnd[cf.Target()]) m_loopsOnly = false;
+                else m_loopEnd[cf.Target()] = i;
+                break;
+            default:
+                m_loopsOnly = false;
+                break;
+            }
+        }
+        // A loop that opens inside another closes inside it.
+        for (uint32_t outer = 0; outer < m_flow.size() && m_loopsOnly; outer++)
+            for (uint32_t inner = outer + 1; inner < m_loopEnd[outer]; inner++)
+                if (m_loopEnd[inner] > m_loopEnd[outer]) m_loopsOnly = false;
 
         uint32_t lastSlot = bindings::kFetchSlots;
         uint32_t offTexels[3]{};
@@ -905,21 +952,22 @@ namespace
         // which dominates the dispatch block and the block after the loop;
         // the dispatch block dominates the cases.
         // When forward jumps were lowered to selections instead, each block
-        // one opened says which block dominates it (m_jumpBlocks).
+        // one opened says which block dominates it (m_jumpBlocks), and so
+        // does each a loop opened.
         const auto parent = [this](uint32_t block) -> uint32_t {
-            if (m_forwardJumpsOnly) return block >= kInCase ? m_jumpBlocks[block - kInCase].parent : kInEntry;
+            if (Structured()) return block >= kInCase ? m_jumpBlocks[block - kInCase].parent : kInEntry;
             if (block >= kInCase) return kInDispatch;
             if (block == kInDispatch || block == kAfterLoop) return kInLoopHeader;
             return kInEntry;
         };
         const auto depth = [this](uint32_t block) -> uint32_t {
-            if (m_forwardJumpsOnly) return block >= kInCase ? m_jumpBlocks[block - kInCase].depth : 0;
+            if (Structured()) return block >= kInCase ? m_jumpBlocks[block - kInCase].depth : 0;
             if (block >= kInCase) return 3;
             if (block == kInDispatch || block == kAfterLoop) return 2;
             return block == kInLoopHeader ? 1 : 0;
         };
         const auto end = [this](uint32_t block) -> size_t {
-            return m_forwardJumpsOnly && block >= kInCase ? m_jumpBlocks[block - kInCase].end : m_blockEnd[block];
+            return Structured() && block >= kInCase ? m_jumpBlocks[block - kInCase].end : m_blockEnd[block];
         };
         struct Load { size_t at; uint32_t index; };
         std::vector<Load> loads;
@@ -2292,7 +2340,7 @@ namespace
                          { uintPointer, slot, uint32_t(StorageClass::Function), zero });
             Module::EmitString(m_module.Debug(), Op::Name, { slot }, name);
         };
-        const bool needsSequencer = !m_linear && !m_forwardJumpsOnly;
+        const bool needsSequencer = !m_linear && !Structured();
         if (needsSequencer) scalar(m_pc, "pc");
         scalar(m_lastFetchBase, "vertex_fetch_address");
         if (m_exchange) scalar(m_lastFetchEndian, "vertex_fetch_endian");
@@ -2524,6 +2572,54 @@ namespace
         }
         m_condition = 0;
         SetPcTo(cf.IsEnd() ? stop : next);
+    }
+
+
+    // Control flow instructions first up to end of a program whose jumps are
+    // loops (Analyze): each loop's instructions once, then again while its
+    // jump is taken, as the sequencer runs them.
+    void Translator::EmitLoopSpan(uint32_t first, uint32_t end)
+    {
+        auto& code = m_module.Code();
+        for (uint32_t i = first; i < end; i++)
+        {
+            const uint32_t jump = m_loopEnd[i];
+            if (!jump)
+            {
+                EmitControlFlow(m_flow[i], i);
+                if (!m_result.error.empty()) return;
+                continue;
+            }
+            const Id header = m_module.Allocate(), body = m_module.Allocate();
+            const Id continueTarget = m_module.Allocate(), merge = m_module.Allocate();
+
+            // The block that branches here dominates the loop and what comes
+            // after it (PlaceRecordLoads).
+            const uint32_t from = m_block;
+            const uint32_t depth = from >= kInCase ? m_jumpBlocks[from - kInCase].depth + 1 : 1;
+            (from >= kInCase ? m_jumpBlocks[from - kInCase].end : m_blockEnd[kInEntry]) = code.size();
+            Module::Emit(code, Op::Branch, { header });
+            Module::Emit(code, Op::Label, { header });
+            Module::Emit(code, Op::LoopMerge, { merge, continueTarget, kLoopControlNone });
+            Module::Emit(code, Op::Branch, { body });
+
+            Module::Emit(code, Op::Label, { body });
+            m_block = kInCase + uint32_t(m_jumpBlocks.size());
+            m_jumpBlocks.push_back({ from, depth, 0 });
+            // The opening is this span's own from here on.
+            m_loopEnd[i] = 0;
+            EmitLoopSpan(i, jump);
+            if (!m_result.error.empty()) return;
+            const Id taken = JumpTaken(m_flow[jump]);
+            Module::Emit(code, Op::Branch, { continueTarget });
+            Module::Emit(code, Op::Label, { continueTarget });
+            Module::Emit(code, Op::BranchConditional, { taken, header, merge });
+
+            Module::Emit(code, Op::Label, { merge });
+            m_block = kInCase + uint32_t(m_jumpBlocks.size());
+            m_jumpBlocks.push_back({ from, depth, 0 });
+            i = jump;
+        }
     }
 
 
@@ -2781,6 +2877,11 @@ namespace
                 }
                 i = target;
             }
+        }
+        else if (m_loopsOnly)
+        {
+            EmitLoopSpan(0, caseCount);
+            if (!m_result.error.empty()) return;
         }
         else
         {
