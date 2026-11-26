@@ -181,19 +181,24 @@ is there and offers the one button for what is missing:
    of another game is passed over. The player is never asked for the
    executables themselves.
 2. **The toolchain package.** Found through the package manager
-   (`Toolchain.kt`). When it is missing the app downloads
-   `recomp-toolchain.apk` from the release `setup/toolchain.json` names (one
-   release for all three games, the list being part of the build kit),
-   compares the file's SHA-256 with the list's and only then hands it to the
-   system's install prompt; a file that is anything else is deleted. A
-   package of another version, or whose recompiler is not the app's
-   (`toolchain.json`: `version`, `recompiler`), is not used: the screen says
-   so and offers the download, which replaces it, and a build refuses it
-   before anything runs.
+   (`Toolchain.kt`). When it is missing, or is of another version or has a
+   recompiler that is not the app's (`toolchain.json`: `version`,
+   `recompiler`), the build itself downloads `recomp-toolchain.apk` from the
+   release `setup/toolchain.json` names (one release for all the games, the
+   list being part of the build kit) into the app's cache, compares the
+   file's SHA-256 with the list's, and only then gives it to Android's
+   installer as a session (`ToolchainInstall.kt`); a file that is anything
+   else is deleted. Android asks the player once whether the app may install
+   it (on a device that never let this app install anything, it first asks
+   for that permission in its settings). The app is then the package's
+   installer, and Android 12 and later let an installer replace its own
+   package by a newer one without asking: later toolchains arrive with no
+   question at all.
 3. **The build** (`GameBuild.kt`), in a foreground service
    (`GameBuildService.kt`) with a wake lock and a notification: unpack the
    toolchain's data (once), then for each title analyse, recompile, write the
-   shared header, compare the statement, compile and link.
+   shared header, compare the statement, compile what is not compiled
+   already, and link.
 
 ### What travels with the app: the build kit
 
@@ -205,16 +210,18 @@ the text `tools/genshared.py` writes before its declarations, and `kit.json`
 with the executables' hashes, the compiler's and linker's options as
 `CMakeLists.txt` and `cmake/game_library.cmake` give them (`-O3`, less `-g`),
 and for each library the statement the runtime expects, composed as
-`cmake/game_abi.cmake` composes it from `config/abi/`. The kit's statements
-are the PC builds' to the byte (checked for mw2, mw2mp, mw3 and mw3mp).
+`cmake/game_abi.cmake` composes it from `config/abi/`, with the earlier
+statements it still takes ([game-library.md](game-library.md#what-they-agree-on)).
 
 The work folder in the app's private storage is laid out as the repository
 is, so the configuration files are used unchanged. `tools/genshared.py` is
 done by `GameBuild.writeSharedHeader`, `tools/intext_switch_tables.py` (Call
 of Duty 4) by `InTextTables.kt`. Before the first compile the statement of
-what was actually made (the jump tables, the code's extent, the register
-context, the system calls) is compared with the kit's; a difference stops
-the build in half a minute and names the line.
+what was actually made (the recompiled tree's SHA-256, the code's extent,
+the register context, the system calls) is compared with the kit's; a
+difference stops the build in half a minute and names the line. The tree a
+phone's recompiler writes is the PC's byte for byte, which is what lets one
+SHA-256 stand for both.
 
 ### Loading: a file in the app's own storage
 
@@ -244,9 +251,66 @@ the statement exactly as it does for a package.
   number of compilers and the battery's temperature, and asks for the charger
   when it is not connected. `game-build-report.txt` in the app's folder on
   shared storage has each step's time, for a bug report.
-- After an update of the app that changes the statement, the launcher says
-  the game code has to be built again and the same entry does it; the
-  executables are kept, so no disc image is asked for.
+
+### After an update of the app
+
+An update that expects other game code than the device has
+([android-releases.md](android-releases.md#when-the-game-code-has-to-be-rebuilt))
+needs nothing from the player (`GameUpdate.kt`):
+
+- **It starts by itself.** Android tells the app that it was replaced
+  (`MY_PACKAGE_REPLACED`); the app reads what each library on the device
+  states (out of the package's file, without loading it) and, when this
+  version takes none of a title's, starts the build in the same foreground
+  service, with the notification **Updating the game code**. The same is
+  looked at whenever the launcher is opened, for whatever kept it from
+  starting then. The executables are the ones kept from the last build, or
+  are read again from the installed game files, the disc image chosen
+  before, or an image found on the device: no image is asked for.
+- **Only what changed is compiled.** The objects of the last build stay in
+  `files/game-build/obj/<library>/`, each with a note of what it was made
+  from: the SHA-256 of its source, of `ppc_config.h`, `ppc_context.h` and
+  `runtime/mmio_hook.h`, the compiler's command line and the toolchain's
+  compiler and data. The executables are recompiled (the tree is deleted
+  after every build, being the larger part), and a file whose note still
+  holds is not compiled again. The shared header lists every function of
+  the tree, so a function more or fewer would be every file's change; only
+  what the header says besides that list is in the note, since a file
+  compiles the same whichever other functions are declared.
+- **The battery.** A build the app started itself runs on the charger, or
+  with the battery at or above a charge the player sets (**Settings →
+  Update the game code by itself**: never, only on the charger, above 80,
+  50, 30 or 15%, or always; 30% unless changed). Below it the build stops
+  and starts again when the charger is connected (a job the system runs
+  then) or the app is opened. Memory and heat hold it back as they do any
+  build.
+- **What it will not do by itself:** download the toolchain over a metered
+  network, or install a toolchain on a device that never had one. It then
+  says so in a notification that opens the build screen, and tries again
+  after the next update of the app or when the player starts the build. A
+  build that failed is not started again by itself either.
+- **Meanwhile** the launcher's status says that the code is being updated
+  and how far it is, and Play waits for it; a title whose code did not
+  change is played as before.
+
+Tried on the AYN Thor (Android 13, on the charger) with Modern Warfare 2,
+apps under a name of their own beside the published one, the toolchain
+served as [android-releases.md](android-releases.md#trying-the-update-without-publishing)
+says, November 2026; the times are `game-build-report.txt`'s:
+
+| An update of the app over | What happened | Time |
+|---|---|---|
+| the release before, with game code built on a PC before `toolchain-v2` (a statement of the old kind, the same code) | nothing built: the game was at its title screen a second after the update was installed and the app opened. The app before the update refused that library (`its recompiler-patch is not the one this app was built for`) | 0 s |
+| the same app, with a configuration that makes one function two (10 of the campaign's 111 files differ, the shared header among the tree's) | built by itself in the background, with the launcher not opened: recompiled 13.1 s, compiled 10 files 8.5 s, kept 101 objects | 21.7 s |
+| the same, and a toolchain package of a newer version | the same, after downloading the package and installing it over the old one, with no question from Android (0.9 s) | 22.6 s |
+| no objects kept (the first build, both titles, 226 files; Android asked once about the toolchain package) | recompiled 26.5 s, compiled 167 s | 194 s |
+
+A library that is other code than its note says (the campaign's swapped for
+one made from the other configuration, the note left) is passed by the
+launcher and refused by the runtime when the game starts, `its
+generated-code is not the one this app was built for`; the message's
+**Build on this device** then made it again from the objects kept in 13 s,
+all of it the recompiler's.
 
 ### What was measured (the whole flow, in the app)
 

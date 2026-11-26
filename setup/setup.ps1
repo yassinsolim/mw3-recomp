@@ -69,11 +69,13 @@ on one device.
 .PARAMETER Recomp
 Recompile even when a recompiled tree is already there.
 A tree made with an older recompiler or configuration than this checkout's is
-recompiled without being asked.
+recompiled without being asked; the files that come out as they were are not
+compiled again.
 .PARAMETER GameOnly
 On Android: build and install the game code only, and leave the app as it
-is. What the app asks for when an update of it needs the game code built
-again; run it after `git pull`.
+is. For after `git pull`, when an update of the app expects other game code:
+only what changed is built again, and nothing is installed when the phone
+has that code already.
 .PARAMETER Dev
 On Android: build the app here instead of downloading the published one. It
 is signed with this PC's debug key, so it does not update from the published
@@ -435,6 +437,20 @@ function Select-InstallDevice([object[]]$ready, [string]$device, [bool]$interact
     return $ready[0].Serial
 }
 
+# Whether the phone's game code is the code just built: its package holds
+# these libraries and no others, byte for byte. A run that changed nothing,
+# or nothing of this game's code, then installs nothing.
+function Test-GameCodeOnPhone($serial, $item) {
+    try {
+        $base = "$(Exec $Adb @('-s', $serial, 'shell', 'pm', 'path', $item.Package))".Trim()
+        if ($base -notmatch '^package:(.+)/base\.apk$') { return $false }
+        $there = @(Exec $Adb @('-s', $serial, 'shell', "sha256sum $($Matches[1])/lib/arm64/*.so") |
+            ForEach-Object { if ("$_" -match '^([0-9a-f]{64})\s+.*/([^/\s]+)\s*$') { "$($Matches[2]) $($Matches[1])" } } | Sort-Object)
+        $here = @(Get-ChildItem -File $item.Libraries | ForEach-Object { "$($_.Name) $(Sha256Of $_.FullName)" } | Sort-Object)
+        $here.Count -gt 0 -and ($there -join "`n") -eq ($here -join "`n")
+    } catch { $false }
+}
+
 # Installs one of step 5's packages on the phone. Android replaces an app only
 # with one signed by the same key, and the copies of this one are signed three
 # ways: the published app with the project's release key, an app built here
@@ -446,6 +462,10 @@ function Select-InstallDevice([object[]]$ready, [string]$device, [bool]$interact
 # replaced. Never throws: the build is done by now, and what is wrong is said.
 function Install-Package($serial, $item) {
     $name = Split-Path -Leaf $item.Apk
+    if ($item.Libraries -and (Test-GameCodeOnPhone $serial $item)) {
+        Note "the game code on $serial is the code just built: $name is not installed again."
+        return
+    }
     Step "adb install $name"
     $install = {
         $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
@@ -931,7 +951,14 @@ foreach ($key in @($Keys)) {
         # their game code is checked against, and stay as the analyser writes them.
         if ($Cod4 -or $Aw) { Exec $Python @('tools/intext_switch_tables.py') -Cwd $Repo -Log "$($t.Name)_intext_tables.log" -Quiet }
         # XenonRecomp crashes, rather than complaining, when its output directory is missing.
-        if (Test-Path $ppcDir) { Remove-Item -Recurse -Force $ppcDir }
+        # The tree of the run before is kept beside it until this one is
+        # whole, to tell which files come out as they were; a tree without
+        # its note is a run that stopped halfway, and the one kept is older.
+        $before = "$ppcDir.before"
+        if (Test-Path (Join-Path $ppcDir 'recompiled_with.txt')) {
+            if (Test-Path $before) { Remove-Item -Recurse -Force $before }
+            Move-Item $ppcDir $before
+        } elseif (Test-Path $ppcDir) { Remove-Item -Recurse -Force $ppcDir }
         New-Item -ItemType Directory $ppcDir | Out-Null
         Exec $XenonExe @($t.Toml, '../XenonRecomp/XenonUtils/ppc_context.h') -Cwd (Join-Path $Repo 'config') -Log "$($t.Name)_recomp.log" -Quiet
         $recompLog = Join-Path $Logs "$($t.Name)_recomp.log"
@@ -944,6 +971,30 @@ foreach ($key in @($Keys)) {
         if ($files -ne $t.Files -or $tables -ne $t.Jump -or $bad -ne $stepped) { Warn 'the recompiled tree differs from the tested one; the build may fail or misbehave.' }
         Step 'generate the shared header'
         Exec $Python @('tools/genshared.py') -Cwd $Repo -Log "$($t.Name)_genshared.log" -Quiet
+        # A file that came out as it was keeps its date, so the build
+        # compiles only the ones that changed: a new recompiler or
+        # configuration seldom changes them all, and often none. The shared
+        # header lists every function, one `PPC_FUNC(name);` a line, and
+        # every file includes it; it keeps its date when only that list
+        # changed, since a file compiles the same whichever other functions
+        # are declared, and the files that name a new one changed themselves.
+        if (Test-Path $before) {
+            $made = @(Get-ChildItem $ppcDir -File)
+            $same = 0
+            $apart = { param($path) ([IO.File]::ReadAllLines($path) | Where-Object { $_ -notmatch '^PPC_FUNC\(\w+\);$' }) -join "`n" }
+            foreach ($file in $made) {
+                $old = Join-Path $before $file.Name
+                if (-not (Test-Path $old)) { continue }
+                if ((Get-Item $old).Length -eq $file.Length -and (Sha256Of $old) -eq (Sha256Of $file.FullName)) {
+                    $file.LastWriteTimeUtc = (Get-Item $old).LastWriteTimeUtc
+                    $same++
+                } elseif ($file.Name -eq 'ppc_recomp_shared.h' -and (& $apart $old) -eq (& $apart $file.FullName)) {
+                    $file.LastWriteTimeUtc = (Get-Item $old).LastWriteTimeUtc
+                }
+            }
+            Remove-Item -Recurse -Force $before
+            Note "$same of $($made.Count) files came out as they were and are not compiled again."
+        }
         # What the tree was made with, for the next run to know whether it
         # still is what this checkout recompiles to (Test-Tree).
         [IO.File]::WriteAllText((Join-Path $ppcDir 'recompiled_with.txt'), (RecompiledWith $t))
@@ -999,7 +1050,7 @@ if ($ForAndroid) {
         Exec (Join-Path $Repo 'android\gradlew.bat') ($gradleArgs + "-Pgame=$Game" + "-PgameLibraries=$(Split-Path -Parent $libraries)" + ':game:assembleDebug') -Cwd (Join-Path $Repo 'android') -Log 'gradle_game.log' -Quiet
         $apk = Join-Path $Out "$Game-game$Suffix.apk"
         Copy-Item (Join-Path $Repo 'android\game\build\outputs\apk\debug\game-debug.apk') $apk -Force
-        $Apks += @{ Apk = $apk; Package = "$AppPackage.game"; Data = $false }
+        $Apks += @{ Apk = $apk; Package = "$AppPackage.game"; Data = $false; Libraries = $libraries }
         Note ("{0} ({1:N1} MB; built against {2})" -f $apk, ((Get-Item $apk).Length / 1MB), ($built -join ', '))
 
         # ---- the app: the published one --------------------------------------

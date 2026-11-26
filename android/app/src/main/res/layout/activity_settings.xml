@@ -914,6 +914,28 @@
                     android:visibility="gone" />
 
                 <TextView
+                    android:id="@+id/update_code_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+
+                <SeekBar
+                    android:id="@+id/update_code"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/update_code_hint"
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/update_code_hint"
+                    android:visibility="gone" />
+
+                <TextView
                     style="@style/SectionHeading"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

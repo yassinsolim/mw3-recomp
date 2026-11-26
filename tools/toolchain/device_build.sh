@@ -9,10 +9,7 @@
 #   Environment: TOOLS (the toolchain's programs), DATA (its data.zip, unpacked)
 #   Input, pushed by tools/toolchain/device_test.py:
 #     title.env            LIBRARY, TOML, TABLES, PPC, XEX and DEFINES of the title
-#     abi_fixed.txt        the statement's lines that are the checkout's: the
-#                          recompiler, its patch, the configuration, the script
-#                          that writes the shared header
-#     abi_hook.txt         its last line, of runtime/mmio_hook.h
+#     abi_hook.txt         the statement's last line, of runtime/mmio_hook.h
 #     config/<TOML>, <XEX>, runtime/mmio_hook.h, cmake/game_library.list
 #   Output: lib<LIBRARY>game.so, game_abi.cpp, build.txt (times and memory)
 # toolchain.json is the reference for the command lines; these are its, and
@@ -58,14 +55,20 @@ rm all.cpp
 LC_ALL=C comm -13 defs.txt refs.txt | grep '^__imp__' | sed 's/^__imp__//' >"$PPC/kernel_imports.txt"
 T2=$(now)
 
-# cmake/game_abi.cmake: the statement, a line for each thing the library was
-# built against, of the files as they are here.
+# cmake/game_abi.cmake: the statement, a line for each thing the library is,
+# of the files as they are here. The code is the tree's SHA-256 (mw2_abi_tree
+# there): of a line for each file compiled or included, its own SHA-256 and
+# its name, in the order of the names.
 # (Not "hash": the phone's shell has a command of that name.)
 abi_hash() { tr -d '\r' <"$1" | sha256sum | cut -d' ' -f1; }
+abi_tree() {
+    for NAME in $(cd "$PPC" && ls ppc_recomp.*.cpp ppc_func_mapping.cpp ppc_config.h ppc_context.h ppc_recomp_shared.h | LC_ALL=C sort); do
+        echo "$(abi_hash "$PPC/$NAME")  $NAME"
+    done
+}
 {
     echo "title $LIBRARY"
-    cat "$IN/abi_fixed.txt"
-    echo "jump-tables $(abi_hash "config/$TABLES")"
+    echo "generated-code $(abi_tree | sha256sum | cut -d' ' -f1)"
     echo "code-extent $(abi_hash "$PPC/ppc_config.h")"
     echo "register-context $(abi_hash "$PPC/ppc_context.h")"
     echo "system-calls $(abi_hash "$PPC/kernel_imports.txt")"

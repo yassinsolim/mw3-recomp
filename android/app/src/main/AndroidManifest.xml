@@ -13,8 +13,12 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
-    <!-- Self-update: downloading the next APK and installing it over this one. -->
+    <!-- Self-update: downloading the next APK and installing it over this one.
+         The toolchain package is installed the same way, and replaced by a
+         newer one without a question where Android lets the app that
+         installed a package update it (ToolchainInstall.kt). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- System link between phones on the same network (MW2_NET_LINK). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -52,7 +56,7 @@
         <package android:name="cod.modern.warfare2.mp.tu6" />
         <package android:name="${gamePackage}" />
         <!-- The compiler and the recompiler, for building the game code here (Toolchain.kt). -->
-        <package android:name="com.recomp.toolchain" />
+        <package android:name="${toolchainPackage}" />
     </queries>
 
     <application
@@ -186,6 +190,29 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Compiling the game code from the player's own disc" />
         </service>
+
+        <!-- Android's answer to an install of the toolchain package
+             (ToolchainInstall.kt): from the system only. -->
+        <receiver
+            android:name=".ToolchainInstallReceiver"
+            android:exported="false" />
+
+        <!-- After an update of the app: the game code this version expects is
+             built by itself when the code on the device is not it
+             (GameUpdate.kt). The broadcast is the system's, to this app alone. -->
+        <receiver
+            android:name=".AppUpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The same, put off until the charger is connected (GameUpdate.kt). -->
+        <service
+            android:name=".ChargerJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <activity
             android:name=".FileBrowserActivity"

@@ -5,6 +5,35 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **An update of the app no longer asks you to build the game code again
+  unless the code really changed, and then does it for you.** Nothing has
+  to be built to get this: the game code you have is taken as it is, in all
+  four games.
+  - The app checked the game code against the tools it was made with (the
+    recompiler, its patch, the configuration), so a change of those stopped
+    every game, Modern Warfare 2 and Call of Duty 4 included in November
+    although their code came out the same. It now checks the code itself,
+    the SHA-256 of what the recompiler wrote (`generated-code`): an update
+    whose code is the same costs nothing, and other code is still refused,
+    by the runtime, before any of it runs
+    ([docs/game-library.md](docs/game-library.md#what-they-agree-on)).
+  - When an update does expect other code, an app that builds it on the
+    device starts by itself the moment the update is installed, in the
+    background with a notification (**Updating the game code**), from the
+    disc image chosen before, and compiles only the files that came out
+    different. On the AYN Thor with Modern Warfare 2: 22 seconds for a
+    change of one function (10 of 111 files), with the app never opened,
+    against 3 minutes 14 seconds for both titles from nothing
+    ([docs/ondevice-build.md](docs/ondevice-build.md#after-an-update-of-the-app)).
+    It runs on the charger or above a battery charge you choose (**Settings
+    → Update the game code by itself**, 30% unless changed; it can be turned
+    off), and memory and heat hold it back as before.
+  - The build fetches and installs the toolchain package itself (the
+    separate button is gone). Android asks once whether the app may install
+    it; later toolchains replace it with no question.
+  - `setup\setup.cmd -GameOnly` (`setup/setup.sh --game-only`) after a
+    `git pull` compiles only the files the recompiler wrote differently,
+    and installs nothing when the phone has that code already.
 - **Advanced Warfare plays from its two disc images where they are.** It
   copied both discs into the app, 12 GB on the device's own storage; now
   **Play from the disc image** is the default, as in the other games: the

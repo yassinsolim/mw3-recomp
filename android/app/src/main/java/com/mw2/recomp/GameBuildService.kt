@@ -27,6 +27,10 @@ import kotlin.concurrent.thread
  * again when it finds one wanted and none running. The build itself looks at
  * the files and does what is left (GameBuild.run).
  *
+ * The same service runs the build the app starts by itself after an update
+ * that expects other game code (GameUpdate.kt); its notification then says
+ * "Updating the game code".
+ *
  * In the launcher's process, not the run's: it has nothing of the runtime's
  * and must not be ended with a game.
  */
@@ -38,7 +42,7 @@ class GameBuildService : Service() {
 
     private val tick = object : Runnable {
         override fun run() {
-            notifications().notify(NOTIFICATION_ID, working())
+            notifications(this@GameBuildService).notify(NOTIFICATION_ID, working())
             handler.postDelayed(this, 2000)
         }
     }
@@ -46,35 +50,22 @@ class GameBuildService : Service() {
     /** Nothing binds to it; the screen reads GameBuild.progress. */
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun notifications() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-    private fun open(): PendingIntent = PendingIntent.getActivity(
-        this, 0, Intent(this, BuildActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
-
     private fun working(): Notification {
         val progress = GameBuild.progress
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(getString(R.string.build_title))
+            .setContentTitle(getString(heading(this)))
             .setContentText(describe(this, progress))
             .setProgress(progress.total, progress.done, progress.total == 0)
-            .setContentIntent(open())
+            .setContentIntent(open(this))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .build()
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        // IMPORTANCE_LOW: a line in the shade with a bar, no sound.
-        notifications().createNotificationChannel(
-            NotificationChannel(CHANNEL, getString(R.string.build_channel), NotificationManager.IMPORTANCE_LOW),
-        )
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        channel(this)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(NOTIFICATION_ID, working(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
@@ -100,8 +91,9 @@ class GameBuildService : Service() {
             wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mw2:game-build").apply { acquire(6 * 60 * 60 * 1000L) }
             handler.post(tick)
+            val automatic = state.automatic
             worker = thread(name = "game-build") {
-                val outcome = GameBuild.run(applicationContext)
+                val outcome = GameBuild.run(applicationContext, automatic) { !automatic || GameUpdate.batteryAllows(applicationContext) }
                 handler.post { finished(outcome) }
             }
         }
@@ -117,34 +109,43 @@ class GameBuildService : Service() {
         val said = when (outcome) {
             is GameBuild.Outcome.Done -> {
                 state.wanted = false
-                getString(R.string.build_done)
+                state.stopped = false
+                getString(if (state.automatic) R.string.update_code_done else R.string.build_done)
             }
             is GameBuild.Outcome.Failed -> {
                 state.wanted = false
                 state.error = outcome.message
+                // The app does not try by itself again what has just failed:
+                // the launcher says the code is to be built, and why it was not.
+                if (state.automatic) state.stopped = true
                 getString(R.string.build_failed)
+            }
+            is GameBuild.Outcome.Waiting -> when (outcome.why) {
+                // The build is still wanted, and carries on when Android has
+                // the player's answer (ToolchainInstall.answered).
+                GameBuild.Wait.CONFIRM -> getString(R.string.update_code_confirm)
+                GameBuild.Wait.TOOLCHAIN -> {
+                    state.wanted = false
+                    state.stopped = true
+                    getString(R.string.update_code_toolchain)
+                }
+                // Started again by the charger (ChargerJob) or the launcher,
+                // which finds the code as outdated as before.
+                GameBuild.Wait.CHARGER -> {
+                    state.wanted = false
+                    GameUpdate.waitForCharger(this)
+                    getString(R.string.update_code_charger, GameUpdate.batteryLevel(this))
+                }
             }
             // Paused by the player; unless they have asked for it again
             // since, in which case the build starts over from what it has.
             is GameBuild.Outcome.Paused -> if (state.paused) null else {
-                start(this)
+                start(this, state.automatic)
                 return
             }
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
-        if (said != null) {
-            // News, unlike the progress: it stays until the player has seen it.
-            notifications().notify(
-                RESULT_ID,
-                Notification.Builder(this, CHANNEL)
-                    .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                    .setContentTitle(getString(R.string.build_title))
-                    .setContentText(said)
-                    .setContentIntent(open())
-                    .setAutoCancel(true)
-                    .build(),
-            )
-        }
+        if (said != null) say(this, said)
         stopSelf()
     }
 
@@ -174,6 +175,20 @@ class GameBuildService : Service() {
         var error: String
             get() = store.getString("error", "").orEmpty()
             set(value) = store.edit().putString("error", value).apply()
+
+        /** The build in hand, or the last, was started by the app after an update of it (GameUpdate), not by the player. */
+        var automatic: Boolean
+            get() = store.getBoolean("automatic", false)
+            set(value) = store.edit().putBoolean("automatic", value).apply()
+
+        /**
+         * A build the app started failed, or needs something only the player
+         * can decide: the app starts none by itself until the player has
+         * built the code or the app is updated again.
+         */
+        var stopped: Boolean
+            get() = store.getBoolean("stopped", false)
+            set(value) = store.edit().putBoolean("stopped", value).apply()
     }
 
     companion object {
@@ -181,15 +196,61 @@ class GameBuildService : Service() {
         private const val NOTIFICATION_ID = 0x4D58
         private const val RESULT_ID = 0x4D59
 
-        /** Starts the build, or carries on with a paused one. From an activity in front. */
-        fun start(context: Context) {
+        private fun notifications(context: Context) = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        private fun channel(context: Context) {
+            // IMPORTANCE_LOW: a line in the shade with a bar, no sound.
+            notifications(context).createNotificationChannel(
+                NotificationChannel(CHANNEL, context.getString(R.string.build_channel), NotificationManager.IMPORTANCE_LOW),
+            )
+        }
+
+        private fun open(context: Context): PendingIntent = PendingIntent.getActivity(
+            context, 0, Intent(context, BuildActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        /** What the build is called: the player's own, or the app's after an update of it. */
+        fun heading(context: Context): Int = if (State(context).automatic) R.string.update_code_title else R.string.build_title
+
+        /** News, unlike the progress: it stays until the player has seen it, and leads to the build's screen. */
+        private fun say(context: Context, text: String) {
+            channel(context)
+            notifications(context).notify(
+                RESULT_ID,
+                Notification.Builder(context, CHANNEL)
+                    .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                    .setContentTitle(context.getString(heading(context)))
+                    .setContentText(text)
+                    .setStyle(Notification.BigTextStyle().bigText(text))
+                    .setContentIntent(open(context))
+                    .setAutoCancel(true)
+                    .build(),
+            )
+        }
+
+        /**
+         * Starts the build, or carries on with a paused one. [automatic]:
+         * the app starts it by itself (GameUpdate), from wherever it is; the
+         * player's own start is from an activity in front.
+         */
+        fun start(context: Context, automatic: Boolean) {
             val state = State(context)
             state.wanted = true
             state.paused = false
             state.error = ""
+            state.automatic = automatic
+            if (!automatic) state.stopped = false
             GameBuild.allow()
-            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(RESULT_ID)
-            context.startForegroundService(Intent(context, GameBuildService::class.java))
+            notifications(context).cancel(RESULT_ID)
+            try {
+                context.startForegroundService(Intent(context, GameBuildService::class.java))
+            } catch (_: IllegalStateException) {
+                // From the background, where Android 12 and later let a
+                // foreground service start only on a few occasions (an update
+                // of the app is one, a charger connected is not): the build
+                // starts when the player opens the app, and this leads there.
+                say(context, context.getString(R.string.update_code_open))
+            }
         }
 
         /** Stops the compilers; what is finished stays, and [start] carries on from it. */
@@ -199,14 +260,22 @@ class GameBuildService : Service() {
         }
 
         /**
-         * A build the player started that no process is doing any more: the
-         * system ended it, or the device was restarted. Called by the
-         * activities when they come to the front, which is when a foreground
-         * service may be started.
+         * A build that is wanted and that no process is doing any more: the
+         * system ended it, the device was restarted, or it waited for an
+         * answer that has come. Called by the activities when they come to
+         * the front, which is when a foreground service may be started.
          */
         fun resumeIfInterrupted(context: Context) {
             val state = State(context)
-            if (state.wanted && !state.paused && !GameBuild.progress.running) start(context)
+            if (!state.wanted || state.paused || GameBuild.progress.running) return
+            // Android still asks the player about the toolchain package.
+            if (ToolchainInstall.confirmation != null) return
+            if (state.automatic && !GameUpdate.batteryAllows(context)) {
+                state.wanted = false
+                GameUpdate.waitForCharger(context)
+                return
+            }
+            start(context, state.automatic)
         }
 
         /** [progress] in a line, for the notification and the screen. */
@@ -218,6 +287,7 @@ class GameBuildService : Service() {
                 GameBuild.Step.PREPARE ->
                     if (progress.total == 0) context.getString(R.string.build_starting)
                     else context.getString(R.string.build_step_prepare, progress.done, progress.total)
+                GameBuild.Step.TOOLCHAIN -> context.getString(R.string.build_step_toolchain, progress.done, progress.total)
                 GameBuild.Step.RECOMPILE -> context.getString(R.string.build_step_recompile, name)
                 GameBuild.Step.LINK -> context.getString(R.string.build_step_link, name)
                 GameBuild.Step.COMPILE -> {

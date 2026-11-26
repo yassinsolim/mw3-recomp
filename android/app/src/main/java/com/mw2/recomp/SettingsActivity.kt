@@ -388,6 +388,32 @@ fpsSlider.setOnSeekBarChangeListener(object : Simple() {
                 }
             }
         }
+        if (GameBuild.offered(this)) {
+            // The game code after an update of the app (GameUpdate.kt): from
+            // never by itself, through the charger only, to any charge.
+            val steps = intArrayOf(Prefs.UPDATE_CODE_NEVER, Prefs.UPDATE_CODE_CHARGING, 80, 50, 30, 15, 0)
+            val label: TextView = findViewById(R.id.update_code_label)
+            val bar: SeekBar = findViewById(R.id.update_code)
+            fun show(step: Int) {
+                label.text = when (step) {
+                    Prefs.UPDATE_CODE_NEVER -> getString(R.string.update_code_never)
+                    Prefs.UPDATE_CODE_CHARGING -> getString(R.string.update_code_charging)
+                    0 -> getString(R.string.update_code_always)
+                    else -> getString(R.string.update_code_above, step)
+                }
+            }
+            val hint: TextView = findViewById(R.id.update_code_hint)
+            for (view in listOf(label, bar, hint)) view.visibility = android.view.View.VISIBLE
+            bar.max = steps.size - 1
+            bar.progress = steps.indexOf(prefs.updateCodeBattery).coerceAtLeast(0)
+            show(steps[bar.progress])
+            bar.setOnSeekBarChangeListener(object : Simple() {
+                override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                    show(steps[value])
+                    if (fromUser) prefs.updateCodeBattery = steps[value]
+                }
+            })
+        }
 
         // ---- storage ----
         val storage: TextView = findViewById(R.id.storage)

@@ -520,7 +520,15 @@ for key in "${KEYS[@]}"; do
         # the analyser writes them.
         case "$GAME" in cod4|aw) logged "${T_NAME}_intext_tables.log" python3 tools/intext_switch_tables.py ;; esac
         # XenonRecomp crashes, rather than complaining, when its output directory is missing.
-        rm -rf "$T_PPC" && mkdir "$T_PPC"
+        # The tree of the run before is kept beside it until this one is
+        # whole, to tell which files come out as they were; a tree without
+        # its note is a run that stopped halfway, and the one kept is older.
+        if [ -f "$T_PPC/recompiled_with.txt" ]; then
+            rm -rf "$T_PPC.before" && mv "$T_PPC" "$T_PPC.before"
+        else
+            rm -rf "$T_PPC"
+        fi
+        mkdir "$T_PPC"
         (cd config && logged "${T_NAME}_recomp.log" "$XENON_EXE" "$T_TOML" ../XenonRecomp/XenonUtils/ppc_context.h)
         files=$(find "$T_PPC" -maxdepth 1 -type f | wc -l)
         tables=$(grep -cF '[[switch]]' "config/$T_TABLES" || true)
@@ -531,6 +539,30 @@ for key in "${KEYS[@]}"; do
         fi
         step 'generate the shared header'
         logged "${T_NAME}_genshared.log" python3 tools/genshared.py
+        # A file that came out as it was keeps its date, so the build
+        # compiles only the ones that changed: a new recompiler or
+        # configuration seldom changes them all, and often none. The shared
+        # header lists every function, one `PPC_FUNC(name);` a line, and
+        # every file includes it; it keeps its date when only that list
+        # changed, since a file compiles the same whichever other functions
+        # are declared, and the files that name a new one changed themselves.
+        if [ -d "$T_PPC.before" ]; then
+            made=0; same=0
+            for file in "$T_PPC"/*; do
+                made=$((made + 1))
+                old=$T_PPC.before/$(basename "$file")
+                [ -f "$old" ] || continue
+                if cmp -s "$file" "$old"; then
+                    touch -r "$old" "$file"
+                    same=$((same + 1))
+                elif [ "$(basename "$file")" = ppc_recomp_shared.h ] &&
+                    cmp -s <(grep -v '^PPC_FUNC([A-Za-z0-9_]*);[[:space:]]*$' "$file") <(grep -v '^PPC_FUNC([A-Za-z0-9_]*);[[:space:]]*$' "$old"); then
+                    touch -r "$old" "$file"
+                fi
+            done
+            rm -rf "$T_PPC.before"
+            note "$same of $made files came out as they were and are not compiled again."
+        fi
         # What the tree was made with, for the next run to know whether it
         # still is what this checkout recompiles to (tree_current).
         recompiled_with > "$T_PPC/recompiled_with.txt"
@@ -641,11 +673,26 @@ fi
 # means uninstalling, which takes the app's folder on the phone with it: the
 # game files and the saves. So that folder is moved aside first and back
 # afterwards (a rename, not a copy), with the player's leave. The game
-# code's package holds nothing of the player's and is simply replaced. Never
-# fatal: the build is done by now, and what is wrong is said.
+# code's package holds nothing of the player's and is simply replaced, unless
+# the phone has the code just built already: its package holds these
+# libraries and no others, byte for byte, and a run that changed nothing of
+# this game's code installs nothing. Never fatal: the build is done by now,
+# and what is wrong is said.
+game_code_on_phone() {   # game_code_on_phone <serial> <package>
+    local base there here
+    base=$("$ADB" -s "$1" shell pm path "$2" 2>/dev/null | tr -d '\r' | sed -n 's|^package:\(.*\)/base\.apk$|\1|p')
+    [ -n "$base" ] || return 1
+    there=$("$ADB" -s "$1" shell "sha256sum $base/lib/arm64/*.so" 2>/dev/null | tr -d '\r' | sed 's|  *.*/| |' | sort)
+    here=$(cd "$LIBRARIES" && sha256sum -- *.so | sed 's|  *\*\{0,1\}| |' | sort)
+    [ -n "$here" ] && [ "$there" = "$here" ]
+}
 install_package() {   # install_package <serial> <apk> <package> <data 0|1>
     local serial=$1 apk=$2 package=$3 data=$4 text name
     name=$(basename "$apk")
+    if [ "$data" = 0 ] && game_code_on_phone "$serial" "$package"; then
+        note "the game code on $serial is the code just built: $name is not installed again."
+        return 0
+    fi
     step "adb install $name"
     text=$("$ADB" -s "$serial" install -r "$apk" 2>&1) && return 0
     # Another key, or (a build made here over the published app) an older version number.

@@ -56,22 +56,17 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def expected_statement(library, title):
+def expected_statement(library):
     """What the app's library is built against without the disc (MW2_SPLIT=runtime)."""
-    commit = re.search(rb"XenonCommit\s*=\s*'([0-9a-f]+)'", text("setup/setup.ps1")).group(1).decode()
     recorded = f"config/abi/{library}/"
     context = b'#pragma once\n#include "ppc_config.h"\n\n' + text("XenonRecomp/XenonUtils/ppc_context.h")
-    fixed = (f"recompiler {commit}\n"
-             f"recompiler-patch {sha(text('patches/xenonrecomp-mw2.patch'))}\n"
-             f"configuration {sha(text('config/' + title['TOML']))}\n"
-             f"shared-header {sha(text('tools/genshared.py'))}\n")
     hook = f"memory-hook {sha(text('runtime/mmio_hook.h'))}\n"
-    statement = (f"title {library}\n" + fixed +
-                 f"jump-tables {text(recorded + 'switch_tables.sha256').decode().strip()}\n"
+    statement = (f"title {library}\n"
+                 f"generated-code {text(recorded + 'generated_code.sha256').decode().strip()}\n"
                  f"code-extent {sha(text(recorded + 'ppc_config.h'))}\n"
                  f"register-context {sha(context)}\n"
                  f"system-calls {sha(text(recorded + 'kernel_imports.list'))}\n" + hook)
-    return statement, fixed, hook
+    return statement, hook
 
 
 def check_commands(package):
@@ -102,7 +97,7 @@ def main():
     if arguments.package:
         check_commands(arguments.package)
     library, title = arguments.title, TITLES[arguments.title]
-    statement, fixed, hook = expected_statement(library, title)
+    statement, hook = expected_statement(library)
     adb = ["adb"] + (["-s", arguments.serial] if arguments.serial else [])
     probe = "com.recomp.toolchain.probe" + arguments.suffix
     work = f"/sdcard/Android/data/{probe}/files"
@@ -117,7 +112,6 @@ def main():
             shutil.copyfile(os.path.join(ROOT, path), os.path.join(stage, path))
         write = lambda name, data: open(os.path.join(stage, name), "w", newline="\n").write(data)
         write("title.env", f"LIBRARY={library}\n" + "".join(f"{k}='{v}'\n" for k, v in title.items()))
-        write("abi_fixed.txt", fixed)
         write("abi_hook.txt", hook)
         # The header's fixed part, from the script that writes it on a PC.
         header = re.search(r'HEADER = (""".*?""")', text("tools/genshared.py").decode(), re.S).group(1)

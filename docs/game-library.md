@@ -64,30 +64,51 @@ one-library build's within the noise of two runs each.
 
 ## What they agree on
 
-Each library carries a statement of what it was built against, a line for
-each thing: the recompiler's commit and this repository's patch to it, the
-title's `config/*.toml`, the script that writes the shared header, the jump
-tables, the code's extent, the register context, the system calls imported
-and `runtime/mmio_hook.h`. The runtime compares the game library's
-(`mw2_game_abi`) with its own before using anything else of it, and refuses
-one that differs, naming the first line that does. The app then says that
-the game code was built for another version of the app and has to be built
-again: an app that can build it offers **Build on this device** in that
-message ([ondevice-build.md](ondevice-build.md)), and names
-`setup\setup.cmd -GameOnly` (`-Game mw2 -GameOnly`) for a PC. A library
-that asks for a symbol the runtime has not got fails in `dlopen` and is
-reported the same way.
+Each library carries a statement of what it is, a line for each thing: the
+title, the code the recompiler made (`generated-code`: the SHA-256 of the
+recompiled tree, a line for each file that is compiled or included with the
+file's own SHA-256 and its name), the code's extent, the register context,
+the system calls imported and `runtime/mmio_hook.h`. The runtime compares
+the game library's (`mw2_game_abi`) with its own before using anything else
+of it, and refuses one that differs, naming the first line that does. A
+library that asks for a symbol the runtime has not got fails in `dlopen` and
+is reported the same way.
+
+What the code was made *with* is not in the statement: the recompiler, this
+repository's patch to it, the title's `config/*.toml`, the jump tables and
+the script that writes the shared header. A change of those that leaves the
+code as it was leaves the statement as it was, and nobody builds anything
+again. They were the statement until November 2026 and stopped every game
+whenever one of them changed, Modern Warfare 2's and Call of Duty 4's
+included when the recompiler's patch changed and their code came out the
+same. A library built then says them and not its code, so
+`config/abi/<library>/earlier_statements.list` keeps each such statement
+behind the code it is known to have been made from, and the app takes the
+ones made from the code it takes now: nobody had to build again to move to
+the new statement.
+
+The app knows before a run whether it takes the code on the device
+(`GameLibrary.kt`: the statement is read out of the library's file, or from
+the note beside a library built on the device). When it does not, an app
+that can build the code builds it by itself, in the background, as soon as
+the update is installed ([ondevice-build.md](ondevice-build.md#after-an-update-of-the-app));
+for a PC it names `setup\setup.cmd -GameOnly` (`-Game mw2 -GameOnly`).
 
 The app's side is built without the disc, from what `config/abi/<library>/`
 records of the recompiled tree: `ppc_config.h` (four numbers), the names of
-the system calls, and the SHA-256 of the jump tables. After changing the
-recompiler, its patch or a title's configuration, recompile and record it:
+the system calls, and the tree's SHA-256 (`generated_code.sha256`). After a
+change of the recompiler, its patch or a title's configuration that changes
+the code, recompile and record it:
 
     cmake ... -DMW2_SPLIT=game -DMW2_ABI_RECORD=ON
 
-and commit `config/abi/` with the change. The recompiled tree notes what it
-was made with (`recompiled_with.txt`, written by setup), and setup recompiles
-a tree whose note is not what the checkout recompiles with.
+and commit `config/abi/` with the change; a configure without it warns when
+the tree is not the code recorded. Recording other code deletes the
+library's `earlier_statements.list`, which is of the code before. The
+recompiled tree notes what it was made with (`recompiled_with.txt`, written
+by setup), and setup recompiles a tree whose note is not what the checkout
+recompiles with; the files that come out as they were keep their dates, so
+only the others are compiled again.
 
 ## Limits
 
@@ -104,10 +125,10 @@ a tree whose note is not what the checkout recompiles with.
   is the statement, which is checked. Android itself only asks that a
   package replacing another is signed with the same key, so a package from
   another builder goes on after the old one is uninstalled.
-- An update that changes the statement stops the game until the game code is
-  rebuilt (on the device, on a PC, or by running the builder workflow again).
-  The app says so when the game is started, not before the update is
-  installed; releases publish the statement
-  (`mw3-recomp-<tag>-game-abi.txt`, `mw2-recomp-<tag>-game-abi.txt`) and setup
-  warns when what it built differs. Such changes are made together, in one
-  release ([android-releases.md](android-releases.md#when-the-game-code-has-to-be-rebuilt)).
+- An update that expects other code stops the game until the game code is
+  rebuilt: by the app itself on the device, on a PC, or by running the
+  builder workflow again. Releases publish the statements the app takes
+  (`mw3-recomp-<tag>-game-abi.txt`, `mw2-recomp-<tag>-game-abi.txt`: a line
+  for each, the earlier ones among them) and setup warns when what it built
+  is none of them. Such changes are made together, in one release
+  ([android-releases.md](android-releases.md#when-the-game-code-has-to-be-rebuilt)).

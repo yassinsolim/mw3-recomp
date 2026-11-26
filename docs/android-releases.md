@@ -51,30 +51,55 @@ signed with another, and a lost key means every player uninstalling.
 ## When the game code has to be rebuilt
 
 An app takes only game code whose statement is its own
-([game-library.md](game-library.md#what-they-agree-on)), so a release that
-changes the recompiler, its patch, a title's configuration,
-`tools/genshared.py` or `runtime/mmio_hook.h` stops every player's game
-until the code is built again. Such changes are gathered into one release,
+([game-library.md](game-library.md#what-they-agree-on)), and the statement
+names the code itself, the SHA-256 of the recompiled tree. So a release
+stops the players' games only when it expects *other code*: a change of the
+recompiler, its patch or a title's configuration that makes the recompiler
+write something else, or a change of `tools/genshared.py`'s header or
+`runtime/mmio_hook.h`. A change of the tools that leaves a title's code as
+it was costs that title's players nothing. Which it is shows when the tree
+is recorded (`-DMW2_ABI_RECORD=ON`): `config/abi/<library>/generated_code.sha256`
+changes or does not. Changes that do are still gathered into one release,
 and its notes say so in their first lines.
 
-What the player sees: the game does not start, and the app says that the
-game code was built for another version of the app. An app that can build
-it offers **Build on this device** there (a few minutes; the game files and
-the saves are kept); otherwise, and for a PC build, `git pull` and
-`setup\setup.cmd -GameOnly` (`bash setup/setup.sh --game-only`), which
-fetches and builds the recompiler again when its patch changed and
-recompiles the trees made with the old one.
+What the player sees when the code did change:
+
+- **An app that builds the code on the device** updates it by itself. The
+  moment the update is installed the build starts in the background, with a
+  notification (**Updating the game code**), from the executables the app
+  kept or the disc image chosen before; it compiles only the files that came
+  out different, and the game starts as before when it is done
+  ([ondevice-build.md](ondevice-build.md#after-an-update-of-the-app)). It
+  waits for the charger when the battery is below what the player allows
+  (Settings, 30% unless changed). Opening the app meanwhile shows the
+  progress in the launcher's status.
+- **Game code built on a PC, on a device with the toolchain package**: the
+  same; the app builds its own from the disc image and uses that.
+- **Game code built on a PC and no toolchain package**: a notification and
+  the launcher say that the code has to be built again, on the device
+  (**Build the game code**: the toolchain is downloaded, Android asks once
+  whether to install it) or with `git pull` and `setup\setup.cmd -GameOnly`
+  (`bash setup/setup.sh --game-only`). Setup fetches and builds the
+  recompiler again when its patch changed, recompiles the trees made with
+  the old one, compiles only the files that came out different, and installs
+  nothing when the phone has that code already.
 
 When the recompiler or its patch is what changed, the build tools' package
 changes with it, since the recompiler is inside: raise `TOOLCHAIN_VERSION`,
 run **Build tools package**, and name the new release and hash in
 `setup/toolchain.json` ([The toolchain release](#the-toolchain-release))
-before the apps are released. The updated app then finds the old package,
-says it is another version and downloads the new one over it. Android
-takes the newer package over the older one and never the other way: an app
-that was not updated cannot go back to the older tools on a device that has
-the newer ones, and builds again only once it is updated too. Its game code
-is not touched by this and goes on running.
+before the apps are released. The updated app's next build then finds the
+old package and installs the new one over it itself
+(`ToolchainInstall.kt`). Android asks the player about that once: the first
+package the app installs. From then on the app is that package's installer,
+and Android 12 and later let an installer replace its own package with a
+newer one without a question, so later toolchains arrive unasked. A build
+the app started by itself downloads over an unmetered network only, and
+leaves a package the player never had to the player. Android takes the
+newer package over the older one and never the other way: an app that was
+not updated cannot go back to the older tools on a device that has the
+newer ones, and builds again only once it is updated too. Its game code is
+not touched by this and goes on running.
 
 Tried on the AYN Thor with the drafted `toolchain-v2` (served as [Trying
 the update without publishing](#trying-the-update-without-publishing)
@@ -86,6 +111,15 @@ abfe2d558ce8`); Black Tuesday then ran at 119 frames a second. On Windows,
 `setup\setup.cmd -Game mw3 -GameOnly` over a folder left by the version
 before fetched and built the recompiler again, recompiled both executables
 and built the same two statements in a minute and a half.
+
+What setup builds again, on Windows with Modern Warfare 2
+(`setup\setup.cmd -Game mw2 -GameOnly -NoInstall`, November 2026): from
+nothing, the recompiler included, 2 minutes; again with nothing changed,
+18 seconds, none of it compiling (Gradle looks at the package); after a
+configuration change that makes one function two, 29 seconds: the campaign
+is recompiled, 104 of its 114 files come out as they were, and 10 are
+compiled. A phone whose game package holds the libraries just built is
+told so and gets nothing installed.
 
 **November 2026: toolchain 2.** The recompiler keeps XER's summary overflow
 in the context ([building.md](building.md#local-changes-to-xenonrecomp)):

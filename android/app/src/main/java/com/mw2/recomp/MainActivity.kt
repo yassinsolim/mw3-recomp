@@ -374,8 +374,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // A build of the game code the system ended carries on (GameBuildService.kt).
-        if (GameBuild.offered(this)) GameBuildService.resumeIfInterrupted(this)
+        // The game code this version of the app expects, built by itself when
+        // the code on the device is not it; and a build the system ended
+        // carries on (GameUpdate.kt). What it does is shown as it goes.
+        GameUpdate.consider(this)
+        handler.removeCallbacks(buildTick)
+        handler.postDelayed(buildTick, BUILD_TICK_MS)
         showArt()
         searchDiscs()
         refresh()
@@ -391,6 +395,55 @@ class MainActivity : AppCompatActivity() {
         pendingUpdateUrl?.let { url ->
             pendingUpdateUrl = null
             if (packageManager.canRequestPackageInstalls()) startUpdateDownload(url)
+        }
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(buildTick)
+        super.onPause()
+    }
+
+    /** A build of the game code was under way when the launcher last looked. */
+    private var sawBuilding = false
+
+    /**
+     * While the launcher is in front: the build's progress in the status, the
+     * launcher as it is with the new code once the build has ended, and
+     * Android's question about the toolchain package, which a build in the
+     * background could not put (ToolchainInstall).
+     */
+    private val buildTick = object : Runnable {
+        override fun run() {
+            val building = GameBuildService.State(this@MainActivity).wanted
+            if (building) {
+                ToolchainInstall.ask(this@MainActivity)
+                showGameCode(firstTitle.installed(prefs.gameDirectory))
+            } else if (sawBuilding) {
+                refresh()
+            }
+            sawBuilding = building
+            handler.postDelayed(this, BUILD_TICK_MS)
+        }
+    }
+
+    /**
+     * Building the game code here: offered while there is any to build, and
+     * said while a build is under way. With game code that this version of
+     * the app no longer takes, the status says what becomes of it.
+     */
+    private fun showGameCode(installed: Boolean) {
+        val building = GameBuildService.State(this).wanted
+        buildButton.visibility =
+            if (GameBuild.offered(this) && (building || GameBuild.wanted(this).isNotEmpty())) android.view.View.VISIBLE
+            else android.view.View.GONE
+        buildButton.text = getString(if (building) R.string.build_entry_running else R.string.build_entry)
+        if (!installed || !GameBuild.outdated(this)) return
+        status.text = when {
+            ToolchainInstall.confirmation != null -> getString(R.string.update_code_confirm)
+            building -> getString(R.string.build_code_updating, GameBuildService.describe(this, GameBuild.progress))
+            GameUpdate.enabled(this) && !GameUpdate.batteryAllows(this) ->
+                getString(R.string.build_code_waiting_charger, GameUpdate.batteryLevel(this))
+            else -> getString(R.string.build_code_outdated)
         }
     }
 
@@ -473,7 +526,9 @@ class MainActivity : AppCompatActivity() {
                 it.isNotEmpty() && DiscImage.source(this, it).also { source -> DiscImage.close(source) } == null
             } ?: prefs.discImage
             val discGone = disc.isNotEmpty() && DiscImage.source(this, disc).also { DiscImage.close(it) } == null
-            play.isEnabled = gameCode && !discGone
+            // Game code that this version of the app does not take starts no
+            // game: the status says it is being updated, or how to.
+            play.isEnabled = gameCode && !discGone && Title.carried.any { GameLibrary.current(this, it) }
             play.text = if (Title.both) "▶ " + getString(R.string.title_campaign) else "▶ LAUNCH GAME"
             status.text = when {
                 !gameCode -> getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
@@ -517,14 +572,7 @@ class MainActivity : AppCompatActivity() {
             directLaunchSwitch.visibility = android.view.View.GONE
         }
 
-        // Building the game code here: offered while there is any to build,
-        // and said while a build is under way.
-        val building = GameBuildService.State(this).wanted
-        buildButton.visibility =
-            if (GameBuild.offered(this) && (building || GameBuild.wanted(this).isNotEmpty())) android.view.View.VISIBLE
-            else android.view.View.GONE
-        buildButton.text = getString(if (building) R.string.build_entry_running else R.string.build_entry)
-        if (installed && GameBuild.outdated(this)) status.text = getString(R.string.build_code_outdated)
+        showGameCode(installed)
 
         applyDriverChoice()
         footer.text = getString(
@@ -757,6 +805,17 @@ class MainActivity : AppCompatActivity() {
             showDetail(
                 getString(R.string.cannot_start),
                 getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing),
+            )
+            return
+        }
+        if (!GameLibrary.current(this, title)) {
+            showDetail(
+                getString(R.string.cannot_start),
+                if (GameBuildService.State(this).wanted) {
+                    getString(R.string.build_code_updating, GameBuildService.describe(this, GameBuild.progress))
+                } else {
+                    getString(R.string.build_code_outdated)
+                },
             )
             return
         }
@@ -1212,6 +1271,9 @@ class MainActivity : AppCompatActivity() {
 
         /** A mode change takes under a second on the devices seen; the notice waits this long for it. */
         private const val DISPLAY_SETTLE_MS = 1500L
+
+        /** How often the launcher looks at a build of the game code that is under way. */
+        private const val BUILD_TICK_MS = 2000L
     }
 }
 

@@ -1,0 +1,16 @@
+# Statements of libawgame.so as libraries built before the statement named
+# the code say them (cmake/game_abi.cmake), each behind the SHA-256 of the
+# recompiled tree it was made from. The app takes the ones made from the code
+# it takes now.
+
+generated-code 8976aa52c41861d38956c02c05de9f8250f19500db2c9879a49dc1db2b126e11
+title aw
+recompiler ddd128bcca99fe8bfbb99bea583c972351fa6ace
+recompiler-patch e60c7523a6317f06d2ebd771dd3ad2be7c0f6bff008e391f554c0044bcf78af6
+configuration 908a7154d94b5de6791976e5b114c09c008ea30b5d1cd18c00007719713c6eb1
+shared-header 183711ea094f7fd358dfdbcd1d257a5cb0d786051b27ac83e2b7c04c7dfdbfa3
+jump-tables 1022dd411b31dd86464330c12b0b230c5a886c1048fc108a48ba67210b225d45
+code-extent d3b7942f516c3f670c1ba9cf6e4939d2bce46fdba90f377dea5783211c16d03d
+register-context 2ccfc92b26a1c0cffa61ae7c248f16ed4604b94e23f2d49cab0d66dc85689d59
+system-calls 5c0e58100bb312e188bceb01bad780bcff6b740cd1a24118896439a4b74c0fbc
+memory-hook 7ec1c86aab6f1bfd259d412cf94d79ecb13747bf58487b363c17fc00b97754c5

@@ -1,0 +1,16 @@
+# Statements of libmw3mpgame.so as libraries built before the statement named
+# the code say them (cmake/game_abi.cmake), each behind the SHA-256 of the
+# recompiled tree it was made from. The app takes the ones made from the code
+# it takes now.
+
+generated-code c28619450bd74da860e5bc90b725b188535c0ec3005bfb1a7330887c329c903f
+title mw3mp
+recompiler ddd128bcca99fe8bfbb99bea583c972351fa6ace
+recompiler-patch e60c7523a6317f06d2ebd771dd3ad2be7c0f6bff008e391f554c0044bcf78af6
+configuration 1ac925bfa2f60ea575858ce2f1ac1df05611ca853c4c67f52cfd241f380b0166
+shared-header 183711ea094f7fd358dfdbcd1d257a5cb0d786051b27ac83e2b7c04c7dfdbfa3
+jump-tables 80b846a912cbddaa414b09b7b4e3e84bf1f386c0ce4e8153e87d2a3e06964dba
+code-extent f7591ff4e42caa326cc36b86dfd038a255df84090365fa7e430d6e793bb64c0f
+register-context 2ccfc92b26a1c0cffa61ae7c248f16ed4604b94e23f2d49cab0d66dc85689d59
+system-calls dc1b7748f937f4b643913421084f20f842940440f0d5e67248c5a66ce2f31cad
+memory-hook 7ec1c86aab6f1bfd259d412cf94d79ecb13747bf58487b363c17fc00b97754c5

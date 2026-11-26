@@ -10,10 +10,13 @@
 // built against, the function table, and the original of each hooked
 // function (runtime/title.h, GUEST_ORIGINAL).
 //
-// A library built against anything else is not used. An app update that
-// changes the recompiler, its configuration or the headers the recompiled
-// code is compiled with changes the statement, and the player is told to
-// build the game library again rather than left with a crash somewhere in it.
+// A library built against anything else is not used. The statement names the
+// code itself (the recompiled tree's hash) and what the two halves share
+// (cmake/game_abi.cmake), so an update of the app stops the game only when it
+// expects other code than the player has: the game code is then built again
+// rather than left to crash somewhere inside. A library from before the
+// statement named the code is taken when its statement is one known to have
+// been made from this same code.
 #include "game_library.h"
 #include "title.h"
 #include "guest_memory.h"
@@ -35,14 +38,19 @@ namespace
     // The first thing the two statements disagree about, by its name.
     std::string Difference(const char* expected, const char* found)
     {
-        std::istringstream ours(expected), theirs(found);
-        std::string mine, other;
+        std::istringstream ours(expected);
+        std::string mine;
         while (std::getline(ours, mine))
         {
-            if (!std::getline(theirs, other)) other.clear();
-            if (mine != other) return mine.substr(0, mine.find(' '));
+            // An earlier library's statement has lines of its own before
+            // these: what it differs in is looked for by name.
+            const std::string name = mine.substr(0, mine.find(' ') + 1);
+            const std::string all = std::string("\n") + found;
+            const size_t at = all.find("\n" + name);
+            if (at == std::string::npos || all.compare(at + 1, mine.size() + 1, mine + "\n") != 0)
+                return name.substr(0, name.size() - 1);
         }
-        return "an addition";
+        return "statement";
     }
 }
 
@@ -79,7 +87,10 @@ std::string game::Load(const char* path)
 
     const char* abi = static_cast<const char*>(dlsym(library, "mw2_game_abi"));
     if (!abi) return refuse("it does not say what it was built against");
-    if (std::strcmp(abi, kExpectedGameAbi) != 0)
+    bool known = std::strcmp(abi, kExpectedGameAbi) == 0;
+    for (const char* const* earlier = kEarlierGameAbis; !known && *earlier; ++earlier)
+        known = std::strcmp(abi, *earlier) == 0;
+    if (!known)
     {
         LOGE("game library: this app expects\n%s", kExpectedGameAbi);
         LOGE("game library: the library was built against\n%s", abi);

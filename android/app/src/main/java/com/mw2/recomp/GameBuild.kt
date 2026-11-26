@@ -4,11 +4,13 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -43,20 +45,34 @@ import org.json.JSONObject
  * Every step leaves what it made under its final name only when it is whole,
  * so a build that is paused, or whose process the system ends, carries on
  * from the file it was at: [run] looks at what is there and does the rest.
+ *
+ * The objects stay after the build, each with a note of what it was made
+ * from (the SHA-256 of its source, of the headers it includes and of the
+ * compiler's command line). The next build, after an update of the app that
+ * expects other code, recompiles the executables and compiles only the files
+ * that came out different; the tree itself, the larger part, is deleted. A
+ * function more or fewer in the tree is not every file's change, although
+ * the header they all include lists every function: only what that header
+ * says besides its list is part of every object ([sharedHeaderApart]).
  */
 object GameBuild {
     /** What a title of the kit is: a library and the executable it is made from. */
     class KitTitle(json: JSONObject) {
         val library: String = json.getString("library")
         val executable: String = json.getString("executable")
-        val sha256: List<String> = json.getJSONArray("sha256").let { list -> (0 until list.length()).map { list.getString(it) } }
+        val sha256: List<String> = strings(json, "sha256")
         val toml: String = json.getString("toml")
         val tables: String = json.getString("tables")
         val tree: String = json.getString("tree")
-        val defines: List<String> = json.getJSONArray("defines").let { list -> (0 until list.length()).map { list.getString(it) } }
-        val recompiledWith: String = json.getString("recompiledWith")
+        val defines: List<String> = strings(json, "defines")
         val expectedAbi: String = json.getString("expectedAbi")
+
+        /** Statements of libraries built before the statement named the code, from the code this app expects (cmake/game_abi.cmake). */
+        private val earlierAbis: List<String> = strings(json, "earlierAbis")
         val title: Title? = Title.carried.firstOrNull { it.library == library }
+
+        /** Whether this app's runtime takes a library that states [statement]. */
+        fun takes(statement: String?): Boolean = statement == expectedAbi || statement in earlierAbis
     }
 
     class Kit(json: JSONObject) {
@@ -83,12 +99,12 @@ object GameBuild {
         val extraSources: List<String> = strings(json, "extraSources")
         val inTextTables: Boolean = json.getBoolean("inTextTables")
         val titles: List<KitTitle> = json.getJSONArray("titles").let { list -> (0 until list.length()).map { KitTitle(list.getJSONObject(it)) } }
-
-        private fun strings(json: JSONObject, key: String): List<String> =
-            json.getJSONArray(key).let { list -> (0 until list.length()).map { list.getString(it) } }
     }
 
-    enum class Step { IDLE, PREPARE, RECOMPILE, COMPILE, LINK }
+    private fun strings(json: JSONObject, key: String): List<String> =
+        json.getJSONArray(key).let { list -> (0 until list.length()).map { list.getString(it) } }
+
+    enum class Step { IDLE, PREPARE, TOOLCHAIN, RECOMPILE, COMPILE, LINK }
 
     /** What the screen and the notification show; replaced whole, read from any thread. */
     class Progress(
@@ -107,10 +123,23 @@ object GameBuild {
         val batteryCelsius: Float = 0f,
     )
 
+    /** What a build that cannot go on by itself waits for. */
+    enum class Wait {
+        /** Android asks the player whether the toolchain package may be installed (ToolchainInstall). */
+        CONFIRM,
+
+        /** The toolchain package has to be downloaded, which a build the player did not start leaves to them. */
+        TOOLCHAIN,
+
+        /** The battery, which a build the player did not start runs on only as far as they allow (GameUpdate). */
+        CHARGER,
+    }
+
     /** How a [run] ended. */
     sealed class Outcome {
         object Done : Outcome()
         object Paused : Outcome()
+        class Waiting(val why: Wait) : Outcome()
         class Failed(val message: String) : Outcome()
     }
 
@@ -125,6 +154,7 @@ object GameBuild {
     private val children: MutableSet<Process> = Collections.synchronizedSet(HashSet())
 
     private class Stopped : Exception()
+    private class Waits(val why: Wait) : Exception()
     private class Failure(message: String) : Exception(message)
 
     private var cachedKit: Kit? = null
@@ -154,36 +184,41 @@ object GameBuild {
 
     private fun executable(context: Context, kit: Kit, title: KitTitle): File = File(File(root(context), kit.folder), title.executable)
 
-    /** Beside a library built here: the statement it was built against, to tell without loading it whether this app still takes it. */
-    private fun statementOf(library: File): File = File(library.path + ".abi")
+    /**
+     * The titles whose game code a build here would make: those with no
+     * library on this device that this version of the app runs, built here
+     * or on a PC.
+     */
+    fun wanted(context: Context): List<KitTitle> =
+        kit(context)?.titles.orEmpty().filter { title -> title.title?.let { !GameLibrary.current(context, it) } == true }
 
-    /** Whether [title]'s library was built here for this version of the app. */
-    private fun current(context: Context, title: KitTitle): Boolean {
-        val library = GameLibrary.built(context, title.title ?: return true)
-        return library.isFile && try {
-            statementOf(library).readText() == title.expectedAbi
-        } catch (_: IOException) {
-            false
-        }
-    }
-
-    /** The titles whose game code a build here would make: those not built here yet, or built for another version of the app. */
-    fun wanted(context: Context): List<KitTitle> = kit(context)?.titles.orEmpty().filter { it.title != null && !current(context, it) }
-
-    /** Whether a library built here is one this version of the app no longer takes: the app was updated since. */
+    /**
+     * Whether there is game code here that this version of the app no longer
+     * takes: the app was updated since, and expects other code.
+     */
     fun outdated(context: Context): Boolean =
-        wanted(context).any { title -> title.title?.let { GameLibrary.built(context, it).isFile } == true }
+        kit(context)?.titles.orEmpty().any { title -> title.title?.let { GameLibrary.outdated(context, it) } == true }
 
     // ---- the executables ------------------------------------------------------
 
-    private fun sha256(file: File): String {
+    /** A file's SHA-256 as cmake/game_abi.cmake takes it: of its bytes without the carriage returns. */
+    private fun sha256(file: File, withoutReturns: Boolean = false): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buffer = ByteArray(1 shl 16)
             while (true) {
                 val read = input.read(buffer)
                 if (read <= 0) break
-                digest.update(buffer, 0, read)
+                var from = 0
+                if (withoutReturns) {
+                    for (at in 0 until read) {
+                        if (buffer[at] == '\r'.code.toByte()) {
+                            digest.update(buffer, from, at - from)
+                            from = at + 1
+                        }
+                    }
+                }
+                digest.update(buffer, from, read - from)
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
@@ -248,6 +283,52 @@ object GameBuild {
     fun inGameFolder(context: Context, folder: File): Boolean =
         kit(context)?.titles.orEmpty().let { titles -> titles.isNotEmpty() && titles.all { File(folder, it.executable).isFile } }
 
+    /**
+     * The executables out of the disc image named [image] as Prefs names
+     * one, a path or a document the player picked; false when it cannot be
+     * read any more or is not a version this app supports.
+     */
+    fun takeFromImage(context: Context, image: String): Boolean = try {
+        if (DiscImage.isDocument(image)) {
+            val descriptor = context.contentResolver.openFileDescriptor(Uri.parse(image), "r") ?: throw IOException("the file could not be opened")
+            descriptor.use { FileInputStream(it.fileDescriptor).channel.use { channel -> takeFromDiscImage(context, channel) } }
+        } else {
+            FileInputStream(image).channel.use { takeFromDiscImage(context, it) }
+        }
+        true
+    } catch (_: Exception) {
+        // Gone, unreadable, or its permission taken back: the next place is tried.
+        false
+    }
+
+    /**
+     * The executables from wherever this device has them, without asking
+     * the player anything: those kept from the last build, the installed
+     * game files, the disc image chosen before or the one the game is played
+     * from, and last a disc image of this game anywhere on the device or a
+     * memory card (DiscImage.search: the first whose executables are a
+     * version this app supports is used unasked, since it is only read, and
+     * remembered for Install & Play). It reads files and folders and so is
+     * not for the main thread.
+     */
+    fun findExecutables(context: Context): Boolean {
+        if (haveExecutables(context)) return true
+        val prefs = Prefs(context)
+        val folder = prefs.gameDirectory
+        if (Title.carried.all { it.installed(folder) }) {
+            try {
+                takeFromGameFolder(context, folder)
+                return true
+            } catch (_: IOException) {
+                // Not a build this app supports: the player may have another image.
+            }
+        }
+        if (listOf(prefs.chosenImage, prefs.discImage).filter { it.isNotEmpty() }.distinct().any { takeFromImage(context, it) }) return true
+        return DiscImage.search(context).games.any { image ->
+            takeFromImage(context, image.path).also { if (it) prefs.chosenImage = image.path }
+        }
+    }
+
     // ---- the build -------------------------------------------------------------
 
     /** Lets [run] work again after a [stop]: the player's asking, never the build's own doing, so that a stop is not lost to a run just starting. */
@@ -294,7 +375,6 @@ object GameBuild {
         ""
     }
 
-    private fun text(file: File): String = file.readBytes().toString(Charsets.ISO_8859_1).replace("\r", "")
     private fun hash(text: String): String =
         MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.ISO_8859_1)).joinToString("") { "%02x".format(it) }
 
@@ -304,7 +384,7 @@ object GameBuild {
     /**
      * The tree's shared header and the list of the system calls the
      * executable imports, exactly as tools/genshared.py writes them: the
-     * script's hash is part of what the library states, and what comes out of
+     * header is part of the code the library states, and what comes out of
      * here is checked against the app's record of the system calls.
      */
     private fun writeSharedHeader(context: Context, tree: File) {
@@ -362,17 +442,50 @@ object GameBuild {
         File(tree, "kernel_imports.txt").writeText(imports.joinToString("\n") { it.removePrefix("__imp__") } + "\n", Charsets.ISO_8859_1)
     }
 
+    /** The three headers of a tree that every one of its files includes. */
+    private val TREE_HEADERS = listOf("ppc_config.h", "ppc_context.h", "ppc_recomp_shared.h")
+
+    /**
+     * The SHA-256 of [tree]'s shared header without its declarations, one
+     * `PPC_FUNC(name);` a line for every function of the tree. They are all
+     * of one shape and a file compiles only when each one it names is there,
+     * so its object is the same whichever others are listed: a function the
+     * recompiler adds or drops changes the files it is in, not all of them.
+     */
+    private fun sharedHeaderApart(tree: File): String =
+        hash(
+            File(tree, "ppc_recomp_shared.h").readText(Charsets.ISO_8859_1).replace("\r", "").lineSequence()
+                .filterNot { it.startsWith("PPC_FUNC(") && it.endsWith(");") }.joinToString("\n"),
+        )
+
+    /**
+     * A line for each file of [tree] that is compiled or included: its
+     * SHA-256 and its name, in the order of the names. The SHA-256 of these
+     * lines is the code a library states, as cmake/game_abi.cmake
+     * (mw2_abi_tree) makes it of a tree on a PC; each line is also what an
+     * object is known by when the next build looks for what changed.
+     */
+    private fun treeLines(tree: File): String =
+        (sources(tree).map { it.name } + "ppc_func_mapping.cpp" + TREE_HEADERS).sorted()
+            .joinToString("") { name ->
+                check()
+                "${sha256(File(tree, name), withoutReturns = true)}  $name\n"
+            }
+
     /** What a library made from [tree] states, line for line as cmake/game_abi.cmake composes it. */
-    private fun statement(root: File, title: KitTitle, tree: File): String =
-        "title ${title.library}\n" + title.recompiledWith +
-            "jump-tables ${hash(text(File(root, "config/${title.tables}")))}\n" +
-            "code-extent ${hash(text(File(tree, "ppc_config.h")))}\n" +
-            "register-context ${hash(text(File(tree, "ppc_context.h")))}\n" +
-            "system-calls ${hash(text(File(tree, "kernel_imports.txt")))}\n" +
-            "memory-hook ${hash(text(File(root, "runtime/mmio_hook.h")))}\n"
+    private fun statement(root: File, title: KitTitle, tree: File, lines: String): String =
+        "title ${title.library}\n" +
+            "generated-code ${hash(lines)}\n" +
+            "code-extent ${sha256(File(tree, "ppc_config.h"), withoutReturns = true)}\n" +
+            "register-context ${sha256(File(tree, "ppc_context.h"), withoutReturns = true)}\n" +
+            "system-calls ${sha256(File(tree, "kernel_imports.txt"), withoutReturns = true)}\n" +
+            "memory-hook ${sha256(File(root, "runtime/mmio_hook.h"), withoutReturns = true)}\n"
 
     /** A tree that is whole says so in this file, with the statement it was checked to make. */
     private fun treeMark(tree: File): File = File(tree, "tree.ok")
+
+    /** Beside the mark: the tree's [treeLines], which the compiling reads instead of hashing every file again. */
+    private fun treeHashes(tree: File): File = File(tree, "tree.sha256")
 
     private fun recompile(context: Context, kit: Kit, toolchain: Toolchain, title: KitTitle) {
         val root = root(context)
@@ -401,23 +514,39 @@ object GameBuild {
             throw Failure(context.getString(R.string.build_tool_failed, "XenonRecomp", tail(log)))
         }
         writeSharedHeader(context, tree)
-        val made = statement(root, title, tree)
+        val lines = treeLines(tree)
+        val made = statement(root, title, tree, lines)
         if (made != title.expectedAbi) {
             // The first line the two differ in, by its name, as the runtime would say it.
             val different = made.lines().zip(title.expectedAbi.lines()).firstOrNull { it.first != it.second }?.first?.substringBefore(' ')
             throw Failure(context.getString(R.string.build_statement_differs, title.library, different ?: "statement"))
         }
+        treeHashes(tree).writeText(lines)
         treeMark(tree).writeText(made)
     }
 
-    /** One file to compile, and the object it becomes. */
-    private class Source(val title: KitTitle, val source: File, val objectFile: File)
+    /**
+     * One file to compile and the object it becomes. [key] is everything
+     * the object is made from; it is written beside the object, and an
+     * object whose note says the same is not made again.
+     */
+    private class Source(val title: KitTitle, val source: File, val objectFile: File, val key: String) {
+        val note = File(objectFile.path + ".key")
+
+        fun made(): Boolean = objectFile.isFile && try {
+            note.readText() == key
+        } catch (_: IOException) {
+            false
+        }
+    }
 
     private class Measures {
         var lowestFreeMb = Long.MAX_VALUE
         var mostJobs = 0
         var hottestBattery = 0f
         var worstThermal = 0
+        var compiled = 0
+        var kept = 0
     }
 
     private fun batteryCelsius(context: Context): Float {
@@ -472,15 +601,19 @@ object GameBuild {
 
     /**
      * Compiles [units], as many at once as [jobs] allows; those whose object
-     * is there already are done. They are [before] to [before] + their number
-     * of the [all] files this build compiles, which is what the screen counts.
+     * is there already, made from what they would be made from now, are
+     * done. They are [before] to [before] + their number of the [all] files
+     * this build compiles, which is what the screen counts. A build the
+     * player did not start stops, to wait, when [mayRun] says it no longer may.
      */
     private fun compile(
         context: Context, kit: Kit, toolchain: Toolchain, units: List<Source>, measures: Measures, before: Int, all: Int,
+        mayRun: () -> Boolean,
     ) {
         val root = root(context)
-        val pending = ArrayDeque(units.filterNot { it.objectFile.isFile })
+        val pending = ArrayDeque(units.filterNot { it.made() })
         var done = units.size - pending.size
+        measures.kept += done
         val lock = Object()
         var running = 0
         var failure: String? = null
@@ -494,6 +627,10 @@ object GameBuild {
         )
         synchronized(lock) {
             while ((pending.isNotEmpty() || running > 0) && !(failure != null && running == 0)) {
+                if (!stopRequested && !mayRun()) {
+                    waitsFor = Wait.CHARGER
+                    stop()
+                }
                 if (stopRequested) {
                     // stop() has ended the compilers; their threads are let finish.
                     while (running > 0) lock.wait()
@@ -512,6 +649,8 @@ object GameBuild {
                         var status = -1
                         var problem: String? = null
                         try {
+                            // The object of the build before is of another source.
+                            unit.note.delete()
                             status = execute(context, command, root, log)
                         } catch (_: Stopped) {
                         } catch (error: IOException) {
@@ -522,7 +661,11 @@ object GameBuild {
                             when {
                                 stopRequested -> partial.delete()
                                 status == 0 && partial.renameTo(unit.objectFile) -> {
+                                    // The note after the object: an object without
+                                    // one is made again, never taken for another.
+                                    unit.note.writeText(unit.key)
                                     done++
+                                    measures.compiled++
                                     log.delete()
                                 }
                                 // Ended by a signal (128 + 9): the system took its
@@ -572,29 +715,40 @@ object GameBuild {
         // it: a library without one counts as not built.
         val library = GameLibrary.built(context, title.title!!)
         library.parentFile?.mkdirs()
-        statementOf(library).delete()
+        GameLibrary.statementOf(library).delete()
         if (!output.renameTo(library)) throw Failure(context.getString(R.string.build_tool_failed, name, "it could not be put in place"))
-        statementOf(library).writeText(statement)
+        GameLibrary.statementOf(library).writeText(statement)
     }
+
+    /** What the run in hand stopped itself to wait for, when it was not the player who stopped it. */
+    @Volatile
+    private var waitsFor: Wait? = null
 
     /**
      * Builds the game code that is [wanted], carrying on from what an earlier
-     * run left. Blocks until it is done, has failed, or [stop] was called.
+     * run left. Blocks until it is done, has failed, waits for something or
+     * [stop] was called. [automatic]: the app started it, not the player
+     * (GameUpdate): it downloads nothing over a metered network, installs no
+     * package the player has not had before, and goes on only while [mayRun].
      */
-    fun run(context: Context): Outcome {
+    fun run(context: Context, automatic: Boolean, mayRun: () -> Boolean): Outcome {
         val times = LinkedHashMap<String, Long>()
         val measures = Measures()
-        var at = SystemClock.elapsedRealtime()
+        val began = SystemClock.elapsedRealtime()
+        var at = began
         fun lap(name: String) {
             val now = SystemClock.elapsedRealtime()
             times[name] = (times[name] ?: 0) + (now - at)
             at = now
         }
+        waitsFor = null
         val outcome = try {
-            build(context, measures, ::lap)
+            build(context, automatic, mayRun, measures, ::lap)
             Outcome.Done
         } catch (_: Stopped) {
-            Outcome.Paused
+            waitsFor?.let { Outcome.Waiting(it) } ?: Outcome.Paused
+        } catch (waits: Waits) {
+            Outcome.Waiting(waits.why)
         } catch (failure: Failure) {
             Outcome.Failed(failure.message.orEmpty())
         } catch (error: Exception) {
@@ -604,11 +758,23 @@ object GameBuild {
             report(context).appendText(
                 buildString {
                     append("${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE}: ")
-                    append(when (outcome) { is Outcome.Done -> "done"; is Outcome.Paused -> "paused"; is Outcome.Failed -> "failed: ${outcome.message}" })
-                    append("\n")
+                    append(
+                        when (outcome) {
+                            is Outcome.Done -> "done"
+                            is Outcome.Paused -> "paused"
+                            is Outcome.Waiting -> "waiting (${outcome.why.name.lowercase()})"
+                            is Outcome.Failed -> "failed: ${outcome.message}"
+                        },
+                    )
+                    append(if (automatic) ", started by the app" else ", started by the player")
+                    append(", %.1f s\n".format((SystemClock.elapsedRealtime() - began) / 1000.0))
                     times.forEach { (name, time) -> append("  %-28s %6.1f s\n".format(name, time / 1000.0)) }
-                    append("  most compilers at once: ${measures.mostJobs}; least free memory: ${measures.lowestFreeMb} MB; ")
-                    append("hottest battery: ${measures.hottestBattery} C; worst thermal status: ${measures.worstThermal}\n")
+                    append("  files compiled: ${measures.compiled}; kept from the build before: ${measures.kept}\n")
+                    // Measured while compiling: a run that compiled nothing has none.
+                    if (measures.mostJobs > 0) {
+                        append("  most compilers at once: ${measures.mostJobs}; least free memory: ${measures.lowestFreeMb} MB; ")
+                        append("hottest battery: ${measures.hottestBattery} C; worst thermal status: ${measures.worstThermal}\n")
+                    }
                 },
             )
         } catch (_: IOException) {
@@ -618,14 +784,36 @@ object GameBuild {
         return outcome
     }
 
-    private fun build(context: Context, measures: Measures, lap: (String) -> Unit) {
+    /**
+     * The toolchain package this app builds with: the one installed, or the
+     * one ToolchainInstall then fetches and installs over it.
+     */
+    private fun toolchain(context: Context, kit: Kit, automatic: Boolean): Toolchain {
+        Toolchain.find(context)?.takeIf { kit.takes(it) }?.let { return it }
+        val result = ToolchainInstall.run(context, kit, automatic) { done, total ->
+            check()
+            progress = Progress(running = true, step = Step.TOOLCHAIN, done = done, total = total)
+        }
+        return when (result) {
+            is ToolchainInstall.Result.Installed ->
+                Toolchain.find(context)?.takeIf { kit.takes(it) } ?: throw Failure(context.getString(R.string.build_toolchain_other))
+            is ToolchainInstall.Result.Asked -> throw Waits(Wait.CONFIRM)
+            is ToolchainInstall.Result.Left -> throw Waits(Wait.TOOLCHAIN)
+            is ToolchainInstall.Result.Failed -> throw Failure(context.getString(R.string.build_toolchain_failed, result.message))
+        }
+    }
+
+    private fun build(context: Context, automatic: Boolean, mayRun: () -> Boolean, measures: Measures, lap: (String) -> Unit) {
         val kit = kit(context) ?: throw Failure("this app has no build kit")
-        val toolchain = Toolchain.find(context) ?: throw Failure(context.getString(R.string.build_toolchain_missing))
-        if (!kit.takes(toolchain)) throw Failure(context.getString(R.string.build_toolchain_other))
         val root = root(context)
         val titles = wanted(context)
+        if (titles.isEmpty()) return
 
         progress = Progress(running = true, step = Step.PREPARE)
+        if (!findExecutables(context)) throw Failure(context.getString(R.string.build_executables_missing))
+        lap("executables")
+        val toolchain = toolchain(context, kit, automatic)
+        lap("toolchain")
         toolchain.unpack { done, total -> progress = Progress(running = true, step = Step.PREPARE, done = done, total = total) }
         // The kit's files, as the repository has them; again each time, since
         // an update of the app may have brought others.
@@ -640,9 +828,9 @@ object GameBuild {
 
         titles.forEachIndexed { index, title ->
             progress = Progress(running = true, step = Step.RECOMPILE, library = title.library, done = index, total = titles.size)
-            val mark = treeMark(File(root, title.tree))
+            val tree = File(root, title.tree)
             val whole = try {
-                mark.readText() == title.expectedAbi
+                treeMark(tree).readText() == title.expectedAbi && treeHashes(tree).isFile
             } catch (_: IOException) {
                 false
             }
@@ -654,30 +842,34 @@ object GameBuild {
         // function table, the statement, and what the title has besides.
         val units = ArrayList<Source>()
         val objects = HashMap<String, List<File>>()
-        // Objects made with other options, or for another statement, are not these.
-        val made = hash((toolchain.compile + kit.compile + toolchain.version).joinToString("\n"))
+        val memoryHook = sha256(File(root, "runtime/mmio_hook.h"), withoutReturns = true)
         for (title in titles) {
             val tree = File(root, title.tree)
             val folder = File(root, "obj/${title.library}")
-            val stamp = File(folder, "made-with")
-            val wanted = made + "\n" + title.expectedAbi
-            val same = try {
-                stamp.readText() == wanted
-            } catch (_: IOException) {
-                false
-            }
-            if (!same) {
-                folder.deleteRecursively()
-                folder.mkdirs()
-                stamp.writeText(wanted)
-            }
+            folder.mkdirs()
+            // Each file's SHA-256 by its name, from the tree's own list.
+            val hashes = treeHashes(tree).readLines().filter { it.isNotEmpty() }.associate { it.substringAfter("  ") to it.substringBefore("  ") }
+            // What every object of this title is made from besides its own
+            // source: the compiler and its command line, and the headers
+            // each file includes, the shared one without its list of functions.
+            val shared = hash(
+                (listOf(toolchain.identity) + kit.compile + title.defines + hashes.getValue("ppc_config.h") +
+                    hashes.getValue("ppc_context.h") + sharedHeaderApart(tree) + memoryHook).joinToString("\n"),
+            )
             val statement = File(folder, "game_abi.cpp")
             statement.writeText(
                 "// The statement of what this library was built against (cmake/game_abi.cmake).\n" +
                     "extern \"C\" __attribute__((visibility(\"default\"))) const char mw2_game_abi[] = R\"abi(${title.expectedAbi})abi\";\n",
             )
             val files = sources(tree) + File(tree, "ppc_func_mapping.cpp") + statement + kit.extraSources.map { File(root, it) }
-            val mine = files.map { Source(title, it, File(folder, it.name.removeSuffix(".cpp") + ".o")) }
+            val mine = files.map { file ->
+                val source = hashes[file.name]?.takeIf { file.parentFile == tree } ?: sha256(file, withoutReturns = true)
+                Source(title, file, File(folder, file.name.removeSuffix(".cpp") + ".o"), "$shared\n$source\n")
+            }
+            // What an earlier build left that this one has no use for: the
+            // objects of files the tree no longer has, logs, halves.
+            val kept = mine.flatMap { listOf(it.objectFile, it.note) }.toSet() + statement
+            folder.listFiles().orEmpty().filterNot { it in kept }.forEach { it.deleteRecursively() }
             units.addAll(mine)
             objects[title.library] = mine.map { it.objectFile }
         }
@@ -687,16 +879,16 @@ object GameBuild {
         for (title in titles) {
             val mine = units.filter { it.title === title }
             val all = units.size
-            compile(context, kit, toolchain, mine, measures, before, all)
+            compile(context, kit, toolchain, mine, measures, before, all, mayRun)
             before += mine.size
             lap("compile ${title.library}")
             progress = Progress(running = true, step = Step.LINK, library = title.library, done = before, total = all)
             link(context, kit, toolchain, title, objects.getValue(title.library), title.expectedAbi)
             lap("link ${title.library}")
-            // The tree and the objects are a hundred megabytes and more a
-            // title, and are of no use once the library is in place.
+            // The tree is a hundred megabytes and more a title, and of no use
+            // once the library is in place; the objects are what the next
+            // build starts from.
             File(root, title.tree).deleteRecursively()
-            File(root, "obj/${title.library}").deleteRecursively()
         }
     }
 

@@ -121,6 +121,12 @@ android {
         // the download against the same server; empty for the release
         // setup/toolchain.json names. The file's SHA-256 is that list's either way.
         buildConfigField("String", "TOOLCHAIN_URL", "\"${setting("MW2_TOOLCHAIN_URL") ?: ""}\"")
+        // The toolchain package's name: -PtoolchainSuffix=.test for a build
+        // that tries an update of it beside the published package, which the
+        // published apps on the same device go on using.
+        val toolchainPackage = "com.recomp.toolchain" + (findProperty("toolchainSuffix") as String?).orEmpty()
+        buildConfigField("String", "TOOLCHAIN_PACKAGE", "\"$toolchainPackage\"")
+        manifestPlaceholders["toolchainPackage"] = toolchainPackage
 
         ndk {
             // The guest's address space is 4 GiB reserved in one mapping, so
@@ -534,8 +540,9 @@ tasks.configureEach {
 //                             besides, the compiler's and linker's options as
 //                             CMakeLists.txt and cmake/game_library.cmake give
 //                             them, and for each title the statement the
-//                             runtime expects (cmake/game_abi.cmake's, made
-//                             here the same way from config/abi/)
+//                             runtime expects and the earlier ones it takes
+//                             as well (cmake/game_abi.cmake's, made here the
+//                             same way from config/abi/)
 class KitTitle(
     val library: String, val executable: String, val sha256: List<String>, val toml: String,
     val tables: String, val tree: String, val defines: List<String>,
@@ -609,8 +616,9 @@ kitGames.forEach { (game, kit) ->
     val into = layout.buildDirectory.dir("build-kit/$game").get().asFile
     val copied = kit.titles.map { "config/${it.toml}" } + kit.extraSources + listOf("runtime/mmio_hook.h", "cmake/game_library.list")
     val hashed = copied + kit.titles.flatMap { title ->
-        listOf("kernel_imports.list", "ppc_config.h", "switch_tables.sha256").map { "config/abi/${title.library}/$it" }
-    } + listOf(
+        listOf("kernel_imports.list", "ppc_config.h", "generated_code.sha256", "earlier_statements.list")
+            .map { "config/abi/${title.library}/$it" }
+    }.filter { File(repositoryRoot, it).isFile } + listOf(
         "setup/setup.ps1", "setup/toolchain.json", "patches/xenonrecomp-mw2.patch", "tools/genshared.py",
         "XenonRecomp/XenonUtils/ppc_context.h",
     )
@@ -635,19 +643,26 @@ kitGames.forEach { (game, kit) ->
             val context = kitHash("#pragma once\n#include \"ppc_config.h\"\n\n" + kitText("XenonRecomp/XenonUtils/ppc_context.h"))
             val titles = kit.titles.map { title ->
                 val recorded = "config/abi/${title.library}"
-                val recompiledWith = "recompiler $commit\nrecompiler-patch $patch\n" +
-                    "configuration ${kitHash(kitText("config/${title.toml}"))}\nshared-header ${kitHash(shared)}\n"
+                val code = kitText("$recorded/generated_code.sha256").trim()
+                val shares = "code-extent ${kitHash(kitText("$recorded/ppc_config.h"))}\n" +
+                    "register-context $context\n" +
+                    "system-calls ${kitHash(kitText("$recorded/kernel_imports.list"))}\n" +
+                    "memory-hook $memoryHook\n"
+                // The statements of libraries built before the statement named
+                // the code, where they were made from this code and share what
+                // this app shares (cmake/game_abi.cmake).
+                val earlier = File(repositoryRoot, "$recorded/earlier_statements.list").takeIf { it.isFile }
+                    ?.let { kitText("$recorded/earlier_statements.list") }.orEmpty()
+                    .lines().filterNot { it.startsWith("#") }.joinToString("\n").split(Regex("\n\n+"))
+                    .map { it.trim() + "\n" }
+                    .filter { it.startsWith("generated-code $code\ntitle ${title.library}\n") && it.endsWith("\n" + shares) }
+                    .map { it.substringAfter('\n') }
                 mapOf(
                     "library" to title.library, "executable" to title.executable, "sha256" to title.sha256,
                     "toml" to title.toml, "tables" to title.tables, "tree" to title.tree,
                     "defines" to listOf("MW2_TRACE_INDIRECT=1") + title.defines,
-                    "recompiledWith" to recompiledWith,
-                    "expectedAbi" to "title ${title.library}\n" + recompiledWith +
-                        "jump-tables ${kitText("$recorded/switch_tables.sha256").trim()}\n" +
-                        "code-extent ${kitHash(kitText("$recorded/ppc_config.h"))}\n" +
-                        "register-context $context\n" +
-                        "system-calls ${kitHash(kitText("$recorded/kernel_imports.list"))}\n" +
-                        "memory-hook $memoryHook\n",
+                    "expectedAbi" to "title ${title.library}\ngenerated-code $code\n" + shares,
+                    "earlierAbis" to earlier,
                 )
             }
             // The release the toolchain package is published in and the file

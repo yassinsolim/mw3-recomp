@@ -322,6 +322,17 @@ class Prefs(context: Context) {
         get() = store.getString(KEY_CHOSEN_IMAGE, "") ?: ""
         set(value) = store.edit().putString(KEY_CHOSEN_IMAGE, value).apply()
 
+    /**
+     * How far the app may use the battery to bring the game code up to date
+     * by itself after an update of the app (GameUpdate.kt): the charge in a
+     * hundred below which it waits for the charger. [UPDATE_CODE_CHARGING]
+     * is the charger only, 0 any charge, [UPDATE_CODE_NEVER] not by itself
+     * at all.
+     */
+    var updateCodeBattery: Int
+        get() = store.getInt(KEY_UPDATE_CODE_BATTERY, 30)
+        set(value) = store.edit().putInt(KEY_UPDATE_CODE_BATTERY, value).apply()
+
     /** The folder the file browser last showed, so it opens where it left off. */
     var lastBrowsed: String
         get() = store.getString(KEY_LAST_BROWSED, "") ?: ""
@@ -597,6 +608,13 @@ class Prefs(context: Context) {
         private const val KEY_INSTALL_DISC_IMAGE = "installDiscImage"
         private const val KEY_INSTALL_BY_COPY = "installByCopy"
         private const val KEY_CHOSEN_IMAGE = "chosenImage"
+        private const val KEY_UPDATE_CODE_BATTERY = "updateCodeBattery"
+
+        /** [updateCodeBattery]: above any charge a battery has, so only the charger allows it. */
+        const val UPDATE_CODE_CHARGING = 101
+
+        /** [updateCodeBattery]: the player builds the game code themselves. */
+        const val UPDATE_CODE_NEVER = 1000
         private const val KEY_LAST_BROWSED = "lastBrowsed"
         private const val KEY_WELCOME = "seenWelcome"
         private const val KEY_AUTO_LAUNCH = "autoLaunch"

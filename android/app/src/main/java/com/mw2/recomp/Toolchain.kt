@@ -76,6 +76,15 @@ class Toolchain private constructor(
         }
 
     /**
+     * What an object made with this package depends on besides its source:
+     * the compiler, its command line as the package writes it (before the
+     * places for paths are filled in: the package's folder is another after
+     * every install) and the archive of what the compiler reads. A package
+     * of another version that says the same of these compiles the same.
+     */
+    val identity: String = manifest.optJSONObject("clang")?.toString().orEmpty() + manifest.getJSONArray("compile") + archiveHash
+
+    /**
      * Unpacks the package's archive into [data], unless it is there already.
      * [progress] hears the files done and their number. Throws an
      * [IOException] that says what went wrong.
@@ -132,7 +141,16 @@ class Toolchain private constructor(
     }
 
     companion object {
-        const val PACKAGE = "com.recomp.toolchain"
+        /** The package's name; another only in a build that tests beside the published one (-PtoolchainSuffix). */
+        const val PACKAGE = BuildConfig.TOOLCHAIN_PACKAGE
+
+        /** Whether a toolchain package is installed at all, of whatever version. */
+        fun present(context: Context): Boolean = try {
+            context.packageManager.getApplicationInfo(PACKAGE, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
 
         /** The manifest this app knows how to read. */
         private const val SCHEMA = 1

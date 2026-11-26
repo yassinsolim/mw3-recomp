@@ -114,11 +114,12 @@ jobs:
           ./gradlew --no-daemon :app:assembleCod4Tu0Release
           cp app/build/outputs/apk/cod4Tu0/release/*.apk "${RUNNER_TEMP}/${APK_NAME}"
           # What a game library has to be built against for this app to take
-          # it, a line for each title (cmake/game_abi.cmake): published beside
+          # it, a line for each statement of each title, the earlier ones it
+          # still takes among them (cmake/game_abi.cmake): published beside
           # the app, for setup/setup.ps1 to compare a player's build with.
           find app/.cxx -name game_abi.txt -exec cat {} + | sort -u > "${RUNNER_TEMP}/${APK_NAME%.apk}-game-abi.txt"
           cat "${RUNNER_TEMP}/${APK_NAME%.apk}-game-abi.txt"
-          [ "$(wc -l < "${RUNNER_TEMP}/${APK_NAME%.apk}-game-abi.txt")" = 2 ]
+          [ "$(cut -d' ' -f1 "${RUNNER_TEMP}/${APK_NAME%.apk}-game-abi.txt" | sort -u | wc -l)" = 2 ]
 
       - name: Refuse an APK with recompiled code or game files in it
         run: python3 tools/check_runtime_apk.py "${RUNNER_TEMP}/${APK_NAME}"
