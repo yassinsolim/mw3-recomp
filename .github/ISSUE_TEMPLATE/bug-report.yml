@@ -10,8 +10,8 @@ body:
 
         **How to get the log (on your phone, in this app):**
         1. Open the app. If the game closed or crashed, open the app again first: the log from the last run is kept.
-        2. Tap **LOG**, then **SHARE**.
-        3. SHARE gives your phone's share list. Pick something that saves a file (Files, Drive, Notes, or email it to yourself), then **drag that file into the Log box below**. If you can only paste, paste the text there instead.
+        2. Tap **LOG**, then **SHARE**, then **Share the log file**. (**REPORT A PROBLEM** on the main screen has the same button and opens this form filled in.)
+        3. Your phone's share list opens with a file named like `mw2-log-0.1.10-20261126-1204.txt`. Pick something that saves it (Files, Drive, or email it to yourself), then **drag that file into the Log box below**. An app up to v0.1.9 shares the log as text instead: save it as a note or a file and attach that, or paste the text.
 
         Do not edit the log. It contains no game data.
   - type: dropdown
@@ -62,7 +62,7 @@ body:
     id: log
     attributes:
       label: Log
-      description: "In the app: tap LOG, then SHARE, and attach the file here (drag it into this box). If the game closed, open the app again first; the log from the last run is kept."
+      description: "In the app: tap LOG, then SHARE, then Share the log file, and attach the file here (drag it into this box). If the game closed, open the app again first; the log from the last run is kept."
       placeholder: Drag the log file into this box.
     validations:
       required: true
