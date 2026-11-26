@@ -496,9 +496,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
         val dialog = builder.show()
         // Sharing leaves the message up: the player comes back to it from
-        // the other app with the choice still to make.
+        // the other app with the choice still to make. As the launcher's
+        // Log screen shares: a file, or the end of it copied (LogShare).
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-            shareText("MW2 log", LogSummary.whole(this, NativeBridge.nativeLogTail()))
+            LogShare.share(this, LogSummary.whole(this, NativeBridge.nativeLogTail()))
         }
     }
 
@@ -516,16 +517,6 @@ class GameActivity : AppCompatActivity(), NativeListener {
         HandOffActivity.start(this, RunRequest(title, launchData, contentLevel))
         finish()
         handler.postDelayed({ Process.killProcess(Process.myPid()) }, 80)
-    }
-
-    private fun shareText(subject: String, text: String) {
-        val intent = Intent(Intent.ACTION_SEND)
-        intent.type = "text/plain"
-        intent.putExtra(Intent.EXTRA_SUBJECT, subject)
-        // As the launcher's log share: the head names the app and the
-        // device, so the end goes when a text is too long.
-        intent.putExtra(Intent.EXTRA_TEXT, text.take(200_000))
-        startActivity(Intent.createChooser(intent, getString(R.string.share)))
     }
 
     /**
@@ -560,7 +551,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
         // In the run's log too, so that a log shared later carries it.
         text.lineSequence().filter { it.isNotBlank() }.forEach { NativeBridge.nativeLog(false, it) }
-        shareText("MW2 performance report", text)
+        LogShare.share(this, text)
     }
 
     /**
