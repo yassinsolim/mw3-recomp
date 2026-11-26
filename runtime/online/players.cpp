@@ -6,11 +6,16 @@
 // (signin.h), plus the transport's slot, so a second copy on one machine is a
 // second player. MW2_NAME is another name for him than the profile's.
 //
-// Xbox LIVE lobbies: every copy says who it is and what can be joined, once a
-// second, to everyone the transport reaches. MW2_LAN_JOIN=<name> joins that
-// player's party or lobby as soon as it is seen, as choosing a friend and
-// "Join Session" does on the console. The lobby's "Invite friends" invites
-// every player seen; a copy started with MW2_LAN_ACCEPT=1 accepts.
+// Xbox LIVE lobbies: every copy says who it is once a second to everyone the
+// transport reaches. The friends screen (friends.h) lists them, and the one
+// chosen there is invited: a copy started with MW2_LAN_ACCEPT=1 accepts.
+// MW2_LAN_JOIN=<name> joins that player's party or lobby as soon as it is
+// seen, as choosing a friend and "Join Session" does on the console.
+//
+// What can be joined goes with that to everyone on the local network. On a
+// relay everyone is strangers too, so there it goes only to the players this
+// copy invited, one by one: nobody else on the relay learns of a private
+// match or has what it takes to join it.
 #include "transport.h"
 #include "../env.h"
 #include "../log.h"
@@ -25,6 +30,7 @@
 #include <map>
 #include <mutex>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -52,21 +58,22 @@ namespace
     };
     constexpr uint32_t kMagic = Magic('L');   // "MW2L", "MW3L"
 
-    // Who a copy is and what can be joined: to everyone as presence, or to one
-    // player as an invitation.
+    // Who a copy is and what can be joined: to everyone as presence, to one
+    // player as an invitation, or to one player as what he alone is told.
     struct Presence
     {
         uint32_t magic;
         uint32_t instance;
-        uint8_t kind;          // kAnnounce or kInvite
+        uint8_t kind;          // kAnnounce, kInvite or kTold
         uint8_t joinable;      // `session` holds something
-        uint8_t pad[2];
+        uint8_t discreet;      // its kAnnounce never says what can be joined: kInvite and kTold do
+        uint8_t pad;
         uint64_t account;      // big-endian
         char name[32];
         uint8_t session[online::kSessionInfoSize];
     };
     constexpr uint32_t kPresenceMagic = Magic('P');   // "MW2P", "MW3P"
-    constexpr uint8_t kAnnounce = 0, kInvite = 1;
+    constexpr uint8_t kAnnounce = 0, kInvite = 1, kTold = 2;
     constexpr auto kAnnounceEvery = std::chrono::seconds(1);
 
     // A copy heard, kept under its id: the name is the player's to choose
@@ -193,16 +200,60 @@ namespace
             return transport_->TitleFile(name, out);
         }
 
-        void InviteFriends() override
+        // Everyone heard, by name: there is no account here to have friends,
+        // so the player picks among who is there.
+        bool Friends(online::FriendList& list) override
         {
             std::lock_guard g(lock_);
-            if (!hasJoinable_) { LOGW("online: nothing to invite anyone to yet"); return; }
-            const Presence invite = PresenceLocked(kInvite);
+            Drain();
+            ForgetGoneLocked();
+            std::vector<online::Friend> playing;
             for (const auto& [id, peer] : peers_)
             {
-                LOGI("online: %s invites %s", transport_->Name(), peer.name.c_str());
-                transport_->SendTo(id, &invite, sizeof invite);
+                online::Friend one;
+                one.id = id;
+                one.name = peer.name;
+                // Two players may have the same name; the end of each one's id
+                // then tells the two lines apart.
+                const bool shared = std::any_of(peers_.begin(), peers_.end(), [&](const auto& other) {
+                    return other.first != id && other.second.name == peer.name;
+                });
+                if (shared)
+                {
+                    char end[8];
+                    std::snprintf(end, sizeof end, " (%04X)", unsigned(id & 0xFFFF));
+                    one.name += end;
+                }
+                playing.push_back(std::move(one));
             }
+            std::sort(playing.begin(), playing.end(), [](const online::Friend& a, const online::Friend& b) {
+                return a.name != b.name ? a.name < b.name : a.id < b.id;
+            });
+            const auto same = [](const online::Friend& a, const online::Friend& b) {
+                return a.id == b.id && a.name == b.name;
+            };
+            if (!friends_.version ||
+                !std::equal(playing.begin(), playing.end(), friends_.playing.begin(), friends_.playing.end(), same))
+            {
+                friends_.playing = std::move(playing);
+                friends_.version++;
+            }
+            friends_.strangers = true;
+            if (list.version != friends_.version) list = friends_;
+            return true;
+        }
+
+        bool InviteFriend(uint64_t id) override
+        {
+            std::lock_guard g(lock_);
+            if (!hasJoinable_) { LOGW("online: nothing to invite anyone to yet"); return false; }
+            const auto it = peers_.find(id);
+            if (it == peers_.end()) return false;
+            LOGI("online: %s invites %s at %012llx", transport_->Name(), it->second.name.c_str(),
+                 static_cast<unsigned long long>(id));
+            told_.insert(id);
+            const Presence invite = PresenceLocked(kInvite, true);
+            return transport_->SendTo(id, &invite, sizeof invite);
         }
 
         size_t PeerCount() override
@@ -253,6 +304,8 @@ namespace
         {
             const auto now = std::chrono::steady_clock::now();
             std::erase_if(peers_, [&](const auto& entry) { return now - entry.second.heard >= kPeerGoneAfter; });
+            // An id may be another copy's the next time it is heard.
+            std::erase_if(told_, [&](uint64_t id) { return !peers_.count(id); });
         }
 
         static online::Invite InviteFrom(const Peer& peer, bool fromInvite)
@@ -277,24 +330,31 @@ namespace
             return packet;
         }
 
-        Presence PresenceLocked(uint8_t kind)
+        Presence PresenceLocked(uint8_t kind, bool withSession)
         {
             Presence presence{};
             presence.magic = BigEndian32(kPresenceMagic);
             presence.instance = instance_;
             presence.kind = kind;
-            presence.joinable = hasJoinable_;
+            presence.joinable = withSession && hasJoinable_;
+            presence.discreet = transport_->Public();
             presence.account = BigEndian64(Account());
             std::snprintf(presence.name, sizeof presence.name, "%s", name_.c_str());
-            if (hasJoinable_) std::memcpy(presence.session, joinable_.session, sizeof presence.session);
+            if (presence.joinable) std::memcpy(presence.session, joinable_.session, sizeof presence.session);
             return presence;
         }
 
         void AnnounceLocked()
         {
             announced_ = std::chrono::steady_clock::now();
-            const Presence presence = PresenceLocked(kAnnounce);
+            const bool discreet = transport_->Public();
+            const Presence presence = PresenceLocked(kAnnounce, !discreet);
             transport_->SendAll(&presence, sizeof presence);
+            if (!discreet) return;
+            // Also when nothing can be joined any more: that is how they
+            // learn the lobby is gone.
+            const Presence told = PresenceLocked(kTold, true);
+            for (const uint64_t id : told_) transport_->SendTo(id, &told, sizeof told);
         }
 
         void Heard(uint64_t from, const Presence& presence)
@@ -323,8 +383,13 @@ namespace
                      " take the `machine` line out of saves/profiles.txt", name.c_str(),
                      transport_->Name() == std::string("lan") ? "network" : "server");
             }
-            peer.joinable = presence.joinable;
-            std::memcpy(peer.session, presence.session, sizeof peer.session);
+            // A discreet copy's word to everyone says nothing of what can be
+            // joined, which is not that nothing can.
+            if (presence.kind != kAnnounce || !presence.discreet)
+            {
+                peer.joinable = presence.joinable;
+                std::memcpy(peer.session, presence.session, sizeof peer.session);
+            }
             if (presence.kind != kInvite || !peer.joinable) return;
             if (accept_)
             {
@@ -392,6 +457,8 @@ namespace
         std::map<uint64_t, Peer> peers_;      // by the transport's id for the copy
         bool hasJoinable_ = false;
         online::Joinable joinable_;
+        std::set<uint64_t> told_;              // a relay's players who are told what can be joined
+        online::FriendList friends_;           // as last built for the friends screen
         std::chrono::steady_clock::time_point announced_{};
         std::string join_;                     // MW2_LAN_JOIN, until joined
         bool accept_ = false;                  // MW2_LAN_ACCEPT

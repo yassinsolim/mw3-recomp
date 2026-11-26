@@ -549,12 +549,30 @@ MW2_NATIVE(void, nativePadEnabled)(JNIEnv*, jobject, jboolean enabled)
     android::input::SetHardwarePadEnabled(enabled == JNI_TRUE);
 }
 
-// The title's lobby "Invite friends" from the pause menu: invites every
-// player this copy hears on the network (lan.cpp). Silent when there is no
-// service or nobody to invite to anything yet.
-MW2_NATIVE(void, nativeInviteFriends)(JNIEnv*, jobject)
+// The title's lobby "Invite friends" from the pause menu: the players this
+// copy hears, a line each (id, tab, name), and the invitation of the one
+// the player taps. Nobody is invited unasked: through a relay the others
+// are strangers.
+MW2_NATIVE(jstring, nativeInvitable)(JNIEnv* env, jobject)
 {
-    if (auto* service = online::Started()) service->InviteFriends();
+    std::string lines;
+    online::FriendList list;
+    if (auto* service = online::Started(); service && service->Friends(list))
+    {
+        char id[20];
+        for (const online::Friend& one : list.playing)
+        {
+            std::snprintf(id, sizeof id, "%llx\t", static_cast<unsigned long long>(one.id));
+            lines += id + one.name + "\n";
+        }
+    }
+    return FromString(env, lines);
+}
+
+MW2_NATIVE(jboolean, nativeInvitePlayer)(JNIEnv*, jobject, jlong id)
+{
+    if (auto* service = online::Started()) return service->InviteFriend(uint64_t(id)) ? JNI_TRUE : JNI_FALSE;
+    return JNI_FALSE;
 }
 
 // How many other copies this one hears, for the HUD's network line.

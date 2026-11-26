@@ -26,6 +26,9 @@ namespace online
         // Which copy on this machine this is: 0 for the first to start, so a
         // second copy is a second player.
         virtual uint32_t Slot() const = 0;
+        // Whether strangers are among those it reaches, as on a relay anyone
+        // may use: what a private match is must then not go to everyone.
+        virtual bool Public() const { return false; }
 
         virtual bool SendTo(uint64_t peer, const void* bytes, size_t size) = 0;
         // To everyone it reaches; it may come back to this copy too.

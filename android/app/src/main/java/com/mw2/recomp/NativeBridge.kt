@@ -139,8 +139,11 @@ object NativeBridge {
     external fun nativePadConnected(user: Int, connected: Boolean)
     external fun nativePadEnabled(enabled: Boolean)
 
-    /** Invite every network player heard to this player's lobby, if any. */
-    external fun nativeInviteFriends()
+    /** Players who can be invited, a line each: the player's id in hexadecimal, a tab, the name. */
+    external fun nativeInvitable(): String
+
+    /** Invite that one to this player's lobby. False with no lobby to invite to, or the player gone. */
+    external fun nativeInvitePlayer(id: Long): Boolean
 
     /** Other copies heard on the network right now (0 when offline/alone). */
     external fun nativeLanPeers(): Int

@@ -119,7 +119,7 @@ sockets, ports -- and asks the service only for what a service does:
 | `LocalName()` | the name other players see (the title shows 15 characters) |
 | `Send`, `Broadcast`, `Receive` | unreliable datagrams, addressed by the title's own port numbers; broadcast reaches everyone who could join, never self |
 | `Advertise`, `NextJoin` | optional: system-link invitations as the title's `connect` console line |
-| `Friends`, `InviteFriend`, `InviteFriends` | optional: the friends screen's list and one invitation; or, without a list, everyone invited at once |
+| `Friends`, `InviteFriend` | optional: who the friends screen lists (an account's friends, or the players heard where there is no account) and the invitation of the one chosen |
 | `Lobbies`, `SetJoinable`, `NextInvite` | optional: Xbox LIVE parties and private matches |
 | `Matchmaking`, `List`, `Search`, `SearchResults` | optional: Find Game |
 | `TitleFile` | optional: a file of the title's every player must share (the playlists) |
@@ -189,6 +189,20 @@ each other with no network connection at all. A peer id is the IPv4 address in
 the top bits and the port in the low 16. The log names the network connections
 found and the one announced.
 
+**lan is one network.** A broadcast does not leave the network it was sent
+on, so two devices find each other over lan only on the same subnet: the
+same WiFi, behind the same router. A second router, a mesh system that
+makes a network of its own (192.168.86.x beside the first router's
+192.168.1.x, as the AYN Thor and the Retroid Pocket Flip 2 were on 26
+November 2026: neither heard the other, the overlay's LAN count stayed 0), a
+guest network or an access point's client isolation keep them apart, and
+nothing in the runtime can reach across. The relay does (`MW2_NETWORK=server`,
+the app's NETWORK: Online): System Link, parties and private matches work
+through it as they do on one network. The log's `online: lan at <address>`
+line on each device says which network it is on; the app's "Join network
+game" and "Invite a network player" ask whether both devices are on the
+same WiFi when lan hears nobody.
+
 `runtime/online/server.cpp`: a relay server (`relay/`, [relay.md](relay.md)) at
 `MW2_SERVER`, with `MW2_SERVER_PASSWORD` (a public relay asks for none). The
 copy says Hello with its title id and protocol number
@@ -217,11 +231,25 @@ A copy forgets a player it has not heard for ten seconds, and keeps 256 at
 most: on a public relay anyone can announce any name. The Android HUD's "LAN"
 number is how many it hears.
 
-Every copy announces who it is and what can be joined once a second to
-everyone the transport reaches. `MW2_LAN_JOIN=<name>` joins that player's party or lobby as soon as
-it is seen, as choosing a friend and "Join Session" does on the console. The
-lobby's "Invite friends" invites every player seen; a copy started with
-`MW2_LAN_ACCEPT=1` accepts.
+Every copy announces who it is once a second to everyone the transport
+reaches. The friends screen lists the players heard, and the one chosen there
+is invited; nobody is invited who was not chosen. A copy started with
+`MW2_LAN_ACCEPT=1` accepts. `MW2_LAN_JOIN=<name>` joins that player's party or
+lobby as soon as it is seen, as choosing a friend and "Join Session" does on
+the console.
+
+What can be joined (the session's id, the host's address and its key) goes
+with the announcement to everyone on the local network. On a relay everyone
+includes strangers, so there the announcement never carries it
+(`Transport::Public`, the announcement's `discreet` byte): it goes, a packet
+each a second, to the players this copy invited, and to nobody else. A
+private match on a relay is therefore not
+listed by another copy's "Join network game", `MW2_LAN_JOIN` finds it only
+after its host's invitation, and a copy that was not invited has nothing to
+join it with. Until 26 November 2026 the lobby's "Invite friends" invited
+every player the transport heard, which on the public relay were other
+people's copies too. A copy of before that date still announces its own
+private match to everyone on a relay, and is invited as before.
 
 ### Steam
 
@@ -311,8 +339,11 @@ controller from a game Steam did not start.
   once a second while the screen asks for it, and A sends Steam's lobby
   invitation (`InviteUserToLobby`), which the friend accepts in Steam's chat; a
   friend can also be invited from Steam's own friend list. Accepting moves the
-  friend into the host's lobby. With another service the screen says that
-  choosing friends needs Steam; LAN still invites everyone on the network.
+  friend into the host's lobby. With LAN or a server the same screen lists
+  the players heard there instead ("Players on your network or server", no
+  avatars, no count of others), and A invites the one chosen with the
+  service's own invitation. It cannot say who is already in the lobby: a
+  copy that joined announces nothing to compare.
 - The host's lobby data carries what joins its game: `xsession`, the Xbox LIVE
   party or private match the host is in, which the friend's copy takes as an
   accepted Live invitation; otherwise `connect`, the host's system-link join
@@ -598,8 +629,8 @@ campaign's menu, which hands the mode over as launch data, and `MW2_UNLOCK_ALL`
 writes) takes the padlocks off Create a Class under
 Live ([AW-BRINGUP.md](AW-BRINGUP.md#the-rest-on-the-devices-24-november-2026)).
 On Windows two copies meet in Exo Survival by its own Find Match, and
-Combat Readiness Program is a Team Deathmatch of one player and the host's
-bots
+Combat Readiness Program is a Team Deathmatch of one player and bots, three
+a side unless the app's Bots says otherwise
 ([AW-BRINGUP.md](AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
 
 **Bots** (`runtime/bots.cpp`, `MW2_BOTS`) join the matches this copy hosts,

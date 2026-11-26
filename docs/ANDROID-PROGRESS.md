@@ -938,14 +938,32 @@ What the rounds found:
   has them) and the same press goes on once the line is there. Advanced
   Warfare's Lua says so itself ([AW-BRINGUP.md](AW-BRINGUP.md#the-first-runs-screens)).
   Nothing in the input was wrong or changed.
-- **An invitation on the relay goes to every player heard there**, as on
+- **An invitation on the relay went to every player heard there**, as on
   lan: the Flip 2's Invite reached the Thor and a stranger's copy, which
-  only logs it unless its owner chose to accept invitations. On this
-  network the two devices did not hear each other over `lan` (the
-  overlay's LAN count stayed 0), so the invitation was run on the relay.
-- **Advanced Warfare's Combat Readiness Program starts a match nobody
-  joins** on the Flip 2; why no bots came was not looked into. Bots are in
-  System Link (`MW2_BOTS`).
+  only logs it unless its owner chose to accept invitations. Since 26
+  November the player chooses: the app's "Invite a network player" and the
+  friends screen list who is heard, the one chosen is the only one
+  invited, and on a relay nobody else is told what a private match is
+  ([multiplayer.md](multiplayer.md#lan-and-server)). Checked on the Flip 2
+  through `mw3.yassin.app` with two copies on a PC, both set to accept, and
+  another player's copy on the relay at the time: the picker listed the
+  three, the copy tapped joined the lobby and the match (60 FPS), the other
+  two heard nothing (`private-captures\mppolish\flip_mw2_inv_*`,
+  `private-logs\mppolish\dev_mw2_invite_*`).
+- **The two devices did not hear each other over `lan` because they were
+  on two networks**: the Thor on one WiFi (192.168.1.x), the Flip 2 on
+  another behind a second router (192.168.86.x). A broadcast stays in its
+  network, and lan is the local network by definition; in the earlier
+  rounds both were on one. Nothing in the runtime was wrong. The overlay's
+  LAN count at 0 with the other device hosting says so; the relay
+  (NETWORK: Online) is what joins two networks.
+- **Advanced Warfare's Combat Readiness Program started a match nobody
+  joined** on the Flip 2. The mode is the title's practice round, filled
+  with bots when the playlist says so, and ours did not; it does now
+  ([AW-BRINGUP.md](AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
+  On the Flip 2 the match on Horizon is played at 60 FPS with no forfeit,
+  and the player is shot by one of the other side
+  (`private-captures\mppolish\flip_aw_crp_*`).
 - **Modern Warfare 3's Special Ops has Find Match and Private Match
   entries that answer "You must be signed in to Xbox LIVE"**: the campaign
   app carries no online service. Solo Play and Split Screen are what work.

@@ -118,6 +118,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private val pads = GamepadInput()
     private val handler = Handler(Looper.getMainLooper())
     private var vibrator: Vibrator? = null
+    // Held for the run, and let go with its process (lanBroadcasts).
+    private var lanBroadcasts: android.net.wifi.WifiManager.MulticastLock? = null
     private var lastRumble = 0
 
     private val statsValues = FloatArray(9)
@@ -948,6 +950,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             val backend = prefs.networkBackend
             NativeBridge.nativeSetOption("MW2_NETWORK", backend)
             NativeBridge.nativeSetOption("MW2_SERVER", if (backend == "server") prefs.relayAddress else "")
+            if (backend == "lan") hearLanBroadcasts()
             NativeBridge.nativeSetOption("MW2_SERVER_PASSWORD", "")
             if (!isMw2Multiplayer) {
                 NativeBridge.nativeSetOption("MW2_LIVE", if (prefs.liveSignIn) "1" else "")
@@ -1063,7 +1066,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // had a lobby nobody could be asked into or find.
         if (isMw2Multiplayer ||
             (isMultiplayer && (prefs.liveSignIn || prefs.networkBackend == "server"))) {
-            rows.add(GameMenu.Entry(getString(R.string.invite_players)) { menu.close(); inviteNetworkPlayers() })
+            rows.add(GameMenu.Entry(getString(R.string.invite_players)) { menu.close(); inviteNetworkPlayer() })
             rows.add(GameMenu.Entry(getString(R.string.join_game)) { menu.close(); pickNetworkPeer() })
         }
         // Modern Warfare 2's stat cheats write that game's stats file
@@ -1218,14 +1221,32 @@ class GameActivity : AppCompatActivity(), NativeListener {
         NativeBridge.nativeRunConsoleCommand("bots $count")
     }
 
-    // The title lobby's "Invite friends" for the network: invites every
-    // player this copy hears. Nothing happens with nobody heard yet -- the
-    // HUD's LAN line says how many that is.
-    private fun inviteNetworkPlayers() {
-        if (NativeBridge.isLoaded()) {
-            try {
-                NativeBridge.nativeInviteFriends()
-            } catch (_: Throwable) {
+    // The local network's players announce themselves by broadcast
+    // (runtime/online/lan.cpp). Android lets a phone's WiFi drop broadcast
+    // and multicast frames before the system sees them, to let the processor
+    // sleep, unless an app holds a multicast lock; which phones do, and
+    // when, is the maker's choice. Holding it takes that out of the question.
+    private fun hearLanBroadcasts() {
+        if (lanBroadcasts != null) return
+        try {
+            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            lanBroadcasts = wifi?.createMulticastLock("lan players")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            android.util.Log.i("MW2", "lan: multicast lock ${if (lanBroadcasts?.isHeld == true) "held" else "not available"}")
+        } catch (e: Exception) {
+            android.util.Log.w("MW2", "lan: no multicast lock: $e")
+        }
+    }
+
+    // The title lobby's "Invite friends" for the network: the players this
+    // copy hears, and the one tapped is invited. Never all of them: through
+    // a server most are strangers.
+    private fun inviteNetworkPlayer() {
+        pickPlayer(R.string.invite_players, nobodyHeard(R.string.no_players), { NativeBridge.nativeInvitable() }) { id ->
+            if (!NativeBridge.nativeInvitePlayer(id)) {
+                android.widget.Toast.makeText(this, R.string.invite_needs_lobby, android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -1233,9 +1254,23 @@ class GameActivity : AppCompatActivity(), NativeListener {
     // Join a heard host right now, re-firing the join even if the automatic
     // one raced the menu and was swallowed.
     private fun pickNetworkPeer() {
-        // A line a peer: its id in hexadecimal, a tab, its name.
+        pickPlayer(R.string.join_game, nobodyHeard(R.string.no_peers), { NativeBridge.nativeLanJoinable() }) { id ->
+            NativeBridge.nativeLanJoinPeer(id)
+        }
+    }
+
+    // What an empty list says. On the local network with nobody heard at
+    // all it is nearly always two WiFi networks: a device on a second
+    // router or a mesh's own network hears nothing of the first, and
+    // nothing else on the screen says so.
+    private fun nobodyHeard(otherwise: Int): Int =
+        if (prefs.networkBackend == "lan" && NativeBridge.nativeLanPeers() == 0) R.string.nobody_on_lan else otherwise
+
+    // A list of players to tap one of. `lines` gives a line a player: the
+    // id in hexadecimal, a tab, the name.
+    private fun pickPlayer(title: Int, nobody: Int, lines: () -> String, chosen: (Long) -> Unit) {
         val peers = try {
-            NativeBridge.nativeLanJoinable().split("\n").mapNotNull { line ->
+            lines().split("\n").mapNotNull { line ->
                 val id = line.substringBefore('\t').toULongOrNull(16) ?: return@mapNotNull null
                 id.toLong() to line.substringAfter('\t', "")
             }
@@ -1244,7 +1279,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
         if (peers.isEmpty()) {
             AlertDialog.Builder(this)
-                .setMessage(R.string.no_peers)
+                .setMessage(nobody)
                 .setPositiveButton(R.string.close, null)
                 .setOnDismissListener { goFullscreen() }
                 .show()
@@ -1257,11 +1292,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
             else getString(R.string.peer_of_many, name, "%04X".format(id and 0xFFFF))
         }
         AlertDialog.Builder(this)
-            .setTitle(R.string.join_game)
+            .setTitle(title)
             .setItems(labels.toTypedArray()) { dialog, which ->
                 dialog.dismiss()
                 try {
-                    NativeBridge.nativeLanJoinPeer(peers[which].first)
+                    chosen(peers[which].first)
                 } catch (_: Throwable) {
                 }
                 goFullscreen()

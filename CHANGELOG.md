@@ -393,6 +393,42 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **An invitation goes only to the player you choose.** "Invite network
+  players" in the pause menu, the lobby's Invite and F6 on Windows invited
+  everyone the game could hear, and through the server that is everybody
+  playing there: a stranger's copy got one in testing. Now you get a list
+  of the players heard (**Invite a network player** in the app, the
+  friends screen on Windows) and the one you pick is the only one invited.
+  Through the server a private match is also no longer announced to
+  everyone: only the players you invited are told where it is, so nobody
+  else can list it under "Join network game" or join it. On your own
+  network it is still shown to everyone there. A friend on an older
+  version can still be invited; to join you from his pause menu without an
+  invitation he needs this one. Checked on a Retroid Pocket Flip 2 through
+  `mw3.yassin.app`, with two copies on a PC set to accept invitations and
+  somebody else's copy on the server: the one tapped joined the lobby and
+  the match, the other two heard nothing
+  ([docs/multiplayer.md](docs/multiplayer.md#lan-and-server)). The server
+  itself is unchanged.
+- **Advanced Warfare: Combat Readiness Program has its bots.** The match
+  started with you alone in it and was forfeited after twenty seconds. The
+  mode is the game's practice match, three bots a side, and it fills when
+  the playlist says so; ours did not (`relay/playlists_aw.info`). On a
+  Flip 2 the match now plays at 60 FPS beside and against bots. The app's
+  **Bots**, when not at None, still sets how many
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
+- **System Link between two devices that do not find each other: the app
+  says why.** Our two test devices stopped hearing each other over LAN,
+  and the cause was the network, not the game: one was on the router's
+  Wi-Fi and the other on a second router's (a mesh system with a network
+  of its own). LAN only reaches devices on the same Wi-Fi network. With
+  nobody heard, "Join network game" and "Invite a network player" now ask
+  whether both devices are on the same Wi-Fi and point to **NETWORK:
+  Online**, which joins two networks; the READMEs' troubleshooting and
+  [docs/multiplayer.md](docs/multiplayer.md#lan-and-server) say the same.
+  The app also holds Android's multicast lock while it plays on LAN, so
+  that a phone whose Wi-Fi drops broadcasts to save power still hears the
+  other players.
 - **A rare freeze for good in the middle of play, in all four games.** The
   runtime watches the memory the game hands the GPU by making its pages
   read-only, and a game thread that writes to one makes it writable again.

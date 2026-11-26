@@ -1080,12 +1080,33 @@ does:
   were loading levels on the same PC, and the run was not repeated. With
   no bots set this is Find Match under another name.
 - At 1, as the file has it, the title searches for nobody and starts.
-  With the host's bots that is a practice match, the nearest to what the
-  mode was. Without bots (`MW2_BOTS` unset, the app's Bots at 0) the
-  match starts and is forfeited after twenty seconds for want of an
-  enemy.
+  Without bots the match was forfeited after twenty seconds for want of
+  an enemy, which is what a player met on the Flip 2 with the app's Bots
+  at 0.
 
 The playlist's `numaislots` added no bots.
+
+**The mode's own bots (26 November 2026).** The executable has the mode
+under the name practice round: the menu sets the dvar `practiceroundgame`
+when the lobby opens (read at `839B1FFC` in the disc's multiplayer: 0 in
+the main menu, 1 in the lobby and in the match), a second dvar,
+`practiceroundBotTeamLimit` (3, at most 6), replaces the lobby's bot limits
+while it is set (`sub_826D2C10`), and the bots get clothes of their own
+(`mp/practiceroundcostumetable.csv`). So it was a match filled with bots.
+What it does not do itself is switch the bots on: with `practiceroundgame`
+at 1 and nothing else nobody joins. The lobby's bots fill only when its
+connect type is `fill_open`, whose default is the dvar
+`bot_AutoConnectDefault`, and the publisher's playlist must have set that;
+ours did not. `relay/playlists_aw.info` now has `rule
+bot_AutoConnectDefault fill_open` in that playlist, and on Windows the
+match starts with a team beside the player and one against, with no
+forfeit (`private-captures\mppolish\pc_aw_crp_*`). The rule goes when the
+lobby is left: a System Link game created after it has connect type 0 and
+no bots. The app's Bots, when not 0, still decides (`aw_bots.cpp` writes
+the lobby's rules after the title's defaults). The relay at
+`mw3.yassin.app` has no playlists of its own for this title, so every copy
+reads the file its release was built with; a relay given one must carry
+the same line.
 
 **Not seen:** either on a device; Exo Survival's Find Match past round 1;
 its Private Match.

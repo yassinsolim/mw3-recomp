@@ -22,6 +22,10 @@
     <!-- System link between phones on the same network (MW2_NET_LINK). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- The local network's players find each other by broadcast, which a
+         phone's WiFi drops before Android sees it unless an app holds a
+         multicast lock (GameActivity.hearLanBroadcasts). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Voice chat in Modern Warfare 3's multiplayer. Asked for only when the
          player turns voice chat on in Settings; the game runs without it. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
