@@ -76,8 +76,7 @@ class PictureChecks(unittest.TestCase):
     def test_patch_lit_for_one_frame(self):
         pictures = drifting(60)
         pictures[20] = self.wedge(pictures[20])
-        self.assertEqual(checks(pictures).get("local-flicker"), detectors.WARN)
-        pictures[40] = self.wedge(pictures[40])
+        # One frame of it in a run is the fault: the faults found were single frames.
         self.assertEqual(checks(pictures).get("local-flicker"), detectors.FAIL)
         # A menu's own animation may flash; the patches are judged in play alone.
         self.assertNotIn("local-flicker", checks(pictures, assume_play=False))
@@ -101,6 +100,21 @@ class PictureChecks(unittest.TestCase):
         base = scene()
         pictures = [np.roll(base, 37 * index, axis=1) for index in range(40)]
         self.assertEqual(checks(pictures), {})
+
+    def test_post_passing_in_a_turn_is_not_flicker(self):
+        # A dark post 60 pixels thick crossing the view 100 pixels a frame: where it stands in a
+        # frame neither neighbour has it, and each neighbour has it a little further on.
+        pictures = []
+        for index in range(12):
+            picture = scene().copy()
+            picture[60:480, 150 + 100 * (index % 6):210 + 100 * (index % 6)] = 20
+            pictures.append(cv2.add(picture, index % 2))
+        self.assertNotIn("local-flicker", checks(pictures))
+        # The same patch in one frame alone is in neither neighbour anywhere.
+        still = drifting(12)
+        still[6] = still[6].copy()
+        still[6][60:480, 450:510] = 20
+        self.assertEqual(checks(still).get("local-flicker"), detectors.FAIL)
 
     def lattice(self, picture):
         holed = picture.copy()

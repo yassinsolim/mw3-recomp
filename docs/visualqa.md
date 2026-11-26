@@ -109,7 +109,7 @@ with what they were measured against.
 | check | fails when | measured |
 |---|---|---|
 | `flicker` | the whole frame's brightness steps 5 levels or more away from both neighbours for one frame, every region with it (the tenth that stepped least by 0.4 of the middle one's step) | Advanced Warfare's gamma fault: 13.4 levels on each of 33 flashes, the least region 0.56 to 0.79 of the middle; with Brightness four steps down 0.4 levels; the largest clean step 2.4; a weapon's flash, sparks and explosions step 6 to 40 levels with the least region at 0.00 to 0.25 |
-| `local-flicker` | where the scenario is calm, a patch at least 20 screen pixels thick and 0.4% of the frame (more in a turn: +12% of the share of the picture that is moving, measured between the two neighbours and against the frame before, whichever is larger) differs from both neighbours for one frame, twice in a run | the sun shadow's wedge 3 to 29% of the frame; lit patches through a doorway 0.8 to 0.9%; Dome's shadow lost for a frame in a turn 8.0% with 43% moving; clean play standing still at most 0.14%, in the fastest turn 3.7% with 83% moving, a ribbed wall sliding past at 120 Hz 6.1% with 60% moving |
+| `local-flicker` | where the scenario is calm, a patch at least 20 screen pixels thick and 0.4% of the frame (more in a turn: +12% of the share of the picture that is moving, measured between the two neighbours and against the frame before, whichever is larger) differs from both neighbours for one frame and is in neither of them at another place; once in a run | the sun shadow's wedge 3 to 29% of the frame; lit patches through a doorway 0.8 to 0.9%; Dome's shadow lost for a frame in a turn 8.0% with 43% moving; Rust with half its draws missing for a frame 7.5%; clean play standing still at most 0.14%; a beam crossing a dark shed in a jump at 120 Hz 2.6% with 20% moving |
 | `blocks` | eight or more rectangles of one size (16 to 80 px a side) stand in rows and columns on one lattice, in three frames | the lattices of Call of Duty 4's Bog, Modern Warfare 3's Dome and Modern Warfare 2's S.S.D.D. on the phone's own driver: 9 to 59 blocks, regularity 0.94 to 1.00; clean play at most 5 alike and not in rows |
 | `black`, `white`, `uniform` | in play, 97% of the frame is black, or 60% white or nothing in it darker than level 150, or its spread is under 3 levels, for five seconds | a level's own fades are under five seconds (Black Tuesday's: four) |
 | `missing` | where the scenario is calm, three or more neighbouring regions (of 16 by 9) go from textured to one flat colour between two frames while no more than a fifth of the rest of the picture changes, twice in a run | the wedge does, with a tenth of the rest changing; a walk up to a dark wall goes flat with 0.45 to 0.58 of the rest changing |
@@ -142,9 +142,17 @@ What is left out, and why:
   with the count and the largest patch's picture). So a match is walked
   through empty first and its bots join afterwards, and the player fires in
   the fight alone. `flicker` judges throughout: an effect lights the
-  regions near it, the gamma fault every region. A frame that is the
-  picture before it moved (a hit's jolt) is moved back before it is
-  compared.
+  regions near it, the gamma fault every region.
+- **Things that move.** A post, a shadow's band or a ribbed wall passing
+  close in a fast turn moves further in a frame than it is thick, and where
+  it stands in a frame neither neighbour has it; the whole view does the
+  same at the frame a turn reverses in and at a hit's jolt. Such a patch is
+  looked for in both neighbours up to 72 pixels across and 40 down (of a
+  frame 480 wide) from where it is, and is not counted when one of them has
+  it: with it there the difference falls to 0.13 to 0.60 of what it was
+  (under 0.7 is taken) and the two pictures agree in shape (a correlation
+  of 0.45 or more). The two faults found in runs fell to 0.93 and 0.96:
+  what flashed is nowhere in the neighbours.
 - **A game at 30 frames a second** is recorded twice a frame; repeated
   frames are dropped before a frame is compared with its neighbours.
 
@@ -186,16 +194,21 @@ On 26 November 2026, with the numbers in `Thresholds`:
 |---|---|---|
 | whole-frame flicker (Advanced Warfare's gamma fault: the owner's recording, three reproductions in the lobby, one in a match) | 5 | 5 caught |
 | local flicker (a tester's three recordings of the sun shadow on Solar and through a doorway) | 3 | 3 caught |
+| single frames of a run that were wrong, in an empty match (Rust with half its draws missing, Dome's sun shadow lost) | 2 | 2 caught |
 | block lattices on the phone's own driver (two recordings, two single frames) | 4 | 4 caught |
 | clean menus and first screens of the four titles, before and after the gamma fix where it changed nothing | 11 | 11 passed |
 | a clean match with the player turning fast | 1 | passed |
 | fresh runs on the bundled Turnip (S.S.D.D. twice, Rust with bots, Black Tuesday, Survival, The Bog) | 6 | 6 passed |
+| empty matches whose posts, ribbed walls and jumps the check once took for flashes (Rust at 120 Hz, Dome at 60 and 120 Hz) | 3 | 3 passed |
 
-12 of 12 faulty recordings caught and 18 of 18 clean ones passed: recall
+14 of 14 faulty recordings caught and 21 of 21 clean ones passed: recall
 1.00, precision 1.00, by recording. The set is small, and nothing in it is
 a black world, a washed frame, a frozen picture or missing ground in a
 recording of a real run: those checks are tested on drawn pictures alone
-(below) until a recording of each is added.
+(below) until a recording of each is added. The measurements of a
+recording are kept beside its report (`measurements_*.npz`, and under
+`calibrate/` for the labelled set): delete them after changing
+`frames.py`, which measures.
 
 ## Tests
 

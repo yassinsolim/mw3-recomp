@@ -240,10 +240,30 @@ def block_lattice(picture, keep):
 # sun shadow's wedge 60 to 200.
 FLASH_STEP = 12
 _FLASH_THICK = np.ones((5, 5), np.uint8)
+# A thing that moves further in a frame than it is thick is a patch that
+# differs from both neighbours too: a post or a shadow's band passing in a
+# turn, the whole view at the frame a turn reverses in, a beam in a jump.
+# Such a patch is in a neighbour, moved; a flash is in neither. The patch is
+# looked for in both neighbours this far (across, down) either way, in
+# pixels of SMALL: the fastest turn recorded moves the view 59 a frame at
+# 60 frames a second, a jump 26.
+FLASH_REACH = (72, 40)
+# It moved when one neighbour, with the patch moved, differs from it by under
+# this share of what it differs by where it stands. Posts, bands and a
+# reversing view measured 0.13 to 0.60; a sun shadow lost for a frame and a
+# frame with half the world undrawn 0.93 to 0.96.
+FLASH_MOVED = 0.7
+# And is the same shapes there, not only nearer in brightness, as a darker
+# wall is to a patch gone black: the two agree by this much (a correlation;
+# the moved ones measured 0.49 to 0.99 at their place).
+FLASH_MOVED_ALIKE = 0.45
+# The largest patches of a frame are tried in turn: behind a post that moved
+# there may be a patch that flashed.
+FLASH_PATCHES = 4
 
 
-def _flashed_patch(before, frame, after, seen):
-    """The largest thick patch of `frame` that differs from both neighbours alike: (pixels, x, y)."""
+def _flashed_patches(before, frame, after, seen):
+    """The thick patches of `frame` that differ from both neighbours alike, the largest first: (pixels, x, y, box)."""
     rise = frame - before
     fall = frame - after
     apart = np.abs(before - after)
@@ -251,10 +271,27 @@ def _flashed_patch(before, frame, after, seen):
     flashed = ((least >= FLASH_STEP) & (apart <= 0.5 * least) & seen).astype(np.uint8)
     thick = cv2.morphologyEx(flashed, cv2.MORPH_OPEN, _FLASH_THICK)
     count, _, boxes, centres = cv2.connectedComponentsWithStats(thick, connectivity=8)
-    if count < 2:
-        return 0, 0.0, 0.0
-    largest = 1 + int(np.argmax(boxes[1:, cv2.CC_STAT_AREA]))
-    return int(boxes[largest, cv2.CC_STAT_AREA]), float(centres[largest, 0]), float(centres[largest, 1])
+    patches = [(int(boxes[index, cv2.CC_STAT_AREA]), float(centres[index, 0]), float(centres[index, 1]),
+                tuple(int(value) for value in boxes[index, :4])) for index in range(1, count)]
+    return sorted(patches, reverse=True)[:FLASH_PATCHES]
+
+
+def _moved_from(neighbour, frame, box):
+    """Whether what `frame` has in `box` is in `neighbour` at another place within reach."""
+    left, top, wide, high = box
+    # A little of what is round the patch goes with it: its edges are what place it.
+    left, top = max(0, left - 4), max(0, top - 4)
+    right, bottom = min(frame.shape[1], left + wide + 8), min(frame.shape[0], top + high + 8)
+    across, down = FLASH_REACH
+    around = cv2.copyMakeBorder(neighbour, down, down, across, across, cv2.BORDER_REPLICATE)
+    around = around[top:bottom + 2 * down, left:right + 2 * across]
+    patch = frame[top:bottom, left:right]
+    differs = cv2.matchTemplate(around, patch, cv2.TM_SQDIFF)
+    least, _, (place_across, place_down), _ = cv2.minMaxLoc(differs)
+    if least >= FLASH_MOVED * FLASH_MOVED * float(differs[down, across]):
+        return False
+    there = around[place_down:place_down + patch.shape[0], place_across:place_across + patch.shape[1]]
+    return float(cv2.matchTemplate(there, patch, cv2.TM_CCOEFF_NORMED)[0, 0]) >= FLASH_MOVED_ALIKE
 
 
 def flash(before, frame, after, seen):
@@ -262,29 +299,19 @@ def flash(before, frame, after, seen):
 
     Things moving across the picture differ from both neighbours too, but in
     thin lines along their edges: only patches at least five pixels thick
-    (twenty of the screen's) are kept, and the share of the picture that
-    changed between the two neighbours is returned beside it, for the
-    detector to ask more of a frame in a fast turn.
-
-    A hit jolts the player's view for one frame and back: the whole picture
-    then differs from both neighbours, and is the same picture moved. Where
-    a patch is found the frame is moved back by what it was moved against
-    the frame before, and only what still differs is a flash.
+    (twenty of the screen's) are kept, and of those only the ones that are
+    in neither neighbour at another place (FLASH_REACH): a post passing in
+    a turn is, and so is the whole view at a hit's jolt. The share of the
+    picture that changed between the two neighbours is returned beside it,
+    for the detector to ask more of a frame in a fast turn.
     """
     moving = float((np.abs(before - after)[seen] > 6).mean())
-    pixels, across, down = _flashed_patch(before, frame, after, seen)
-    if pixels:
-        (shift_across, shift_down), _ = cv2.phaseCorrelate(before, frame)
-        if abs(shift_across) >= 0.5 or abs(shift_down) >= 0.5:
-            back = np.float32([[1, 0, -shift_across], [0, 1, -shift_down]])
-            steadied = cv2.warpAffine(frame, back, (frame.shape[1], frame.shape[0]), borderMode=cv2.BORDER_REPLICATE)
-            again = _flashed_patch(before, steadied, after, seen)
-            if again[0] < pixels:
-                pixels, across, down = again
-    if not pixels:
-        return 0.0, moving, 0.0, 0.0
-    height, width = frame.shape
-    return pixels / float(seen.sum()), moving, across / width, down / height
+    for pixels, across, down, box in _flashed_patches(before, frame, after, seen):
+        if _moved_from(before, frame, box) or _moved_from(after, frame, box):
+            continue
+        height, width = frame.shape
+        return pixels / float(seen.sum()), moving, across / width, down / height
+    return 0.0, moving, 0.0, 0.0
 
 
 def measure(frames, mask="hud", progress=None):

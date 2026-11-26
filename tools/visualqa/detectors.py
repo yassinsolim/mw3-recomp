@@ -47,10 +47,15 @@ class Thresholds:
     # with 0.43.
     local_flash_share: float = 0.004
     local_flash_per_moving: float = 0.12
-    # One such frame is said; two in a run fail it, where the scenario is
-    # calm. In a fight the weapons' flashes, sparks and the jolt of a hit
-    # are such frames by design (Context.combat_from).
-    local_flash_events: int = 2
+    # A patch that is in a neighbour at another place moved and is not
+    # counted at all (frames.py, FLASH_REACH). What is left in calm play is
+    # a fault: no frame of the labelled set's clean recordings has one, the
+    # empty matches on both phones among them, and the two faults a suite found were
+    # one frame each in forty seconds (Rust with half its draws missing,
+    # Dome's sun shadow lost). So one such frame fails a run, where the
+    # scenario is calm. In a fight the weapons' flashes, sparks and the
+    # jolt of a hit are such frames by design (Context.combat_from).
+    local_flash_events: int = 1
     # Blocks: rectangles of one size on one lattice in a frame. The recorded
     # lattices have 9 to 59 with a regularity of 0.94 to 1.00 across and
     # down (0.8 and more in 82 of 89 frames of Dome's); clean play has at
