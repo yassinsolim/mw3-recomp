@@ -94,13 +94,29 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - **Sound that breaks up when the processor is busy (all four games on
   Android).** With every core kept busy the mixer ran tens of milliseconds
   late several times a second, and what it then mixed in a burst was mostly
-  dropped: 150 underruns in a minute on the AYN Thor under such a load. The
-  output now holds as much more sound as the mixer has been late lately (up
-  to 160 ms, gone again within half a minute of the lateness), and the
-  mixer's and the decoder's threads run at Android's audio priority. On the
-  Retroid Pocket Flip 2 under that load: 12 underruns for 38. The final form
-  has not been measured on the Thor ([docs/audio.md](docs/audio.md)). A low
-  frame rate from the graphics chip alone never broke the sound up.
+  dropped: 152 underruns in 82 seconds of play on the AYN Thor under such a
+  load. The output now holds as much more sound as the mixer has been late
+  lately (up to 160 ms, gone again within half a minute of the lateness),
+  and the mixer's and the decoder's threads run at Android's audio priority.
+  Under that load now: 1 underrun in 106 seconds on the Thor, and 12 for 38
+  on the Retroid Pocket Flip 2 ([docs/audio.md](docs/audio.md)). A low frame
+  rate from the graphics chip alone never broke the sound up.
+- **An FPS limit of 30 or 60 no longer costs the sound on a 120 Hz screen
+  when the processor is busy (all four games on Android).** For a limit of
+  30 or 60 the app puts the display in its 60 Hz mode, which shows them
+  evenly and saves power. In that mode an AYN Thor's system gives the game
+  about half the share of a busy processor it has at 120 Hz, and the sound
+  broke up: 2,427 underruns in a minute of play with a limit of 30 chosen
+  and eight busy programs beside the game. Now, once the sound has broken
+  up for six seconds in a slower mode, the display is asked for its fastest
+  mode again for the rest of the run and the limit stays as you chose it,
+  each frame shown for two of the screen's refreshes or four: 7 underruns
+  in 67 seconds of play under the same load. The log says so (`adaptive:
+  the display is kept at 120 Hz because the sound broke up in a slower
+  mode`). The rate the app holds a run to by itself (the FPS limit's Auto,
+  below) keeps the fastest mode from the start where the processor is what
+  is late
+  ([docs/android.md](docs/android.md#what-a-device-is-given-and-what-it-is-measured-for)).
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose

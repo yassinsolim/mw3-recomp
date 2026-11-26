@@ -123,7 +123,11 @@ and gives up, in this order, what the device has no time for:
    yourself is kept whatever happens, and so are shadows you turn on or off.
 
 The sound keeps its own time: where the processor is too busy to mix it on
-time, it is buffered further ahead rather than left to crackle.
+time, it is buffered further ahead rather than left to crackle. An FPS limit
+of 30 or 60 puts a faster screen in its 60 Hz mode, which saves power; if
+the sound breaks up there (on the AYN Thor it does when other programs keep
+the processor busy), the screen goes back to its fastest mode for the rest
+of the run and your limit stays.
 
 If the screen stays black, the app says so within half a minute, names the
 graphics chip and the driver, and offers the other driver (the Turnip driver

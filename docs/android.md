@@ -163,11 +163,11 @@ The log says which: `adaptive: held to 60 frames a second, not 120: ...; the dis
 | Thor, Modern Warfare 2's S.S.D.D. | 118.7 | 118.3, 93.6% of frames on time; the scene whole throughout; the shadows as above |
 | Flip 2, Seoul | 60.4 | 60.0, 97.3% on time; the scene whole in 84% of the frames, down to 70% in the rest, never under; no shadows |
 | Flip 2, S.S.D.D. | 60.1 | 59.9, 95.3% on time; the scene whole; no shadows (the chip at 9 to 10 of 16.7 ms) |
-| Thor, Seoul at three times its size (the chip 19 to 38 ms a frame) | 38.5 under a limit of 120 | held to 60 after ten seconds at 52, to 30 after ten at 27 |
-| Thor, Seoul with eight busy shells (the processor 98% busy) | 45.6 under 120 | held to 60 after ten seconds at 35, to 30 after ten at 22 |
+| Thor, Seoul at three times its size (the chip 19 to 38 ms a frame) | 38.5 under a limit of 120 | held to 60 after ten seconds at 52, to 30 after ten at 27; the display follows the rate into its 60 Hz mode; no underrun |
+| Thor, Seoul with eight busy shells (the processor 98% busy) | 45.6 under 120; 152 underruns in 82 s of play | held to 60 after ten seconds at 65, to 30 after ten at 26; the display kept at 120 Hz because the processor is late; 1 underrun in 106 s of play |
+| Thor, the same, the shells stopped 110 s into the run | | held to 60 at 66 s and back to 120 at 155 s: thirty seconds with room for it, once the minute after the step down had passed; 3 underruns in 256 s of play |
+| Thor, the same shells, an FPS limit of 30 chosen (the display in its 60 Hz mode) | 2,427 underruns a minute of play | the display back at 120 Hz 16 s into the run because the sound broke up; 7 underruns in 67 s of play |
 | Flip 2, Seoul at twice its size (the chip 33 to 38 ms) | 28.2 under 60 | held to 30 after ten seconds at 28 |
-
-The step back up has been seen in the rule's own check alone, not on a device.
 
 **The performance report.** The game's menu has **Share performance report**: the app, the phone, the chip and its memory (`DeviceInfo`), the screen's modes, the settings and which of them were chosen (`Prefs.graphicsSummary`), and from the run the driver, the device line of the log, what the run is held to, the play so far (frames a second, the slowest two seconds, the share of the time under the rate, the chip's and the renderer's thread's time a frame), the last minute ten seconds a line, the last changes, the sound's underruns and what its sink holds, and the heat (`nativePerformance`, `adaptive::Report`). Text, through Android's share sheet.
 

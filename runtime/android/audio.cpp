@@ -111,8 +111,8 @@ namespace
     // burst, of which the sink took what it holds when the mixer is on time
     // and the rest were dropped, and the device played silence until the
     // next burst: on an AYN Thor with every core kept busy by other
-    // programs, 150 underruns in a minute of Advanced Warfare at 25 to 50
-    // frames a second. So the sink holds that much more while it goes on:
+    // programs, 152 underruns in 82 seconds of Advanced Warfare's play at 25
+    // to 50 frames a second. So the sink holds that much more while it goes on:
     // the third most lateness of this quarter-minute's spells or of the one
     // before's, up to 160 ms. The third, because one or two long ones are a
     // level starting, where the sound would be late by them for half a
