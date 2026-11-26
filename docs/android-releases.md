@@ -36,7 +36,12 @@ signed with another, and a lost key means every player uninstalling.
 
 ## Each release
 
-1. The public repository's default branch has the commit to release.
+1. The public repository's default branch has the commit to release, and
+   `tools/visualqa/visualqa.py --suite` has passed on it on both phones
+   ([visualqa.md](visualqa.md)): every scenario recorded, every frame
+   checked for flicker, blocks, missing ground, black frames and stalls, on
+   the bundled Turnip driver. A failure is fixed or explained in the notes
+   before the tag; a release is not drafted over one.
 2. Push a tag `vMAJOR.MINOR.PATCH` there (minor and patch below 100). The
    version code is `MAJOR*10000 + MINOR*100 + PATCH`, and has to be above the
    last release's and above 16, what the apps built by setup carried.

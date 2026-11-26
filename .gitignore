@@ -56,6 +56,8 @@ mw3_candidates.h
 # The checks' own build (tests/CMakeLists.txt), which needs none of the game:
 # cmake -S tests -B build-tests -G Ninja
 /out/
+# Recordings, pictures and reports of tools/visualqa: frames of the game.
+/visualqa-out/
 
 # ---- editor / OS ----
 .vscode/

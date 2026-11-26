@@ -5,6 +5,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **`tools/visualqa`: every test run is recorded and every frame of it
+  checked.** `visualqa.py run <scenario> --device thor` starts a title in a
+  level or a match with bots, records the screen (`adb shell screenrecord`)
+  beside the run's own frame log and the frames the game writes itself, and
+  prints PASS or FAIL with a picture of each fault: whole-frame flicker,
+  patches lit or lost for single frames (the sun shadow's wedge), a lattice
+  of blocks left out of the picture, black, white-washed and one-colour
+  frames in play, ground that goes missing between two frames, a frozen
+  picture, stalls, slow seconds and pop-in that lasts. Its numbers were set
+  on the recordings of the faults players and testers found, and
+  `visualqa.py calibrate` measures them again. `--suite` runs a campaign
+  level and a match against bots of each title on both phones and is run
+  before a release; a run that was not on the bundled Turnip driver fails
+  ([docs/visualqa.md](docs/visualqa.md)).
 - **Advanced Warfare: the app says which Compatibility Packs are missing.**
   The updated game needs all six, whichever map packs you bought, and with
   one missing it only showed its own notice that required content had been
