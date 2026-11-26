@@ -195,6 +195,8 @@
     <string name="fov">Field of View (FOV): %1$d°</string>
     <string name="fov_hint">85° is recommended for ultrawide 20:9 mobile displays. (65° was original 16:9 console FOV).</string>
     <string name="fps_limit">FPS limit: %1$d</string>
+    <string name="fps_limit_auto">FPS limit: Auto (%1$d, or the fastest this device keeps)</string>
+    <string name="held_to">Held to %1$d FPS: this is what the device keeps here</string>
     <!-- A toast, of which Android 12 and later show two lines: on the AYN Thor the sentence it was ended at "are sh…". -->
     <string name="display_held">Screen held at %1$d Hz by the system: %1$d FPS, not %2$d. See the launcher.</string>
     <string name="display_held_launcher">The screen is held at %1$d Hz by the system, so the game will show %1$d frames a second under its FPS limit of %2$d. Set the screen to %2$d Hz in the system\'s display settings.</string>
@@ -205,7 +207,7 @@
         <item>On</item>
         <item>Off</item>
     </string-array>
-    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device leaves them out on a Snapdragon 865-class chip, and in every game wherever the FPS limit is above 60, which is nearer held without them; On keeps them at a lower frame rate.</string>
+    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device measures it: they come on once half a minute of play has held the frame rate with room to spare, and go again when frames come late with them. On keeps them at a lower frame rate.</string>
     <string name="sharpening">Sharpening: %1$d%%</string>
     <string name="sharpening_off">Sharpening: off</string>
     <string name="sharpening_hint">Sharpens the picture as it is enlarged to the screen, which gives back some of the detail the enlarging blurs; 80 to 100% is nearest a picture drawn at the screen\'s own size. The game is then shown at the screen\'s full resolution whatever the resolution above says. It costs a third to half a millisecond of the graphics chip\'s time a frame: a few frames a second where the chip is already at its limit.</string>
@@ -373,6 +375,18 @@
     <string name="quit">Quit</string>
     <string name="quit_explained">The game ends now. Anything the game itself has not saved is lost.</string>
     <string name="cannot_start">The game could not start</string>
+    <string name="renderer_failed">Nothing can be shown</string>
+    <string name="no_picture_yet">No picture yet</string>
+    <string name="renderer_failed_message">%1$s\n\nGraphics chip: %2$s\nDriver in use: %3$s\n\n%4$s\n\nShare log sends what a bug report needs.</string>
+    <string name="no_frame">The game has been running for %1$d seconds and no picture has reached the screen.</string>
+    <string name="renderer_try_system">What to try: the phone\'s own driver in place of this one (also Settings \u203a Graphics driver).</string>
+    <string name="renderer_try_bundled">What to try: the Turnip driver this app carries in place of the phone\'s own (also Settings \u203a Graphics driver).</string>
+    <string name="renderer_try_import">What to try: a system update for a newer graphics driver, or on a Snapdragon a Turnip driver imported in Settings \u203a Graphics driver.</string>
+    <string name="renderer_use_system">Use the phone\'s driver</string>
+    <string name="renderer_use_bundled">Use Turnip</string>
+    <string name="share_log">Share log</string>
+    <string name="keep_waiting">Keep waiting</string>
+    <string name="share_performance">Share performance report</string>
     <string name="error_library">The runtime library would not load:\n%1$s</string>
     <string name="error_not_installed">The game files are not installed. Install them from the launcher first.</string>
     <string name="error_start">The runtime would not start. The log has the details.</string>

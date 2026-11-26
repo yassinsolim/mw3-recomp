@@ -642,8 +642,9 @@ a test makes a whole number of what it is given.
 
 ### The scene drawn smaller under load
 
-`MW2_SCENE_DYNAMIC=1` (`runtime/gpu/vulkan/renderer_scene.cpp`; unset, on for
-an Adreno 6xx under Android) draws the scene in fewer pixels while a frame
+`MW2_SCENE_DYNAMIC=1` (`runtime/gpu/vulkan/renderer_scene.cpp`; unset, on
+under Android, for every chip since 26 November 2026 and for an Adreno 6xx
+alone before) draws the scene in fewer pixels while a frame
 takes the graphics chip longer than the display gives it. `MW2_SCENE` cannot
 do that: the title makes its surfaces once. So the surfaces keep the title's
 size and the renderer draws into a part of them, from the first pixel:
@@ -667,8 +668,14 @@ size and the renderer draws into a part of them, from the first pixel:
   its pixels.
 - **Occlusion counts** of a pass drawn smaller are divided by the share of
   the title's pixels it drew, as `MW2_SCALE`'s are by the scale squared.
-- **The steps** are 92, 84, 76 and 70% of the scene's width and height (85,
-  71, 58 and 49% of its pixels). Once a window of ten frames the frames'
+- **The steps** are 92, 84, 76, 70, 64 and 58% of the scene's width and
+  height (85, 71, 58, 49, 41 and 34% of its pixels; the last two since every
+  chip has them, for one that starts at the console's 1024x600 and is
+  weaker than the Adreno 650 whose own scene starts at 832x480). Where the
+  sun's shadows are the runtime's to choose and on, the first step takes
+  them instead and the scene waits twelve frames for what that gives
+  (`adaptive::GiveUpShadows`, [android.md](android.md#what-a-device-is-given-and-what-it-is-measured-for)).
+  Once a window of ten frames the frames'
   time on the chip (its own clock, `gpu_time.h`, which is therefore on
   whether `MW2_REPORT` is or not) is set against what the display gives a
   frame: a step down when they took 97% of it, or 90% of it reckoned at the

@@ -7,6 +7,7 @@
 #include "gpu.h"
 #include "internal.h"
 #include "../diagnostics.h"
+#include "../adaptive.h"
 #include "../console.h"
 #include "../env.h"
 #include "../frame_rate.h"
@@ -14,9 +15,6 @@
 #include "../weapon_timing.h"
 #include "../guest.h"
 #include "../log.h"
-#ifdef MW2_ANDROID
-#include "../android/android.h"
-#endif
 
 #include <atomic>
 #include <algorithm>
@@ -144,21 +142,25 @@ namespace
     // leaves them on. The shadow maps are a fifth of the GPU's frame in a
     // Modern Warfare 3 Survival level on an Adreno 650 -- 38 ms a frame with
     // them, 31 without -- and 6 ms of Modern Warfare 2's S.S.D.D., 45 frames
-    // a second with them and 58 without (docs/android.md): the difference
-    // between holding the cap that class of chip starts at and not, so unset
-    // is off there. Their passes are three in ten of Modern Warfare 3's draws
-    // too, which the ring consumer has no time for above 60 a second: on an
-    // AYN Thor (Adreno 740) under a limit of 120 Survival ran at 107 with 39%
-    // of its frames on time, and at 114.5 with 80% without them, so unset is
-    // off under Android wherever the limit is above 60, in every title:
-    // Advanced Warfare's Seoul drop pod there ran at 114.4 with 78% on time
-    // with them and 118.8 with 90% without, and Modern Warfare 2's three
-    // heaviest views, Team Player's, at 90, 82 and 80 with them and at 112,
-    // 102 and 102 without, S.S.D.D. spending 39 seconds of 160 under 115 with
-    // them and none without. On everywhere else. Said once the title presents,
+    // a second with them and 58 without (docs/android.md). Their passes are
+    // three in ten of Modern Warfare 3's draws too, which the ring consumer
+    // has no time for above 60 a second: on an AYN Thor (Adreno 740) under a
+    // limit of 120 Survival ran at 107 with 39% of its frames on time, and
+    // at 114.5 with 80% without them; Advanced Warfare's Seoul drop pod
+    // there ran at 114.4 with 78% on time with them and 118.8 with 90%
+    // without, and Modern Warfare 2's three heaviest views, Team Player's,
+    // at 90, 82 and 80 with them and at 112, 102 and 102 without. Those two
+    // devices are the ones measured, and unset used to be off for an Adreno
+    // 6xx and for a limit above 60, which on a 60 Hz screen gave any other
+    // chip the shadows the 740 has room for, unmeasured. Unset is now what
+    // the play in front of the player has room for (adaptive.h, under
+    // Android): off until thirty seconds of it held their rate with the chip
+    // and the renderer's thread both a good half idle, and off again when
+    // the frames come late with them. On everywhere else. Said once the
+    // title presents,
     // when its console takes commands, and again whenever the answer is
     // another: the app's menu gives the switch another value
-    // (live::SetSunShadows) or a limit that decided it.
+    // (live::SetSunShadows) or the measurement does.
     constexpr int kUnread = -2, kUnset = -1;
     std::atomic<int> g_shadowsAsked{ kUnread };
 
@@ -172,13 +174,7 @@ namespace
             if (g_shadowsAsked.compare_exchange_strong(asked, given, std::memory_order_relaxed)) asked = given;
         }
         if (asked != kUnset) return asked ? nullptr : "MW2_SHADOWS=0";
-#if defined(MW2_ANDROID)
-        if (android::perf::Adreno6xx())
-            return "an Adreno 6xx holds its frame rate without them; MW2_SHADOWS=1 keeps them";
-        if (frame_rate::Limit() > frame_rate::kConsole)
-            return "a limit above 60 is nearer held without them; MW2_SHADOWS=1 keeps them";
-#endif
-        return nullptr;
+        return adaptive::WhyNoShadows();
     }
 
     void Shadows()
@@ -195,6 +191,7 @@ namespace
 void live::SetSunShadows(int asked)
 {
     g_shadowsAsked.store(asked < 0 ? kUnset : asked ? 1 : 0, std::memory_order_relaxed);
+    adaptive::PlayerSetShadows(asked < 0);
 }
 
 // D3D9's present. Its frame is retired the way the console retires it: the

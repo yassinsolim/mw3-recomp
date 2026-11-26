@@ -108,6 +108,50 @@ and attach that file. See [Known limits](#known-limits), [Tips](#tips) and
   device's own storage), after which the images are no longer needed:
   **Repair / rebuild**, **Disc image and game files**.
 
+## Supported devices and what to expect
+
+Two devices are tested by the project, on every release. Nothing else is:
+what is said of other devices below is what their players reported, and no
+more.
+
+| Device | Tested? | What to expect in Advanced Warfare |
+|---|---|---|
+| AYN Thor (Snapdragon 8 Gen 2, Adreno 740, 120 Hz) | **yes, every release** | 115 to 119 FPS |
+| Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650, 60 Hz; the Retroid Pocket 5 has the same chip) | **yes, every release** | 60 FPS |
+| Snapdragon 870 (Adreno 650) | no | "runs smoothly" by one player's report |
+| Snapdragon 8 Gen 1 (Adreno 730) | no | about 50 FPS by one player's report |
+| POCO F6 (Snapdragon 8s Gen 3, Adreno 735) | no | 20 to 30 FPS with choppy sound by one player's report, on the version before the app measured anything |
+| An unnamed device | no | "not optimised" by one player's report |
+| Any other Snapdragon (Adreno 6xx, 7xx, 8xx) | no | Unknown. Expect less than a tested device of the same class, and tell us ([below](#on-a-device-we-have-not-tested)) |
+| Mali, Xclipse, PowerVR | no | Unknown; see What you need above |
+
+### On a device we have not tested
+
+The app does not go by the chip's name. It measures the play in front of you
+and gives up, in this order, what the device has no time for:
+
+1. **Sun shadows** (Settings → Graphics → Sun shadows, *Chosen for this
+   device*): on only once half a minute of play has held its frame rate
+   with room to spare, off again when frames come late with them.
+2. **The 3D scene's pixels**: drawn at 92% down to 58% of its size while the
+   graphics chip is late with a frame, and whole again when it is not. The
+   HUD and the menus keep theirs.
+3. **The frame rate** (Settings → Graphics → FPS limit, *Auto*): from the
+   screen's fastest rate down to an even 60 or 30 when ten seconds in a row
+   did not come near it, and up again when there is room. A limit you choose
+   yourself is kept whatever happens, and so are shadows you turn on or off.
+
+The sound keeps its own time: where the processor is too busy to mix it on
+time, it is buffered further ahead rather than left to crackle.
+
+If the screen stays black, the app says so within half a minute, names the
+graphics chip and the driver, and offers the other driver (the Turnip driver
+the app carries, or the phone's own) and **Share log**. If it runs badly,
+open the game's **Menu → Share performance report** after a minute or two of
+play: it sends the frame rate, the graphics chip's time a frame, the device
+and your settings as text, which is what we need to do anything about it.
+
+
 ## What works
 
 Measured on 24 November 2026 on an AYN Thor (Snapdragon 8 Gen 2,
@@ -148,7 +192,8 @@ This is a first release. What has **not** been shown:
 - **The frame rate is not locked.** The Flip 2 holds 60 in what was measured;
   the Thor holds 115 to 119, with Fusion at 115. The first visit to a level
   stutters while its graphics are compiled; later visits reuse what was.
-- **Sun shadows are off above 60 FPS** (a setting turns them on, at a cost).
+- **Sun shadows are measured, not assumed**: on while the frames have room
+  for them, which at 120 FPS is seldom (a setting keeps them on, at a cost).
 - **Map packs and Exo Zombies need your own files** off your console: see
   [Map packs and Exo Zombies](#map-packs-and-exo-zombies). Exo Zombies was
   seen on the AYN Thor only, its later rounds only with test tools; the
@@ -255,7 +300,9 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
 | The build stopped or failed | What was done is kept: tap **Retry**. If it fails again, tap **Share log** under it and attach the file to an issue |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
-| Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
+| Black screen | Within half a minute the app says why, or that no picture has come, with the graphics chip and driver: try the other driver it offers (or **Settings → Graphics driver**) and send **Share log** |
+| Low frame rate or choppy sound | **Menu → Share performance report** in the game after a minute of play, and send it; see [Supported devices](#supported-devices-and-what-to-expect) |
+| Crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\aw`; accept the USB debugging prompt on the phone |
 | `setup.sh` says `unknown option: --dlc` | The folder is older than the option: `git pull` (or download the repository again), then run the same command |
 | `setup.sh` says programs are needed | Run the one `sudo apt install …` line it prints, then the same command again; it carries on where it stopped. Its logs are in `out/logs/` |

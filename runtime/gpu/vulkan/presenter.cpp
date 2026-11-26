@@ -1522,8 +1522,8 @@ namespace
         if (!vkCreateAndroidSurfaceKHR)
         {
             LOGE("vulkan: this driver has no VK_KHR_android_surface, so it cannot present");
-            android::SetStatus("This graphics driver cannot present to the screen."
-                               " Switch back to the system driver.");
+            android::RendererFailed("This graphics driver cannot present to the screen"
+                                    " (it has no VK_KHR_android_surface).");
             return false;
         }
 #endif
@@ -1590,7 +1590,7 @@ namespace
         if (!vk::loader::Opened() && !vk::loader::Open(error))
         {
             LOGE("vulkan: %s", error.c_str());
-            android::SetStatus(("No Vulkan driver could be opened: " + error).c_str());
+            android::RendererFailed("No Vulkan driver could be opened: " + error);
             return false;
         }
         // The game thread runs ahead of the activity's layout; the first
@@ -1600,33 +1600,44 @@ namespace
         if (!android::Running()) return false;
         g.generation = android::WindowGeneration();
         g.nativeWindow = android::AcquireWindow();
-        if (!g.nativeWindow) { LOGW("vulkan: no surface to present to"); return false; }
+        if (!g.nativeWindow)
+        {
+            LOGW("vulkan: no surface to present to");
+            android::RendererFailed("The screen gave the game no surface to draw on.");
+            return false;
+        }
         crash::Step("vulkan-instance", "vkCreateInstance");
         if (!CreateInstance()) {
-            android::SetStatus("Failed to create Vulkan instance");
+            android::RendererFailed("The graphics driver would not start (vkCreateInstance failed).");
             return false;
         }
         crash::Step("vulkan-surface", "the surface, and choosing the GPU");
         if (!CreateSurfaceForWindow()) {
-            android::SetStatus("Failed to create Vulkan surface for Android window");
+            // CreateSurfaceForWindow has said so itself where the driver has no such surface.
+            if (android::Status().find("VK_KHR_android_surface") == std::string::npos)
+                android::RendererFailed("The graphics driver would not make a surface for the screen.");
             return false;
         }
         if (!PickDevice()) {
-            android::SetStatus("No Vulkan physical device found");
+            android::RendererFailed("The graphics driver offers no device that can draw to the screen.");
             return false;
         }
         crash::Step("vulkan-device", "the device's features and extensions, and vkCreateDevice");
         if (!CreateDevice()) {
-            android::SetStatus("Failed to create Vulkan logical device");
+            // What the device lacks, where that is why (vk::pipeline::CreateDevice).
+            const char* lacks = vk::pipeline::Refusal();
+            android::RendererFailed(*lacks ? std::string("This graphics chip or its driver lacks ") + lacks +
+                                                 ", which the game's renderer needs."
+                                           : std::string("The graphics driver would not make a device (vkCreateDevice failed)."));
             return false;
         }
         crash::Step("swapchain", "the swapchain and its frames");
         if (!CreateSwapchain()) {
-            android::SetStatus("Failed to create Vulkan swapchain");
+            android::RendererFailed("The graphics driver would not make a swapchain for the screen.");
             return false;
         }
         if (!CreateFrames()) {
-            android::SetStatus("Failed to create Vulkan presentation frames");
+            android::RendererFailed("The graphics driver would not make the images the game is shown from.");
             return false;
         }
         crash::Step("pipeline-layout", "the descriptor sets, the pipeline cache and the pipeline layout");
@@ -1836,6 +1847,16 @@ namespace
             // Nothing is presented to a hidden window, where a present can
             // wait for a frame the compositor never asks for.
             if (!g.shown) continue;
+            // MW2_TEST_NO_FRAMES=1, in a build with diagnostics: the title's
+            // frames never reach the window, as under a driver that takes
+            // them and shows nothing, to see the app say so (GameActivity's
+            // watch for a first frame).
+            static const bool withheld = diag::Flag("MW2_TEST_NO_FRAMES");
+            if (queued && withheld)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(16));
+                continue;
+            }
             if (queued) DrawOneFrame(false);
             else if (!g.presented.load(std::memory_order_relaxed)) DrawOneFrame(true);
         }

@@ -25,6 +25,7 @@
 #include "../gpu/vulkan/renderer.h"
 #include "../gpu/vulkan/renderer_state.h"
 #include "../console.h"
+#include "../adaptive.h"
 #include "../frame_rate.h"
 #include "../live_options.h"
 #include "../online/service.h"
@@ -77,6 +78,10 @@ namespace
     pthread_t g_gameThread{};
 
     std::string g_gameFolder;
+
+    // android::RendererFailed's sentence, the first one given.
+    std::mutex g_failureLock;
+    std::string g_failure;
 
     // ---- install progress, read by the app while the copy runs ------------
     std::mutex g_progressLock;
@@ -307,9 +312,14 @@ MW2_NATIVE(jboolean, nativeApplyOption)(JNIEnv* env, jobject, jstring key, jstri
     bool applied = true;
     if (name == "MW2_FPS_LIMIT")
     {
-        frame_rate::SetLimit(uint32_t(std::strtoul(text.c_str(), nullptr, 10)));
+        // The player's limit, which the run is held to from here on whatever
+        // it sustains; MW2_FPS_AUTO leaves it to the runtime again.
+        const uint32_t limit = uint32_t(std::strtoul(text.c_str(), nullptr, 10));
+        frame_rate::SetLimit(limit);
         android::detail::VoteAgain();
+        if (limit) adaptive::PlayerSetLimit(limit);
     }
+    else if (name == "MW2_FPS_AUTO") adaptive::PlayerSetLimit(0);
     else if (name == "MW2_SHADOWS") live::SetSunShadows(text.empty() ? -1 : text != "0");
     else if (name == "MW2_FOV") applied = live::SetFieldOfView(std::strtod(text.c_str(), nullptr));
     else if (name == "MW2_LOD_BIAS") applied = live::SetDetailBias(std::strtod(text.c_str(), nullptr));
@@ -407,6 +417,7 @@ MW2_NATIVE(jboolean, nativeStart)(JNIEnv* env, jobject, jstring gameDirectory, j
 MW2_NATIVE(void, nativeRequestStop)(JNIEnv*, jobject)
 {
     LOGI("android: the app asked the run to end");
+    adaptive::Write();
     android::audio::SetMuted(true);
     android::detail::SetRunning(false);
     android::audio::Close();
@@ -425,6 +436,34 @@ MW2_NATIVE(jstring, nativeStatus)(JNIEnv* env, jobject)
 MW2_NATIVE(jstring, nativeLogTail)(JNIEnv* env, jobject)
 {
     return FromString(env, android::detail::LogTail());
+}
+
+// Why the renderer cannot show the game, or "" while nothing says it cannot
+// (android::RendererFailed). The app asks twice a second from the start of a
+// run and puts it in front of the player in place of the black screen.
+MW2_NATIVE(jstring, nativeRendererFailure)(JNIEnv* env, jobject)
+{
+    std::lock_guard lock(g_failureLock);
+    return FromString(env, g_failure);
+}
+
+// The performance report a player shares from the game's menu: the graphics
+// device and driver, what the run is held to and how it has gone
+// (adaptive::Report), and the sound's side of it. The app adds the phone and
+// the settings.
+MW2_NATIVE(jstring, nativePerformance)(JNIEnv* env, jobject)
+{
+    std::string text = "driver: " + android::driver::Description() + "\n" + adaptive::Report();
+    char line[200];
+    std::snprintf(line, sizeof line, "sound: %llu underruns since the start, the sink holds %u ms when the mixer"
+                  " is on time (%u ms is the device's own)\n",
+                  (unsigned long long)android::audio::Underruns(),
+                  unsigned(android::audio::CushionFrames() * 256 * 1000 / 48000),
+                  unsigned(android::audio::DeviceFrames() * 256 * 1000 / 48000));
+    text += line;
+    std::snprintf(line, sizeof line, "textures: %.0f MB held\n", double(vk::textures::LiveBytes()) / (1024.0 * 1024.0));
+    text += line;
+    return FromString(env, text);
 }
 
 // ---- the surface -----------------------------------------------------------
@@ -737,6 +776,17 @@ MW2_NATIVE(void, nativeStats)(JNIEnv* env, jobject, jfloatArray out)
         if (len >= 8) values[7] = jfloat(ws.completed);
         if (len >= 9) values[8] = jfloat(ws.lastCompileMs);
     }
+    if (len >= 13)
+    {
+        // What the run is held to and what the last two seconds of play took
+        // (adaptive.h); the app asks the display for the mode that goes with
+        // a rate the runtime chose.
+        const adaptive::Now now = adaptive::Current();
+        values[9] = jfloat(now.target);
+        values[10] = jfloat(now.gpuMs);
+        values[11] = jfloat(now.scenePercent);
+        values[12] = now.follows ? 1.0f : 0.0f;
+    }
     env->SetFloatArrayRegion(out, 0, len, values.data());
 }
 
@@ -796,6 +846,14 @@ void android::StartTitle(const std::string& xex, const std::string& launchData)
     if (env->ExceptionCheck()) env->ExceptionClear();
     env->DeleteLocalRef(name);
     env->DeleteLocalRef(data);
+}
+
+void android::RendererFailed(const std::string& what)
+{
+    LOGE("renderer: nothing will be shown: %s", what.c_str());
+    SetStatus(what.c_str());
+    std::lock_guard lock(g_failureLock);
+    if (g_failure.empty()) g_failure = what;
 }
 
 void android::PublishStats(const Stats& stats)

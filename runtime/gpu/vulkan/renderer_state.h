@@ -23,6 +23,7 @@
 #include "util.h"
 #include "../registers.h"
 #include "../texture.h"
+#include "../../adaptive.h"
 #include "../../env.h"
 #include "../../stutters.h"
 #include "../../words_hash.h"
@@ -613,7 +614,11 @@ namespace vk::renderer::detail
         struct Scene
         {
             // The shares of the scene's width and height it is drawn at.
-            static constexpr float kShares[] = { 1.0f, 0.92f, 0.84f, 0.76f, 0.70f };
+            // The last two are for a chip nobody here has measured, which
+            // starts at the console's scene whatever it is: at 58% that
+            // scene is the 582x336 an Adreno 650's own smaller one comes
+            // down to.
+            static constexpr float kShares[] = { 1.0f, 0.92f, 0.84f, 0.76f, 0.70f, 0.64f, 0.58f };
             static constexpr uint32_t kLevels = uint32_t(std::size(kShares));
             bool on = false;
             // MW2_SCENE_SHARE: no stepping, one step, or it and the whole
@@ -990,6 +995,9 @@ namespace vk::renderer::detail
     bool StartScene();
     bool Stretches(VkFormat format, bool depth);
     void SceneFrame(bool world);
+    // The share the scene is drawn at this frame, for what follows the
+    // device's frames beside it (adaptive.h).
+    adaptive::Scene SceneNow();
     void SceneReport();
     void ToDrawnScene(VkViewport& viewport, VkRect2D& scissor);
     inline bool DrawnSmaller(const Target& target)

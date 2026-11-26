@@ -90,6 +90,48 @@ graphics are compiled; see [Tips](#tips) and [Troubleshooting](#troubleshooting)
 - **About 8 GB free** for the disc image, on the device or an SD card, plus
   about 1 GB while the game is built.
 
+## Supported devices and what to expect
+
+Two devices are tested by the project, on every release. Nothing else is:
+what is said of other devices below is what their players reported, and no
+more.
+
+| Device | Tested? | What to expect in Modern Warfare 3 |
+|---|---|---|
+| AYN Thor (Snapdragon 8 Gen 2, Adreno 740, 120 Hz) | **yes, every release** | 118 to 119 FPS |
+| Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650, 60 Hz; the Retroid Pocket 5 has the same chip) | **yes, every release** | 60 FPS |
+| Snapdragon 6 Gen 1 (Adreno 710) | no | a player's video of it running exists; nothing measured |
+| An unnamed device | no | one player reported only a black screen (before the app said why) |
+| Any other Snapdragon (Adreno 6xx, 7xx, 8xx) | no | Unknown. Expect less than a tested device of the same class, and tell us ([below](#on-a-device-we-have-not-tested)) |
+| Mali, Xclipse, PowerVR | no | Unknown; see What you need above |
+
+### On a device we have not tested
+
+The app does not go by the chip's name. It measures the play in front of you
+and gives up, in this order, what the device has no time for:
+
+1. **Sun shadows** (Settings → Graphics → Sun shadows, *Chosen for this
+   device*): on only once half a minute of play has held its frame rate
+   with room to spare, off again when frames come late with them.
+2. **The 3D scene's pixels**: drawn at 92% down to 58% of its size while the
+   graphics chip is late with a frame, and whole again when it is not. The
+   HUD and the menus keep theirs.
+3. **The frame rate** (Settings → Graphics → FPS limit, *Auto*): from the
+   screen's fastest rate down to an even 60 or 30 when ten seconds in a row
+   did not come near it, and up again when there is room. A limit you choose
+   yourself is kept whatever happens, and so are shadows you turn on or off.
+
+The sound keeps its own time: where the processor is too busy to mix it on
+time, it is buffered further ahead rather than left to crackle.
+
+If the screen stays black, the app says so within half a minute, names the
+graphics chip and the driver, and offers the other driver (the Turnip driver
+the app carries, or the phone's own) and **Share log**. If it runs badly,
+open the game's **Menu → Share performance report** after a minute or two of
+play: it sends the frame rate, the graphics chip's time a frame, the device
+and your settings as text, which is what we need to do anything about it.
+
+
 ## What works
 
 Measured on an AYN Thor (Snapdragon 8 Gen 2, 120 Hz) and a Retroid Pocket
@@ -150,7 +192,9 @@ Sources and methods: [docs/android.md](docs/android.md),
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
 | "Your .iso file is not where it was" | Put the `.iso` back (SD card, moved file), or tap the large button and pick it again |
-| Black screen or crash on a non-Qualcomm phone | Untested hardware; share the log (**LOG**, then **SHARE**) in an issue |
+| Black screen | Within half a minute the app says why, or that no picture has come, with the graphics chip and driver: try the other driver it offers (or **Settings → Graphics driver**) and send **Share log** |
+| Low frame rate or choppy sound | **Menu → Share performance report** in the game after a minute of play, and send it; see [Supported devices](#supported-devices-and-what-to-expect) |
+| Crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\mw3`; accept the USB debugging prompt on the phone |
 
 Bug reports are welcome with the log file (**LOG**, then **SHARE**, or

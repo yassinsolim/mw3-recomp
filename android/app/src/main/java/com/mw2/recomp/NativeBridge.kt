@@ -226,8 +226,20 @@ object NativeBridge {
 
     // ---- what the overlay shows --------------------------------------------
 
-    /** Fills [out] with { frames per second, texture MB, width, height, frame time ms, presented frames }. */
+    /**
+     * Fills [out] with { frames per second, texture MB, width, height, frame
+     * time ms, presented frames, shaders queued, compiled, the last one's ms,
+     * the rate the run is held to, the graphics chip's ms a frame (negative
+     * when it does not say), the scene's share of its width in percent,
+     * 1 when the rate follows the device }.
+     */
     external fun nativeStats(out: FloatArray)
+
+    /** Why the renderer cannot show the game, or "" (runtime/android/jni.cpp). */
+    external fun nativeRendererFailure(): String
+
+    /** The run's side of the performance report: driver, device, what it is held to, how it went. */
+    external fun nativePerformance(): String
 
     /** Returns formatted "Device|RendererMode|TextureCompression" */
     external fun nativeRendererInfo(): String

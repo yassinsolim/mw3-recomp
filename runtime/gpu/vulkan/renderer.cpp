@@ -347,7 +347,10 @@ bool vk::renderer::Initialise()
     queries.queryCount = kGuestQueryRing;
     if (vkCreateQueryPool(g.device, &queries, nullptr, &g.guestQueries) != VK_SUCCESS)
         g.guestQueries = VK_NULL_HANDLE;
-    vk::gpu_time::Start(g.physical, g.device, g.queue, vk::pipeline::QueueFamily(), StartScene());
+    // The chip's time is what the scene's size follows, and what the frame
+    // rate and the sun's shadows do where the run follows the device.
+    const bool scene = StartScene();
+    vk::gpu_time::Start(g.physical, g.device, g.queue, vk::pipeline::QueueFamily(), scene || adaptive::On());
     StartPassTimes();
 
     VkFenceCreateInfo fence{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };

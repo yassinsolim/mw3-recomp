@@ -181,6 +181,15 @@ void android::perf::RaiseThreadPriority()
         setpriority(PRIO_PROCESS, id_t(tid), -4);
 }
 
+void android::perf::RaiseAudioPriority()
+{
+    // -16 is what Android calls AUDIO, which its own mixer's threads have.
+    // Where an app is not allowed it, the display's is the next best.
+    const int tid = int(syscall(SYS_gettid));
+    if (setpriority(PRIO_PROCESS, id_t(tid), -16) != 0) RaiseThreadPriority();
+    LOGI("perf: an audio thread (%d) runs at priority %d", tid, getpriority(PRIO_PROCESS, id_t(tid)));
+}
+
 uint32_t android::perf::TotalMemoryMB() { return uint32_t(MemInfoKB("MemTotal") / 1024); }
 
 uint32_t android::perf::AvailableMemoryMB()

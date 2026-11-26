@@ -120,6 +120,49 @@ Modern mobile SoCs use heterogeneous CPU clusters (e.g., 1 Prime + 3 Gold + 4 Si
 - The ring consumer, which parses every draw of a frame and is the one stage the title's render thread waits on, is pinned to the prime core and has it to itself. The title's main thread, the guest threads, the command recorder and the texture readers are pinned to the performance cores; a thread takes the cores of the thread that started it, so the presenter, the guest's blank and the audio worker are there too. (With the main thread on the prime core they all were, and the consumer got two thirds of it: 61.7 against 74.4 FPS in Survival on the AYN Thor at 120 Hz.)
 - Efficiency cores (Cortex-A55 / A510) are reserved for background OS services and audio downmix processing.
 
+### What a device is given, and what it is measured for
+
+The project owns two devices, an AYN Thor (Adreno 740, 120 Hz) and a Retroid Pocket Flip 2 (Adreno 650, 60 Hz), and until 26 November 2026 what a run started with was what those two were measured to want, chosen by the chip's name. Players of other chips then reported Advanced Warfare at 20 to 30 frames a second with choppy sound on a Snapdragon 8s Gen 3 (Adreno 735) whose Call of Duty 4 ran at 120, 50 on a Snapdragon 8 Gen 1 (Adreno 730), and a black screen on a device nobody named. None of those devices is here; what follows was built and measured on the two that are, with a load put on them to stand in for a weaker one.
+
+**What each device was given before**, and where it came from:
+
+| | Adreno 650 (the Flip 2) | Adreno 710, 730, 735, 750 | Adreno 740 (the Thor) | not an Adreno, or nothing said |
+|---|---|---|---|---|
+| FPS limit (`Prefs.displayLimit`) | the screen's fastest of 30, 45, 60, 120 | the same: 120 on most of their screens | 120 | the same |
+| Driver (`DriverStore`) | the bundled Turnip on any Qualcomm chip, Android 12 on | the same, whether or not that Turnip knows the chip | the bundled Turnip | the system's |
+| Sun shadows, unset | off: an Adreno 6xx | off above a limit of 60, **on** at 60 and under | off at 120 | as the 7xx |
+| The scene | 832x480 in Modern Warfare 2 and 3 and Advanced Warfare | the console's 1024x600 | 1024x600 | 1024x600 |
+| The scene drawn smaller while the chip is late | yes | **no** | no | no |
+| Turnip's image compression | off (it resets the device) | on | on | |
+| Texture cache, upload arena, vertex shadow, shaders compiled at the start | by the device's memory and cores (`perf.cpp`): a sixth of memory up to 1 GB (1.5 GB from 12 GB), 192 to 384 MB, the shadow above 6 GB, 15 to 40 pipelines | the same | the same | the same |
+| Resolution 70%, no multisampling | every device | | | |
+
+So an Adreno 730 or 735 on a 120 Hz screen was held to 120 with the console's scene at its whole size whatever it drew, and at 30 frames a second showed them at uneven steps of the game's time; on a 60 Hz screen it had the sun's shadows as well, which the 740 has the room for. Nothing was ever given back.
+
+**What a device is given now** (`runtime/adaptive.h`, `MW2_ADAPTIVE`, on under Android) is decided by two-second windows of play -- world frames one after another; a menu, a loading screen or a movie says nothing -- from the frames a second, the graphics chip's time a frame by its own clock reckoned at its fastest clock (`gpu_time.h`), and the renderer's thread's time without its waits (`report.h`). What is given up, in order:
+
+1. **The sun's shadows**, where the player left them to the app. Off at the start of a run; on once thirty seconds held 97% of their rate (thirty, since a level's opening view is its lightest: with ten the Thor at 120 was given them in Seoul and S.S.D.D. for the seconds until the first heavy view took them away) with the scene whole, the chip under 55% of a frame's time and the renderer's thread under 60% (the shadows cost a fifth to a third of both); off again when four seconds come under 90% of the rate with them, or the moment the scene would otherwise be drawn smaller. Not tried again for a minute, then two, four, up to sixteen, when they went within a minute of coming on.
+2. **The scene's pixels** (`MW2_SCENE_DYNAMIC`, [rendering.md](rendering.md#the-scene-drawn-smaller-under-load)): on every chip now, in the titles and at the sizes that have it (not under the internal render multiplier), and down to 58% of its width where it stopped at 70%. An Adreno 6xx still starts from 832x480: the title makes its surfaces before a frame can be measured.
+3. **The frame rate**, where the player has chosen no limit (the FPS limit's **Auto**, which a fresh install has; `MW2_FPS_AUTO`). The run starts at the screen's fastest rate and may be held to any rate the screen shows evenly -- every mode's rate and its half, down to 30 (`Prefs.fpsSteps`, `MW2_FPS_STEPS`: 120, 60, 30 on the Thor; 60, 30 on the Flip 2). Down after ten seconds in a row under 90% of the rate, with the scene already at its smallest or the chip not what is late, to the slowest step that gives up no more than 12% of what was being drawn: 62 frames a second under 120 become an even 60, 85 stay as they are, 25 go straight to 30. Up a step after thirty seconds with the chip and the renderer's thread under 70% of the faster step's frame; a step up that does not hold for a minute is tried again after two, four, up to sixteen. The app asks the display for the mode that goes with the rate (`GameActivity.followHeldRate`) and says so in a line on the screen.
+
+A limit the player sets, in Settings or the game's menu, stays whatever the device does, and so do shadows set On or Off; Auto in either place hands them back. Every change is a line of the log (`adaptive: held to 60 frames a second, not 120: 10 s at 52 frames a second under 120 (the window: ...)`), and once a minute of play a `performance:` line sums the run up, since a run the player ends is killed and says nothing at its end. The rule itself has no clock and no device in it and is checked on windows nobody measured (`tests/adaptive_test.cpp`).
+
+**Measured on the two devices, 26 November 2026** (`.dev` debug builds, the bundled Turnip, 150 s runs of the visual suite's scenarios; the suite's own figures on `821d28f` beside them). The Thor's rows but the loads were run with the shadows tried after ten seconds, before that became thirty, and have not been run again; the whole visual suite has not been run on this change.
+
+| | before | now |
+|---|---|---|
+| Thor, Advanced Warfare's Seoul | 118.3 | 118.4; the scene whole in 87% of the frames, at 92 to 76% in the rest; the shadows on from ten seconds in until the chip was first late |
+| Thor, Modern Warfare 2's S.S.D.D. | 118.7 | 118.3, 93.6% of frames on time; the scene whole throughout; the shadows as above |
+| Flip 2, Seoul | 60.4 | 60.0, 97.3% on time; the scene whole in 84% of the frames, down to 70% in the rest, never under; no shadows |
+| Flip 2, S.S.D.D. | 60.1 | 59.9, 95.3% on time; the scene whole; no shadows (the chip at 9 to 10 of 16.7 ms) |
+| Thor, Seoul at three times its size (the chip 19 to 38 ms a frame) | 38.5 under a limit of 120 | held to 60 after ten seconds at 52, to 30 after ten at 27 |
+| Thor, Seoul with eight busy shells (the processor 98% busy) | 45.6 under 120 | held to 60 after ten seconds at 35, to 30 after ten at 22 |
+| Flip 2, Seoul at twice its size (the chip 33 to 38 ms) | 28.2 under 60 | held to 30 after ten seconds at 28 |
+
+The step back up has been seen in the rule's own check alone, not on a device.
+
+**The performance report.** The game's menu has **Share performance report**: the app, the phone, the chip and its memory (`DeviceInfo`), the screen's modes, the settings and which of them were chosen (`Prefs.graphicsSummary`), and from the run the driver, the device line of the log, what the run is held to, the play so far (frames a second, the slowest two seconds, the share of the time under the rate, the chip's and the renderer's thread's time a frame), the last minute ten seconds a line, the last changes, the sound's underruns and what its sink holds, and the heat (`nativePerformance`, `adaptive::Report`). Text, through Android's share sheet.
+
 ### Dynamic Memory Management & Texture Budget
 - **Device-Aware Defaults** (`ApplyMemoryDefaults`, `runtime/android/perf.cpp`): on Unified Memory Architecture the CPU and GPU share one pool, and the desktop defaults are sized for a machine with a separate one. Each default is taken from the memory this phone has, and each is set with overwrite off, so the launcher's own setting or a variable already in the environment wins:
   - **Texture budget**: a sixth of the device's memory, floor **128 MB**, capped at 1 GB and 1.5 GB at 12 GB — not the desktop "half of device-local RAM", which on a 6 GB phone is most of the phone. The whole process measured 1.8 to 2.3 GB resident in play on the 8 GB Flip 2.
@@ -181,8 +224,8 @@ One panel of the app's own in every title (Modern Warfare 2, Modern Warfare 3, C
   | Row | How the running game takes it | |
   |---|---|---|
   | Display resolution, Sharpening, Fill the screen | Sharpening is `vk::sharpen::Set`; the surface is given another size (`SurfaceHolder.setFixedSize`), the presenter makes its swapchain again; the title's own frame is untouched | live |
-  | FPS limit | `frame_rate::SetLimit`: the pacing follows at the next present (`d3d_hooks.cpp`, `Pace`), the surface votes again for the display's rate and the window asks for the mode; back on the console's 60 the title's `com_maxfps` and `r_vsync` are reset to its own | live |
-  | Sun shadows | `sm_enable` at the next present (`live::SetSunShadows`); Auto is the runtime's choice for the chip, the title and the limit, asked again whenever the limit changes | live |
+  | FPS limit | Auto (`adaptive::PlayerSetLimit(0)`: from the screen's rate, and under it what the device keeps, [above](#what-a-device-is-given-and-what-it-is-measured-for)) or a number, which stays. `frame_rate::SetLimit`: the pacing follows at the next present (`d3d_hooks.cpp`, `Pace`), the surface votes again for the display's rate and the window asks for the mode; back on the console's 60 the title's `com_maxfps` and `r_vsync` are reset to its own | live |
+  | Sun shadows | `sm_enable` at the next present (`live::SetSunShadows`); Auto is what the frames are measured to have room for (`adaptive.h`), asked again at every present | live |
   | Field of view | Modern Warfare 3's multiplayer: `MW2_FOV`'s scale (`live::SetFieldOfView`); the others: the title's `cg_fov` | live |
   | Detail at distance | Modern Warfare 2's disc version only (`live::SetDetailBias`) | live |
   | Texture memory | the texture cache's budget (`android::perf::SetTextureBudgetMB`) | live |
@@ -214,7 +257,7 @@ Measured on the Retroid Pocket Flip 2 (Adreno 650, kernel 4.19, 60 Hz), in Moder
 
 - **No UBWC.** Turnip is started with `TU_DEBUG=noubwc` (added to whatever `MW2_DRIVER_ENV` gives). With Turnip's image compression on, the whole device hard-reset within a second of a level's world first being drawn: no kgsl fault in the kernel log, the power controller reporting a shutdown the SoC asked for (`kernel.panic_on_oops` is 1 and there is no pstore, so the kernel's last words are lost). It happened at every one of a dozen level starts, with Mesa 25.1.0 and 27.0.0 alike, with `sysmem`, with draw merging off and with multi-draw off, and at none of the eighteen since with `noubwc`. Which image class trips it was not narrowed down; frame time with and without it is the same. `MW2_ADRENO6_UBWC=1` leaves the compression on, to study the reset.
 - **The cap starts at the screen's rate.** Before the texel forms this chip drew Modern Warfare 3 at 25 frames a second with the cap at 60 (38 ms of GPU a frame at the console's sizes), so the cap used to start at 30 here. With them Survival runs at 58 and Black Tuesday at 56 under a cap of 60 (the table below), so both titles now start at the display's fastest rate like any other phone, 60 on the Flip 2 (`Prefs.fpsLimit`); FPS LIMIT 30 in the launcher still gives the console's pacing at half rate ([switches.md](switches.md), `MW2_FPS_LIMIT`).
-- **No sun shadows** (`MW2_SHADOWS`, unset): about 6 ms of GPU a frame less, which is what lets 60 be approached. `MW2_SHADOWS=1` in `.env` keeps them, best with FPS LIMIT 30.
+- **No sun shadows** (`MW2_SHADOWS`, unset): about 6 ms of GPU a frame less, which is what lets 60 be approached. `MW2_SHADOWS=1` in `.env` keeps them, best with FPS LIMIT 30. (Since 26 November 2026 unset is measured on every chip and not chosen by this one's name: here the frames seldom have the room, and the answer is the same, [above](#what-a-device-is-given-and-what-it-is-measured-for).)
 - **An 832x480 scene** in both titles (`MW2_SCENE`, unset), under the 1280x720 frame the HUD and the menus keep. Modern Warfare 2 had it first (below); Modern Warfare 3 takes the scene through the same function since it was found in its executables, and with the cap at 60 it is what holds it. Five minutes each on the Flip 2, `.dev` builds, caches full (the second run of each), the console's scene against this one:
 
   | Modern Warfare 3, cap 60 | frames a second | frames on time | stutters (frames half as long again as due) |
@@ -407,7 +450,7 @@ Measured on the AYN Thor (Adreno 740, 120 Hz, the bundled Turnip v27.0.0-R2), 20
 
   Both together are 13 to 22% less GPU time everywhere. Team Player's views gain little in frames a second because the ring consumer is their limit there (87 to 95% of its core). The picture is the same: at S.S.D.D.'s four views 68.2 to 99.1% of the pixels are identical to the bit with both and with neither, 68.3 to 99.1% between two runs with neither; Modern Warfare 3's menus 96.9 to 100%; in play what differs is what moves. No run logged a renderer error.
 - **No draw is skipped for want of arena** ([rendering.md](rendering.md#a-frame-larger-than-its-slots-share)). Team Player's flight skipped 34,197 draws as `frame arena full` on this device, and 8,486 on the Retroid Pocket Flip 2: frames with the far buildings and the sky missing, at the level's start, after each checkpoint loaded again and whenever a slot's kept vertex data had filled its share. With a draw made in the next slot when its own is full, and the vertex data kept by block, the same flight skips none on either device (1 or 2 draws made in the next slot, no slot letting its copies go, 61 to 72 MB kept at most), nor do five minutes of S.S.D.D. or Modern Warfare 3's Survival.
-- **No sun shadows above 60, in every title** (`MW2_SHADOWS`, unset; the app's Sun shadows setting gives them back). Modern Warfare 3 first: Under the limit of 120 the ring consumer is what a frame waits for (98% of its core at work, 2% of that waiting for the chip), and the shadow maps' passes are three in ten of the draws it parses. Five minutes each, caches full:
+- **No sun shadows above 60, in every title** (`MW2_SHADOWS`, unset; the app's Sun shadows setting gives them back). This was the rule until 26 November 2026; unset is now what the frames are measured to have room for ([above](#what-a-device-is-given-and-what-it-is-measured-for)), which at 120 is the same answer but for a level's lightest views, for the reasons measured here. Modern Warfare 3 first: Under the limit of 120 the ring consumer is what a frame waits for (98% of its core at work, 2% of that waiting for the chip), and the shadow maps' passes are three in ten of the draws it parses. Five minutes each, caches full:
 
   | Modern Warfare 3, limit 120 | frames a second | frames on time | stutters |
   |---|---|---|---|
@@ -634,11 +677,51 @@ Late frames in the half minute after the load: none from the device's storage or
 
 | Symptom | Cause | Solution |
 | :--- | :--- | :--- |
-| **"Renderer Notice: GPU lacks Vulkan 1.3..."** | Device stock driver is Vulkan 1.1 without dynamic rendering. | Check for OEM system software updates. On Adreno devices, import a Turnip driver via the Driver menu. |
+| **"Nothing can be shown"** or **"No picture yet"** over a black screen | The renderer did not come up on this chip and driver, or no frame of the game's reached the screen in 30 seconds ([a run that shows nothing](#a-run-that-shows-nothing)). | The message names the chip and the driver and offers the other driver (the bundled Turnip, or the phone's own) with one tap, which starts the run again; **Share log** sends the log. |
 | **"The runtime library would not load"** | Incompatible ABI or 32-bit device. | Ensure device supports 64-bit ARM (`arm64-v8a`). |
 | **Installation fails partway** | Insufficient storage space. | Ensure at least 8 GB of free storage is available on internal storage. |
 | **"The game is not built yet"**, or "The game could not start: the game code is not on this device" in an older app | The app is published without the game's code, which is built from the player's disc ([game-library.md](game-library.md)). | The launcher's large button builds it on the device; `setup\setup.cmd` on a PC with the device connected over USB is the other way. The log says `app: the run was not started: ...` and `game code: ... is not installed`. |
 | **Log inspection** | Debugging game launch or crashes. | The in-app Log viewer's **Share**, or `/sdcard/Android/data/com.mw2.recomp.sp/files/game.log` via ADB. |
+
+### A run that shows nothing
+
+A player on a device nobody here has reported "only a black screen", and the
+app had nothing to say about it: when the window or the device could not be
+made the presenter logged a line, kept a status nobody read (the dialog that
+was to show it waited for a status the runtime never sent) and the game ran
+on without a picture. Now (`GameActivity.watchForBlackScreen`, asked twice a
+second from the start of a run until the title's first frame is on screen):
+
+- **The runtime knows why** (`android::RendererFailed`, kept for
+  `nativeRendererFailure`): no Vulkan driver opened, `vkCreateInstance`
+  failed, no surface, no device that presents, a device refused for
+  something the renderer needs -- named: "This graphics chip or its driver
+  lacks descriptor indexing, which the game's renderer needs", from the same
+  test that writes the log's `device: ...; refused: it lacks ...` line
+  ([what the renderer asks of a device](#what-the-renderer-asks-of-a-device))
+  -- no swapchain, or the renderer itself not starting on a window that did.
+  The message is **Nothing can be shown**, with Quit.
+- **Nothing says anything** and no frame of the title's is presented within
+  30 seconds (ten minutes with *Precompile all shaders* on, which is minutes
+  of black by request). The window's own first present is its background
+  colour, so the title's first frame is the second present counted. The
+  message is **No picture yet**, with Keep waiting.
+
+Either message names the graphics chip (the launcher's OpenGL ES strings,
+`DeviceInfo.gpu`, which do not need the Vulkan driver that may be the
+trouble) and the driver in use, says what to try, and has two more buttons:
+**Use the phone's driver** or **Use Turnip** -- whichever is not in use,
+where the app carries one; chosen as Settings' Graphics driver chooses it,
+and the run starts again through `HandOffActivity`, since a process opens
+its driver once -- and **Share log**, which sends what the launcher's Log
+screen shares and leaves the message up. (The two buttons have not been
+pressed on a device yet, nor has the menu's Share performance report.)
+
+Seen on the AYN Thor with the two switches that stand in for such a device
+in a build with diagnostics: `MW2_TEST_REFUSE_DEVICE=1` (the device refused
+as one without descriptor indexing: the message was up 20 seconds into the
+run, the first time looked) and `MW2_TEST_NO_FRAMES=1` (every frame of the
+title's withheld from the window: the message at 30 seconds).
 
 ### What the log share holds
 

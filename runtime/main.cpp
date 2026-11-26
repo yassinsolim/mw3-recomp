@@ -24,6 +24,7 @@
 #include "install/install.h"
 #include "platform.h"
 #include "run.h"
+#include "adaptive.h"
 #include "report.h"
 #include "settings.h"
 #if MW2_SPLIT_GAME
@@ -47,6 +48,7 @@
 static void ReportAll()
 {
     report::Write();
+    adaptive::Write();
     if constexpr (!diag::kOn) return;
     kernel::ReportUnimplemented();
     kernel::ReportMissingFiles();

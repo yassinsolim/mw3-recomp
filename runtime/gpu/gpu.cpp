@@ -15,6 +15,9 @@
 #include "../image_move.h"
 #include "../log.h"
 #include "../platform.h"
+#ifdef MW2_ANDROID
+#include "../android/android.h"
+#endif
 #include "../kernel/kernel.h"
 #include "vulkan/pipeline.h"
 #include "vulkan/presenter.h"
@@ -285,7 +288,16 @@ void gpu::Initialise()
     vk::Start();
     // Eagerly, not on the first draw: a renderer that comes up on the first
     // bind reports the whole opening burst as failures.
-    if (Rendering() && !vk::renderer::Initialise()) LOGW("gpu: no device came up to render on");
+    if (Rendering() && !vk::renderer::Initialise())
+    {
+        LOGW("gpu: no device came up to render on");
+#ifdef MW2_ANDROID
+        // The window is there and nothing will be drawn into it. Said once:
+        // where the window did not come up either, it has said why.
+        android::RendererFailed("The game's renderer could not start on this graphics driver"
+                                " (the log's last \"renderer:\" and \"vulkan:\" lines say at what).");
+#endif
+    }
     g.gpuPcr = kernel::CreateThreadBlock(0xF000);
     g.vblankPcr = kernel::CreateThreadBlock(0xF001);
     g.worker = std::thread(Worker);

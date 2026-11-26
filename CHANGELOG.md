@@ -91,6 +91,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   on a console it is in the updated campaign's main menu, and the campaign
   here is the disc's
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-corrupt-content-pack-notice-26-november-2026)).
+- **Sound that breaks up when the processor is busy (all four games on
+  Android).** With every core kept busy the mixer ran tens of milliseconds
+  late several times a second, and what it then mixed in a burst was mostly
+  dropped: 150 underruns in a minute on the AYN Thor under such a load. The
+  output now holds as much more sound as the mixer has been late lately (up
+  to 160 ms, gone again within half a minute of the lateness), and the
+  mixer's and the decoder's threads run at Android's audio priority. On the
+  Retroid Pocket Flip 2 under that load: 12 underruns for 38. The final form
+  has not been measured on the Thor ([docs/audio.md](docs/audio.md)). A low
+  frame rate from the graphics chip alone never broke the sound up.
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose
@@ -135,6 +145,34 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   how it was found.
 
 ### Added
+- **The app measures what a device keeps instead of going by its chip's
+  name (all four games on Android).** The defaults were the ones the two
+  devices the project owns were measured to want, an Adreno 740 and an
+  Adreno 650, handed out by name: an Adreno 730 or 735 got the 740's whole
+  scene and its limit of 120 with nothing ever given up, and players
+  reported 20 to 50 frames a second there. Now, from two-second windows of
+  play (frames a second, the graphics chip's time, the renderer's thread's):
+  the sun's shadows, left on *Chosen for this device*, come on after thirty
+  seconds with room for them and go when frames come late; the scene is
+  drawn smaller while the chip is late on every chip (down to 58% of its
+  width, where an Adreno 6xx alone had it, down to 70%); and with the FPS
+  limit on its new **Auto** the run is held to an even 60 or 30 when ten
+  seconds did not come near the screen's rate, and goes up again when there
+  is room. A limit or shadows you choose stay. On the AYN Thor with Advanced
+  Warfare drawn at three times its size: held to 60 after ten seconds at 52
+  frames a second, to 30 after ten at 27; unloaded, the Thor and the Retroid
+  Pocket Flip 2 run as before (118.4 and 60.0 in Seoul, 118.3 and 59.9 in
+  S.S.D.D.). Not yet done: the visual suite on this change, the step back up
+  on a device, and a device of the kind it is for.
+  `MW2_ADAPTIVE=0` turns it off; `MW2_FPS_AUTO`, `MW2_FPS_STEPS`
+  ([docs/android.md](docs/android.md#what-a-device-is-given-and-what-it-is-measured-for)).
+- **A black screen says why.** When the renderer cannot start (no driver, a
+  chip that lacks something it needs, named) or no picture has come in 30
+  seconds, the app says so over the black screen with the chip, the driver,
+  a button for the other driver and **Share log**; before, the game ran on
+  without a picture and without a word. And the game's menu has **Share
+  performance report**: frame rate, the chip's time a frame, device and
+  settings as text.
 - **Modern Warfare 3: your own map packs, Survival maps and Special Ops
   missions.** Copy `Content\0000000000000000\415608CB\00000002` off your
   Xbox 360's hard disk and pick it with **Add DLC → Choose a folder**:

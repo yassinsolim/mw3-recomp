@@ -32,7 +32,7 @@ namespace
     constexpr uint32_t kGuestRate = 48000;
     constexpr uint32_t kGuestChannels = 6;
     constexpr uint32_t kFrameSamples = 256;            // per channel, one mixer frame
-    constexpr uint32_t kRingFrames = 32;               // 170 ms at most
+    constexpr uint32_t kRingFrames = 48;               // 256 ms at most
     constexpr uint32_t kOutChannels = 2;
 
     // The ring holds stereo samples already downmixed, so the callback does
@@ -100,7 +100,42 @@ namespace
     std::atomic<bool> g_needRestart{ false };
     std::atomic<uint64_t> g_underruns{ 0 };
     uint32_t g_deviceRate = kGuestRate;
-    std::atomic<uint32_t> g_cushionFrames{ 2 };
+    // What the sink holds when the mixer is on time: what the device takes
+    // at once and a frame more.
+    std::atomic<uint32_t> g_deviceFrames{ 2 };
+
+    // How late the mixer has been finishing its frames, in its frames. A
+    // processor with more to do than it has cores for runs the mixer's
+    // thread, and the title's threads it waits for, tens of milliseconds
+    // late several times a second. It then mixes the frames it owes in a
+    // burst, of which the sink took what it holds when the mixer is on time
+    // and the rest were dropped, and the device played silence until the
+    // next burst: on an AYN Thor with every core kept busy by other
+    // programs, 150 underruns in a minute of Advanced Warfare at 25 to 50
+    // frames a second. So the sink holds that much more while it goes on:
+    // the third most lateness of this quarter-minute's spells or of the one
+    // before's, up to 160 ms. The third, because one or two long ones are a
+    // level starting, where the sound would be late by them for half a
+    // minute to cover a pause that is over (the AYN Thor's start of Seoul:
+    // 27 ms more for the level's first half minute, by the most).
+    constexpr uint32_t kMostLateFrames = 30;           // 160 ms
+    constexpr int64_t kLatePeriodNs = 15'000'000'000;
+    constexpr int64_t kSpellApartNs = 250'000'000;
+    constexpr int64_t kFrameNs = 1'000'000'000ll * kFrameSamples / kGuestRate;
+    // A period's three longest spells, the longest first, in frames.
+    struct Late
+    {
+        uint32_t worst[3]{};
+        void Add(uint32_t frames)
+        {
+            for (uint32_t& place : worst)
+                if (frames > place) std::swap(frames, place);
+        }
+    };
+    Late g_lateNow, g_lateBefore;                      // the mixer's thread
+    uint32_t g_spellFrames = 0;                        // the spell under way
+    int64_t g_latePeriodEnds = 0, g_lastLateAt = 0, g_spellBegan = 0;   // the mixer's thread
+    std::atomic<uint32_t> g_lateFrames{ 0 };
 
     // Where the resampler is between two ring samples, when the device does
     // not run at 48 kHz. Touched only by the callback.
@@ -245,7 +280,7 @@ namespace
         // What the device takes at a time, in the mixer's frames and rounded
         // up, and one more for the mixer's own lateness.
         const uint32_t taken = uint32_t(uint64_t(burst) * kGuestRate / g_deviceRate);
-        g_cushionFrames.store((taken + kFrameSamples - 1) / kFrameSamples + 1, std::memory_order_relaxed);
+        g_deviceFrames.store((taken + kFrameSamples - 1) / kFrameSamples + 1, std::memory_order_relaxed);
         g_resamplePosition = 1.0;
         g_lastSample[0] = g_lastSample[1] = 0;
 
@@ -315,7 +350,49 @@ uint32_t android::audio::QueuedFrames()
     return g_ring.Held() / kFrameSamples;
 }
 
-uint32_t android::audio::CushionFrames() { return g_cushionFrames.load(std::memory_order_relaxed); }
+uint32_t android::audio::DeviceFrames() { return g_deviceFrames.load(std::memory_order_relaxed); }
+
+uint32_t android::audio::CushionFrames()
+{
+    return g_deviceFrames.load(std::memory_order_relaxed) + g_lateFrames.load(std::memory_order_relaxed);
+}
+
+void android::audio::MixedLate(int64_t nanoseconds)
+{
+    timespec time{};
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    const int64_t now = int64_t(time.tv_sec) * 1'000'000'000 + time.tv_nsec;
+    // The frames mixed straight after a late one are late with it: a spell
+    // is over when none has been late for a quarter of a second, and after
+    // a second in any case -- a processor that is always busy makes one late
+    // frame run into the next, and that is many spells, not one.
+    if (g_spellFrames && (now - g_lastLateAt >= kSpellApartNs || now - g_spellBegan >= 4 * kSpellApartNs))
+    {
+        g_lateNow.Add(g_spellFrames);
+        g_spellFrames = 0;
+    }
+    if (now >= g_latePeriodEnds)
+    {
+        g_lateBefore = g_lateNow;
+        g_lateNow = Late{};
+        g_latePeriodEnds = now + kLatePeriodNs;
+    }
+    // The cushion has a frame for the mixer's lateness already.
+    if (nanoseconds > kFrameNs)
+    {
+        if (!g_spellFrames) g_spellBegan = now;
+        g_spellFrames = std::max(g_spellFrames, std::min(kMostLateFrames, uint32_t((nanoseconds - 1) / kFrameNs)));
+        g_lastLateAt = now;
+    }
+    Late withThis = g_lateNow;
+    withThis.Add(g_spellFrames);
+    const uint32_t wanted = std::max(withThis.worst[2], g_lateBefore.worst[2]);
+    const uint32_t had = g_lateFrames.exchange(wanted, std::memory_order_relaxed);
+    if (wanted != had && (wanted == 0 || had == 0))
+        LOGI("audio: the mixer %s; the sink holds %u ms when it is on time", wanted
+             ? "is finishing its frames late (the processor is busy)" : "is on time again",
+             unsigned((g_deviceFrames.load(std::memory_order_relaxed) + wanted) * kFrameNs / 1'000'000));
+}
 
 bool android::audio::Latency(double& ringMs, double& deviceMs)
 {
