@@ -44,6 +44,7 @@ files and the reports go. Needs git, git-filter-repo and gh, logged in.
 """
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
