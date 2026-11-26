@@ -139,23 +139,87 @@ The packs are only read. Nothing is built for a pack.
 | A multiplayer match on Combine, the scripted player walking and firing | screenshots; 42.7 frames a second over 169 s of play (45 to 57 on the overlay) |
 | Shadows of Evil to `Game Over` | screenshots; 56.5 frames a second over 64 s of play |
 
+**With no PC (26 November 2026).** The app's steps are three, in this
+order, and each was done on an AYN Thor through the app's own screens (taps
+over adb, screenshots):
+
+1. *Install & Play* finds the disc image and sets the game up to play from
+   it: the two executables and the picture are copied, a few seconds. The
+   disc's sound banks are two folders down (`snd\en\<bank>`), so the image's
+   volume holds its deeper files and lists its folders for this title
+   (`kernel/volume.cpp`). Copied instead, the installer takes the `.xpak`
+   files, `video\` and `snd\<language>\` as well (`install/install.cpp`; the
+   copy was not run on a device).
+2. *Add DLC*, the folder `4156091D` chosen in the system's picker: title
+   update 5 and Compatibility Pack 1 (2.0 GB) were in the dlc folder ten
+   seconds later, and the build started by itself.
+3. The build: both libraries from the image and the update, the statements
+   the PC's (`InTextTables.kt`'s tables and the patched executables are the
+   script's and XenonRecomp's to the byte).
+
+| | AYN Thor (Snapdragon 8 Gen 2, 16 GB) | Retroid Pocket Flip 2 (Snapdragon 865, 8 GB) |
+|---|---|---|
+| recompile, each title | 36 s | 47 s |
+| compile, each title (201 and 202 files) | 226 and 229 s | 378 and 368 s |
+| the whole build | 529 s | 842 s |
+| compilers at once, least free memory | 8, 10.3 GB | 8, 4.0 GB |
+| hottest battery | 31.0 C | 33.2 C |
+
+The Flip had no room for the image (8.7 GB): its game files and packages
+were pushed over adb, and only the build went through the app there. Both
+devices had toolchain package 1; package 2, which this app's kit names, was
+installed over adb for the runs and package 1 put back after.
+
+**Compatibility Pack 2 is needed too.** With the update and Pack 1 alone
+the multiplayer says `In order to play multiplayer, you need to download
+new required content`; with Pack 2 added it plays. The app counts both as
+missing until they are there (`Dlc.kt`).
+
+**A thread's data.** The image says a thread has 8,568 bytes of its own
+(the earlier titles' say 36 to 56); the runtime gave each 512 and did not
+copy the image's beginning of them. The rest lay in whatever the heap gave
+next, another thread's block among it. The engine keeps there how many
+times a thread has entered each of its critical sections, and enters only
+at zero (sub_82651B80): from section 106 on the count was outside the
+block. `kernel::CreateThreadBlock` sizes the block by the image now. This
+is the likeliest cause of the errors listed under Open as "reading memory
+another thread has not finished with", and of `Exceeded limit of 80
+'physpreset' assets` on the Thor: a match uses 32 of the 80 (read from the
+pool on Windows), and the error is raised when the pool's list of free
+entries is empty, not at a count. It was not seen again in the three device
+matches since, one of them before the change, so that is not shown; the
+error now logs each pool with no free entry and its count
+(`engine_log.cpp`), which tells a list that lost entries from a pool that
+ran out.
+
+**Frames a second** (a match on Combine, the scripted player walking and
+firing; game code built on the device; `MW2_REPORT`). The graphics chip is
+what the frame waits for on both: 85% and 94% busy, the title's threads and
+the ring consumer (15% of one thread) are not.
+
+| | in play | the chip's frame | of it the 880x720 scene |
+|---|---|---|---|
+| Thor, multiplayer, the whole scene | 51.9 | 16.1 ms | 10.7 ms in 5 passes, 771 draws |
+| Flip, multiplayer, the scene at 70% of its width and height | 41.6 | 25.2 ms | 15.3 ms in 14 passes, 577 draws |
+| Flip, multiplayer, another start of the map | 32.2 | 31.3 ms | 20.9 ms in 15 passes, 2,236 draws |
+
+The scene drawn smaller while the chip is late (`MW2_SCENE_DYNAMIC`) is on
+for this title on every Android chip; on Windows a 616x504 scene draws a
+right picture (frames). It was not measured on the Thor, and it does not
+bring the Flip to 60: the scene there is three times the passes it is on
+the Thor, which is not explained. The sun's shadows are 2.2 ms on the Thor
+and cannot be switched off: the title's dvars go by hashes and `sm_enable`
+does nothing, so `MW2_SHADOWS` says nothing for it. The zombies were not
+measured on a device in this round (56.5 on the Thor before).
+
 Open on Android:
 
-- **The build on the device is written and not run.** The app's kit has
-  both titles as made from the update (`build.gradle.kts`, `GameBuild.kt`),
-  the runtime writes the two updated executables for the recompiler
-  (`MakeUpdatedExecutable`), and `InTextTables.kt` has the search for the
-  unbounded dispatches. None of it has been through a device: the tables
-  must come out as the script's to the byte, or the library's statement is
-  refused.
-- The app's installer does not copy this disc (its files are not `.ff`,
-  `.pak` and `.bik` alone): the files were pushed over adb. Add DLC is
-  offered and was not used; its wording is Advanced Warfare's.
+- The Flip's 30 to 42 frames a second, and the Thor with the smaller scene.
+- The copied install and Add DLC's map packs (The Giant, Awakening) were not
+  run through the app on a device; the packs load as files on Windows.
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
-- The Retroid Pocket Flip 2 was not run.
-- On the Thor's second start the title stopped once with `Exceeded limit of
-  80 'physpreset' assets` (db_registry.cpp:1407), started itself again and
-  played.
+- The device runs were looked at in screenshots; the Flip's two were also
+  recorded (`adb screenrecord`) and their frames were not gone through.
 
 ## Open
 
@@ -179,4 +243,6 @@ Open on Android:
 - The Giant and Shadows of Evil were played to round 1 and round 2; Der
   Eisendrache was not started.
 - Not merged into `android`: the other four games have not been compared
-  with this branch (the shader translator and the installer changed).
+  with this branch (the shader translator, the installer and the thread
+  block changed), and `android` took no change to `runtime/gpu` or
+  `runtime/kernel` while a regression of its own was being found.

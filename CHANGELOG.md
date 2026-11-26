@@ -7,6 +7,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ### Added
 - **Black Ops III (Xbox 360), started: Windows, and a first boot on
   Android; not for players yet** ([docs/BO3-BRINGUP.md](docs/BO3-BRINGUP.md)).
+  - Android, with no PC: Install & Play from the disc image, Add DLC for
+    title update 5 and Compatibility Packs 1 and 2 (the multiplayer asks for
+    both), and the game code built on the device from the disc and the
+    update, started by Add DLC: 8 min 49 s on an AYN Thor and 14 min 2 s on
+    a Retroid Pocket Flip 2, the libraries stating what a PC's do. A match
+    on Combine: 52 frames a second on the Thor, 32 to 42 on the Flip, the
+    graphics chip the limit on both.
+  - A thread of this title has the 8,568 bytes of its own the image says,
+    not 512 (`runtime/kernel/kernel.cpp`): the rest lay in another thread's
+    memory, the engine's lock counts among it.
   - Windows: its multiplayer and zombies executables, as title update 5
     makes them, reach their menus; a multiplayer match against bots and one
     between two PCs through Find LAN Game; the zombies' Shadows of Evil into
