@@ -197,6 +197,14 @@ firing; game code built on the device; `MW2_REPORT`). The graphics chip is
 what the frame waits for on both: 85% and 94% busy, the title's threads and
 the ring consumer (15% of one thread) are not.
 
+**Every figure and picture of this title on a device so far is under
+Qualcomm's own Vulkan driver**, the first boot's above included: the
+worktree the apps were built from had no bundled Turnip
+(`android/app/src/mw3/assets/drivers/`, fetched by `android/fetch_deps.sh`
+and not in the repository), and the logs say `driver: the system's
+libvulkan.so`. The players' apps run on Turnip, on which nothing here has
+been measured or looked at: the table is that driver's and no more.
+
 | | in play | the chip's frame | of it the 880x720 scene |
 |---|---|---|---|
 | Thor, multiplayer, the whole scene | 51.9 | 16.1 ms | 10.7 ms in 5 passes, 771 draws |
@@ -220,6 +228,8 @@ Open on Android:
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
 - The device runs were looked at in screenshots; the Flip's two were also
   recorded (`adb screenrecord`) and their frames were not gone through.
+- All of it again on the bundled Turnip driver: the frame rates, the
+  frame's parts, and the picture.
 
 ## Open
 

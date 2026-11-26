@@ -95,7 +95,9 @@ namespace vk::renderer::detail
 #if defined(BO3_TITLE)
         // And every chip in Black Ops III, whose 880x720 scene is two thirds
         // of the frame on an Adreno 740 too: 10.7 of the 16.1 ms a frame of a
-        // match on Combine (AYN Thor, 52 frames a second).
+        // match on Combine (AYN Thor, 52 frames a second). That was measured
+        // under Qualcomm's own driver, not the bundled Turnip the players'
+        // apps use: to be measured again there (docs/BO3-BRINGUP.md).
         if (!asked) on = true;
 #endif
 #endif
