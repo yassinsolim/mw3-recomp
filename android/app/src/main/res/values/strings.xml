@@ -198,7 +198,7 @@
         <item>On</item>
         <item>Off</item>
     </string-array>
-    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device leaves them out on a Snapdragon 865-class chip, and in Modern Warfare 3 wherever the FPS limit is above 60, which is nearer held without them; On keeps them at a lower frame rate.</string>
+    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device leaves them out on a Snapdragon 865-class chip, and in every game wherever the FPS limit is above 60, which is nearer held without them; On keeps them at a lower frame rate.</string>
     <string name="sharpening">Sharpening: %1$d%%</string>
     <string name="sharpening_off">Sharpening: off</string>
     <string name="sharpening_hint">Sharpens the picture as it is enlarged to the screen, which gives back some of the detail the enlarging blurs; 80 to 100% is nearest a picture drawn at the screen\'s own size. The game is then shown at the screen\'s full resolution whatever the resolution above says. It costs a third to half a millisecond of the graphics chip\'s time a frame: a few frames a second where the chip is already at its limit.</string>
@@ -308,9 +308,12 @@
     <string name="lan_accept_hint">When another player on the network invites this phone to their lobby, join without asking. Off means invites are only logged.</string>
     <string name="lan_iface">Announced adapter (blank = auto)</string>
     <string name="lan_iface_hint">Which connection sessions invite to: a name or address piece (WiFi, wlan0, 192.168.1). Needed with a VPN and WiFi at once, so guests are told a door they can reach.</string>
-    <string name="invite_players">Invite network players</string>
+    <string name="invite_players">Invite a network player</string>
+    <string name="no_players">Nobody else is heard on the server yet.</string>
+    <string name="nobody_on_lan">No other players found on this network: are both devices on the same Wi-Fi? Two routers, a mesh\'s second network or a guest network keep them apart; Settings, NETWORK, Online joins them.</string>
+    <string name="invite_needs_lobby">Open a private match or party lobby first, then invite.</string>
     <string name="join_game">Join network game</string>
-    <string name="no_peers">Nobody heard on the network yet — host a lobby on the other machine first, on the same WiFi.</string>
+    <string name="no_peers">Nobody to join yet: through a server, the host of a private match must invite you first.</string>
     <string name="max_rank">Max rank 70</string>
     <string name="unlock_all">Unlock everything</string>
     <string name="prestige_up">Prestige +1</string>

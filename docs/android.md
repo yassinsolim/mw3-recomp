@@ -407,7 +407,7 @@ Measured on the AYN Thor (Adreno 740, 120 Hz, the bundled Turnip v27.0.0-R2), 20
 
   Both together are 13 to 22% less GPU time everywhere. Team Player's views gain little in frames a second because the ring consumer is their limit there (87 to 95% of its core). The picture is the same: at S.S.D.D.'s four views 68.2 to 99.1% of the pixels are identical to the bit with both and with neither, 68.3 to 99.1% between two runs with neither; Modern Warfare 3's menus 96.9 to 100%; in play what differs is what moves. No run logged a renderer error.
 - **No draw is skipped for want of arena** ([rendering.md](rendering.md#a-frame-larger-than-its-slots-share)). Team Player's flight skipped 34,197 draws as `frame arena full` on this device, and 8,486 on the Retroid Pocket Flip 2: frames with the far buildings and the sky missing, at the level's start, after each checkpoint loaded again and whenever a slot's kept vertex data had filled its share. With a draw made in the next slot when its own is full, and the vertex data kept by block, the same flight skips none on either device (1 or 2 draws made in the next slot, no slot letting its copies go, 61 to 72 MB kept at most), nor do five minutes of S.S.D.D. or Modern Warfare 3's Survival.
-- **Modern Warfare 3 without the sun's shadows above 60** (`MW2_SHADOWS`, unset; the app's Sun shadows setting gives them back). Under the limit of 120 the ring consumer is what a frame waits for (98% of its core at work, 2% of that waiting for the chip), and the shadow maps' passes are three in ten of the draws it parses. Five minutes each, caches full:
+- **No sun shadows above 60, in every title** (`MW2_SHADOWS`, unset; the app's Sun shadows setting gives them back). Modern Warfare 3 first: Under the limit of 120 the ring consumer is what a frame waits for (98% of its core at work, 2% of that waiting for the chip), and the shadow maps' passes are three in ten of the draws it parses. Five minutes each, caches full:
 
   | Modern Warfare 3, limit 120 | frames a second | frames on time | stutters |
   |---|---|---|---|
@@ -416,8 +416,88 @@ Measured on the AYN Thor (Adreno 740, 120 Hz, the bundled Turnip v27.0.0-R2), 20
   | Black Tuesday, with | 114.9 | 78.1% | 490 |
   | Black Tuesday, without | 118.4 | 89.5% | 183 |
 
-  A smaller scene does nothing for it with the shadows on (832x480: 106.2 frames a second in Survival's first minute against 107.1) and little without them (116.2 against 114.5), so the scene stays the console's there. Modern Warfare 2 keeps its shadows: S.S.D.D.'s flight is 115.9 with them. Team Player's flight is 102.1 with and 111.6 without, which is there to take if that level is to hold more.
+  A smaller scene does nothing for it with the shadows on (832x480: 106.2 frames a second in Survival's first minute against 107.1) and little without them (116.2 against 114.5), so the scene stays the console's there. Call of Duty 4 and Advanced Warfare are built as that title's kind and have had the same default since they ran here.
+
+  Modern Warfare 2 kept its shadows at first, S.S.D.D.'s flight being 115.9 with them, and has the same default since 26 November 2026: the scenes that held it furthest from 120 are the ones the shadows cost most, in the ring consumer's draws and in the chip's time alike. The same build with `MW2_SHADOWS=1` and without, 100 to 160 s of play each, caches full (both with `MW2_PRESENT_AT_BLANK=1`, below; the table at the end of this section is without it):
+
+  | Modern Warfare 2, limit 120 | frames a second | frames on time | seconds under 115 | stutters | GPU a frame |
+  |---|---|---|---|---|---|
+  | Team Player's three heavy views, with shadows | 93.0, 84.1, 81.2 | 0.9, 0 and 0% | all | | 9.6 to 10.4 ms |
+  | the same, without | 105.8, 98.4, 93.9 | 33.4, 2.0 and 0.5% | all | | 7.1 to 8.0 ms |
+  | S.S.D.D., with | 115.2 | 76.4% | 51 of 160 | 127 | 5.7 ms |
+  | S.S.D.D., without | 118.6 | 88.3% | 6 of 160 | 39 | 4.5 ms |
+  | The Gulag, with | 110.7 | 69.2% | 62 of 160 | 752 | 6.7 ms |
+  | The Gulag, without | 112.6 | 83.0% | 23 of 160 | 150 | 5.3 ms |
+
+  The picture is the title's own with `sm_enable 0`, looked at in each of those scenes: nothing is missing but the sun's shadows (S.S.D.D.'s camouflage nets cast none on the ground; the soldiers and the vehicles keep the shading the title gives them).
 - **A screen the system holds at 60.** The Thor's display setting (`peak_refresh_rate` and `min_refresh_rate`, which its dual-screen assistant writes, and wrote 60 into after a restart) outranks an app's request for a mode, so the limit of 120 it starts with ran on a 60 Hz screen: 125 frames drawn a second by the title's limiter to show 60 of them. A limit above the display's rate is paced by the display now, one frame a blank ([switches.md](switches.md), `MW2_FPS_LIMIT`), and the app says once at the start of a run that the screen is set to 60 Hz and where to change it.
+- **What is still under 120** (24 and 25 November 2026, `c9b669d`, the bundled Turnip, caches full, 100 to 120 s of play in each: campaign levels from the console with the scripted walk, multiplayer hosted with six bots; `MW2_REPORT_SECONDS=1`). Frames on time are those within 1.05 blanks of the one before, where 88 to 90% is what a run at the limit measures; the threads are in % of one core, and in brackets the share of the time a thread stood ready with no core to run on.
+
+  | | frames a second | on time | GPU a frame | ring consumer | recorder | main thread | what holds it |
+  |---|---|---|---|---|---|---|---|
+  | MW2, S.S.D.D. | 118.0 | 84.4% | 5.6 ms | 58 | 19 (21) | 35 | at the limit but for seconds at 105 to 114 |
+  | MW2, Team Player's three heavy views | 79.0 to 81.6 | 2.7% | 10.0 to 10.3 ms | 96 to 97 | 27 (35 to 38) | 44 (14 to 16) | the ring consumer, 11.8 to 12.6 ms a frame; then the GPU |
+  | MW2, The Gulag | 113.1 | 74.2% | 6.6 ms | 70 | 26 (28) | 41 (12) | 20 s of 120 at 76 to 86: the consumer 11.2 to 12.8 ms and the GPU 9.8 to 10.9 ms a frame there |
+  | MW2, Just Like Old Times (`af_caves`) | 119.0 | 89.2% | 6.0 ms | 29 | 15 (8) | 33 (3) | nothing |
+  | MW2, Rust with bots | 119.0 | 89.4% | 6.2 ms | 49 | 22 (15) | 34 (8) | nothing |
+  | MW3, Black Tuesday (27 s) | 118.4 | 89.9% | 5.9 ms | 39 | 23 (20) | 35 (6) | nothing |
+  | MW3, Scorched Earth (`sp_berlin`) | 119.1 | 89.3% | 4.7 ms | 20 | 14 (9) | 24 (4) | nothing |
+  | MW3, Mind the Gap | 119.1 | 89.0% | 2.9 ms | under 5 | 5 | 19 (1) | nothing |
+  | MW3, Seatown with bots | 118.9 | 89.4% | 4.7 ms | 40 | 20 (20) | 41 | nothing |
+  | CoD4, Crew Expendable | 119.1 | 89.6% | 3.4 ms | 19 | 11 (3) | 32 (1) | nothing |
+  | CoD4, Charlie Don't Surf | 116.7 | 83.0% | 4.5 ms | 38 | 15 (15) | 40 (5) | 10 s at 89 to 110 with the GPU at 4 to 5 ms: the title (one of its threads at 45) |
+  | CoD4, The Bog (`bog_b`) | 118.7 | 89.4% | 4.2 ms | 29 | 14 (9) | 43 (3) | nothing |
+  | CoD4, Crash with bots | 119.0 | 88.9% | 2.9 ms | 18 | 10 (2) | 31 (1) | nothing |
+  | AW, Induction (`seoul`) | 119.1 | 89.1% | 3.6 ms | 16 | 11 (2) | 28 (2) | nothing |
+  | AW, Traffic (`lagos`) | 119.0 | 89.1% | 6.6 ms | 48 | 26 (22) | 50 (7) | nothing; five of the title's threads at 39 to 42 each |
+  | AW, a match with bots | 119.0 | 89.6% | 3.8 ms | 27 | under 18 (4) | 39 (3) | nothing |
+
+  Advanced Warfare's Fusion, measured apart over seven minutes, is 116.1 with 80.7% on time, held by the title's own threads ([AW-BRINGUP.md](AW-BRINGUP.md)). No scene waits for the recorder thread, and none for the GPU alone: the ring consumer waited 0% of its time for either in every run. In Team Player's views and the Gulag's heavy seconds the GPU's 10 ms would hold the frame at about 100 if the consumer were out of the way; of those 10 ms the scene's pixels are about 1.5 (a 512x300 scene: 9.2 ms), the sun's shadows 2.3 (without them 7.96 ms and 97.4 frames a second), copies, resolves and clears 1.2, and the rest is the scene's 2.6 million indices a frame. The clocks were never held back: the prime core at 3187 MHz and the three performance cores at 2707 to 2803 in every sample (their cap went from 2803 to 2707 once the board passed 60 C and stayed), the GPU between 615 and 680 MHz under a cap of 680. Over ten minutes at Team Player's first view the hottest processor zone stayed at 88 to 91 C, the GPU at 73 to 78 C and the board at 60 to 65 C, and the frame rate went from 80.1 in the second minute to 77.0 in the last four (the GPU's time a frame 10.3 to 10.6 ms); ten minutes of a Seatown match held 119.9 to 120.0 each minute at 88 to 92 C, and ten of Charlie Don't Surf 120.0 after its first minute.
+- **Drivers at 120** (Team Player's three views, 50 s, frames a second and GPU a frame; two or three runs each after one that compiled the pipelines). None is faster than the bundled one, so it stays.
+
+  | driver | frames a second | GPU a frame | recorder thread |
+  |---|---|---|---|
+  | Turnip v27.0.0-R2 (Mesa 27.0.0-devel `2648b2059f`), bundled | 77.8 to 80.2 | 10.1 to 10.3 ms | 27 to 28 |
+  | Mesa 26.3.1 (`fec8830e9c`), the latest release, built here | 77.7 to 77.9 | 10.4 ms | 27 |
+  | Mesa main (`6c1030248a`, 24 November 2026), built here | 79.1 to 80.2 | 10.0 to 10.2 ms | 27 |
+  | the same with `enable_tp_ubwc_flag_hint` for the 740 | 78.8 to 79.1 | 10.2 to 10.4 ms | 27 to 28 |
+  | Qualcomm's own (v676, Vulkan 1.3), through render passes | 37.4 | 26.9 ms | 19 to 20 |
+
+  Mesa main against the bundled one elsewhere: Advanced Warfare's Traffic 119.1 and 118.1 against 119.1 and 119.1 (6.6 to 6.7 ms of GPU both), Modern Warfare 3's Scorched Earth 119.1 both (4.5 to 4.6 ms). The builds were made with the NDK's clang for `armv8.2-a` (a build for `cortex-a715` stopped on an instruction this kernel does not allow), the KGSL backend, release. Turnip's own switches on the bundled driver, against 78.0 and 10.3 ms: `TU_DEBUG=noubwc` 72.7 and 11.6 ms (image compression is on for the 740 and is worth 1.3 ms; it never reset this device), `gmem` 67.8 and 14.7 ms, `nolrz` 77.7, `hiprio` 78.3, `TU_AUTOTUNE_ALGO=prefer_sysmem` 77.2, `profiled` 78.6. BC textures are sampled by the chip under Turnip already ([textures.md](textures.md)).
+- **The renderer's other ways, measured there and left as they are** (the same views, against 78.0 frames a second and 10.3 ms): graphics pipeline libraries on the bundled Turnip (`MW2_FORCE_PIPELINE_LIBRARIES=1`) 77.8 and 10.4 ms once the cache is full, 15 s of shader translation at a draw on the first visit; render passes in place of dynamic rendering (`MW2_FORCE_LEGACY_RENDERING=1`) 76.8 and 11.0 ms, the recorder thread at 36% of a core for 27; a rendering instance for every segment (`MW2_JOIN_SEGMENTS=0`) 77.0 and 10.9 ms, the recorder at 36; the console's multisampling (`MW2_NO_MSAA=0`) 76.3 and 10.6 ms. Descriptor buffers and push descriptors were not built: every texture is in one set that stays bound and a draw's record is in the frame arena, so a draw writes no descriptor (none shows in the ring consumer's or the recorder's profile). Nor were pixel shaders of lower precision: the pixels are 1.5 ms of the 10.
+- **The ring consumer's copies on a second thread, built and not kept** (25 November 2026, `61ca59d` with the game code of `999bd0b`, the same three views; on that build they run at 92 to 95, 84 to 85 and 82 to 84 frames a second, three runs). By `simpleperf` the consumer's 12 ms a frame there are the draws' indices encoded into the index stream (15%: 13 to 15 MB of them a frame), vertex windows copied into the arena (14%: 14 to 16 MB a frame in these views that no slot keeps, 82% of it in pages the title goes on writing -- its soldiers' skinned vertices -- and the rest written since it was kept), the textures' lookups at each of the frame's 55 to 60 segments (9%), and the parse and the draws' own state. The two copies have nothing to decide, so a thread of the performance cores was given them, the consumer making what was still queued itself before each submission and each point where the title is told draws are done (74 a frame), with a table of each index buffer's lowest and highest index under the write watch so the consumer read no index. The views fell to 88 to 91, 82 and 77 to 79 (three runs): the consumer was at work 89 to 92% of the time for 96, but the copier stood ready with no core 43 to 48% of the time and the title's own threads a few points longer than before; the four performance cores are full (the title's main thread and five more of its own, and the recorder), and the three efficiency cores are a quarter as fast. A draw's vertex window shared with the draws after it up to the next such point saved 1 MB of the 9.3 copied a frame over the run and nothing that could be told from the spread between runs (81.3 and 79.8 against 79.8 and 78.8 frames a second over the run), so the copies stay each draw's own.
+- **One frame handed over at each blank, measured and left for whoever asks** (`MW2_PRESENT_AT_BLANK=1`). Where the display paces the title the presenter gives the swapchain every frame as it comes and waits where its queue is full; a full queue is a frame of delay, and a frame of room. With the switch it hands over one frame for each blank the system's Choreographer announces (`runtime/android/blank.cpp`), so the queue stays empty while every frame comes inside its blank. By `dumpsys SurfaceFlinger --latency` over 125 frames at a time, three times in each run of 100 to 160 s, a frame was on the screen so many milliseconds after the chip had finished it:
+
+  | scene, limit 120 | as they come: frames a second, seconds under 115, to the screen | one a blank: frames a second, seconds under 115, to the screen |
+  |---|---|---|
+  | MW2, Just Like Old Times | 119.0, 1, 33.0 to 33.2 ms | 119.0, 0, 23.5 ms |
+  | MW3, Black Tuesday | 118.4, 5, 26.2 to 33.3 ms | 118.5, 2, 17.1 to 23.6 ms |
+  | MW3, Mind the Gap | 119.0, 0, 32.9 to 33.4 ms | 118.7, 0, 23.5 to 23.6 ms |
+  | CoD4, Crew Expendable | 119.1, 0, 33.2 ms | 119.0, 0, 23.5 then 33.0 and 33.1 ms |
+  | CoD4, The Bog | | 118.8, 0, 31.9 ms |
+  | AW, a match with bots | 119.1, 0, 32.8 ms | 119.1, 0, 23.5 ms |
+  | AW, Traffic, three runs of each in turn | 119.1, 119.1 and 119.0; 0, 0 and 0; 32.6 to 33.3 ms | 117.5, 118.1 and 118.9; 12, 8 and 1; 23.5 then 31.8 to 32.0 ms in two of the three |
+
+  Ten milliseconds sooner where the scene is light, a frame at every blank either way. Where some frames take longer than a blank -- Traffic, the renderer's thread at 7.5 of the 8.3 ms -- the full queue is what shows a frame at the blank such a frame misses, and without it each is a blank with no new frame: 21 to 32 stutters in Traffic as they come, 33 to 96 one a blank. A frame handed over late also stays in the queue behind the next, so the delay is the old one again until another frame is late (Crew Expendable, The Bog, Traffic); a blank skipped on purpose to empty it was built and cost more stutters than it saved (48 for 8 in Traffic). What is to be held here is the frame rate, so the switch is off unless asked for, on every chip. The MAILBOX present mode (`MW2_PRESENT_MODE=mailbox`) measures 23.5 to 25 ms as well, but leaves the title drawing 122.4 frames a second for the 120 the screen shows.
+- **Before and after, on the merged build** (26 November 2026, the bundled Turnip, caches full, 100 to 160 s of play each; before is the same build with `MW2_SHADOWS=1`). Frames a second, frames on time, seconds under 115 of those played, stutters:
+
+  | scene, limit 120 | before | after |
+  |---|---|---|
+  | MW2, Team Player's three heavy views (frames a second in each, GPU a frame) | 90.3, 82.4, 80.4 (9.6 ms) | 111.5, 102.1, 101.8 (7.7 ms) |
+  | MW2, S.S.D.D. | 116.0, 81.1%, 39 of 162, 106 | 119.0, 93.7%, 0 of 161, 12 |
+  | MW2, The Gulag | 110.6, 71.1%, 63 of 160, 732 | 116.9, 86.5%, 17 of 160, 105 |
+  | MW2, Just Like Old Times | 119.0, 94.5%, 1 of 160, 4 | 119.1, 94.6%, 0 of 160, 3 |
+  | MW2, Rust with bots | 119.1, 94.3%, 0 of 163, 3 | 119.1, 94.1%, 0 of 162, 5 |
+  | MW3, Black Tuesday | 118.4, 91.6%, 5 of 100, 37 | the same code |
+  | MW3, Scorched Earth | 115.5, 84.0%, 20 of 103, 143 | the same code |
+  | MW3, Mind the Gap | 119.0, 93.3%, 0 of 99, 0 | the same code |
+  | MW3, Seatown with bots | 118.9, 94.8%, 2 of 165, 53 | the same code |
+  | CoD4, Crew Expendable | 119.1, 93.7%, 0 of 127, 3 | the same code |
+  | CoD4, Charlie Don't Surf | 115.2, 88.3%, 13 of 121, 68 | the same code |
+  | AW, Traffic | 119.0, 95.1%, 0 of 97, 21 | the same code |
+  | AW, a match with bots | 119.1, 94.4%, 0 of 216, 22 | the same code |
+
+  Long runs on the branch's builds, the clocks and temperatures read every three seconds: Modern Warfare 2 at Team Player's three views for 26 minutes ran at 92.5 frames a second in the first five and 87.6 in the last (77.8 and 72.0 with the shadows, the day before), Modern Warfare 3's Scorched Earth for 24 minutes of play, started again every 400 s, at 117.9 (118.2 to 119.8 by five minutes), Advanced Warfare's Traffic for 30 minutes at 117.0 (119.6 in the first five, 116.6 to 117.1 after). In all three the prime core's limit stayed 3187 MHz, the performance cores' 2707 and the GPU's 680 (its clock 615 to 666), the hottest core read 90 to 93 C, the GPU 75 to 81 C and the board 63 to 67 C; the device did not restart, the kernel logged no GPU fault and no run lost its Vulkan device. The first and the last of the three ran with `MW2_PRESENT_AT_BLANK=1`. Call of Duty 4 was not run that long.
 
 ---
 

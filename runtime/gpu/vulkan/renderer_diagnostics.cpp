@@ -1013,6 +1013,9 @@ void vk::renderer::Report()
              " %llu on their own", (unsigned long long)made.draws.load(),
              (unsigned long long)made.inRuns.load(), (unsigned long long)made.runs.load(),
              (unsigned long long)made.alone.load());
+    if (g.guestQueriesUnanswered)
+        LOGI("renderer: %llu occlusion queries left without a count by the driver, counted as nothing",
+             (unsigned long long)g.guestQueriesUnanswered);
     if (g.textureSlotsKept || g.textureSlotsLookedUp)
         LOGI("renderer: texture slots bound: %llu kept from the draw before, %llu looked up",
              (unsigned long long)g.textureSlotsKept, (unsigned long long)g.textureSlotsLookedUp);

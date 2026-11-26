@@ -91,12 +91,12 @@ untested.
 
 | | | Measured |
 |---|---|---|
-| Campaign | ✅ | Thor: S.S.D.D. 116 FPS, Team Player 102; Flip: S.S.D.D. 60, Team Player 53 to 59 |
-| Special Ops | ✅ | The Pit plays on the Flip; not run on the Thor |
+| Campaign | ✅ | Thor: S.S.D.D. 119 FPS, Team Player's heaviest views 102 to 112; Flip: S.S.D.D. 60, Team Player 53 to 59 |
+| Special Ops | ✅ | The Pit plays on the Flip at 60 FPS; not run on the Thor |
 | Multiplayer: System Link | ✅ | Thor and Flip in one match, 119 and 60 FPS; Rust 119 and 60 |
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | 0 to 17; six on Terminal on the Thor: 119 to 120 FPS |
-| Split screen | ❔ | not tested |
+| Split screen | ⚠️ | on Windows, with two controllers: Special Ops (The Pit) and a Team Deathmatch play. Flip 2, the second controller simulated (none was at hand): both play at 58 to 60 FPS |
 | Title update 6 | ❌ | not in this app |
 
 Sources and methods: [docs/android.md](docs/android.md),
@@ -119,6 +119,9 @@ Sources and methods: [docs/android.md](docs/android.md),
 - **Bots.** Tap **Bots** under Multiplayer, then **System Link → Create Game →
   Start Game**; bots only join matches your device hosts. They have no
   routes on the maps, so they feel their way round walls.
+- **Sun shadows are off above 60 FPS** (120 on the Thor): with them its
+  heaviest views ran at 80 to 90 FPS, without at 102 to 112. **Settings →
+  Graphics → Sun shadows → On** keeps them.
 - **Settings** are on the app's start screen: network, multiplayer, files,
   graphics. In a game, the pause menu has **Edit controls**.
 - **Online** play goes through the project's relay at `mw3.yassin.app:3074`,
@@ -141,6 +144,7 @@ Sources and methods: [docs/android.md](docs/android.md),
 | The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
 | Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
 | "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
 | Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\mw2`; accept the USB debugging prompt on the phone |

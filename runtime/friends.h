@@ -5,8 +5,9 @@
 // online service sees running this game, with their pictures, then how many
 // others it does not. A invites the one chosen, B goes back.
 //
-// A service with no friends to pick from (online::Service::Friends) gets a
-// message instead, and invites everyone it can as it did before: LAN's.
+// A service with no account to have friends (LAN, a relay server) lists the
+// players it hears instead, and the one chosen is the only one invited: on a
+// relay the others are strangers.
 #include "screen.h"
 
 #include <cstdint>

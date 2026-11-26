@@ -128,7 +128,8 @@ defaults. Other hardware is untested.
 | Playing from both images on an SD card, nothing copied | ✅ | Flip 2: found on the card by itself, the game starts 2 s after **Install & Play**; Seoul loads in 14 s and a match on Retreat in under 8 s, the same as from copied files |
 | Your own map packs (**Add DLC**, or `setup -Dlc` / `setup.sh --dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Flip 2: Atlas Gorge against a PC, 60 FPS |
 | Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive. Flip 2, with the game code `setup.sh --dlc` built on Linux: its menu (version 1.20) and Outbreak load and run at 60 FPS; the match was left unattended and ended in round 1 after 30 s, nobody played it by hand |
-| Combat Readiness Program, split screen | ❔ | not tested on a device |
+| Split screen (Local Play) | ⚠️ | on Windows, with two controllers: a Team Deathmatch on Retreat plays. Flip 2, the second controller simulated (none was at hand): the same at 60 FPS |
+| Combat Readiness Program | ✅ | a Team Deathmatch beside and against bots. Flip 2: Horizon at 60 FPS |
 
 ## Known limits
 
@@ -231,7 +232,7 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
   game at two or three times the console's 1280x720, from the next start of
   the game. It costs the graphics chip in proportion: on an AYN Thor in a
   match with six bots, 1x ran at 120 FPS (3.6 ms of the chip a frame), 2x at
-  114 FPS with seconds down to 81 (7.9 ms), 3x at 72 FPS (14.2 ms). 2x is
+  114 FPS with seconds down to 78 (7.6 ms), 3x at 66 FPS (14.8 ms). 2x is
   the most a Thor holds near its 120; weaker devices are best left at 1x.
 - **Free the space, or keep it.** Played from the images, the game needs
   both `.iso` files where they are (an SD card is fine) and almost nothing
@@ -255,6 +256,7 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
 | Not enough space | Play from the images (the default), which copies nothing; copying needs about 12 GB on the device's own storage |
 | The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
 | Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\aw`; accept the USB debugging prompt on the phone |
 | `setup.sh` says `unknown option: --dlc` | The folder is older than the option: `git pull` (or download the repository again), then run the same command |

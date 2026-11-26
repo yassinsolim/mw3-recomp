@@ -416,7 +416,9 @@ namespace
             if (pthread_equal(t.handle, self)) continue;
             std::fprintf(stderr, "\n[E] ==== %s ====\n", t.name);
             std::fflush(stderr);
-#ifndef MW2_ANDROID
+            // On Android only where the diagnostics are built: a stack is
+            // written from a signal handler, which a release does not risk.
+#if !defined(MW2_ANDROID) || MW2_DIAGNOSTICS
             g_dumping.store(true, std::memory_order_release);
             if (pthread_kill(t.handle, SIGUSR1) != 0) { g_dumping.store(false); continue; }
             // A last-gasp diagnostic, so a thread that never responds is skipped.
@@ -570,6 +572,15 @@ void crash::RegisterThread(const char* name)
     // Fifteen characters is all it keeps. Not the main thread's: its name is
     // the process's, and `pgrep mw2` has to go on finding it.
     if (!platform::IsMainThread()) platform::SetThreadName(name);
+#if defined(MW2_ANDROID) && MW2_DIAGNOSTICS
+    // A thread started from the Java side inherits its mask, with SIGUSR1
+    // blocked for the virtual machine's own catcher: the thread dump's signal
+    // would wait for ever.
+    sigset_t dump;
+    sigemptyset(&dump);
+    sigaddset(&dump, SIGUSR1);
+    pthread_sigmask(SIG_UNBLOCK, &dump, nullptr);
+#endif
 }
 
 const char* crash::CurrentThreadName() { return t_name; }

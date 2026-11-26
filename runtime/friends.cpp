@@ -72,19 +72,10 @@ void friends::Ask()
     g_message.clear();
     g_service = service && service->Friends(g_list) ? service : nullptr;
     if (!g_service)
-    {
-        if (service)
-        {
-            service->InviteFriends();
-            g_message = { "Everyone playing on your network", "was invited.", "",
-                          "Choosing which friends to invite", "needs STEAM in the launcher's NETWORK." };
-        }
-        else
-            g_message = { "Inviting friends needs STEAM", "in the launcher's NETWORK." };
-    }
+        g_message = { "Inviting players needs a network:", "LAN, SERVER or STEAM", "in the launcher's NETWORK." };
     g_open = true;
     g_version++;
-    LOGI("friends: the screen opens%s", g_service ? "" : ", with a message: this service has no friends to pick");
+    LOGI("friends: the screen opens%s", g_service ? "" : ", with a message: there is no network");
 }
 
 bool friends::Input(uint32_t user, uint16_t buttons)
@@ -143,12 +134,15 @@ bool friends::Picture(uint32_t windowHeight, screen::Image& image)
         return true;
     }
 
-    sheet.Text(Font::Small, 29, 64, screen::kDim, "Friends playing Modern Warfare 2: Recompiled");
+    const bool strangers = g_list.strangers;
+    sheet.Text(Font::Small, 29, 64, screen::kDim,
+               strangers ? "Players on your network or server" : "Friends playing Modern Warfare 2: Recompiled");
     const int count = int(g_list.playing.size());
     if (!g_list.version)
         sheet.Text(Font::Entry, 28, 104, screen::kDim, "Looking for your friends...");
     else if (!count)
-        sheet.Text(Font::Entry, 28, 104, screen::kDim, "None of your friends is playing.");
+        sheet.Text(Font::Entry, 28, 104, screen::kDim,
+                   strangers ? "Nobody else is here yet." : "None of your friends is playing.");
 
     // Five friends are seen at once; the list follows the one chosen.
     constexpr int kSeen = 5;
@@ -177,7 +171,7 @@ bool friends::Picture(uint32_t windowHeight, screen::Image& image)
     if (first > 0) sheet.Text(Font::Small, 410, 74, screen::kDim, "...");
     if (first + kSeen < count) sheet.Text(Font::Small, 410, 340, screen::kDim, "...");
 
-    if (g_list.version)
+    if (g_list.version && !strangers)
         sheet.Text(Font::Small, 29, 350, screen::kDim,
                    "Not playing: " + std::to_string(g_list.online) + " online, " + std::to_string(g_list.offline) +
                    " offline");

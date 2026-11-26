@@ -855,6 +855,147 @@ and logs: `C:\Users\solim\mw3-android-work\out\gamemenu\`.
   frame rate here is a measurement: the numbers are the app's own
   frame-rate line, read off screenshots.
 
+## Every mode of every game (25 and 26 November 2026)
+
+Two rounds over the four games' modes, at `58b0f6b` and at `c2e5d19`: first
+on Windows (RTX 5080, a scripted pad and a second one for split screen:
+`MW2_INPUT_LIVE`, `a@2`), then on the AYN Thor (120 Hz) and the Retroid
+Pocket Flip 2 (60 Hz) with debug `.am` apps of the same commit, the game
+code of toolchain 2, each game read from its disc image on the device. A
+device figure is the log's presents per second in play where the run ended
+by itself, and the overlay's number in the screenshots otherwise. The
+devices were shared by lock with other rounds and the Thor was free for
+one slot of the second round, so its column is thinner; what was not run
+is said, and nothing is carried over from an earlier day unless it says so.
+
+Neither device had a second controller (Android lists one gamepad on each),
+so every split-screen run on a device had its second pad put in through the
+app's input layer (`a@2` in `MW2_INPUT_LIVE`): the title's sign-in, the two
+views and the frame rate are the real thing, a second physical pad's
+pairing is not shown.
+
+| Game | Mode | Windows | Thor | Flip 2 |
+|---|---|---|---|---|
+| Modern Warfare 2 | Campaign | New Game from the menu: the intro and S.S.D.D.'s load | S.S.D.D. (`devmap`) 115.4 FPS | S.S.D.D. 60.0 |
+| | Special Ops, alone | The Pit from the menus, played | not run | The Pit from the menus on a fresh profile, 60 |
+| | Special Ops, split screen | The Pit with two pads, both views in play | not run | The Pit, the second pad injected, both views in play, 58 to 60 |
+| | Multiplayer with bots | Rust with 6 bots by `map`, played, the scoreboard lists them | Rust with 6 bots: 115.6 (the player left at the class menu) | Rust with 6 bots, spawned and played: 60.0, 96% of frames on time |
+| | Multiplayer, split screen | Team Deathmatch on Afghan, two pads | not run | Team Deathmatch on Afghan, the second pad injected, 58 to 60 |
+| | Find Match through the relay | two copies in one match, three times (see below) | with the Flip 2: Team Deathmatch, both scoreboards list both, 119 | the same match, 60 |
+| | Private match by invitation, through the relay | two copies over lan: Invite, the other accepts, the lobby lists both | accepted the Flip 2's invitation, Afghan, 119 | hosted, invited, started: 60 |
+| Modern Warfare 3 | Campaign | Black Tuesday loads by `devmap`; a fresh profile is asked for a save device | Black Tuesday 118.9 | 60, by touch on the release-signed app |
+| | Survival | Resistance from the menus, wave 1 | not run | Resistance, 60, release-signed, by touch |
+| | Special Ops mission | not run | not run | Stay Sharp, 60, release-signed, by touch |
+| | Special Ops, split screen | Survival on Resistance with two pads; the load took 74 s against about 15 alone | not run | Survival on Resistance, the second pad injected: both views in play at 48, to the wave's summary |
+| | Multiplayer, System Link with bots | host with 4 bots on Seatown, a second copy listed it and joined | not shown: the first round's capture is a menu | from the menus: Create Game, Seatown, 6 bots, 100 s in play, 60.0 (lowest second 58) |
+| | Multiplayer, split screen | Team Deathmatch on Seatown, two pads | not run | Team Deathmatch on Seatown, the second pad injected, 60 |
+| | Find Match through the relay | two copies, Team Deathmatch on Outpost, opposite teams | with the Flip 2: Team Deathmatch, both scoreboards list both, 119 | the same match, 60 |
+| | Private match by invitation | not run (Windows invites with F6, which the scripted pad has not) | not run this round (23 November) | the same |
+| Call of Duty 4 | Campaign | F.N.G. loads by `devmap`; a fresh profile is asked for a save device | F.N.G. 119.1 | F.N.G. 60.0 |
+| | Multiplayer, System Link with bots | Create Game from the menus, Backlot, 4 bots; and Crash with 6 bots by `map` after Start | not run | from the menus: Create Game, Backlot, 6 bots, 60; and Crash with 6 bots by `map` after Start: 59.9, 96% on time |
+| | Multiplayer, split screen | Team Deathmatch on Backlot, two pads | not run | Team Deathmatch on Backlot, the second pad injected, 60 |
+| | Find Match through the relay | two copies, Team Deathmatch on Downpour, both scoreboards list both | not run this round (23 November) | the same |
+| | Private match by invitation | not run | not run | not run |
+| Advanced Warfare | Campaign | New Game from the menu, Induction's drop pod | Seoul 119.0 | Seoul 60.0 |
+| | Exo Survival | not run: the campaign's entry asks for the other executable, which the app starts and a development run does not | not run this round (24 November) | from the app: the campaign's Exo Survival entry hands over to the other executable, Local Play, Bio Lab, 59 to 60; the walking pad died in round 1 after 53 s and the summary came |
+| | Multiplayer | System Link, Create Game, Retreat, the loadout menu | not run (its images were no longer on the device) | Combat Readiness Program: Defender loads and the player spawns alone at 60, nobody joins and the match ends by forfeit |
+| | Multiplayer, split screen (Local Play) | Team Deathmatch on Retreat, two pads | not run | Team Deathmatch on Retreat, the second pad injected, 60 |
+| | Find Match, private match | not run | not run this round (24 November) | the same |
+| | Exo Zombies, the owner's packages | Outbreak from Local Play, played (title update 17's executable, `MW2_LAUNCH_DATA`) | not run this round (25 November) | the same |
+
+What the rounds found:
+
+- **Split screen works in every title that has it, on Windows and on the
+  Flip 2**: the multiplayer of all four games and the Special Ops of Modern
+  Warfare 2 and 3, the second player joining on the titles' own sign-in
+  screens. Modern Warfare 3's Survival with two views runs at 48 frames a
+  second on the Flip 2; the others hold 58 to 60. In Advanced Warfare the
+  guest's pad, not the first player's, answers "Progress won't be saved".
+- **Modern Warfare 2's Find Match is not broken.** The first round's two
+  copies on one PC ended, for the copy that did not host, in
+  `EXE_ERR_SERVER_TIMEOUT`. The same build passes it three times, from a
+  local image and from the network share, and the Thor and the Flip 2 meet
+  through `mw3.yassin.app`. What the failing logs show is a host that took
+  about a minute to bring its map up while four game copies, a build and a
+  GPU reset shared the PC; the other copy gave up after 49 s of hearing
+  nothing. A host suspended at the match's start gives the other copy the
+  same error 35 s later (`r2_mw2_findmatch_hoststall_*.log`). It is the
+  title's own patience with a silent host, and nothing was changed.
+- **Call of Duty 4's multiplayer takes `map` from the console only after
+  Start was pressed on its title screen.** Before that the local client
+  is never connected to the server `map` starts (its netchan has no
+  address when the first packet is written) and the title ends in
+  `EXE_LOSTCONNECTION`, with any online service or none, with or without
+  bots, on Windows as on the devices, and already at the commit that
+  brought the title up. With `MW2_INPUT_SCRIPT="18:start"` the same line
+  plays, on Windows and at 59.9 frames a second on the Flip 2
+  ([gameplay.md](gameplay.md#loading-a-level-from-the-command-line)). A
+  shortcut of the test; from the menus it always played.
+- **The first run's Brightness and margin screens take A only once the
+  slider was moved, and that is the titles' own menu**, in Modern Warfare
+  2, 3 and Advanced Warfare: the menu draws "Press A to continue" only
+  after a left or right, the A presses before it reach the title (the log
+  has them) and the same press goes on once the line is there. Advanced
+  Warfare's Lua says so itself ([AW-BRINGUP.md](AW-BRINGUP.md#the-first-runs-screens)).
+  Nothing in the input was wrong or changed.
+- **An invitation on the relay went to every player heard there**, as on
+  lan: the Flip 2's Invite reached the Thor and a stranger's copy, which
+  only logs it unless its owner chose to accept invitations. Since 26
+  November the player chooses: the app's "Invite a network player" and the
+  friends screen list who is heard, the one chosen is the only one
+  invited, and on a relay nobody else is told what a private match is
+  ([multiplayer.md](multiplayer.md#lan-and-server)). Checked on the Flip 2
+  through `mw3.yassin.app` with two copies on a PC, both set to accept, and
+  another player's copy on the relay at the time: the picker listed the
+  three, the copy tapped joined the lobby and the match (60 FPS), the other
+  two heard nothing (`private-captures\mppolish\flip_mw2_inv_*`,
+  `private-logs\mppolish\dev_mw2_invite_*`).
+- **The two devices did not hear each other over `lan` because they were
+  on two networks**: the Thor on one WiFi (192.168.1.x), the Flip 2 on
+  another behind a second router (192.168.86.x). A broadcast stays in its
+  network, and lan is the local network by definition. Nothing in the
+  runtime was wrong: on the first network the Thor and a PC heard each
+  other at once over `lan` and the Thor joined the PC's System Link match
+  on Afghan (119 FPS, `private-captures\mppolish\thor_*lan*`), with no
+  multicast lock held. The Flip 2 was not moved to that network (the
+  owner's setting), so the two devices together over `lan` were not run.
+  The overlay's LAN count at 0 with the other device hosting is the sign;
+  the relay (NETWORK: Online) is what joins two networks, and the app's
+  join and invite lists now say so when lan hears nobody.
+- **Advanced Warfare's Combat Readiness Program started a match nobody
+  joined** on the Flip 2. The mode is the title's practice round, filled
+  with bots when the playlist says so, and ours did not; it does now
+  ([AW-BRINGUP.md](AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
+  On the Flip 2 the match on Horizon is played at 60 FPS with no forfeit,
+  and the player is shot by one of the other side
+  (`private-captures\mppolish\flip_aw_crp_*`).
+- **Modern Warfare 3's Special Ops has Find Match and Private Match
+  entries that answer "You must be signed in to Xbox LIVE"**: the campaign
+  app carries no online service. Solo Play and Split Screen are what work.
+- A fresh install's first start opens the campaign whatever a test's
+  `run_request.txt` asked for (Modern Warfare 3, Call of Duty 4); the
+  second start takes it. Tests only.
+- Seen once and not followed: B from the live input file did not leave
+  Modern Warfare 3's Campaign menu on the Flip 2 (its Main Menu entry
+  did).
+- **A scripted run's exit** (`MW2_RUN_SECONDS`) of Modern Warfare 2's
+  multiplayer on the Thor logs a guest fault after its report: a guest
+  thread still running as the memory goes. Diagnostic builds only.
+- On Windows, starting four copies in the same seconds left one hung and
+  one faulted in the renderer's start-up, and the driver reset the GPU
+  once under a copy of Advanced Warfare; another round's game was on the
+  same GPU. Not seen with two copies. A copy of Call of Duty 4 ended by
+  the test stayed in the process list with its executable locked.
+
+Still open: the Thor's column (Special Ops, split screen, bots from the
+menus in Modern Warfare 3 and Call of Duty 4, Advanced Warfare's
+multiplayer); Call of Duty 4's and Advanced Warfare's Find Match and
+private match between the two devices in these rounds; two physical
+controllers on one device.
+
+Screenshots are in `private-captures\allmodes\` (`pc_*` the Windows copies,
+`r2_*` the second round), logs in `private-logs\allmodes\`.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).
@@ -864,7 +1005,7 @@ export MW2_TITLE=mw3 MW2_VERSION=tu0
 bash tools/recomp_mw3.sh                 # XEX -> ppc_mw3/ (never committed)
 python3 tools/genshared.py && python3 tools/gen_kernel_stubs.py
 unset MW2_TITLE MW2_VERSION
-bash android/fetch_deps.sh               # optional: libadrenotools
+bash android/fetch_deps.sh               # libadrenotools and the bundled Turnip driver: the app is not built without them
 cd android && echo "sdk.dir=$ANDROID_HOME" > local.properties
 MW2_LTO=OFF ./gradlew assembleMw3Tu0Debug
 ```

@@ -150,13 +150,15 @@ namespace
     // too, which the ring consumer has no time for above 60 a second: on an
     // AYN Thor (Adreno 740) under a limit of 120 Survival ran at 107 with 39%
     // of its frames on time, and at 114.5 with 80% without them, so unset is
-    // off for that title under Android wherever the limit is above 60, and
-    // for Advanced Warfare, whose build is that title's kind: Seoul's drop
-    // pod there ran at 114.4 with 78% on time with them and 118.8 with 90%
-    // without. On everywhere else. Said once the title presents, when its console takes
-    // commands, and again whenever the answer is another: the app's menu
-    // gives the switch another value (live::SetSunShadows) or a limit that
-    // decided it.
+    // off under Android wherever the limit is above 60, in every title:
+    // Advanced Warfare's Seoul drop pod there ran at 114.4 with 78% on time
+    // with them and 118.8 with 90% without, and Modern Warfare 2's three
+    // heaviest views, Team Player's, at 90, 82 and 80 with them and at 112,
+    // 102 and 102 without, S.S.D.D. spending 39 seconds of 160 under 115 with
+    // them and none without. On everywhere else. Said once the title presents,
+    // when its console takes commands, and again whenever the answer is
+    // another: the app's menu gives the switch another value
+    // (live::SetSunShadows) or a limit that decided it.
     constexpr int kUnread = -2, kUnset = -1;
     std::atomic<int> g_shadowsAsked{ kUnread };
 
@@ -179,10 +181,8 @@ namespace
 #if defined(MW2_ANDROID)
         if (android::perf::Adreno6xx())
             return "an Adreno 6xx holds its frame rate without them; MW2_SHADOWS=1 keeps them";
-#if defined(MW3_TITLE)
         if (frame_rate::Limit() > frame_rate::kConsole)
             return "a limit above 60 is nearer held without them; MW2_SHADOWS=1 keeps them";
-#endif
 #endif
         return nullptr;
 #endif

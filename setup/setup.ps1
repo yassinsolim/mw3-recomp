@@ -1096,7 +1096,9 @@ if ($ForAndroid) {
         }
         # The Turnip driver the apps bundle (THIRD_PARTY.md): downloaded,
         # hash-checked, never committed. A failure leaves the APK without it
-        # rather than stopping the build.
+        # rather than stopping the build, and says so to Gradle, which
+        # refuses to build an app without the driver by accident
+        # (android/app/build.gradle.kts, bundledDriverCheck).
         $turnip = Join-Path $Repo 'android\app\src\mw3\assets\drivers\turnip_v27_r2.zip'
         if (-not ((Test-Path $turnip) -and (Sha256Of $turnip) -eq $TurnipSha)) {
             Step 'bundled Turnip driver'
@@ -1106,7 +1108,8 @@ if ($ForAndroid) {
                 if ((Sha256Of "$turnip.part") -ne $TurnipSha) { throw 'SHA-256 of the Turnip package does not match' }
                 Move-Item -Force "$turnip.part" $turnip
             } catch {
-                Warn "no bundled Turnip driver: $($_.Exception.Message)"
+                Warn "no bundled Turnip driver: $($_.Exception.Message). The app is built to run on the phone's own graphics driver; on an Adreno that is slower and can show a broken picture. Run setup again with a network to bundle it."
+                $gradleArgs += '-PwithoutBundledDriver=true'
                 Remove-Item -Force -ErrorAction SilentlyContinue $turnip, "$turnip.part"
             }
         }

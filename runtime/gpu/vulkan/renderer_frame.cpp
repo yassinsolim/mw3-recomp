@@ -548,16 +548,29 @@ namespace
         return SubmissionFinished(query.slot, query.serial);
     }
 
+    // Asked only of a submission that has finished (Finished, or a wait for
+    // its slot), and never waited for: the counts are there by then, and a
+    // query that still says otherwise never will, so it counts nothing.
+    // Qualcomm's driver on an Adreno 740 leaves one or two a run that way,
+    // while a first visit's pipelines are still being compiled: each had a
+    // draw, its submission's fence had signalled, and it had no count 30 ms
+    // later nor after the next submission. Waited for
+    // (VK_QUERY_RESULT_WAIT_BIT), one such query held the consumer in the
+    // driver for the rest of the run, with the title's back end awake
+    // asking for a count nobody was left to hand over and its main thread
+    // waiting for the back end: Call of Duty 4's The Bog on an AYN Thor,
+    // still for good some 90 to 110 s into every first visit.
     void Read(State::PendingQuery& query)
     {
         stutters::Timed timed(stutters::kQueryReads);
-        uint64_t samples[kMaxGuestQueries]{};
+        struct Counted { uint64_t samples, available; };
+        Counted counts[kMaxGuestQueries]{};
         query.read = true;
         query.samples = 0;
-        if (vkGetQueryPoolResults(g.device, g.guestQueries, query.first, query.count,
-                                  sizeof(uint64_t) * query.count, samples, sizeof(uint64_t),
-                                  VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) != VK_SUCCESS)
-            return;
+        const VkResult result = vkGetQueryPoolResults(
+            g.device, g.guestQueries, query.first, query.count, sizeof(Counted) * query.count, counts,
+            sizeof(Counted), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+        if (result != VK_SUCCESS && result != VK_NOT_READY) return;
         // The title compares the count with numbers of its own pixels, and
         // each query counted the pixels of its own pass's scale, or of the
         // part of the scene that pass drew.
@@ -565,7 +578,14 @@ namespace
         {
             const uint32_t at = (query.first + i) % kGuestQueryRing;
             const uint64_t scale = g.guestQueryScale[at];
-            const uint64_t counted = samples[i] / (scale * scale);
+            if (!counts[i].available)
+            {
+                if (!g.guestQueriesUnanswered++)
+                    LOGW("renderer: an occlusion query of a finished submission has no count;"
+                         " it counts nothing, and so does every one like it (said once)");
+                continue;
+            }
+            const uint64_t counted = counts[i].samples / (scale * scale);
             const float share = g.guestQueryShare[at];
             query.samples += share > 0.0f && share < 1.0f ? uint64_t(std::llround(double(counted) / double(share)))
                                                           : counted;
@@ -624,7 +644,12 @@ bool vk::renderer::EndOcclusionQuery(uint32_t tag, uint64_t& samples)
     g.guestQueryCount = 0;
     if (!counted) return true;
     g.guestQueryNext = g.guestQueryFirst + counted;
-    g.pendingQueries.push_back({ g.guestQueryFirst, counted, tag, g.slot, g.submissionSerial + 1 });
+    // The submission that holds the bracket's last query: the one being
+    // recorded, or the newest made when the bracket closes between two. Named
+    // as the next one there, the count was read while its own was still on
+    // the GPU.
+    g.pendingQueries.push_back({ g.guestQueryFirst, counted, tag, g.slot,
+                                 g.submissionSerial + (g.recording ? 1 : 0) });
     return false;
 }
 

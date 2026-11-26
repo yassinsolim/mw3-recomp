@@ -1080,12 +1080,33 @@ does:
   were loading levels on the same PC, and the run was not repeated. With
   no bots set this is Find Match under another name.
 - At 1, as the file has it, the title searches for nobody and starts.
-  With the host's bots that is a practice match, the nearest to what the
-  mode was. Without bots (`MW2_BOTS` unset, the app's Bots at 0) the
-  match starts and is forfeited after twenty seconds for want of an
-  enemy.
+  Without bots the match was forfeited after twenty seconds for want of
+  an enemy, which is what a player met on the Flip 2 with the app's Bots
+  at 0.
 
 The playlist's `numaislots` added no bots.
+
+**The mode's own bots (26 November 2026).** The executable has the mode
+under the name practice round: the menu sets the dvar `practiceroundgame`
+when the lobby opens (read at `839B1FFC` in the disc's multiplayer: 0 in
+the main menu, 1 in the lobby and in the match), a second dvar,
+`practiceroundBotTeamLimit` (3, at most 6), replaces the lobby's bot limits
+while it is set (`sub_826D2C10`), and the bots get clothes of their own
+(`mp/practiceroundcostumetable.csv`). So it was a match filled with bots.
+What it does not do itself is switch the bots on: with `practiceroundgame`
+at 1 and nothing else nobody joins. The lobby's bots fill only when its
+connect type is `fill_open`, whose default is the dvar
+`bot_AutoConnectDefault`, and the publisher's playlist must have set that;
+ours did not. `relay/playlists_aw.info` now has `rule
+bot_AutoConnectDefault fill_open` in that playlist, and on Windows the
+match starts with a team beside the player and one against, with no
+forfeit (`private-captures\mppolish\pc_aw_crp_*`). The rule goes when the
+lobby is left: a System Link game created after it has connect type 0 and
+no bots. The app's Bots, when not 0, still decides (`aw_bots.cpp` writes
+the lobby's rules after the title's defaults). The relay at
+`mw3.yassin.app` has no playlists of its own for this title, so every copy
+reads the file its release was built with; a relay given one must carry
+the same line.
 
 **Not seen:** either on a device; Exo Survival's Find Match past round 1;
 its Private Match.
@@ -1613,8 +1634,8 @@ close up:
 | multiplier | frame | match: frames a second (lowest second) | match: graphics chip, ms a frame | lobby: frames a second | lobby: ms a frame |
 |---|---|---|---|---|---|
 | 1x | 1280x720 | 119.7 (113) | 3.6 | 119.7 | 4.8 |
-| 2x | 2560x1440 | 113.5 (81) | 7.9 | 89.7 | 10.8 |
-| 3x | 3840x2160 | 71.7 (41) | 14.2 | 47.9 | 20.7 |
+| 2x | 2560x1440 | 114.2 (78) | 7.6 | 89.7 | 10.8 |
+| 3x | 3840x2160 | 66.1 (50) | 14.8 | 47.9 | 20.7 |
 
 **The picture.** Right at 1x. At 2x and 3x the menus and the lobby were
 right and the match was a white wash
@@ -1625,6 +1646,78 @@ It now reads the surface at its drawn size and writes each texel as the
 mean of those drawn for it (`renderer_resolve.cpp`); on Windows the match
 is right at 2x and at 3x, the luminance written back 8,118 and 6,336 times
 one frame late (`pc-mp-scale2-retreat-exposure-fixed.jpg`,
+`pc-mp-scale3-retreat-exposure-fixed.jpg`). On the Thor the fixed build's match is
+right at 2x and at 3x as well (`thor-mp-scale2-scale3-retreat-exposure-fixed.jpg`,
+three views of each), the log saying `the scene's luminance (16x16 floats)
+is written back` in both; the table's match columns for 2x and 3x are of
+those two runs (the device at 86 to 88 C after half an hour of other
+runs), its lobby columns of the white picture, which draws the same
+passes there.
+
 `pc-mp-scale3-retreat-exposure-fixed.jpg`). **Not seen:** the fixed build
 at 2x or 3x on the Thor; the table's two rows are of the white picture,
 which draws the same passes.
+
+### The sun's far shadows (26 November 2026)
+
+A tester on a Retroid Pocket 5 saw shadows flicker with Sun shadows on, and
+on Solar a patch of ground lit for single frames. It showed on the Flip 2,
+the AYN Thor and Windows alike, the camera standing still.
+
+**What the frame does.** The sun has two shadow maps a frame, both drawn
+into the depth surface at tile 0 (1040 wide, D24FS8) and resolved to
+textures: the near one (ten casters outdoors on Solar, to 19840000) and the
+far one (539 there, to 19C40000). Before the far map's casters the title
+calls D3D's `Clear` on a rectangle in the middle of it with z 1, the
+nearest depth: the part of the far map the near map covers, where casters
+then fail the depth test and cost nothing. `Clear` of a rectangle is two
+draws of rectangles with the depth test ALWAYS in depth-only mode: the
+tiles it covers whole as a surface 520 wide at 4x, the columns and rows
+round them as strips of the surface itself.
+
+The casters are a draw list a worker records into a D3D command buffer
+(worker command 32, `sub_827FCFF0`), and the list's function
+(`sub_828174A8`) runs that buffer (`sub_8226D458`) and then draws what the
+worker did not record. Both begin with that `Clear`. So a frame is: clear
+the map; in the buffer, the middle's rectangles and the casters; after the
+buffer, the middle's rectangles again and no caster. When the backend
+reaches the list before a worker has taken it, it takes the list back and
+draws all of it after its own rectangles; when the worker is part way, the
+worker stops, the buffer holds the first casters and the rest follow the
+second pair of rectangles.
+
+**The fault.** The renderer took every such rectangle for MW2's clear of
+EDRAM and emptied every depth image ([rendering.md](rendering.md)). The far
+map therefore held the casters drawn after the second pair: none in a
+frame whose worker was in time, all 539 in one the backend drew itself,
+some in between. Which frame was which followed the workers' timing, about
+one in five on Windows and one in four on the Flip 2, and the shadows a few
+metres out came and went with it. Never queueing the lists (every frame
+drawn by the backend) gave no flicker, which is what pointed at the order
+and away from the cascades: their matrices, the shadow maps' draws and the
+lit draws' constants and textures are the same in both kinds of frame.
+
+**The fix.** A rectangle of that kind with a depth other than zero, short
+of both ends of the row, where a depth surface is, is left undrawn
+(`renderer_draw.cpp`). The far map then holds every caster in every frame,
+and the part the title meant to mask holds casters too, which it does not
+read.
+
+On Windows (NVIDIA), every frame dumped and compared with the frames
+before and after it, the camera still, single-frame changes of more than
+3,000 of 230,400 pixels:
+
+| map | before | after |
+|---|---|---|
+| Solar | 630 of 1,862 frames | 0 of 12,842 (four runs) |
+| Riot (more than 1,000 pixels) | 422 of 3,849 | 0 of 5,160 standing; 3 of 4,672 walking about, by the fire's smoke |
+
+On the Retroid Pocket Flip 2 (Turnip), Solar with `MW2_SHADOWS=1`, 157
+seconds of play recorded while walking (`tools/visualqa`, its walk): 60.4
+frames a second, 20,914 such rectangles left undrawn, and no patch lit or
+lost for a frame with the camera still; the seven frames the check of that
+day marked are fast turns past posts and walls. **Not done:** a recording
+standing still on the Flip 2 with the fix beside one without it (the run
+without it had the sun's shadows off, as Auto has them there), the AYN
+Thor, and Modern Warfare 2, Modern Warfare 3 and Call of Duty 4 with their
+sun shadows on, for which the change is switched off.

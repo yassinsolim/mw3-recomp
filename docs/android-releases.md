@@ -36,7 +36,12 @@ signed with another, and a lost key means every player uninstalling.
 
 ## Each release
 
-1. The public repository's default branch has the commit to release.
+1. The public repository's default branch has the commit to release, and
+   `tools/visualqa/visualqa.py --suite` has passed on it on both phones
+   ([visualqa.md](visualqa.md)): every scenario recorded, every frame
+   checked for flicker, blocks, missing ground, black frames and stalls, on
+   the bundled Turnip driver. A failure is fixed or explained in the notes
+   before the tag; a release is not drafted over one.
 2. Push a tag `vMAJOR.MINOR.PATCH` there (minor and patch below 100). The
    version code is `MAJOR*10000 + MINOR*100 + PATCH`, and has to be above the
    last release's and above 16, what the apps built by setup carried.
@@ -47,6 +52,96 @@ signed with another, and a lost key means every player uninstalling.
 4. Read the draft, write the notes (the app shows the first 1500 characters
    as the changelog; say so when the game code has to be rebuilt) and
    publish. Drafts are invisible to the apps.
+
+### The automated procedure
+
+`tools/release/release.py` does the steps above and refuses to go on when a
+gate fails, saying which. The owner has approved publishing without being
+asked each time, on the condition that every gate passes; nothing is
+published by any step but the last.
+
+    set RELEASE_WORK=C:\Users\solim\mw3-android-work
+    python tools/release/release.py status          what is published, what comes next
+    python tools/release/release.py sync --push     filter the branch into the four mirrors, check, push main
+    python tools/release/release.py tag             push the next tags: the workflows draft the releases
+    python tools/release/release.py gates --wait    gates 1 to 4 and 7 on the drafts
+    python tools/release/release.py device-template > report.json
+    python tools/release/release.py publish --device-report report.json
+    python tools/release/release.py verify-public   (publish runs it too)
+
+`RELEASE_WORK` holds the mirrors' clones (`public-hist`, `mw2-public`,
+`cod4-public`, `aw-public`, each with the remote `public`; cloned when
+missing), the Android SDK and `out/release`, where the drafts' files, the
+state and the gates' report are kept. The next tag is the published one's
+patch plus one unless `--version mw3=v0.2.0` says otherwise; `--games`
+releases some of the four. The notes are written by hand beforehand, as
+`docs/releases/<game>-<tag>.txt`.
+
+The gates. All of them pass or nothing is published:
+
+1. **CI.** Every workflow on the mirror's new main (`tests`, `MW3
+   validation`) and the tag's release workflow ended well. Before the push,
+   in each filtered mirror: `tools/check_no_game_files.py` passes, no blob in
+   the whole history is over 20 MB, no path that the filter drops, no game
+   file and no path of a game that is not released (`bo3`) is anywhere in
+   it, and the public main is an ancestor of the filtered branch, so the
+   push is a fast-forward. It is never forced.
+2. **The APK.** `tools/check_runtime_apk.py`: no recompiled function body
+   and no game file; signed with the release key
+   (`RELEASE_CERTIFICATE_SHA256`); the package and the version code are the
+   tag's.
+3. **The driver.** Inside the APK itself, not by the build's log: the Turnip
+   package with the SHA-256 `android/fetch_deps.sh` names, with a driver in
+   it; libadrenotools' four hook libraries; and each title's library built
+   with libadrenotools. Without them the app runs on the phone's own
+   driver, whose picture on an Adreno is wrong.
+4. **The game code.** Every statement the published app took
+   (`<game>-recomp-<tag>-game-abi.txt` of the published release) is taken by
+   the draft, so nobody builds anything; or the notes' first lines say that
+   the game code is built again (the app then builds it by itself,
+   [When the game code has to be rebuilt](#when-the-game-code-has-to-be-rebuilt)).
+   The build tools' release `setup/toolchain.json` names exists with that
+   SHA-256; when it is still a draft it is published before the apps.
+5. **The devices**, not the script's to pass: on the AYN Thor and the
+   Retroid Pocket Flip 2, each game is started, a campaign level and a match
+   with bots are played for two to three minutes, the visual suite passes
+   ([visualqa.md](visualqa.md)), `game.log` names Turnip, and the frame rate
+   is the device's (about 115 to 120 on the Thor, 60 on the Flip 2) and no
+   lower than the published release's beyond noise.
+6. **The update**, on a device as well: the new app installed over the
+   published version keeps the saves and the settings, and the game code is
+   taken as it is or built again by itself.
+7. **The notes.** Plain text, under 1,450 characters (the app shows 1,500),
+   written for players, naming the tag, with a `Known issues` line.
+
+Gates 5 and 6 are tried by hand or by an agent, through the devices' lock,
+and written into the report `device-template` prints: for each game and
+device `campaign`, `multiplayer`, `visual`, `turnip` and `fps`, and for each
+game `update`, each with `pass` and the folder or file of its evidence.
+`publish` refuses a report with anything not passed or without evidence.
+
+**What stands in for the draft's APK on the devices.** A draft's APK has the
+published app's package name and key, so installing it would replace the
+owner's app and touch its data; and a release build reads no `options.txt`
+and is not debuggable, so nothing can be scripted in it or written into its
+preferences. What is tried instead is the mirror's tagged commit built here
+three ways under a package suffix (`-PappSuffix=.rc`): the release variant
+signed with the release key (the workflow's own Gradle task and
+environment), for the start, the play by hand and the update; the debug
+variant signed again with the release key, installed first so that `run-as`
+can write the preferences of a set-up app, and replaced by the release
+variant, which keeps them; and the debug variant under `.vq` for the visual
+suite. The published version for gate 6 is built the same way from its own
+commit with its own version code. The report says so in `equivalent`.
+
+`publish` runs gates 1 to 4 and 7 again on the drafts as they are then,
+checks the report, publishes the build tools first when they are a draft,
+then each game (notes from the file, marked latest), and ends with
+`verify-public`: each release's APK and statements are fetched by the
+addresses the app and setup use (`releases/download/<tag>/` and
+`releases/latest/download/`), the APK's SHA-256 is the one the gates passed,
+each repository's latest release is the new tag, and the build tools'
+download has the SHA-256 named.
 
 ## When the game code has to be rebuilt
 

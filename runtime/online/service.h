@@ -94,6 +94,7 @@ namespace online
         uint64_t version = 0;          // 0: not built yet
         std::vector<Friend> playing;   // by name
         int online = 0, offline = 0;   // the other friends, not running it
+        bool strangers = false;        // not friends of an account: whoever the service hears, with no others to count
     };
 
     class Service
@@ -133,9 +134,6 @@ namespace online
         // hands such a line back when this player accepts an invitation.
         virtual void Advertise(const std::string& connect) { (void)connect; }
         virtual bool NextJoin(std::string& connect) { (void)connect; return false; }
-        // Invites everyone this player could invite, for a service without
-        // friends to pick from.
-        virtual void InviteFriends() {}
         // Diagnostics for the app: how many other copies this one hears on
         // the network right now. Zero while hosting alone is expected; zero
         // with a friend hosting beside it means discovery is not arriving.
@@ -153,10 +151,12 @@ namespace online
         // through the invitation path. False when no such peer is heard.
         virtual bool JoinPeer(uint64_t id) { (void)id; return false; }
 
-        // Optional: friends to pick from, for the friends screen (friends.h).
-        // False when the service has none. The list is copied into `list` only
-        // when its version is not the one `list` holds; asking keeps it fresh
-        // for a while, and a service builds it off the caller's thread.
+        // Optional: who can be invited, for the friends screen (friends.h):
+        // an account's friends, or the players heard where there is no
+        // account. False when the service has none. The list is copied into
+        // `list` only when its version is not the one `list` holds; asking
+        // keeps it fresh for a while, and a service builds it off the
+        // caller's thread.
         virtual bool Friends(FriendList& list) { (void)list; return false; }
         // Invites one of them to this player's party or game.
         virtual bool InviteFriend(uint64_t id) { (void)id; return false; }

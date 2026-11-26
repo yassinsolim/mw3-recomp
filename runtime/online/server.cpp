@@ -157,6 +157,7 @@ namespace
         const char* Name() const override { return "server"; }
         uint64_t LocalId() const override { return id_; }
         uint32_t Slot() const override { return slot_; }
+        bool Public() const override { return true; }
 
         bool SendTo(uint64_t peer, const void* bytes, size_t size) override
         {

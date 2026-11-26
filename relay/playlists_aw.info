@@ -12,7 +12,7 @@
 // playlists are the multiplayer's Find Match, a SURVIVAL category Exo
 // Survival's, and Combat Readiness Program takes the PRACTICE category's
 // playlist. Without them every menu listed every playlist.
-version 2
+version 3
 
 gametype tdm
 name english "Team Deathmatch"
@@ -93,11 +93,19 @@ mp_terrace,horde,1
 
 playlist 4
 name english "Combat Readiness Program"
-description english "Team Deathmatch for practice, with the host's bots."
+description english "Team Deathmatch for practice, beside and against bots."
 minparty 1
 maxparty 6
 // One: the title then starts without searching for a second player.
 rule party_minplayers 1
+// The mode is the title's practice round (its dvar practiceroundgame, which
+// the menu sets): the host's scripts fill both teams with bots, three a
+// side (practiceroundBotTeamLimit), but only when the lobby's bots are set
+// to fill, which the publisher's own playlist must have said. Without this
+// line the player was alone and the match was forfeited. The title takes
+// the rule back when the lobby is left: a System Link game made after it
+// has no bots of its own accord.
+rule bot_AutoConnectDefault fill_open
 mp_refraction,tdm,1
 mp_lab2,tdm,1
 mp_comeback,tdm,1

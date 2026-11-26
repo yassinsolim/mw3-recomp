@@ -93,7 +93,8 @@ untested.
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Free-for-all, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | 0 to 17; they join, fight and score |
 | Everything unlocked, and extra camos | ✅ | chosen camos show in matches |
-| Windows PC | ⚠️ | multiplayer joined an Android host; campaign not tested there |
+| Split screen (multiplayer and Special Ops) | ⚠️ | works on Windows with two controllers. Flip 2, the second controller simulated (none was at hand): a Team Deathmatch at 60 FPS, Survival for two at 48 |
+| Windows PC | ⚠️ | Survival, split screen, System Link and Find Match between two copies play; campaign not tested there |
 | Voice chat | ❔ | built, not tested |
 
 Sources and methods: [docs/android.md](docs/android.md),
@@ -133,6 +134,7 @@ Sources and methods: [docs/android.md](docs/android.md),
 | The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
 | Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
 | "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
 | Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\mw3`; accept the USB debugging prompt on the phone |

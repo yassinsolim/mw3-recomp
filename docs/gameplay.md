@@ -86,6 +86,20 @@ The time is wall-clock seconds since the runtime started (the clock
 separates the time, so a command may contain spaces. It is kept in release
 builds.
 
+Call of Duty 4's multiplayer takes `map` only once Start was pressed on its
+title screen. Before that no controller owns the game, the local client is
+never connected to the server `map` starts, and its first packet has
+nowhere to go: `EXE_LOSTCONNECTION` ("Network connection lost") two seconds
+after the map starts loading, with any online service or none. Press Start
+first:
+
+    MW2_INPUT_SCRIPT="18:start"
+    MW2_CONSOLE="30:set onlinegame 0;30.5:set systemlink 1;33:map mp_crash"
+
+It is the title's own order of things (the menus sign the controller in
+the same way), not something the runtime decides; Modern Warfare 2's and
+3's multiplayer take `map` from their title screens.
+
 `runtime/console.cpp` calls the title's `Cbuf_AddText` (`T_Cbuf_AddText` in
 [`runtime/title.h`](../runtime/title.h)) from `XamInputGetState`, which the title
 polls once a frame on its main thread, so a live guest context is always

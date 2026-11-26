@@ -98,7 +98,8 @@ hardware is untested.
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch and Free-for-all, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | six on Crash on the Flip for ten minutes, 60 FPS; not run on the Thor |
 | Checkpoints on Android | ❔ | work on Windows; not checked on Android |
-| Split screen, Xbox LIVE invitations | ❔ | not tested |
+| Split screen | ⚠️ | on Windows, with two controllers: a Team Deathmatch on Backlot plays. Flip 2, the second controller simulated (none was at hand): the same at 60 FPS |
+| Xbox LIVE invitations | ❔ | not tested |
 
 Only three campaign levels and two multiplayer maps have been played for more
 than a few minutes; the rest load from the same code but were not checked one
@@ -139,6 +140,7 @@ checked and what is open: [docs/COD4-BRINGUP.md](docs/COD4-BRINGUP.md).
 | The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
 | Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
+| System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
 | "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
 | Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\cod4`; accept the USB debugging prompt on the phone |

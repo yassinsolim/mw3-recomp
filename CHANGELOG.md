@@ -4,6 +4,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Fixed
+- **Call of Duty 4 no longer stops for good the first time a level is played
+  on an AYN Thor** (The Bog, 90 to 110 seconds in, a still picture until the
+  game was closed; the second visit played). The sun's occlusion count was
+  waited for inside Qualcomm's driver, which leaves a query or two of a first
+  visit without a count for ever; the count is now read without waiting once
+  its frame has finished, and a query the driver never answers counts
+  nothing (`runtime/gpu/vulkan/renderer_frame.cpp`, all games share it;
+  [docs/rendering.md](docs/rendering.md#occlusion-queries)). Diagnostics
+  builds on Android now write every thread's stack at a `STALL`, which is
+  how it was found.
+
 ### Added
 - **Black Ops III (Xbox 360), started: Windows, and a first boot on
   Android; not for players yet** ([docs/BO3-BRINGUP.md](docs/BO3-BRINGUP.md)).
@@ -33,6 +45,31 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
     reads both as a volume and along two axes; it is a volume now. The
     shader translator gains `getWeights`, so every game's shaders are
     compiled again once.
+- **`tools/release/release.py`: a release is made by one script, behind
+  gates.** It filters the branch into the four public mirrors (refusing a
+  game file, a blob over 20 MB, a path of a game that is not released, or a
+  push that is not a fast-forward), pushes the tags, and checks each
+  drafted APK itself: the workflows ended well, no recompiled code and no
+  game file, the release key, the Turnip package and libadrenotools inside
+  the APK, the game code the published app took still taken (or the notes
+  say it is built again), the build tools published first, and notes of
+  plain text under 1,450 characters. `publish` wants the report of the
+  device gates as well and afterwards fetches every download a player's
+  app would ([docs/android-releases.md](docs/android-releases.md#the-automated-procedure)).
+- **`tools/visualqa`: every test run is recorded and every frame of it
+  checked.** `visualqa.py run <scenario> --device thor` starts a title in a
+  level or a match with bots, records the screen (`adb shell screenrecord`)
+  beside the run's own frame log and the frames the game writes itself, and
+  prints PASS or FAIL with a picture of each fault: whole-frame flicker,
+  patches lit or lost for single frames (the sun shadow's wedge), a lattice
+  of blocks left out of the picture, black, white-washed and one-colour
+  frames in play, ground that goes missing between two frames, a frozen
+  picture, stalls, slow seconds and pop-in that lasts. Its numbers were set
+  on the recordings of the faults players and testers found, and
+  `visualqa.py calibrate` measures them again. `--suite` runs a campaign
+  level and a match against bots of each title on both phones and is run
+  before a release; a run that was not on the bundled Turnip driver fails
+  ([docs/visualqa.md](docs/visualqa.md)).
 - **Advanced Warfare: the app says which Compatibility Packs are missing.**
   The updated game needs all six, whichever map packs you bought, and with
   one missing it only showed its own notice that required content had been
@@ -67,7 +104,44 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `setup -Dlc` on a PC still works and is no longer needed. Not played in
   this run: a match on a pack's map from the library built on the phone.
 
+### Documentation
+- **Every mode of every game, checked again on Windows, the AYN Thor and
+  the Retroid Pocket Flip 2** ([docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#every-mode-of-every-game-25-and-26-november-2026)).
+  Split screen plays on the Flip 2 in all four games and in both Special
+  Ops (with a simulated second controller: none was at hand); Modern
+  Warfare 2's and 3's Find Match and Modern Warfare 2's private match by
+  invitation bring the two devices into one match; Advanced Warfare's Exo
+  Survival starts from the campaign's menu in the app. Three things that
+  looked broken are the games' own: Modern Warfare 2's Find Match timed
+  out only behind a host that took a minute to load on an overloaded PC;
+  Call of Duty 4's console `map` needs Start pressed on the title screen
+  first ([docs/gameplay.md](docs/gameplay.md#loading-a-level-from-the-command-line));
+  and the first run's Brightness screen takes A once the slider was moved.
+
 ### Changed
+- **An app is no longer built without its graphics driver by accident.**
+  The apps bundle the Turnip driver and load it through libadrenotools;
+  neither is in the repository (`android/fetch_deps.sh` fetches both). A
+  tree without them built an app all the same, which ran on the phone's
+  own driver and said so only in its log. On the AYN Thor that is a picture
+  in 32-pixel blocks, missing ground and 50 to 80 frames a second where
+  Turnip gives 119: test apps built that way were taken for a regression of
+  the renderer on 26 November 2026, and none was there (Modern Warfare 3's
+  multiplayer with six bots on current code and Turnip: clean, 118.8 frames
+  a second). The Gradle build of an app now stops when either piece is
+  missing and names it (`bundledDriverCheck`), a tree configured before
+  libadrenotools was fetched is configured again, and CMake refuses one
+  without it. `-PwithoutBundledDriver=true` builds an app for the phone's
+  own driver on purpose; `setup.cmd` passes it, and says so, when the
+  driver cannot be downloaded. A release never lacked the driver: the
+  workflows fetch it.
+- **Modern Warfare 2 holds 120 better: no sun shadows above 60 frames a
+  second**, as the other three games already had it (**Settings → Graphics
+  → Sun shadows → On** keeps them; at 60 and under nothing changes). On
+  the AYN Thor its heaviest views, Team Player's, ran at 80 to 90 frames a
+  second with them and run at 102 to 112 without; S.S.D.D. spent 39 seconds
+  of 160 under 115 and spends none; the Gulag 63 and 17
+  ([docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)).
 - **An update of the app no longer asks you to build the game code again
   unless the code really changed, and then does it for you.** Nothing has
   to be built to get this: the game code you have is taken as it is, in all
@@ -166,6 +240,27 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   Warfare's README has a section for the three ways, the app's **Add DLC**
   first ([README-AW.md](README-AW.md#map-packs-and-exo-zombies),
   [docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies)).
+- **What holds the AYN Thor under 120, scene by scene**, in all four games
+  ([docs/android.md](docs/android.md#adreno-7xx-snapdragon-8-gen-2-class)):
+  seventeen scenes measured, each thread and the graphics chip beside the
+  frame rate. Everything runs at 115 to 119 but Modern Warfare 2's Team
+  Player and the Gulag's heaviest seconds, held by the thread that reads
+  the game's draw commands and behind it by the graphics chip. Newer
+  graphics drivers (Mesa 26.3.1 and Mesa's main branch, built for this),
+  the driver's and the renderer's other modes, and the copies of that
+  thread given to a second one were measured there and none is faster, so
+  none of that changed. In 24 to 30 minutes of play in Modern Warfare 2,
+  Modern Warfare 3 and Advanced Warfare the clocks were never held back and
+  nothing reset.
+- **`MW2_PRESENT_AT_BLANK=1`: a frame on a 120 Hz screen 10 ms sooner, for
+  whoever would rather have that than every frame** (Android). The app
+  hands the screen one frame at each blank the system announces instead of
+  keeping the screen's queue full: 23.5 ms from the graphics chip to the
+  screen for 33 on the AYN Thor in light scenes. It is off unless asked
+  for, because the full queue is also what covers a frame that takes a
+  little too long: Advanced Warfare's Traffic ran at 117.5 to 118.9 frames
+  a second with it and at 119.1 without. `MW2_PRESENT_MODE` asks for
+  another present mode, to measure with.
 - **Advanced Warfare: your own map packs and Exo Zombies.** The packs you
   bought on your Xbox 360 (Havoc, Ascendance, Supremacy, Reckoning, Atlas
   Gorge), with the free Compatibility Packs and the game's title update, are
@@ -407,6 +502,54 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **Advanced Warfare: the sun's far shadows are there in every frame.** With
+  Sun shadows on, shadows a few metres from the player and beyond, a
+  building's on the ground, came and went for single frames while standing
+  still (a tester's "yellow wedge" on Solar; Riot the same). The title
+  writes the nearest depth into the middle of the far shadow map, the part
+  the near map covers, once before the map's casters and once after the
+  command buffer a worker recorded for them has run; the renderer answered
+  either by emptying every depth image, so the map held only the casters
+  drawn after the second: none when the worker had finished in time, some
+  or all when the title had to draw them itself. Such a rectangle is now
+  left undrawn (`runtime/gpu/vulkan/renderer_draw.cpp`,
+  [rendering.md](docs/rendering.md)). The app only; the game code is as it
+  was.
+- **An invitation goes only to the player you choose.** "Invite network
+  players" in the pause menu, the lobby's Invite and F6 on Windows invited
+  everyone the game could hear, and through the server that is everybody
+  playing there: a stranger's copy got one in testing. Now you get a list
+  of the players heard (**Invite a network player** in the app, the
+  friends screen on Windows) and the one you pick is the only one invited.
+  Through the server a private match is also no longer announced to
+  everyone: only the players you invited are told where it is, so nobody
+  else can list it under "Join network game" or join it. On your own
+  network it is still shown to everyone there. A friend on an older
+  version can still be invited; to join you from his pause menu without an
+  invitation he needs this one. Checked on a Retroid Pocket Flip 2 through
+  `mw3.yassin.app`, with two copies on a PC set to accept invitations and
+  somebody else's copy on the server: the one tapped joined the lobby and
+  the match, the other two heard nothing
+  ([docs/multiplayer.md](docs/multiplayer.md#lan-and-server)). The server
+  itself is unchanged.
+- **Advanced Warfare: Combat Readiness Program has its bots.** The match
+  started with you alone in it and was forfeited after twenty seconds. The
+  mode is the game's practice match, three bots a side, and it fills when
+  the playlist says so; ours did not (`relay/playlists_aw.info`). On a
+  Flip 2 the match now plays at 60 FPS beside and against bots. The app's
+  **Bots**, when not at None, still sets how many
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#exo-survival-under-xbox-live-combat-readiness-program-24-november-2026-windows)).
+- **System Link between two devices that do not find each other: the app
+  says why.** Our two test devices stopped hearing each other over LAN,
+  and the cause was the network, not the game: one was on the router's
+  Wi-Fi and the other on a second router's (a mesh system with a network
+  of its own). LAN only reaches devices on the same Wi-Fi network. With
+  nobody heard, "Join network game" and "Invite a network player" now ask
+  whether both devices are on the same Wi-Fi and point to **NETWORK:
+  Online**, which joins two networks; the READMEs' troubleshooting and
+  [docs/multiplayer.md](docs/multiplayer.md#lan-and-server) say the same.
+  On one network LAN works as before: an AYN Thor listed and joined a
+  PC's System Link match (119 FPS).
 - **A rare freeze for good in the middle of play, in all four games.** The
   runtime watches the memory the game hands the GPU by making its pages
   read-only, and a game thread that writes to one makes it writable again.

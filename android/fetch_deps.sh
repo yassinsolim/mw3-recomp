@@ -5,9 +5,10 @@
 # (last step below).
 #
 # Neither is vendored here -- they are somebody else's code, under their own
-# licences, and libadrenotools carries submodules. Without them the app still
-# builds and still runs; it simply uses the driver the phone shipped with, and
-# says so on the driver screen.
+# licences, and libadrenotools carries submodules. The app's Gradle build
+# stops without them (android/app/build.gradle.kts, bundledDriverCheck): an
+# app built without them runs on the driver the phone shipped with, which is
+# only built on purpose, with -PwithoutBundledDriver=true.
 set -euo pipefail
 
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,14 +59,17 @@ fi
 # their pipelines). Downloaded, never committed (THIRD_PARTY.md); it is kept
 # under the mw3 flavour's assets, the MW2 flavours package a copy of it
 # (android/app/build.gradle.kts, bundledDriverAssets), and a build without it
-# simply has no bundled driver.
+# has no bundled driver, which Gradle refuses unless it is asked for.
 TURNIP_URL="${TURNIP_URL:-https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip}"
 TURNIP_SHA256="8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781"
 TURNIP_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_v27_r2.zip"
 
+# The file goes in on standard input: given a name with a backslash in it (a
+# Windows shell whose pwd is D:\...), sha256sum puts a backslash before the
+# hash, and the good download was thrown away as a bad one.
 sha256_of() {
-    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
-    else shasum -a 256 "$1" | cut -d' ' -f1
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum < "$1" | cut -d' ' -f1
+    else shasum -a 256 < "$1" | cut -d' ' -f1
     fi
 }
 
