@@ -4,6 +4,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Fixed
+- **Call of Duty 4 no longer stops for good the first time a level is played
+  on an AYN Thor** (The Bog, 90 to 110 seconds in, a still picture until the
+  game was closed; the second visit played). The sun's occlusion count was
+  waited for inside Qualcomm's driver, which leaves a query or two of a first
+  visit without a count for ever; the count is now read without waiting once
+  its frame has finished, and a query the driver never answers counts
+  nothing (`runtime/gpu/vulkan/renderer_frame.cpp`, all games share it;
+  [docs/rendering.md](docs/rendering.md#occlusion-queries)). Diagnostics
+  builds on Android now write every thread's stack at a `STALL`, which is
+  how it was found.
+
 ### Added
 - **`tools/release/release.py`: a release is made by one script, behind
   gates.** It filters the branch into the four public mirrors (refusing a

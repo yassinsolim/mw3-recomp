@@ -1120,6 +1120,14 @@ end record must eventually be written**, or the title hangs.
   written by `CollectOcclusionQueries` (in the consumer loop and during
   `WAIT_REG_MEM` polls) once the GPU has finished. Results go out in the order
   the title closed the brackets, saturated at `0x7FFFFFFF`.
+- A count is read once its submission's fence has signalled and is never
+  waited for in the driver (`VK_QUERY_RESULT_WITH_AVAILABILITY_BIT`, not
+  `WAIT_BIT`). A query still unavailable then counts nothing. Qualcomm's
+  driver on an Adreno 740 leaves one or two such queries in a first visit
+  (pipelines still compiling), and the wait for one never returned: the
+  consumer sat in `vkGetQueryPoolResults`, Call of Duty 4's back end polled
+  the sun's count (`sub_82108830`) and its main thread waited for the back
+  end, a still picture for the rest of the run (The Bog on an AYN Thor).
 
 ## Pipelines
 

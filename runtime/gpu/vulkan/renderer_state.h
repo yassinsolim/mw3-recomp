@@ -467,6 +467,8 @@ namespace vk::renderer::detail
         uint32_t guestQueryFirst = 0;   // the bracket in progress's first query
         uint32_t guestQueryCount = 0;   // and how many of them it has used
         uint32_t guestQueryNext = 0;    // where the next bracket starts in the ring
+        // Queries a finished submission left without a count (Read).
+        uint64_t guestQueriesUnanswered = 0;
         // The scale of the pass each query in the ring counted in.
         uint8_t guestQueryScale[kGuestQueryRing]{};
         // And the share of the title's pixels that pass drew (the scene drawn
