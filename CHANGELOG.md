@@ -5,6 +5,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **`tools/release/release.py`: a release is made by one script, behind
+  gates.** It filters the branch into the four public mirrors (refusing a
+  game file, a blob over 20 MB, a path of a game that is not released, or a
+  push that is not a fast-forward), pushes the tags, and checks each
+  drafted APK itself: the workflows ended well, no recompiled code and no
+  game file, the release key, the Turnip package and libadrenotools inside
+  the APK, the game code the published app took still taken (or the notes
+  say it is built again), the build tools published first, and notes of
+  plain text under 1,450 characters. `publish` wants the report of the
+  device gates as well and afterwards fetches every download a player's
+  app would ([docs/android-releases.md](docs/android-releases.md#the-automated-procedure)).
 - **`tools/visualqa`: every test run is recorded and every frame of it
   checked.** `visualqa.py run <scenario> --device thor` starts a title in a
   level or a match with bots, records the screen (`adb shell screenrecord`)
