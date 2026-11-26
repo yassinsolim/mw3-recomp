@@ -352,15 +352,18 @@ object GameBuild {
      * title that is [KitTitle.fromUpdate]: the runtime's own patcher writes
      * it (runtime/install/install.cpp) and checks that it is the one this
      * app's game code is for. Made once for each update package: beside it
-     * is a note of the package it came from.
+     * is a note of the package it came from. A folder off a console may
+     * hold several updates, one a pressing of the disc, and the one that
+     * fits this disc is found by trying each, as the game does at its start.
      */
     private fun makeFromUpdate(context: Context, kit: Kit, title: KitTitle) {
-        val update = Dlc.update(context) ?: throw Failure(context.getString(R.string.build_update_missing))
+        val updates = Dlc.updates(context)
+        if (updates.isEmpty()) throw Failure(context.getString(R.string.build_update_missing))
         val target = executable(context, title)
         val note = File(target.path + ".from")
-        val from = "${update.name}|${update.length()}|${update.lastModified()}"
+        fun stamp(update: File) = "${update.name}|${update.length()}|${update.lastModified()}"
         val made = try {
-            target.isFile && note.readText() == from
+            target.isFile && note.readText() in updates.map { stamp(it) }
         } catch (_: IOException) {
             false
         }
@@ -371,8 +374,11 @@ object GameBuild {
         if (!NativeBridge.load(Title.carried.first())) throw Failure(NativeBridge.loadError().orEmpty())
         target.parentFile?.mkdirs()
         note.delete()
-        NativeBridge.nativeMakeUpdatedExecutable(update.path, disc.path, target.path)?.let { throw Failure(it) }
-        note.writeText(from)
+        var refusal = ""
+        for (update in updates) {
+            refusal = NativeBridge.nativeMakeUpdatedExecutable(update.path, disc.path, target.path) ?: return note.writeText(stamp(update))
+        }
+        throw Failure(refusal)
     }
 
     // ---- the build -------------------------------------------------------------

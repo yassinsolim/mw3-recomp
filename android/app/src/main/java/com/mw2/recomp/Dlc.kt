@@ -18,9 +18,6 @@ import java.io.InputStream
  */
 object Dlc {
     private val TITLE_ID = Title.titleId.toInt()
-    private const val CONTENT = 0x00000002
-    private const val UPDATE = 0x000B0000
-    private const val HEADER = 0x511
 
     /** The game's folder on the console's hard disk, below Content\0000000000000000. */
     val consoleFolder: String = "%08X".format(Title.titleId)
@@ -59,46 +56,82 @@ object Dlc {
     }
 
     /**
-     * Reads a package's header: null for anything that is not a package of
-     * this game's downloadable content or its title update. The container
-     * begins LIVE or PIRS, with its content type at 0x344, the title at
-     * 0x360 and the name at 0x411 (tools/stfs.py).
+     * What a file says it is (PackageCheck): its first bytes, read from
+     * [input], of a file [size] bytes long, 0 when that is not known.
      */
-    fun header(input: InputStream): Header? {
-        val head = ByteArray(HEADER)
+    fun check(input: InputStream, size: Long): PackageCheck.Header {
+        val head = ByteArray(PackageCheck.HEADER)
         var have = 0
         while (have < head.size) {
             val read = input.read(head, have, head.size - have)
-            if (read <= 0) return null
+            if (read <= 0) break
             have += read
         }
-        val magic = String(head, 0, 4, Charsets.ISO_8859_1)
-        if (magic != "LIVE" && magic != "PIRS") return null
-        fun word(at: Int) = (0 until 4).fold(0) { value, i -> (value shl 8) or (head[at + i].toInt() and 0xFF) }
-        val type = word(0x344)
-        if (word(0x360) != TITLE_ID || (type != CONTENT && !(type == UPDATE && takesUpdate))) return null
-        val name = String(head, 0x411, 0x100, Charsets.UTF_16BE).substringBefore('\u0000')
-        return Header(name, type == UPDATE)
+        return PackageCheck.header(head.copyOf(have), size, TITLE_ID, takesUpdate)
     }
 
-    private fun header(file: File): Header? = try {
-        file.inputStream().use { header(it) }
+    private fun check(file: File): PackageCheck.Header = try {
+        file.inputStream().use { check(it, file.length()) }
     } catch (_: IOException) {
-        null
+        PackageCheck.Header(PackageCheck.Problem.NOT_A_PACKAGE)
+    }
+
+    /** A package of this game's downloadable content or its title update, whole by its own account: null for anything else. */
+    private fun header(file: File): Header? = check(file).let { if (it.problem == null) Header(it.name, it.update) else null }
+
+    /**
+     * What is wrong with a file, in one sentence that names it: by the name
+     * the console shows, which its header has, or else by [file]'s.
+     */
+    fun sentence(context: Context, file: String, found: PackageCheck.Header): String {
+        val name = found.name.ifEmpty { file }
+        return when (found.problem) {
+            PackageCheck.Problem.DAMAGED -> context.getString(R.string.dlc_check_damaged, name)
+            PackageCheck.Problem.INCOMPLETE -> context.getString(R.string.dlc_check_incomplete, name)
+            PackageCheck.Problem.OTHER_GAME -> context.getString(R.string.dlc_check_other_game, name, "%08X".format(found.titleId))
+            PackageCheck.Problem.OTHER_KIND -> context.getString(R.string.dlc_check_other_kind, name)
+            PackageCheck.Problem.NOT_A_PACKAGE, null -> context.getString(R.string.dlc_check_not_a_package, name)
+        }
+    }
+
+    private fun candidates(context: Context): List<File> =
+        folder(context).listFiles().orEmpty().filter { it.isFile && it.name !in installDisc && !it.name.endsWith(".part") }
+
+    /**
+     * What in the dlc folder the game is not given, each with its sentence:
+     * a file put there by hand or by a copy that broke, which the game
+     * would call a corrupt content pack, and the older of two copies of one
+     * pack (the runtime takes the newer: runtime/kernel/content_route.h).
+     */
+    fun refused(context: Context): List<String> {
+        val said = ArrayList<String>()
+        val packs = HashMap<String, Pair<String, Int>>()
+        for (file in candidates(context).sortedBy { it.name }) {
+            val found = check(file)
+            if (found.problem != null) {
+                said.add(sentence(context, file.name, found))
+                continue
+            }
+            if (found.update) continue
+            val marker = StfsPackage.rootFiles(file).firstOrNull { it.endsWith(".id", ignoreCase = true) }?.lowercase() ?: continue
+            val other = packs[marker]
+            if (other != null) said.add(context.getString(R.string.dlc_check_twice, if (found.version > other.second) other.first else found.name))
+            if (other == null || found.version > other.second) packs[marker] = found.name to found.version
+        }
+        return said
     }
 
     /** The player's packages in the dlc folder, the title update first. */
     fun installed(context: Context): List<Package> =
-        folder(context).listFiles().orEmpty()
-            .filter { it.isFile && it.name !in installDisc && !it.name.endsWith(".part") }
+        candidates(context)
             .mapNotNull { file -> header(file)?.let { Package(file, it) } }
             .sortedWith(compareBy({ !it.header.update }, { it.header.name }))
 
     /** Whether a title update's package is there: the map packs are for the game it makes. */
-    fun hasUpdate(context: Context): Boolean = update(context) != null
+    fun hasUpdate(context: Context): Boolean = updates(context).isNotEmpty()
 
-    /** The title update's package, the first by name as the runtime takes them (runtime/kernel/content.cpp). */
-    fun update(context: Context): File? = installed(context).firstOrNull { it.header.update }?.file
+    /** The title update's packages: a console has one, a folder copied off two may have more. */
+    fun updates(context: Context): List<File> = installed(context).filter { it.header.update }.map { it.file }
 
     /**
      * The Compatibility Packs that are not among [packages], by number. With
@@ -171,40 +204,54 @@ object Dlc {
         return Source(uri, name, size)
     }
 
-    /** What [add] did with the files it was given. */
-    class Added(val copied: List<String>, val already: Int, val notPackages: Int)
+    /** What [add] did with the files it was given: [refused] has a sentence for each package that was not kept. */
+    class Added(val copied: List<String>, val already: Int, val notPackages: Int, val refused: List<String>)
 
     /**
      * Copies those of [sources] that are this game's packages into the dlc
      * folder, each under the name it has (the console's) and through a
-     * temporary one, so a file there is a file copied whole. One of the same
-     * name and size is left as it is. [progress] is told the bytes copied of
-     * the bytes there are; [cancelled] ends it between blocks. Throws an
+     * temporary one, so a file there is a file copied whole. Each is
+     * checked first by its header and then, as it is copied, block by block
+     * against its own hashes (PackageCheck): one that is damaged or stops
+     * short is not kept, and [Added.refused] says so. One of the same name
+     * and size is left as it is. [progress] is told the bytes copied of the
+     * bytes there are; [cancelled] ends it between blocks. Throws an
      * [IOException] that says what went wrong.
      */
     fun add(context: Context, sources: List<Source>, progress: (Long, Long) -> Unit, cancelled: () -> Boolean): Added {
         val folder = folder(context)
         if (!folder.isDirectory && !folder.mkdirs()) throw IOException("the dlc folder could not be made: $folder")
-        val packages = sources.filter { source ->
-            try {
-                context.contentResolver.openInputStream(source.uri)?.use { header(it) } != null
+        val refused = ArrayList<String>()
+        val packages = ArrayList<Pair<Source, PackageCheck.Header>>()
+        var notPackages = 0
+        for (source in sources) {
+            val found = try {
+                context.contentResolver.openInputStream(source.uri)?.use { check(it, source.size) }
             } catch (_: Exception) {
-                false
+                null
+            } ?: PackageCheck.Header(PackageCheck.Problem.NOT_A_PACKAGE)
+            when (found.problem) {
+                null -> packages.add(source to found)
+                // A folder off a console holds much that is no package: saves, pictures, a profile.
+                PackageCheck.Problem.NOT_A_PACKAGE -> notPackages++
+                else -> refused.add(sentence(context, source.name, found))
             }
         }
-        val wanted = packages.filter { File(folder, safeName(it.name)).let { there -> !there.isFile || there.length() != it.size } }
-        val total = wanted.sumOf { it.size }
+        val wanted = packages.filter { (source, _) -> File(folder, safeName(source.name)).let { there -> !there.isFile || there.length() != source.size } }
+        val total = wanted.sumOf { it.first.size }
         if (total > folder.usableSpace) {
             throw IOException(context.getString(R.string.dlc_no_room, total / 1e9, folder.usableSpace / 1e9))
         }
         var done = 0L
         val copied = ArrayList<String>()
         val buffer = ByteArray(1 shl 20)
-        for (source in wanted) {
+        for ((source, found) in wanted) {
             val target = File(folder, safeName(source.name))
             val partial = File(target.path + ".part")
             try {
                 val input = context.contentResolver.openInputStream(source.uri) ?: throw IOException("${source.name} could not be opened")
+                val blocks = PackageCheck.Blocks(found.blocks)
+                var length = 0L
                 input.use {
                     partial.outputStream().use { output ->
                         while (true) {
@@ -212,19 +259,26 @@ object Dlc {
                             val read = input.read(buffer)
                             if (read <= 0) break
                             output.write(buffer, 0, read)
+                            blocks.feed(buffer, 0, read)
+                            length += read
                             done += read
                             progress(done, total)
                         }
                     }
                 }
+                if (!blocks.whole) {
+                    val problem = if (length < found.bytes) PackageCheck.Problem.INCOMPLETE else PackageCheck.Problem.DAMAGED
+                    refused.add(sentence(context, source.name, PackageCheck.Header(problem, found.name)))
+                    continue
+                }
                 if (!partial.renameTo(target)) throw IOException("${source.name} could not be kept")
-                copied.add(header(target)?.name ?: source.name)
+                copied.add(found.name.ifEmpty { source.name })
             } finally {
                 partial.delete()
             }
         }
         TitleUpdate.refresh(context)
-        return Added(copied, packages.size - wanted.size, sources.size - packages.size)
+        return Added(copied, packages.size - wanted.size, notPackages, refused)
     }
 
     /** A document's name as a file's: the console's names are letters and digits, and nothing else is let through as a path. */

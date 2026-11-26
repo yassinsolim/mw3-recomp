@@ -42,6 +42,9 @@ namespace kernel
             // here, and the package is the player's own.
             uint32_t licenceBits = 0;
             std::u16string displayName;
+            // The package's own version: of two copies of one pack, the
+            // higher is the newer.
+            uint32_t version = 0;
         };
 
         // The disc image at `source`: a path, or "fd:<number>" for a file the

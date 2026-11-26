@@ -18,6 +18,33 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   GitHub requires it; the launcher's message says which file to drag into it
   and where it was saved, and names the right issues page when no browser
   opens (`launcher/report.cpp`, `launcher/main.cpp`).
+- **Advanced Warfare: the campaign no longer calls your map packs corrupt,
+  and a package that is damaged is named.** With the Compatibility Packs
+  added, choosing Campaign could end in the game's own "An installed
+  Content Pack is corrupt. It must be deleted to continue." The disc's
+  campaign and multiplayer know only the packs of their own time: a
+  package with no marker they know, which every Compatibility Pack is, they
+  note as corrupt, and their list holds twelve. Each executable is now
+  given only the packages it can use (the install disc's and the bonus
+  items go to all three, the map packs, the Season Pass and the
+  Compatibility Packs to the updated multiplayer), the newer of two copies
+  of one pack is taken, and every title update in the folder is tried
+  until one fits the disc. Before that every package is checked against
+  the hashes it keeps of itself (its header at each start; every block
+  when Add DLC copies it and when setup lists it), and one that is
+  damaged, incomplete, another game's or no map pack is left out with a
+  sentence that names it, in Add DLC and in the log, which also has a line
+  for each package and which executable was given it
+  ([docs/dlc.md](docs/dlc.md#what-each-executable-is-given-and-what-is-checked-first)).
+  Seen on Windows and on the AYN Thor with the owner's eleven packages and
+  two updates: the campaign's menu and a new game, with two packages given
+  and eleven left to the updated multiplayer. **Not seen:** the notice
+  itself before the change (the owner's set does not bring it up; the
+  tester's seventeen do), the Retroid Pocket Flip 2, the updated
+  multiplayer started from the campaign's menu, and Add DLC's new sentences
+  on a phone. Exo Zombies stays an entry of the launcher: on a console it
+  is in the updated campaign's main menu, and the campaign here is the
+  disc's.
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose

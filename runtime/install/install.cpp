@@ -148,33 +148,42 @@ namespace
 #endif
 
 #if defined(AW_TITLE_TU17)
-    // The game folder has the disc's default_mp.xex and the dlc folder the
-    // player's own update package; the update's executable is the first with
-    // the second's default_mp.xexp applied, made here at every start and
-    // kept nowhere.
-    bool ApplyTitleUpdate(std::vector<uint8_t>& file, const fs::path& gameRoot, std::string& error)
-    {
-        std::vector<uint8_t> patch, updated;
-        if (!kernel::ReadTitleUpdateFile(gameRoot, "default_mp.xexp", patch))
-        {
-            error = "The map packs' multiplayer needs the game's title update, and no update package is in the dlc folder (docs/dlc.md).";
-            return false;
-        }
-        if (XexPatcher::apply(file.data(), file.size(), patch.data(), patch.size(), updated, false) != XexPatcher::Result::Success)
-        {
-            error = "The title update in the dlc folder does not apply to this disc's default_mp.xex.";
-            return false;
-        }
-        file = std::move(updated);
-        return true;
-    }
-
     bool IsUpdateImage(const std::vector<uint8_t>& image, std::string& error)
     {
         install::crypto::Sha256 hash;
         hash.Update(image.data(), image.size());
         if (hash.FinalHex() == kUpdateImageSha256) return true;
         error = "the title update in the dlc folder makes another executable than the one this build is for (title update 17's)";
+        return false;
+    }
+
+    // The game folder has the disc's default_mp.xex and the dlc folder the
+    // player's own update package; the update's executable is the first with
+    // the second's default_mp.xexp applied, made here at every start and
+    // kept nowhere. A folder copied off a console may hold more than one
+    // update (a tester's had two, of two pressings of the disc), and one of
+    // another pressing or another version does not make this build's
+    // executable: each is tried until one does.
+    bool ApplyTitleUpdate(const std::vector<uint8_t>& file, std::vector<uint8_t>& xexHeader, std::vector<uint8_t>& image,
+                          const fs::path& gameRoot, std::string& error)
+    {
+        std::vector<uint8_t> patch;
+        if (!kernel::ReadTitleUpdateFile(gameRoot, "default_mp.xexp", patch))
+        {
+            error = "The map packs' multiplayer needs the game's title update, and no update package is in the dlc folder (docs/dlc.md).";
+            return false;
+        }
+        do
+        {
+            std::vector<uint8_t> updated;
+            std::string why;
+            if (XexPatcher::apply(file.data(), file.size(), patch.data(), patch.size(), updated, false) != XexPatcher::Result::Success ||
+                !install::xex::Header(updated, xexHeader, why) || !install::xex::Image(updated, image, why))
+                continue;
+            if (IsUpdateImage(image, why)) return true;
+        } while (kernel::NextTitleUpdate(gameRoot) && kernel::ReadTitleUpdateFile(gameRoot, "default_mp.xexp", patch));
+        error = "No title update in the dlc folder fits this disc: the map packs need title update 17 as it was made"
+                " for your disc (copy Content\\0000000000000000\\41560914\\000B0000 from the console the disc was played on).";
         return false;
     }
 #endif
@@ -194,18 +203,14 @@ namespace
         hash.Update(file.data(), file.size());
         if (hash.FinalHex() != kSha256) return Installed::No;
 #if defined(AW_TITLE_TU17)
-        if (!ApplyTitleUpdate(file, g_gameFolder, error)) return Installed::Unreadable;
-#endif
-        if (!install::xex::Header(file, xexHeader, error) ||
-#if defined(AW_TITLE_TU17)
-            !install::xex::Image(file, image, error) || !IsUpdateImage(image, error))
+        if (!ApplyTitleUpdate(file, xexHeader, image, g_gameFolder, error)) return Installed::Unreadable;
 #else
-            !install::xex::Image(file, image, error))
-#endif
+        if (!install::xex::Header(file, xexHeader, error) || !install::xex::Image(file, image, error))
         {
             error = Utf8(path) + ": " + error;
             return Installed::Unreadable;
         }
+#endif
         return Installed::Yes;
     }
 
@@ -794,8 +799,9 @@ bool install::LoadImageFile(const fs::path& path, std::vector<uint8_t>& image, s
         // One that is the update's already is taken as it is.
         crypto::Sha256 hash;
         hash.Update(file.data(), file.size());
-        if (hash.FinalHex() == kSha256 && !ApplyTitleUpdate(file, fs::absolute(path).parent_path(), error))
+        if (hash.FinalHex() == kSha256)
         {
+            if (ApplyTitleUpdate(file, xexHeader, image, fs::absolute(path).parent_path(), error)) return true;
             LOGE("%s: %s", Utf8(path).c_str(), error.c_str());
             return false;
         }

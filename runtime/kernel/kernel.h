@@ -144,6 +144,9 @@ namespace kernel
     // One of its files, whole, for the game folder `gameRoot` (before
     // Initialise): false when there is no update's package, or no such file.
     bool ReadTitleUpdateFile(const std::filesystem::path& gameRoot, const std::string& name, std::vector<uint8_t>& bytes);
+    // The update in use did not make this build's executable: the next one
+    // found is in use instead. False when there is no other.
+    bool NextTitleUpdate(const std::filesystem::path& gameRoot);
     // The three letters its localised fastfiles begin with ("sna") when the
     // update is of a pressing in another language than the game runs in and
     // so has none of English's; empty otherwise. Whether it has a fastfile.

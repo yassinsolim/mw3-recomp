@@ -96,7 +96,7 @@
     <string name="dlc_title">Add DLC</string>
     <string name="dlc_detail">Your own map packs, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
     <string name="dlc_detail_update">Your own map packs and the game\'s title update, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
-    <string name="zombies_detail">Exo Zombies, from your own map packs: the multiplayer with the title update, started in its zombies mode. Xbox Live, Local Play or System Link, as in multiplayer.</string>
+    <string name="zombies_detail">Exo Zombies, from your own map packs. On a console it is in the updated campaign\'s main menu; here it starts from this entry: the multiplayer with the title update, in its zombies mode. Xbox Live, Local Play or System Link, as in multiplayer.</string>
     <string name="dlc_hint">Copy the folder Content\\0000000000000000\\%1$s off your console\'s hard disk (a USB drive set up as Xbox 360 storage, or the disk in a PC) and choose it here, or choose the files in it: the map packs are in 00000002. The files stay yours and are only read. Hold an entry to remove it.</string>
     <string name="dlc_hint_update">Copy the folder Content\\0000000000000000\\%1$s off your console\'s hard disk (a USB drive set up as Xbox 360 storage, or the disk in a PC) and choose it here, or choose the files in it: the map packs are in 00000002 and the title update, which they need, in 000B0000. The files stay yours and are only read. Hold an entry to remove it.</string>
     <string name="dlc_packs_ready">%1$d packages are here. Their maps are under BONUS MAPS at the top of the map list, in a private match or System Link; everybody in a match needs the map\'s pack.</string>
@@ -127,6 +127,12 @@
     <string name="dlc_cancelled">Stopped before it was finished.</string>
     <string name="dlc_remove">Remove</string>
     <string name="dlc_remove_ask">Remove this package from the phone (%1$.2f GB)? Your copy on the console is not touched.</string>
+    <string name="dlc_check_damaged">%1$s is damaged: copy it again from your console.</string>
+    <string name="dlc_check_incomplete">%1$s is incomplete: copy it again from your console.</string>
+    <string name="dlc_check_other_game">%1$s is for another game (%2$s), not this one.</string>
+    <string name="dlc_check_other_kind">%1$s is not a map pack or title update of this game.</string>
+    <string name="dlc_check_not_a_package">%1$s is not a package from a console\'s hard disk.</string>
+    <string name="dlc_check_twice">%1$s is here twice; the newer copy is used.</string>
     <string name="aw_install_disc_needed">The game disc is set up. Now choose the image of the second disc, the install disc: the game needs its files too.</string>
     <string name="aw_game_disc_needed">The install disc is set up. Now choose the image of the game disc.</string>
     <string name="install_failed">The install did not finish:\n%1$s</string>

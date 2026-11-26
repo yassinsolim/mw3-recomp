@@ -464,6 +464,12 @@ if [ -n "$DLC" ]; then
             'pack '*)
                 path=${line#pack }; name=${path#*$'\t'}; path=${path%%$'\t'*}
                 [[ " ${INSTALL_PACKAGES[*]} " == *" $(basename "$path") "* ]] || { DLC_FILES+=("$path"); note "$name"; } ;;
+            # A package that is damaged, stopped part-way or another game's:
+            # the game would call it a corrupt content pack, so it is left
+            # out and said.
+            'bad '*)
+                path=${line#bad }; name=${path#*$'\t'}; path=${path%%$'\t'*}
+                warn "$name. It is not copied or used ($path)." ;;
         esac
     done <<< "$listing"
     if [ -n "$UPDATE_BUILD" ]; then

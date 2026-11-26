@@ -1,9 +1,11 @@
 #include "volume.h"
 #include "../log.h"
 #include "../../launcher/disc.h"
+#include "../install/crypto.h"
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 
 #include <fcntl.h>
@@ -38,6 +40,8 @@ namespace
     constexpr uint32_t kPerTable = 0xAA;        // data blocks one hash table covers
     constexpr uint32_t kPerLevel1 = 0x70E4;     // and one second-level table
     constexpr uint64_t kFirstBlock = 0xC000;
+    // Where the header ends and the first hash table begins.
+    constexpr size_t kHeaderEnd = 0xB000;
     constexpr size_t kTableEntry = 0x18, kFileEntry = 0x40;
     // A file table of more blocks than this is not a map pack's (it would name
     // sixteen thousand files), and is not read.
@@ -217,23 +221,52 @@ std::shared_ptr<ReadVolume> ReadVolume::OpenPackage(const std::string& source, u
     volume->size_ = std::min(size, volume->size_ - offset);
     const int fd = volume->descriptor_;
 
-    uint8_t header[0x1000];
-    if (volume->ReadAt(fd, 0, header, sizeof header) != sizeof header ||
+    // The header, to where the first hash table begins: a read-only package
+    // keeps one hash table per group and its header is eleven blocks; a
+    // console-signed one keeps two and lays its blocks out differently.
+    std::vector<uint8_t> headerBytes(kHeaderEnd);
+    uint8_t* const header = headerBytes.data();
+    if (volume->ReadAt(fd, 0, header, 0x1000) != 0x1000 ||
         (std::memcmp(header, "LIVE", 4) != 0 && std::memcmp(header, "PIRS", 4) != 0))
     {
         error = "is not a downloaded content package (LIVE or PIRS)";
         return nullptr;
     }
-    // One hash table per group in a read-only package; a console-signed one
-    // keeps two and lays its blocks out differently.
     if (((Be32(header + 0x340) + 0xFFF) & 0xF000) >> 12 != 0xB)
     {
         error = "is not a read-only package";
         return nullptr;
     }
+    // What a copy can do to a package is checked here, before the title is
+    // given it: the title's own answer to a package it cannot read is a
+    // notice that an installed content pack is corrupt, with nothing to say
+    // which. The package keeps a SHA-1 of its header from the content type
+    // on (0x32C), and says how many blocks it has (0x395); its blocks' own
+    // hashes are checked where it is copied (Add DLC, tools/aw_dlc.py), which
+    // reads all of it once, and not at every start.
+    if (volume->ReadAt(fd, 0x1000, header + 0x1000, kHeaderEnd - 0x1000) != kHeaderEnd - 0x1000)
+    {
+        error = "is incomplete: it ends inside its own header";
+        return nullptr;
+    }
+    const auto hash = install::crypto::Sha1(header + 0x344, kHeaderEnd - 0x344);
+    if (std::memcmp(hash.data(), header + 0x32C, hash.size()) != 0)
+    {
+        error = "is damaged: its header does not match its own checksum";
+        return nullptr;
+    }
+    if (const uint32_t blocks = Be32(header + 0x395); blocks && BlockOffset(blocks - 1) + kBlock > volume->size_)
+    {
+        char text[96];
+        std::snprintf(text, sizeof text, "is incomplete: %.1f of %.1f MB are there", volume->size_ / 1e6,
+                      (BlockOffset(blocks - 1) + kBlock) / 1e6);
+        error = text;
+        return nullptr;
+    }
     Package& package = volume->package_;
     package.contentType = Be32(header + 0x344);
     package.titleId = Be32(header + 0x360);
+    package.version = Be32(header + 0x358);
     for (size_t at = 0x22C; at < 0x22C + 16 * 16; at += 16) package.licenceBits |= Be32(header + at + 8);
     for (size_t at = 0x411; at < 0x411 + 2 * 127; at += 2)
     {

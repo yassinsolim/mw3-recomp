@@ -49,7 +49,10 @@ if(BUILD_TESTING)
     mw3_runtime_test(kernel_threads_test runtime/kernel/threads.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_objects_test runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_files_test runtime/kernel/files.cpp runtime/kernel/volume.cpp runtime/kernel/objects.cpp
-                     runtime/kernel/durable.cpp launcher/disc.cpp)
+                     runtime/kernel/durable.cpp runtime/install/crypto.cpp launcher/disc.cpp)
+    # Which of Advanced Warfare's executables is given which of a player's
+    # packages: the rules alone, on packages the test names.
+    mw3_runtime_test(content_route_test)
     mw3_runtime_test(kernel_dpc_test runtime/kernel/dpc.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_xam_test runtime/kernel/xam.cpp runtime/kernel/objects.cpp)
     mw3_runtime_test(kernel_sync_test runtime/kernel/sync.cpp runtime/kernel/objects.cpp)

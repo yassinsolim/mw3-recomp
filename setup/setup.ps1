@@ -828,6 +828,9 @@ if ($Dlc) {
         elseif ("$line" -match '^pack ([^\t]+)\t(.*)$') {
             if ((Split-Path -Leaf $Matches[1]) -notin $InstallPackages) { $DlcFiles += $Matches[1]; Note "$($Matches[2])" }
         }
+        # A package that is damaged, stopped part-way or another game's: the
+        # game would call it a corrupt content pack, so it is left out and said.
+        elseif ("$line" -match '^bad ([^\t]+)\t(.*)$') { Warn "$($Matches[2]). It is not copied or used ($($Matches[1]))." }
     }
     if ($Aw) {
         if (-not $DlcUpdate) {

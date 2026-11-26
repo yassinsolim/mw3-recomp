@@ -180,3 +180,42 @@ std::string install::crypto::Sha256::FinalHex()
     for (uint8_t byte : Final()) { text += digits[byte >> 4]; text += digits[byte & 15]; }
     return text;
 }
+
+std::array<uint8_t, 20> install::crypto::Sha1(const void* data, size_t size)
+{
+    uint32_t h[5] = { 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
+    const auto rotate = [](uint32_t v, int by) { return v << by | v >> (32 - by); };
+    const auto block = [&](const uint8_t* in)
+    {
+        uint32_t w[80];
+        for (int i = 0; i < 16; i++)
+            w[i] = uint32_t(in[i * 4]) << 24 | uint32_t(in[i * 4 + 1]) << 16 | uint32_t(in[i * 4 + 2]) << 8 | in[i * 4 + 3];
+        for (int i = 16; i < 80; i++) w[i] = rotate(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+        uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4];
+        for (int i = 0; i < 80; i++)
+        {
+            const uint32_t f = i < 20 ? (b & c) | (~b & d) : i < 40 ? b ^ c ^ d : i < 60 ? (b & c) | (b & d) | (c & d) : b ^ c ^ d;
+            const uint32_t k = i < 20 ? 0x5A827999 : i < 40 ? 0x6ED9EBA1 : i < 60 ? 0x8F1BBCDC : 0xCA62C1D6;
+            const uint32_t next = rotate(a, 5) + f + e + k + w[i];
+            e = d; d = c; c = rotate(b, 30); b = a; a = next;
+        }
+        h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e;
+    };
+    const auto* bytes = static_cast<const uint8_t*>(data);
+    size_t at = 0;
+    for (; at + 64 <= size; at += 64) block(bytes + at);
+    // The rest, the 0x80 that ends the message, and its length in bits.
+    uint8_t tail[128] = {};
+    const size_t rest = size - at;
+    std::memcpy(tail, bytes + at, rest);
+    tail[rest] = 0x80;
+    const size_t padded = rest + 9 <= 64 ? 64 : 128;
+    const uint64_t bits = uint64_t(size) * 8;
+    for (int i = 0; i < 8; i++) tail[padded - 1 - i] = uint8_t(bits >> (8 * i));
+    block(tail);
+    if (padded == 128) block(tail + 64);
+    std::array<uint8_t, 20> out;
+    for (int i = 0; i < 5; i++)
+        for (int j = 0; j < 4; j++) out[size_t(i * 4 + j)] = uint8_t(h[i] >> (24 - 8 * j));
+    return out;
+}
