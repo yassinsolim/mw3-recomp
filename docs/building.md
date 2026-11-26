@@ -362,7 +362,8 @@ players' names, and the game's and the home folder's paths; the log as the
 game wrote it is deleted. The new-issue page of this game's own public repository
 (`yassinsolim/<game>-recomp`, by the build's title define) is opened on the
 bug report form (`.github/ISSUE_TEMPLATE/bug-report.yml`) with its game,
-version and device filled in, and
+version and device filled in (its Log box is left empty, so that GitHub
+requires it; the launcher's message names the file to drag there), and
 the folder with the file beside it: the launcher
 has no account to file an issue with and a page cannot be handed a file, so
 the player drags it in.
@@ -485,6 +486,14 @@ runner has none of it.
 
     cmake -S tests -B build-tests -G Ninja
     cmake --build build-tests && ctest --test-dir build-tests --output-on-failure
+
+The gate is Linux (WSL on a Windows machine): all 17 tests pass there with
+`cmake -S . -B build-tests -G Ninja -DMW2_TESTS_ONLY=ON` and clang 18. The same
+configure cross-built with `cmake/mingw-w64.cmake` on Windows does not build
+`kernel_memory_test`, `kernel_files_test`, `kernel_input_test` and
+`kernel-input-scripted` (`setenv`, `unsetenv` and other POSIX calls the tests
+use are not in the mingw headers), and its tests need llvm-mingw's
+`libc++.dll`, `libunwind.dll` and `libwinpthread-1.dll` beside them to start.
 
 Both entry points build the same five targets from `tests/CMakeLists.txt`
 ([.github/workflows/tests.yml](../.github/workflows/tests.yml), which runs them

@@ -34,22 +34,22 @@ namespace
 #if defined(AW_TITLE)
     constexpr const char* kName = "Advanced Warfare";
     constexpr const char* kFile = "aw";
-    constexpr const char* kNewIssue = "https://github.com/yassinsolim/aw-recomp/issues/new";
+    constexpr const char* kRepository = "yassinsolim/aw-recomp";
     constexpr const char* kOption = "AW (Advanced Warfare)";
 #elif defined(COD4_TITLE)
     constexpr const char* kName = "Call of Duty 4";
     constexpr const char* kFile = "cod4";
-    constexpr const char* kNewIssue = "https://github.com/yassinsolim/cod4-recomp/issues/new";
+    constexpr const char* kRepository = "yassinsolim/cod4-recomp";
     constexpr const char* kOption = "CoD4 (Call of Duty 4)";
 #elif defined(MW3_TITLE)
     constexpr const char* kName = "Modern Warfare 3";
     constexpr const char* kFile = "mw3";
-    constexpr const char* kNewIssue = "https://github.com/yassinsolim/mw3-recomp/issues/new";
+    constexpr const char* kRepository = "yassinsolim/mw3-recomp";
     constexpr const char* kOption = "MW3 (Modern Warfare 3)";
 #else
     constexpr const char* kName = "Modern Warfare 2";
     constexpr const char* kFile = "mw2";
-    constexpr const char* kNewIssue = "https://github.com/yassinsolim/mw2-recomp/issues/new";
+    constexpr const char* kRepository = "yassinsolim/mw2-recomp";
     constexpr const char* kOption = "MW2 (Modern Warfare 2)";
 #endif
 
@@ -370,14 +370,14 @@ bool report::Make(Made& made, std::string& error)
     fs::remove(kLog, ec);
 
     // The form's own fields, by their ids (bug-report.yml), filled in as far as a link can: the game,
-    // the version and the machine. The log's box gets the file's name, since a page cannot be handed
-    // the file; the player drags it in. The rest is theirs to write.
+    // the version and the machine. The Log box is left empty on purpose: it is required, and a value
+    // put in it would satisfy that. A page cannot be handed the file, so the launcher's own message
+    // (main.cpp) tells the player to drag it in. The rest is theirs to write.
     const std::string device = System() + "; " + Processor() + "; " + graphics;
-    const std::string drag = "Drag " + name + " into this box. The launcher opened the folder it is in.";
-    made.page = std::string(kNewIssue) + "?template=bug-report.yml&title=" +
+    made.issues = std::string("github.com/") + kRepository + "/issues";
+    made.page = std::string("https://github.com/") + kRepository + "/issues/new?template=bug-report.yml&title=" +
                 Encoded(std::string("[Bug]: ") + what + (fault ? ": crash " : ": ")) +
-                "&game=" + Encoded(kOption) + "&version=" + Encoded(version) + "&device=" + Encoded(device) +
-                "&log=" + Encoded(drag);
+                "&game=" + Encoded(kOption) + "&version=" + Encoded(version) + "&device=" + Encoded(device);
     return true;
 }
 

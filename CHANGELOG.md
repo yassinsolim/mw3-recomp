@@ -14,7 +14,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   tracker. It now opens the bug report form of the game's own repository
   (`yassinsolim/mw3-recomp`, `mw2-recomp`, `cod4-recomp` or `aw-recomp`, by the
   build's title), with the game, the version and the machine filled in, and
-  the report file is named for the game (`launcher/report.cpp`).
+  the report file is named for the game. The form's Log box stays empty so
+  GitHub requires it; the launcher's message says which file to drag into it
+  and where it was saved, and names the right issues page when no browser
+  opens (`launcher/report.cpp`, `launcher/main.cpp`).
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose
