@@ -260,8 +260,8 @@ FLASH_REACH = (72, 40)
 FLASH_MOVED = 0.7
 # And is the same shapes there, not only nearer in brightness, as a darker
 # wall is to a patch gone black: the two agree by this much (a correlation;
-# the moved ones measured 0.49 to 0.99 at their place).
-FLASH_MOVED_ALIKE = 0.45
+# the moved ones measured 0.44 to 0.99 at their place, a flat patch 0.18).
+FLASH_MOVED_ALIKE = 0.35
 # The largest patches of a frame are tried in turn: behind a post that moved
 # there may be a patch that flashed.
 FLASH_PATCHES = 4
@@ -281,7 +281,7 @@ def _flashed_patches(before, frame, after, seen):
     return sorted(patches, reverse=True)[:FLASH_PATCHES]
 
 
-def _moved_from(neighbour, frame, box):
+def _moved_from(neighbour, frame, box, seen):
     """Whether what `frame` has in `box` is in `neighbour` at another place within reach."""
     left, top, wide, high = box
     # A little of what is round the patch goes with it: its edges are what place it.
@@ -291,12 +291,17 @@ def _moved_from(neighbour, frame, box):
     around = cv2.copyMakeBorder(neighbour, down, down, across, across, cv2.BORDER_REPLICATE)
     around = around[top:bottom + 2 * down, left:right + 2 * across]
     patch = frame[top:bottom, left:right]
-    differs = cv2.matchTemplate(around, patch, cv2.TM_SQDIFF)
+    # What the HUD covers stands still while the world moves under it, and is left out
+    # (a pillar passing behind the minimap was a patch that flashed).
+    looked = seen[top:bottom, left:right]
+    differs = cv2.matchTemplate(around, patch, cv2.TM_SQDIFF, mask=looked.astype(np.float32))
     least, _, (place_across, place_down), _ = cv2.minMaxLoc(differs)
     if least >= FLASH_MOVED * FLASH_MOVED * float(differs[down, across]):
         return False
     there = around[place_down:place_down + patch.shape[0], place_across:place_across + patch.shape[1]]
-    return float(cv2.matchTemplate(there, patch, cv2.TM_CCOEFF_NORMED)[0, 0]) >= FLASH_MOVED_ALIKE
+    if there[looked].std() == 0 or patch[looked].std() == 0:
+        return False
+    return float(np.corrcoef(there[looked], patch[looked])[0, 1]) >= FLASH_MOVED_ALIKE
 
 
 def flash(before, frame, after, seen):
@@ -312,7 +317,7 @@ def flash(before, frame, after, seen):
     """
     moving = float((np.abs(before - after)[seen] > 6).mean())
     for pixels, across, down, box in _flashed_patches(before, frame, after, seen):
-        if _moved_from(before, frame, box) or _moved_from(after, frame, box):
+        if _moved_from(before, frame, box, seen) or _moved_from(after, frame, box, seen):
             continue
         height, width = frame.shape
         return pixels / float(seen.sum()), moving, across / width, down / height

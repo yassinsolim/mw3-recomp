@@ -156,8 +156,8 @@ What is left out, and why:
   looked for in both neighbours up to 72 pixels across and 40 down (of a
   frame 480 wide) from where it is, and is not counted when one of them has
   it: with it there the difference falls to 0.13 to 0.60 of what it was
-  (under 0.7 is taken) and the two pictures agree in shape (a correlation
-  of 0.45 or more). The two faults found in runs fell to 0.93 and 0.96:
+  (under 0.7 is taken; what the HUD covers is left out of the comparison) and the two pictures agree in shape (a correlation
+  of 0.35 or more). The two faults found in runs fell to 0.93 and 0.96:
   what flashed is nowhere in the neighbours.
 - **A game at 30 frames a second** is recorded twice a frame; repeated
   frames are dropped before a frame is compared with its neighbours.
@@ -237,8 +237,9 @@ On 26 November 2026, with the numbers in `Thresholds`:
 | fresh runs on the bundled Turnip (S.S.D.D. twice, Rust with bots, Black Tuesday, Survival, The Bog) | 6 | 6 passed |
 | empty matches whose posts, ribbed walls and jumps the check once took for flashes (Rust at 120 Hz, Dome at 60 and 120 Hz) | 3 | 3 passed |
 | Solar with the sun's shadows on, whose honeycomb wall, grille and bare walls two checks once took for blocks and missing ground | 1 | passed |
+| Riot on the Flip 2, where a pillar passing behind the minimap in a turn was taken for a flash | 1 | passed |
 
-14 of 14 faulty recordings caught and 22 of 22 clean ones passed: recall
+14 of 14 faulty recordings caught and 23 of 23 clean ones passed: recall
 1.00, precision 1.00, by recording. The set is small, and nothing in it is
 a black world, a washed frame, a frozen picture or missing ground in a
 recording of a real run: those checks are tested on drawn pictures alone
