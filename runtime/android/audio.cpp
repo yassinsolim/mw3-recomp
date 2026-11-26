@@ -23,6 +23,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstring>
+#include <ctime>
 #include <mutex>
 #include <vector>
 
@@ -99,6 +100,7 @@ namespace
     std::atomic<bool> g_needRestart{ false };
     std::atomic<uint64_t> g_underruns{ 0 };
     uint32_t g_deviceRate = kGuestRate;
+    std::atomic<uint32_t> g_cushionFrames{ 2 };
 
     // Where the resampler is between two ring samples, when the device does
     // not run at 48 kHz. Touched only by the callback.
@@ -240,6 +242,10 @@ namespace
         // Three bursts of slack: enough that a late mixer frame is not a click,
         // short enough that a gunshot is not behind its muzzle flash.
         AAudioStream_setBufferSizeInFrames(stream, burst * 3);
+        // What the device takes at a time, in the mixer's frames and rounded
+        // up, and one more for the mixer's own lateness.
+        const uint32_t taken = uint32_t(uint64_t(burst) * kGuestRate / g_deviceRate);
+        g_cushionFrames.store((taken + kFrameSamples - 1) / kFrameSamples + 1, std::memory_order_relaxed);
         g_resamplePosition = 1.0;
         g_lastSample[0] = g_lastSample[1] = 0;
 
@@ -252,10 +258,23 @@ namespace
         }
 
         g_stream = stream;
-        LOGI("audio: AAudio %d Hz, %d channels, burst %d, %s latency; 5.1 is downmixed to stereo",
+        const bool low = AAudioStream_getPerformanceMode(stream) == AAUDIO_PERFORMANCE_MODE_LOW_LATENCY;
+        LOGI("audio: AAudio %d Hz, %d channels, burst %d, a buffer of %d of %d, %s latency; "
+             "5.1 is downmixed to stereo",
              int(g_deviceRate), int(AAudioStream_getChannelCount(stream)), int(burst),
-             AAudioStream_getPerformanceMode(stream) == AAUDIO_PERFORMANCE_MODE_LOW_LATENCY
-                 ? "low" : "normal");
+             int(AAudioStream_getBufferSizeInFrames(stream)),
+             int(AAudioStream_getBufferCapacityInFrames(stream)), low ? "low" : "normal");
+        // The system keeps a stream off its fast output when an effect that
+        // works on everything played is on (an equaliser application), and
+        // nothing asked for here changes that; an output with no fast path
+        // (Bluetooth) does the same. The sound is then a tenth of a second
+        // and more behind the picture, which a cutscene's speech shows: a
+        // movie's sound came 124 ms after its picture on the AYN Thor with
+        // JamesDSP on, and 36 ms after with it off.
+        if (!low)
+            LOGW("audio: the device gave its ordinary output, not its low-latency one: the sound will be "
+                 "behind the picture. A system-wide equaliser or sound effect does this, and so do "
+                 "Bluetooth headphones");
         return true;
     }
 
@@ -295,6 +314,29 @@ uint32_t android::audio::QueuedFrames()
     if (!IsOpen()) return 0;
     return g_ring.Held() / kFrameSamples;
 }
+
+uint32_t android::audio::CushionFrames() { return g_cushionFrames.load(std::memory_order_relaxed); }
+
+bool android::audio::Latency(double& ringMs, double& deviceMs)
+{
+    // Asked on the mixer's thread, which must not wait for an opening or a
+    // closing stream.
+    std::unique_lock lock(g_streamLock, std::try_to_lock);
+    if (!lock.owns_lock() || !g_stream) return false;
+    int64_t position = 0, shownAt = 0;
+    if (AAudioStream_getTimestamp(g_stream, CLOCK_MONOTONIC, &position, &shownAt) != AAUDIO_OK) return false;
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    const int64_t nowNs = int64_t(now.tv_sec) * 1000000000 + now.tv_nsec;
+    // The frame at `position` reached the speaker at `shownAt`; the one the
+    // callback writes next follows it by what lies between them.
+    const int64_t ahead = AAudioStream_getFramesWritten(g_stream) - position;
+    deviceMs = double(ahead) * 1000.0 / double(g_deviceRate) - double(nowNs - shownAt) / 1e6;
+    ringMs = double(g_ring.Held()) * 1000.0 / double(kGuestRate);
+    return true;
+}
+
+uint64_t android::audio::Underruns() { return g_underruns.load(std::memory_order_relaxed); }
 
 void android::audio::Write(const float* samples, uint32_t frames)
 {

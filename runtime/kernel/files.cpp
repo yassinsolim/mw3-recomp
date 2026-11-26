@@ -18,6 +18,7 @@
 #include "../diagnostics.h"
 #include "../env.h"
 #include "../log.h"
+#include "../movie_trace.h"
 
 #include <algorithm>
 #include <cctype>
@@ -584,6 +585,7 @@ PPC_FUNC(__imp__NtReadFile)
         thread_local std::vector<uint8_t> bounce;
         if (bounce.size() < length) bounce.resize(length);
         size_t got;
+        const double began = movies::On() ? movies::Clock() : 0.0;
         if (file->entry)
         {
             const uint64_t at = offset >= 0 ? uint64_t(offset) : file->position;
@@ -598,6 +600,8 @@ PPC_FUNC(__imp__NtReadFile)
             else if (file->writable) std::fseek(file->handle, 0, SEEK_CUR);
             got = std::fread(bounce.data(), 1, length, file->handle);
         }
+        if (movies::On())
+            movies::Read(file->path.filename().string().c_str(), length, offset, movies::Clock() - began);
         std::memcpy(guest::Base() + buffer, bounce.data(), got);
         uint32_t status = (got == 0 && length != 0) ? X_STATUS_END_OF_FILE : X_STATUS_SUCCESS;
         if (iosb) { iosb->status = status; iosb->information = uint32_t(got); }

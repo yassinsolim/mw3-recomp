@@ -375,6 +375,36 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   third-party repository's expired key) no longer stops it.
 - **`setup.sh --xex-dir` naming the repository's own folder** (`aw/tu0`)
   stopped at `cp: ... are the same file`.
+- **The sound no longer falls behind the picture the longer you play, in all
+  four games on Android.** The mixer made its 256-sample frames every 5333
+  microseconds on the system's clock, 62 samples in a million more than a
+  device plays, and what was made beyond what was played stayed in the
+  output's queue for good: 3.3 ms more every minute on the Retroid Pocket
+  Flip 2 and 3.7 on the AYN Thor (the queue from 4 to 41 ms in ten minutes
+  there), so the sound of everything was a tenth of a second late after half
+  an hour and 170 ms late, where the queue is full, after about fifty
+  minutes. A cutscene's speech against its lips is where it shows, and a
+  Bink movie's too: the title times a movie's pictures to the sound it has
+  handed over, not to what is heard. Now the mixer follows the device (half
+  a hundredth slower while the queue holds more than it does when both are
+  on time, as much faster while it is empty), and the queue is 6.7 ms after
+  ten minutes as at the start there, and on the Flip 2 a movie started ten
+  minutes in has its sound 17 ms after its picture (12 ms for one started
+  after thirty seconds). A mixer frame that came late (a level
+  starting, pipelines compiling) used to be passed over, which left every
+  sound then playing that much behind until it ended (107 ms in one level
+  start on the Thor, 60 ms over two minutes of a loading movie on the Flip
+  2): it is mixed now, and the frames mixed late are not played once the
+  queue is back to what it holds on time. Measured with `MW2_TRACE_MOVIES=1`
+  (new: a movie's pictures, the mixer's frames and the output's queue on one
+  clock, [docs/switches.md](docs/switches.md)) against the movie's own sound
+  track found in `MW2_AUDIO_DUMP`'s file; [docs/audio.md](docs/audio.md).
+  An application update, with nothing to build again.
+- **The log says when the device keeps the sound off its low-latency
+  output.** A system-wide equaliser or sound effect does that, and so do
+  Bluetooth headphones; the sound is then a tenth of a second and more
+  behind the picture whatever the game does (a movie's sound 124 ms after
+  its picture on the AYN Thor with JamesDSP on, 36 ms with it off).
 - **A folder of disc images is taken as that, in all four games.** A player
   who keeps his `.iso` files in a folder of their own
   (`<SD card>/Roms/xbox 360/Call Of Duty - Advanced Warfare/`) and chose that

@@ -12,6 +12,7 @@
 #include "../env.h"
 #include "../guest.h"
 #include "../log.h"
+#include "../movie_trace.h"
 #include "../crash.h"
 #include "../platform.h"
 #include "../kernel/kernel.h"
@@ -44,11 +45,14 @@ namespace
     constexpr uint32_t kSamplesPerChannel = 256;
     constexpr uint32_t kFrameFloats = kChannels * kSamplesPerChannel;
     constexpr uint32_t kFrameBytes = kFrameFloats * sizeof(float);
-    constexpr auto     kFrameInterval = std::chrono::microseconds(5333);
+    // 256 samples of 48000 a second. To the nanosecond: at 5333 microseconds
+    // the mixer made 62 samples in a million more than a device plays.
+    constexpr auto     kFrameInterval = std::chrono::nanoseconds(5333333);
 
     // Queue bounds on the host side, in frames of 5.333 ms.
 #ifdef MW2_ANDROID
     constexpr uint32_t kHighWaterFrames = 48;   // drop above this (256 ms)
+    constexpr int      kMostCaughtUp = 40;      // frames mixed late before the clock is taken afresh (213 ms)
 #else
     constexpr uint32_t kLowWaterFrames  = 3;    // pump early below this
     constexpr uint32_t kHighWaterFrames = 24;   // drop above this (128 ms)
@@ -75,6 +79,10 @@ namespace
 
     diag::Stat g_callbacks, g_frames, g_dropped, g_earlyPumps;   // the audio thread's
     std::atomic<bool> g_outputOpen{ false };
+#ifdef MW2_ANDROID
+    // The frame being mixed was due more than a frame ago (WorkerMain).
+    std::atomic<bool> g_catchingUp{ false };
+#endif
 
 #ifdef MW2_USE_SDL
     SDL_AudioStream* g_stream = nullptr;
@@ -256,17 +264,38 @@ namespace
                 }
                 const auto now = Clock::now();
 #ifdef MW2_ANDROID
-                // Android's clock: no early pump, and a single late frame
-                // resynchronises rather than being caught up.
+                // Android's clock: no early pump.
                 if (pick->next > now)
                 {
                     g_wake.wait_until(guard, pick->next);
                     continue;
                 }
-                if (pick->next + kFrameInterval < now)
-                    pick->next = now + kFrameInterval;
-                else
-                    pick->next += kFrameInterval;
+                // A frame that comes late is still mixed, and the ones due
+                // since are mixed straight after it: the title's sound runs
+                // on the count of these frames, and one that was passed over
+                // left every sound playing that much behind the picture for
+                // the rest of its length (a cutscene's whole sound track is
+                // one sound). Behind by a lot, the process was stopped.
+                if (pick->next + kMostCaughtUp * kFrameInterval < now) pick->next = now;
+                g_catchingUp.store(pick->next + kFrameInterval < now, std::memory_order_relaxed);
+                // The device plays on its own clock, which is not this one
+                // to a part in ten thousand, and what the mixer makes beyond
+                // what the device plays stays in the sink for good: 3.3 ms
+                // more every minute on the Retroid Pocket Flip 2 (the 5333
+                // microseconds the interval was, and the clocks), the sound
+                // 100 ms behind the picture after half an hour, which a
+                // cutscene's speech shows. So the mixer follows the device:
+                // half a hundredth slower while the sink holds more than it
+                // does when both are on time, as much faster while it is
+                // empty when a frame is due.
+                auto interval = kFrameInterval;
+                if (g_outputOpen)
+                {
+                    const uint32_t held = android::audio::QueuedFrames();
+                    if (held > android::audio::CushionFrames()) interval += kFrameInterval / 200;
+                    else if (held == 0) interval -= kFrameInterval / 200;
+                }
+                pick->next += interval;
 #else
                 Clock::time_point due = pick->next;
                 // Behind by a lot (the process was stopped): resynchronise rather
@@ -363,9 +392,25 @@ void apu::audio::SubmitFrame(uint32_t handle, uint32_t samplesGuestAddress)
     if ((handle & 0xFFFF0000u) != kHandleTag || i >= kMaxClients || !samplesGuestAddress) return;
     g_frames++;
     Dump(samplesGuestAddress);
+    if (movies::On())
+    {
+        double queuedMs = QueuedFrames() * (kSamplesPerChannel * 1000.0 / kFrequency), deviceMs = -1.0;
+        uint64_t underruns = 0;
+#ifdef MW2_ANDROID
+        android::audio::Latency(queuedMs, deviceMs);
+        underruns = android::audio::Underruns();
+#endif
+        movies::Sound(queuedMs, deviceMs, underruns);
+    }
 #ifdef MW2_ANDROID
     if (!g_outputOpen) return;
     if (android::audio::QueuedFrames() > kHighWaterFrames) { g_dropped++; return; }
+    // The device played silence where a late frame should have been, so the
+    // frames mixed late are owed to nobody once the sink holds what it does
+    // when the mixer is on time: played as well, they would stay in the sink
+    // and every sound after them would be that much later for good.
+    if (g_catchingUp.load(std::memory_order_relaxed) &&
+        android::audio::QueuedFrames() >= android::audio::CushionFrames()) { g_dropped++; return; }
     {
         // Six planes of 256 big-endian floats to interleaved host floats,
         // the same conversion the SDL path makes; the sink folds them down.

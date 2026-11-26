@@ -167,8 +167,17 @@ namespace android::audio
     // How much the sink still holds, in 256-sample frames, so the mixer can
     // pace itself the way it does against SDL.
     uint32_t QueuedFrames();
+    // What the sink holds when the mixer is on time, in the same frames.
+    uint32_t CushionFrames();
     bool IsOpen();
     void SetMuted(bool muted);
+    // How long a sample written now waits before the speaker has it, from
+    // the stream's own account of what it has played: the ring's share and
+    // the device's, in milliseconds. False while the stream has no account
+    // yet (its first tenths of a second) or is being reopened.
+    bool Latency(double& ringMs, double& deviceMs);
+    // Callbacks the ring could not fill, since the start.
+    uint64_t Underruns();
 }
 
 // ---- the microphone -------------------------------------------------------

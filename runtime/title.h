@@ -324,6 +324,15 @@
 // at +32 by the widescreen byte, and the two pixel aspects worked out of the
 // sizes. What the start-up calls next (sub_825ABD18) is handed the same copy.
 #define T_R_SetVidConfigOfSizes 825AB870
+// Bink 2, linked in (the BINK section), named by what the cinematic's update
+// (sub_8258CB98) does with each: it sleeps while BinkWait says so, starts a
+// frame's decode on Bink's two threads and polls for its end, then steps to
+// the next frame, comparing FrameNum (+12) with Frames (+8) around them
+// (movie_trace.cpp, MW2_TRACE_MOVIES).
+#define T_Bink_Open               82713108   // (name or memory, flags)
+#define T_Bink_DoFrameAsync       82714718   // (bink, first thread, second thread)
+#define T_Bink_DoFrameAsyncWait   82714570   // (bink, microseconds): nonzero once decoded
+#define T_Bink_NextFrame          82713AF0
 
 // the kernel's data imports, as the multiplayer's
 #define T_DATA_TimeStampBundlePtr 0x82000874u   // the KeTimeStampBundle import record
@@ -355,6 +364,7 @@
 #define T_R_VideoSizes         8216CCD0
 #define T_D3D_Present          820B08D0   // the one caller of VdSwap
 #define T_D3D_ArenaWait        820A99C0
+
 #define T_DEV_PresentInterval  13580u
 #define T_DEV_ProgressBlock    10896u
 
@@ -530,6 +540,13 @@
 // [device+10896] and the wait is between the same two calls
 // (sub_8209FD60/sub_8209FCA0 here, sub_820BDC78/sub_820BDBB0 there).
 #define T_D3D_ArenaWait        8209A0E0
+// Bink 1, linked in (the BINK section), named by what the cinematic's update
+// (sub_82137310) does with each: when BinkWait says the frame is due it
+// decodes it on its own thread and steps to the next, comparing FrameNum
+// (+12) with Frames (+8) (movie_trace.cpp, MW2_TRACE_MOVIES).
+#define T_Bink_Open               823359B0   // (name, flags); 4120 bytes
+#define T_Bink_DoFrame            823373A0   // 1432 bytes
+#define T_Bink_NextFrame          82337938   // 476 bytes
 // The device structure, from the flip packet writer (sub_820A0AC0, MW2's
 // sub_820C2E60), which reads the same fields in the same order: 10900, the
 // present interval, 11844 (MW2: 11860), 10900, 10941.
@@ -1163,6 +1180,11 @@
 // the D3D9 library's hooks, found by call structure (docs/MW3-BRINGUP.md)
 #define T_D3D_Present          820A16E8   // takes the device in r3 and writes its flip
 #define T_D3D_ArenaWait        8209B5E8   // first instruction loads [r3+11024]
+// Bink 1, as Call of Duty 4's: the same five calls from the cinematic's
+// update (sub_823BD1E0), each function the same size as there.
+#define T_Bink_Open               824E71B0
+#define T_Bink_DoFrame            824E8CF8
+#define T_Bink_NextFrame          824E9290
 // Identical to MW2's sub_820B8B58 statement for statement: it clears the 40-byte
 // resource header and stores the program at +24, and the hook reads the shader
 // header after it (shader_preload.cpp), checking its magic before it trusts it.
@@ -1852,6 +1874,11 @@
 #define T_ENTRY_POINT   0x82370938u
 #define T_D3D_Present          820C3390
 #define T_D3D_ArenaWait        820B9800
+// Bink 1, as Call of Duty 4's: the same five calls from the cinematic's
+// update (sub_8238C898), each function the same size as there.
+#define T_Bink_Open               823F27B0
+#define T_Bink_DoFrame            823F41A0
+#define T_Bink_NextFrame          823F4738
 #define T_D3D_ReplayRecording  820C6130
 #define T_D3D_InitPixelShader  820B8B58
 #define T_D3D_PatchVertexFetches 820B6B10

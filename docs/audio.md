@@ -27,9 +27,39 @@ Pacing is locked to the wall-clock 5.333 ms cadence (187.5 Hz) matching the exac
 48 kHz sample production rate. Buffer headroom allows up to 48 queued frames (256 ms)
 to withstand dense explosions or level transitions before frames are dropped. The callback
 keeps its nominal rate, advancing the sound state machines smoothly without pitch artifacts
-or underruns. A worker that falls far behind (e.g. process was suspended or long frame)
-resynchronises cleanly instead of pumping a burst. `MW2_NO_AUDIO=1` opens no device; the mixer
+or underruns. A worker that falls far behind (the process was suspended: 40 frames, 213 ms)
+takes the clock afresh instead of pumping a burst. `MW2_NO_AUDIO=1` opens no device; the mixer
 and the decoder still run.
+
+On Android a frame that comes late (the mixer's thread kept off its core while a
+level starts or pipelines compile) is mixed all the same, and the frames due since
+straight after it. The title's sound runs on the count of these frames: a
+streamed sound is as far along as the frames mixed since it started, so a frame
+passed over left every sound then playing that much behind the picture until it
+ended, and a cutscene's sound track is one sound. The device played silence
+meanwhile, so the frames mixed late are not played once the sink holds what it
+does when the mixer is on time (what the device takes at once and a frame
+more): played as well they would stay in the sink, and everything after them
+would be later for good.
+
+The device plays on its own clock, not the one the frames are timed on, and
+what the mixer makes beyond what the device plays stays in the sink for good.
+At 5333 microseconds a frame, 62 samples in a million too many, the sink grew
+3.3 ms a minute on the Retroid Pocket Flip 2 and 3.7 on the AYN Thor (4 to
+41 ms in ten minutes), up to the 170 ms it holds: the sound of everything late
+by that, speech against lips first, and a Bink movie's with it, since the title
+times a movie's pictures to the sound it has handed over. The interval is
+5333333 nanoseconds now, and on Android the mixer follows the device: half a
+hundredth slower while the sink holds more than it does when both are on time,
+as much faster while it is empty when a frame is due (6.7 ms held after ten
+minutes on the Thor, as at the start). `MW2_TRACE_MOVIES=1` logs both clocks
+and the sink ([switches.md](switches.md)).
+
+What the device adds is its own: 22 ms on the Retroid Pocket Flip 2's low-latency
+output, 46 ms on the AYN Thor's, and 133 ms on the Thor's ordinary output, which
+the system gives a stream while an effect on everything played (an equaliser
+application; JamesDSP there) is on, and for Bluetooth. The log's `audio:` line
+says which the stream got, with a warning for the ordinary one.
 
 Two other imports matter to the mixer:
 
