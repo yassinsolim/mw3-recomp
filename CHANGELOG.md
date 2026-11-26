@@ -39,6 +39,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `setup -Dlc` on a PC still works and is no longer needed. Not played in
   this run: a match on a pack's map from the library built on the phone.
 
+### Documentation
+- **Every mode of every game, checked again on Windows, the AYN Thor and
+  the Retroid Pocket Flip 2** ([docs/ANDROID-PROGRESS.md](docs/ANDROID-PROGRESS.md#every-mode-of-every-game-25-and-26-november-2026)).
+  Split screen plays on the Flip 2 in all four games and in both Special
+  Ops (with a simulated second controller: none was at hand); Modern
+  Warfare 2's and 3's Find Match and Modern Warfare 2's private match by
+  invitation bring the two devices into one match; Advanced Warfare's Exo
+  Survival starts from the campaign's menu in the app. Three things that
+  looked broken are the games' own: Modern Warfare 2's Find Match timed
+  out only behind a host that took a minute to load on an overloaded PC;
+  Call of Duty 4's console `map` needs Start pressed on the title screen
+  first ([docs/gameplay.md](docs/gameplay.md#loading-a-level-from-the-command-line));
+  and the first run's Brightness screen takes A once the slider was moved.
+
 ### Changed
 - **An update of the app no longer asks you to build the game code again
   unless the code really changed, and then does it for you.** Nothing has

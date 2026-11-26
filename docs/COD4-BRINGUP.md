@@ -197,7 +197,7 @@ those executables, started as the two files start them.
 | The level's checkpoint is saved, and Resume Game loads it in a later run | **verified** | `pc-resume-game-sheet.png` |
 | The same with no `highmip\` folder: plays, with the lower mips | **verified** | 256 `.hi` files asked for and not found |
 | Multiplayer reaches its main menu | **verified** | `pc-mp-main-menu.png` |
-| Multiplayer, a System Link match hosted on this machine: Shipment loads, team and class are chosen, the player spawns, walks, turns and fires, 60 frames a second | **verified** (`MW2_CONSOLE="30:set onlinegame 0;30.5:set systemlink 1;33:map mp_shipment"`) | `pc-mp-shipment-systemlink-sheet.png`, `pc-mp-shipment-systemlink.log` |
+| Multiplayer, a System Link match hosted on this machine: Shipment loads, team and class are chosen, the player spawns, walks, turns and fires, 60 frames a second | **verified** (`MW2_INPUT_SCRIPT="18:start"` with `MW2_CONSOLE="30:set onlinegame 0;30.5:set systemlink 1;33:map mp_shipment"`: the title screen's Start comes first, see [gameplay.md](gameplay.md#loading-a-level-from-the-command-line)) | `pc-mp-shipment-systemlink-sheet.png`, `pc-mp-shipment-systemlink.log` |
 | Multiplayer with six bots (`MW2_BOTS=6`), Crash and Backlot, 400 s each: they join, spawn, fight and score; 59.4 and 59.6 frames a second in play | **verified** | `..\cod4bots\crash_scoreboard.png`, `backlot_scoreboard.png`, `crash_sheet.png`, `backlot_sheet.png` |
 | A second copy joins a host full of bots (23) over `MW2_NETWORK=lan` by the host's `connect` line: a bot leaves, the player spawns | **verified** | `..\cod4bots\leaveguest_sheet.png` |
 | A second player joining that match; Xbox LIVE; split screen | **open**: not tried | |

@@ -92,11 +92,11 @@ untested.
 | | | Measured |
 |---|---|---|
 | Campaign | ✅ | Thor: S.S.D.D. 116 FPS, Team Player 102; Flip: S.S.D.D. 60, Team Player 53 to 59 |
-| Special Ops | ✅ | The Pit plays on the Flip; not run on the Thor |
+| Special Ops | ✅ | The Pit plays on the Flip at 60 FPS; not run on the Thor |
 | Multiplayer: System Link | ✅ | Thor and Flip in one match, 119 and 60 FPS; Rust 119 and 60 |
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | 0 to 17; six on Terminal on the Thor: 119 to 120 FPS |
-| Split screen | ⚠️ | on Windows, with two controllers: Special Ops (The Pit) and a Team Deathmatch play; not tried on a device |
+| Split screen | ⚠️ | on Windows, with two controllers: Special Ops (The Pit) and a Team Deathmatch play. Flip 2, the second controller simulated (none was at hand): both play at 58 to 60 FPS |
 | Title update 6 | ❌ | not in this app |
 
 Sources and methods: [docs/android.md](docs/android.md),
