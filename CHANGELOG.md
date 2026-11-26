@@ -440,9 +440,8 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   whether both devices are on the same Wi-Fi and point to **NETWORK:
   Online**, which joins two networks; the READMEs' troubleshooting and
   [docs/multiplayer.md](docs/multiplayer.md#lan-and-server) say the same.
-  The app also holds Android's multicast lock while it plays on LAN, so
-  that a phone whose Wi-Fi drops broadcasts to save power still hears the
-  other players.
+  On one network LAN works as before: an AYN Thor listed and joined a
+  PC's System Link match (119 FPS).
 - **A rare freeze for good in the middle of play, in all four games.** The
   runtime watches the memory the game hands the GPU by making its pages
   read-only, and a game thread that writes to one makes it writable again.

@@ -118,8 +118,6 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private val pads = GamepadInput()
     private val handler = Handler(Looper.getMainLooper())
     private var vibrator: Vibrator? = null
-    // Held for the run, and let go with its process (lanBroadcasts).
-    private var lanBroadcasts: android.net.wifi.WifiManager.MulticastLock? = null
     private var lastRumble = 0
 
     private val statsValues = FloatArray(9)
@@ -950,7 +948,6 @@ class GameActivity : AppCompatActivity(), NativeListener {
             val backend = prefs.networkBackend
             NativeBridge.nativeSetOption("MW2_NETWORK", backend)
             NativeBridge.nativeSetOption("MW2_SERVER", if (backend == "server") prefs.relayAddress else "")
-            if (backend == "lan") hearLanBroadcasts()
             NativeBridge.nativeSetOption("MW2_SERVER_PASSWORD", "")
             if (!isMw2Multiplayer) {
                 NativeBridge.nativeSetOption("MW2_LIVE", if (prefs.liveSignIn) "1" else "")
@@ -1219,25 +1216,6 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private fun setBotCount(count: Int) {
         prefs.botCount = count
         NativeBridge.nativeRunConsoleCommand("bots $count")
-    }
-
-    // The local network's players announce themselves by broadcast
-    // (runtime/online/lan.cpp). Android lets a phone's WiFi drop broadcast
-    // and multicast frames before the system sees them, to let the processor
-    // sleep, unless an app holds a multicast lock; which phones do, and
-    // when, is the maker's choice. Holding it takes that out of the question.
-    private fun hearLanBroadcasts() {
-        if (lanBroadcasts != null) return
-        try {
-            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-            lanBroadcasts = wifi?.createMulticastLock("lan players")?.apply {
-                setReferenceCounted(false)
-                acquire()
-            }
-            android.util.Log.i("MW2", "lan: multicast lock ${if (lanBroadcasts?.isHeld == true) "held" else "not available"}")
-        } catch (e: Exception) {
-            android.util.Log.w("MW2", "lan: no multicast lock: $e")
-        }
     }
 
     // The title lobby's "Invite friends" for the network: the players this

@@ -201,7 +201,12 @@ the app's NETWORK: Online): System Link, parties and private matches work
 through it as they do on one network. The log's `online: lan at <address>`
 line on each device says which network it is on; the app's "Join network
 game" and "Invite a network player" ask whether both devices are on the
-same WiFi when lan hears nobody.
+same WiFi when lan hears nobody. On one subnet the same build finds its
+peers: the Thor (192.168.1.136) and a PC (192.168.1.86) heard each other
+within a second, the Thor listed the PC's System Link game and joined it
+(`private-logs\mppolish\thor_lan_pc_*`). The app held no Android multicast
+lock for that, with its screen on as a game's always is: the WiFi passed
+the broadcasts without one, so none is taken.
 
 `runtime/online/server.cpp`: a relay server (`relay/`, [relay.md](relay.md)) at
 `MW2_SERVER`, with `MW2_SERVER_PASSWORD` (a public relay asks for none). The

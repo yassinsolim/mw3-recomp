@@ -953,10 +953,15 @@ What the rounds found:
 - **The two devices did not hear each other over `lan` because they were
   on two networks**: the Thor on one WiFi (192.168.1.x), the Flip 2 on
   another behind a second router (192.168.86.x). A broadcast stays in its
-  network, and lan is the local network by definition; in the earlier
-  rounds both were on one. Nothing in the runtime was wrong. The overlay's
-  LAN count at 0 with the other device hosting says so; the relay
-  (NETWORK: Online) is what joins two networks.
+  network, and lan is the local network by definition. Nothing in the
+  runtime was wrong: on the first network the Thor and a PC heard each
+  other at once over `lan` and the Thor joined the PC's System Link match
+  on Afghan (119 FPS, `private-captures\mppolish\thor_*lan*`), with no
+  multicast lock held. The Flip 2 was not moved to that network (the
+  owner's setting), so the two devices together over `lan` were not run.
+  The overlay's LAN count at 0 with the other device hosting is the sign;
+  the relay (NETWORK: Online) is what joins two networks, and the app's
+  join and invite lists now say so when lan hears nobody.
 - **Advanced Warfare's Combat Readiness Program started a match nobody
   joined** on the Flip 2. The mode is the title's practice round, filled
   with bots when the playlist says so, and ours did not; it does now
