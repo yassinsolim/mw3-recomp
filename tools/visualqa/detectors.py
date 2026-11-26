@@ -38,8 +38,15 @@ class Thresholds:
     # twelve seconds); clean menus and a clean match standing still 0.0014
     # at most. A fast turn makes patches of its own, up to 0.037 with 0.83
     # of the picture changing, so the share asked for grows with the turn.
+    # The turn is measured two ways and the larger taken: by how the two
+    # neighbours differ, and by how the frame differs from the one before
+    # beyond the patch itself. A ribbed wall sliding past by one rib a frame
+    # leaves the neighbours alike and the frame between them different
+    # (Rust at 120 Hz: patches of 0.061 with 0.6 of the picture changing and
+    # 0.025 with 0.2); Dome's sun shadow lost for a frame in a turn was 0.080
+    # with 0.43.
     local_flash_share: float = 0.004
-    local_flash_per_moving: float = 0.06
+    local_flash_per_moving: float = 0.12
     # One such frame is said; two in a run fail it, where the scenario is
     # calm. In a fight the weapons' flashes, sparks and the jolt of a hit
     # are such frames by design (Context.combat_from).
@@ -210,7 +217,8 @@ def _calm_and_combat(check, rows, m, context, events, weight, describe):
 
 def local_flicker(m, context, t, whole_rows=()):
     """Patches that differed for one frame alone: a sun shadow lit or lost, a wedge."""
-    need = t.local_flash_share + t.local_flash_per_moving * m.flash_moving
+    turning = np.maximum(m.flash_moving, m.moved - m.flash)
+    need = t.local_flash_share + t.local_flash_per_moving * turning
     whole = set(whole_rows)
     rows = [int(row) for row in np.flatnonzero(m.flash >= need)
             if row not in whole and context.in_play(m.seconds[row])]
