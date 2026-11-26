@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 
-void adaptive::Governor::Start(std::vector<uint32_t> steps, bool rate, bool shadows)
+void adaptive::Governor::Start(std::vector<uint32_t> steps, bool rate, bool shadows, uint32_t fastest)
 {
     steps.erase(std::remove(steps.begin(), steps.end(), 0u), steps.end());
     std::sort(steps.begin(), steps.end(), [](uint32_t a, uint32_t b) { return a > b; });
@@ -21,6 +21,9 @@ void adaptive::Governor::Start(std::vector<uint32_t> steps, bool rate, bool shad
     m_shadowsWait = m_upWait = 0;
     m_shadowsRetry = m_upRetry = kRetry;
     m_sinceShadows = m_sinceUp = kMostRetry;
+    m_fastest = std::max(fastest, m_steps.empty() ? 0u : m_steps.front());
+    m_processorLate = false;
+    m_choppy = 0;
     m_why.clear();
 }
 
@@ -37,6 +40,16 @@ void adaptive::Governor::StepTo(size_t step, std::string why)
     m_step = step;
     m_missed = m_missedFrames = m_shadowsCalm = m_upCalm = 0;
     m_why = std::move(why);
+}
+
+bool adaptive::Governor::Sound(double seconds, uint32_t underruns)
+{
+    // Once is enough: the display then keeps its fastest mode.
+    if (m_soundBroke || seconds <= 0) return false;
+    m_choppy = double(underruns) >= kChoppy * seconds ? m_choppy + seconds : 0;
+    if (m_choppy < kChoppySeconds) return false;
+    m_soundBroke = true;
+    return true;
 }
 
 bool adaptive::Governor::GiveUpShadows()
@@ -93,6 +106,9 @@ bool adaptive::Governor::Feed(const Measured& window)
         char why[96];
         std::snprintf(why, sizeof why, "%.0f s at %.0f frames a second under %u", kDownSeconds, sustained,
                       m_steps[m_step]);
+        // The chip with time in hand, it is the processor that the frames
+        // wait for: the display keeps its fastest mode (Display).
+        if (!chipLate) m_processorLate = true;
         StepTo(pick, why);
         return true;
     }
@@ -112,6 +128,9 @@ bool adaptive::Governor::Feed(const Measured& window)
         char why[96];
         std::snprintf(why, sizeof why, "%.0f s with room for it", kUpCalm);
         StepTo(m_step - 1, why);
+        // Back at the first step the display is in its fastest mode either
+        // way, and the next step down is judged afresh.
+        if (m_step == 0) m_processorLate = false;
         return true;
     }
     m_upCalm = 0;

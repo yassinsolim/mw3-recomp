@@ -231,7 +231,8 @@ object NativeBridge {
      * time ms, presented frames, shaders queued, compiled, the last one's ms,
      * the rate the run is held to, the graphics chip's ms a frame (negative
      * when it does not say), the scene's share of its width in percent,
-     * 1 when the rate follows the device }.
+     * 1 when the rate follows the device, the rate the display is to be
+     * asked for a mode of }.
      */
     external fun nativeStats(out: FloatArray)
 

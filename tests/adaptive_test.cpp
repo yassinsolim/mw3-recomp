@@ -11,6 +11,10 @@
 //   * It comes back up after thirty seconds with room for the faster rate,
 //     and a step up that does not hold is tried again after two minutes.
 //   * A limit the player chose stays, and so do shadows the player chose.
+//   * The display is asked for the rate's own mode where the chip was what
+//     was late, and keeps its fastest where the processor was; and it goes
+//     back to its fastest, a limit the player chose or not, once the sound
+//     has broken up for six seconds in a slower mode.
 #include "adaptive.h"
 
 #include <cstdio>
@@ -173,6 +177,61 @@ int main()
         Check(!Run(governor, Window(25, 38.0, 6.0, false, true), 120) && governor.Target() == 120,
               "a limit the player chose stays");
         Check(!governor.RateFollows(), "and says it does not follow");
+    }
+
+    // ---- the display's mode ------------------------------------------------------
+    {
+        Governor governor;
+        governor.Start({ 120, 60, 30 }, true, false);
+        Check(governor.Display() == 120 && !governor.DisplayKept(), "a run starts in the display's fastest mode");
+        Run(governor, Window(62, 15.0, 4.0, false, true), 10);
+        Check(governor.Target() == 60 && governor.Display() == 60 && !governor.DisplayKept(),
+              "the chip late: the display follows the rate down");
+        Run(governor, Window(60, 5.0, 4.0), 90);
+        Check(governor.Target() == 120 && governor.Display() == 120, "and up again");
+    }
+    {
+        Governor governor;
+        governor.Start({ 120, 60, 30 }, true, false);
+        Run(governor, Window(46, 4.0, 10.0), 10);
+        Check(governor.Target() == 60 && governor.Display() == 120 && governor.DisplayKept(),
+              "the processor late: held to 60, the display kept at 120");
+        Run(governor, Window(25, 14.5, 20.0, false, true), 10);
+        Check(governor.Target() == 30 && governor.Display() == 120,
+              "the chip late after it: the display stays where the processor put it");
+        Run(governor, Window(30, 5.0, 4.0), 90);
+        Check(governor.Target() == 60 && governor.Display() == 120, "a step up, not yet the first: still kept");
+        Run(governor, Window(60, 5.0, 4.0), 30);
+        Check(governor.Target() == 120 && !governor.DisplayKept(), "back at the first step");
+        Run(governor, Window(62, 15.0, 4.0, false, true), 10);
+        Check(governor.Target() == 60 && governor.Display() == 60, "and the next step down is judged afresh");
+    }
+    {
+        Governor governor;
+        governor.Start({ 30 }, false, false, 120);
+        Check(governor.Target() == 30 && governor.Display() == 30, "a limit the player chose: the display follows it");
+        Check(!governor.Sound(2, 3), "three underruns in two seconds are not broken sound");
+        Check(!governor.Sound(2, 60) && !governor.Sound(2, 60), "four seconds of it are not six");
+        Check(!governor.Sound(2, 0) && !governor.Sound(2, 60) && !governor.Sound(2, 60), "the six seconds are in a row");
+        Check(governor.Sound(2, 60) && governor.Display() == 120 && governor.Target() == 30,
+              "six seconds of broken sound: the display goes back to its fastest mode, the limit stays");
+        Check(!governor.Sound(2, 60), "once");
+        governor.Start({ 60 }, false, false, 120);
+        Check(governor.Display() == 120 && governor.DisplayKept(), "and another limit does not take the display down again");
+        governor.Start({ 120, 60, 30 }, true, false, 120);
+        Run(governor, Window(62, 15.0, 4.0, false, true), 10);
+        Check(governor.Target() == 60 && governor.Display() == 120, "nor does the chip late");
+    }
+    {
+        Governor governor;
+        governor.Start({ 120, 60, 30 }, true, false);
+        Run(governor, Window(62, 15.0, 4.0, false, true), 10);
+        Run(governor, Window(60, 12.0, 4.0), 2);
+        Check(governor.Display() == 60, "held to 60 by the chip, the display at 60");
+        governor.Sound(2, 60);
+        governor.Sound(2, 60);
+        Check(governor.Sound(2, 60) && governor.Display() == 120 && governor.Target() == 60,
+              "the sound breaks up there: the display goes back, the rate stays held");
     }
     {
         Governor governor;

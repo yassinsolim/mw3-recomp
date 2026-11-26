@@ -776,16 +776,17 @@ MW2_NATIVE(void, nativeStats)(JNIEnv* env, jobject, jfloatArray out)
         if (len >= 8) values[7] = jfloat(ws.completed);
         if (len >= 9) values[8] = jfloat(ws.lastCompileMs);
     }
-    if (len >= 13)
+    if (len >= 14)
     {
         // What the run is held to and what the last two seconds of play took
-        // (adaptive.h); the app asks the display for the mode that goes with
-        // a rate the runtime chose.
+        // (adaptive.h), and the rate the app asks the display for a mode of:
+        // the one held to, or the display's fastest.
         const adaptive::Now now = adaptive::Current();
         values[9] = jfloat(now.target);
         values[10] = jfloat(now.gpuMs);
         values[11] = jfloat(now.scenePercent);
         values[12] = now.follows ? 1.0f : 0.0f;
+        values[13] = jfloat(now.display);
     }
     env->SetFloatArrayRegion(out, 0, len, values.data());
 }

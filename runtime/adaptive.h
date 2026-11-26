@@ -44,10 +44,17 @@ namespace adaptive
         // `steps`: the rates the run may be held to, the fastest first, each
         // one the display shows evenly; the run starts at the first. With
         // `rate` false the rate is the player's and stays; with `shadows`
-        // false the shadows are.
-        void Start(std::vector<uint32_t> steps, bool rate, bool shadows);
+        // false the shadows are. `fastest`: the rate of the display's
+        // fastest mode, where that is not the first step (a limit the player
+        // chose under it); 0 for the first step.
+        void Start(std::vector<uint32_t> steps, bool rate, bool shadows, uint32_t fastest = 0);
         // The next window. True when the target or the shadows changed.
         bool Feed(const Measured& window);
+        // What the sound did in the next window, play or not, while the
+        // display runs slower than its fastest: how often the output had
+        // nothing to play. True when the display is to go back to its
+        // fastest mode for it.
+        bool Sound(double seconds, uint32_t underruns);
         // The scene is about to be drawn smaller because the chip is late:
         // the shadows go first. True when they were on and are now off.
         bool GiveUpShadows();
@@ -59,6 +66,32 @@ namespace adaptive
         void KeepShadows() { m_shadowsOn = m_shadows; }
 
         uint32_t Target() const { return m_steps.empty() ? 0 : m_steps[m_step]; }
+        // The rate the display is asked for a mode of: the target's, which
+        // shows it a frame a blank and costs the least, or the fastest's
+        // with every frame held for two blanks or four. The slower mode is
+        // not only the display's: in its 60 Hz mode an AYN Thor's system
+        // gives the game half the share of a busy processor it has at 120 Hz
+        // (9% for 16 to 17% with eight busy programs beside it), and the
+        // mixer then made 60 to 75% of the sound in time, 1,200 underruns a
+        // minute where the faster mode had 5. So the display follows the
+        // rate where the graphics chip is what was late, which the slower
+        // mode costs nothing, and keeps its fastest mode where the processor
+        // was, until the rate is back at its first step; and whatever put it
+        // in a slower mode, a limit the player chose too, it goes back to
+        // the fastest for the rest of the run once the sound has broken up
+        // there.
+        uint32_t Display() const
+        {
+            const uint32_t target = Target();
+            return (m_processorLate || m_soundBroke) && m_fastest > target ? m_fastest : target;
+        }
+        // Why the display does not follow the rate, for the log; null where it does.
+        const char* DisplayKept() const
+        {
+            if (Display() == Target()) return nullptr;
+            return m_soundBroke ? "the sound broke up in a slower mode" : "the processor is late";
+        }
+        uint32_t Fastest() const { return m_fastest; }
         // Whether the sun casts shadows, where that is the runtime's choice.
         bool Shadows() const { return m_shadowsOn; }
         bool RateFollows() const { return m_rate; }
@@ -84,6 +117,12 @@ namespace adaptive
         // may take for the shadows to be tried (they cost a fifth to a third
         // of both), and of the faster rate's period for that rate.
         static constexpr double kShadowsGpu = 0.55, kShadowsRenderer = 0.60, kUpShare = 0.70;
+        // The sound has broken up when the output had nothing to play this
+        // often a second for this many seconds in a row: 14 to 49 times a
+        // second on the Thor in its slower mode under that load, once in
+        // two seconds at the most where it was whole; a level starting
+        // stops the mixer for a second or two, not for six.
+        static constexpr double kChoppy = 2, kChoppySeconds = 6;
 
     private:
         bool HasRoom(const Measured& window, double periodMs, double gpuShare, double rendererShare) const;
@@ -92,6 +131,13 @@ namespace adaptive
         std::vector<uint32_t> m_steps;
         size_t m_step = 0;
         bool m_rate = false, m_shadows = false, m_shadowsOn = false;
+        // The display's fastest rate; whether a step down was taken with the
+        // processor late, and whether the sound has broken up in a slower
+        // mode -- which is the device's, not the limit's, and outlives Start.
+        uint32_t m_fastest = 0;
+        bool m_processorLate = false, m_soundBroke = false;
+        // Seconds in a row of broken sound.
+        double m_choppy = 0;
         // Seconds in a row under the target, and what they averaged.
         double m_missed = 0, m_missedFrames = 0;
         // Seconds in a row with room for the shadows, and for the step up.
@@ -128,9 +174,13 @@ namespace adaptive
     // runtime again.
     void PlayerSetShadows(bool follow);
     void PlayerSetLimit(uint32_t limit);
-    // What the app's overlay shows: the rate the run is held to, and the
-    // last window's frames a second, chip time and scene.
-    struct Now { uint32_t target = 0; bool follows = false; double fps = 0, gpuMs = -1, rendererMs = -1; uint32_t scenePercent = 100; bool shadows = false; };
+    // The rate the display is asked for a mode of (Governor::Display): the
+    // surface's vote (android/window.cpp) and the app's request.
+    uint32_t DisplayRate();
+    // What the app's overlay shows: the rate the run is held to, the rate
+    // the display is asked for, and the last window's frames a second, chip
+    // time and scene.
+    struct Now { uint32_t target = 0, display = 0; bool follows = false; double fps = 0, gpuMs = -1, rendererMs = -1; uint32_t scenePercent = 100; bool shadows = false; };
     Now Current();
     // The performance report a player shares (android/jni.cpp): the device's
     // graphics, the settings in force and how the run went, a line each.

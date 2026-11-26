@@ -59,6 +59,7 @@ namespace
         uint64_t busyAtClock = 0, spentAt[report::kTimeCount]{};
         double busyAtFullNs = 0;
         uint32_t deepest = 0;
+        uint64_t underrunsAt = 0;
     } w;
 
     std::mutex g_lock;
@@ -71,6 +72,21 @@ namespace
     // Read by the title's thread at every present, and by the app's.
     std::atomic<bool> g_shadows{ false }, g_shadowsFollow{ true };
     std::atomic<uint32_t> g_scenePercent{ 100 };
+    // The rate the display is asked for (Governor::Display); 0 before the
+    // first frame. Read by the surface's vote and the app.
+    std::atomic<uint32_t> g_display{ 0 };
+
+    // Under g_lock: the rate of the display's fastest mode.
+    uint32_t Fastest() { return g_steps.empty() ? 0 : *std::max_element(g_steps.begin(), g_steps.end()); }
+
+    // Under g_lock: which way the display went, for the log and the report
+    // (Governor::Display), after "the display ".
+    std::string DisplaySays()
+    {
+        const char* kept = g_governor.DisplayKept();
+        if (!kept) return "follows the rate";
+        return "is kept at " + std::to_string(g_governor.Fastest()) + " Hz because " + kept;
+    }
 
     std::vector<uint32_t> Steps()
     {
@@ -102,7 +118,8 @@ namespace
         const bool rate = env::Flag("MW2_FPS_AUTO");
         g_shadowsFollow.store(!env::Text("MW2_SHADOWS"), std::memory_order_relaxed);
         g_governor.Start(rate ? g_steps : std::vector<uint32_t>{ frame_rate::Limit() }, rate,
-                         g_shadowsFollow.load(std::memory_order_relaxed));
+                         g_shadowsFollow.load(std::memory_order_relaxed), Fastest());
+        g_display.store(g_governor.Display(), std::memory_order_relaxed);
         std::string list;
         for (const uint32_t step : g_steps) list += (list.empty() ? "" : ", ") + std::to_string(step);
         LOGI("adaptive: the run follows what this device sustains: the frame rate %s, the sun's shadows %s;"
@@ -113,12 +130,28 @@ namespace
                                                              : "are the player's choice");
     }
 
+    // The surface votes for the display rate that goes with what the run is
+    // held to (adaptive::DisplayRate).
+    void Vote()
+    {
+#ifdef MW2_ANDROID
+        android::detail::VoteAgain();
+#endif
+    }
+
     void Apply(uint32_t target)
     {
         frame_rate::SetLimit(target);
+        Vote();
+    }
+
+    // How often the sound's output has had nothing to play so far.
+    uint64_t Underruns()
+    {
 #ifdef MW2_ANDROID
-        // The surface votes for the display rate that goes with the limit.
-        android::detail::VoteAgain();
+        return android::audio::Underruns();
+#else
+        return 0;
 #endif
     }
 
@@ -188,6 +221,7 @@ void adaptive::Frame(bool world, const Scene& scene)
         w.started = true;
         w.first = w.began = w.last = now;
         w.busyAtClock = ChipBusy();
+        w.underrunsAt = Underruns();
         for (size_t time = 0; time < report::kTimeCount; time++) w.spentAt[time] = report::SpentSoFar(report::Time(time));
         report::KeepTimes();
         std::lock_guard lock(g_lock);
@@ -247,27 +281,45 @@ void adaptive::Frame(bool world, const Scene& scene)
     w.busyAtFullNs = 0;
     w.deepest = scene.dynamic ? scene.level : 0;
     std::copy(std::begin(spent), std::end(spent), w.spentAt);
-    if (!play) return;
+    const uint64_t underruns = Underruns();
+    const uint32_t heard = uint32_t(underruns - w.underrunsAt);
+    w.underrunsAt = underruns;
 
     uint32_t apply = 0;
+    bool vote = false;
     {
         std::lock_guard lock(g_lock);
-        const uint32_t target = g_governor.Target();
+        const uint32_t target = g_governor.Target(), display = g_governor.Display();
         const bool shadows = g_governor.Shadows();
         const double at = std::chrono::duration<double>(now - w.first).count();
-        g_playSeconds += seconds;
-        g_frames += window.fps * seconds;
-        if (target && window.fps < Governor::kMiss * double(target)) g_missedSeconds += seconds;
-        g_slowest = g_slowest > 0 ? std::min(g_slowest, window.fps) : window.fps;
-        g_kept.push_back({ at, window.fps, window.gpuMs, window.rendererMs, target, scene.percent, shadows });
-        if (g_kept.size() > kKept) g_kept.pop_front();
-        if (g_governor.Feed(window))
+        // The sound is listened to in every window, a menu's and a movie's
+        // too, while the display runs in a slower mode because it was asked to.
+        const double hz = frame_rate::DisplayHz();
+        const bool slower = display < g_governor.Fastest() && hz > 0 && hz < 0.97 * double(g_governor.Fastest());
+        if (g_governor.Sound(seconds, slower ? heard : 0))
         {
-            char what[224];
+            char what[160];
+            std::snprintf(what, sizeof what, "the display %s (its %.0f Hz mode: %u underruns in the last %.0f s)",
+                          DisplaySays().c_str(), hz, heard, seconds);
+            LOGI("adaptive: %s", what);
+            g_changes.push_back({ at, what });
+        }
+        if (play)
+        {
+            g_playSeconds += seconds;
+            g_frames += window.fps * seconds;
+            if (target && window.fps < Governor::kMiss * double(target)) g_missedSeconds += seconds;
+            g_slowest = g_slowest > 0 ? std::min(g_slowest, window.fps) : window.fps;
+            g_kept.push_back({ at, window.fps, window.gpuMs, window.rendererMs, target, scene.percent, shadows });
+            if (g_kept.size() > kKept) g_kept.pop_front();
+        }
+        if (play && g_governor.Feed(window))
+        {
+            char what[320];
             if (g_governor.Target() != target)
             {
-                std::snprintf(what, sizeof what, "held to %u frames a second, not %u: %s", g_governor.Target(), target,
-                              g_governor.Why().c_str());
+                std::snprintf(what, sizeof what, "held to %u frames a second, not %u: %s; the display %s",
+                              g_governor.Target(), target, g_governor.Why().c_str(), DisplaySays().c_str());
                 apply = g_governor.Target();
             }
             else
@@ -278,15 +330,21 @@ void adaptive::Frame(bool world, const Scene& scene)
             g_changes.push_back({ at, what });
             g_shadows.store(g_governor.Shadows(), std::memory_order_relaxed);
         }
-        if (g_playSeconds - g_said >= kSayEvery)
+        if (play && g_playSeconds - g_said >= kSayEvery)
         {
             g_said = g_playSeconds;
             LOGI("performance: %s; held to %u, the scene at %u%%, the sun's shadows %s", Summary().c_str(),
                  g_governor.Target(), scene.percent,
                  !g_shadowsFollow.load(std::memory_order_relaxed) ? "the player's" : g_governor.Shadows() ? "on" : "off");
         }
+        if (g_governor.Display() != display)
+        {
+            g_display.store(g_governor.Display(), std::memory_order_relaxed);
+            vote = true;
+        }
     }
     if (apply) Apply(apply);
+    else if (vote) Vote();
 }
 
 const char* adaptive::WhyNoShadows()
@@ -318,14 +376,23 @@ void adaptive::PlayerSetLimit(uint32_t limit)
         const bool shadows = g_governor.Shadows();
         // 0: the runtime's again, from the display's fastest.
         g_governor.Start(limit ? std::vector<uint32_t>{ limit } : g_steps, !limit,
-                         g_shadowsFollow.load(std::memory_order_relaxed));
+                         g_shadowsFollow.load(std::memory_order_relaxed), Fastest());
+        g_display.store(g_governor.Display(), std::memory_order_relaxed);
         // The shadows are as they were: another limit is measured afresh,
         // and takes them away itself if they no longer fit.
         if (shadows) g_governor.KeepShadows();
         apply = g_governor.Target();
-        LOGI("adaptive: the frame rate %s", limit ? "is the player's limit and stays" : "follows the device again");
+        LOGI("adaptive: the frame rate %s; the display %s",
+             limit ? "is the player's limit and stays" : "follows the device again", DisplaySays().c_str());
     }
     Apply(apply);
+}
+
+uint32_t adaptive::DisplayRate()
+{
+    // Before the first frame, and with MW2_ADAPTIVE off, the limit's own.
+    const uint32_t display = g_display.load(std::memory_order_relaxed);
+    return display ? display : frame_rate::Limit();
 }
 
 void adaptive::PlayerSetShadows(bool follow)
@@ -344,6 +411,7 @@ adaptive::Now adaptive::Current()
     now.scenePercent = g_scenePercent.load(std::memory_order_relaxed);
     std::lock_guard lock(g_lock);
     now.target = g_startedLocked ? g_governor.Target() : frame_rate::Limit();
+    now.display = g_startedLocked ? g_governor.Display() : frame_rate::Limit();
     now.follows = g_startedLocked && g_governor.RateFollows();
     now.shadows = g_governor.Shadows();
     if (!g_kept.empty())
@@ -374,6 +442,7 @@ std::string adaptive::Report()
                   !g_shadowsFollow.load(std::memory_order_relaxed) ? "the player's choice"
                   : g_governor.Shadows() ? "on (measured)" : "off (measured)");
     text += line;
+    text += "display mode: " + DisplaySays() + "\n";
     text += "play: " + Summary() + "\n";
     // The last minute a line every ten seconds: where it is now.
     const size_t each = size_t(10.0 / kWindowSeconds);

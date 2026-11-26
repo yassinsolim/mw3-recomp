@@ -123,7 +123,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var vibrator: Vibrator? = null
     private var lastRumble = 0
 
-    private val statsValues = FloatArray(13)
+    private val statsValues = FloatArray(14)
     private var started = false
 
     /**
@@ -135,8 +135,12 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var frameSeen = false
     private var failureShown = false
 
-    /** The rate the runtime holds the run to, as the display was last asked for (statsTick). */
+    /**
+     * The rate the runtime holds the run to, as the player was last told, and
+     * the rate the display was last asked for a mode of (statsTick).
+     */
     private var heldTo = 0
+    private var displayAsked = 0
 
     // The system changes the display's mode under a running game: it grants
     // the rate asked for a moment after the surface is made, and takes it
@@ -560,21 +564,31 @@ class GameActivity : AppCompatActivity(), NativeListener {
     }
 
     /**
-     * The runtime holds a run that follows the device to another rate when
-     * it does not keep the first (runtime/adaptive.h): the display is asked
-     * for the mode that shows that rate evenly, as it is for a limit the
-     * player sets.
+     * What the runtime has decided, read twice a second (runtime/adaptive.h):
+     * the rate a run that follows the device is held to, which the player is
+     * told, and the rate the display is asked for a mode of. That is the
+     * rate the run is held to or the player chose, which the slowest mode
+     * that shows it evenly costs the least for -- or the display's fastest,
+     * where the slower mode costs the sound: an AYN Thor's system gives a
+     * game half the share of a busy processor in its 60 Hz mode.
      */
     private fun followHeldRate() {
         val target = statsValues[9].roundToInt()
-        if (statsValues[12] <= 0f || target <= 0 || target == heldTo) return
-        // The first reading is the limit the run started with, asked for in onCreate.
-        if (heldTo != 0) {
-            DisplayRate.request(window, shownDisplay(), target)
-            logDisplayMode()
-            android.widget.Toast.makeText(this, getString(R.string.held_to, target), android.widget.Toast.LENGTH_SHORT).show()
+        if (statsValues[12] > 0f && target > 0 && target != heldTo) {
+            // The first reading is the limit the run started with.
+            if (heldTo != 0) {
+                android.widget.Toast.makeText(this, getString(R.string.held_to, target), android.widget.Toast.LENGTH_SHORT).show()
+            }
+            heldTo = target
         }
-        heldTo = target
+        val display = statsValues[13].roundToInt()
+        if (display <= 0 || display == displayAsked) return
+        // The first reading is the limit the run started with, asked for in onCreate.
+        if (displayAsked != 0) {
+            DisplayRate.request(window, shownDisplay(), display)
+            logDisplayMode()
+        }
+        displayAsked = display
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1390,22 +1404,18 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     /**
      * The cap, changed under the running title: the runtime paces by it from
-     * the next frame (frame_rate.h), and the display is asked for the mode
-     * that goes with it, as at the start of a run.
+     * the next frame (frame_rate.h), and says which rate the display is to
+     * be asked for (followHeldRate).
      */
     private fun setFpsLimit(limit: Int) {
         prefs.fpsLimit = limit
         NativeBridge.nativeApplyOption("MW2_FPS_LIMIT", limit.toString())
-        DisplayRate.request(window, shownDisplay(), limit)
-        logDisplayMode()
     }
 
     /** The cap left to the runtime again: from the screen's rate, as a fresh install starts. */
     private fun followDeviceFps() {
         prefs.followDeviceFps()
         NativeBridge.nativeApplyOption("MW2_FPS_AUTO", "1")
-        DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
-        logDisplayMode()
     }
 
     /**
