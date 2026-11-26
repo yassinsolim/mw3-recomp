@@ -1721,3 +1721,72 @@ standing still on the Flip 2 with the fix beside one without it (the run
 without it had the sun's shadows off, as Auto has them there), the AYN
 Thor, and Modern Warfare 2, Modern Warfare 3 and Call of Duty 4 with their
 sun shadows on, for which the change is switched off.
+
+## The "corrupt Content Pack" notice (26 November 2026)
+
+A tester with seventeen packages chose Campaign and got "An installed
+Content Pack is corrupt. It must be deleted to continue." with only Exit
+(app v0.1.2, a Retroid Pocket 5). What the disc's executables do with a
+package, and what the fix gives each of them, is in
+[dlc.md](dlc.md#what-each-executable-is-given-and-what-is-checked-first);
+this is how it was found and what was run.
+
+### What brings it up
+
+The campaign with a probe on five of its functions (never committed):
+the list's reader `8249B2A8`, the mount step `8249AD90`, the two writers
+of the byte at `843A8F9C` and `AnyContentDamaged` (`82478828`, the menu's
+`821A41B0`). With the owner's eleven packs and the install disc's two
+listed first, the corrupt byte `843A3B61` is set as soon as the first
+Compatibility Pack is mounted, and the menu never asks for it: Campaign,
+New Game and Resume Game all open. Neither do fifteen or nineteen packages
+change that (the
+owner's, some under second names): the title takes the first twelve of
+the list and no more.
+
+| the app as released, the list as the title is given it | Campaign |
+|---|---|
+| the install disc's two, then the owner's eleven packs (Windows, Thor) | opens |
+| the same with six more copies, or two Compatibility Packs first (Windows) | opens |
+| the owner's eleven packs, then the install disc's two: the order the app lists them in (Windows, Thor) | **the notice** |
+| ten of the eleven, then the install disc's two (Thor) | opens |
+
+So it is the second install package pushed off a list of twelve by the
+player's packs, with a Compatibility Pack among them. The runs that had
+not shown it named the install disc's folder first (`MW2_DLC_DIR`), which
+a player's phone does not.
+
+### With the fix
+
+AYN Thor (Adreno 740, Turnip, 120 Hz), the owner's eleven packs and two
+updates in the `dlc` folder and listed ahead of the install disc's, the
+app updated over the one as released with the game code that one had
+built on the phone (`libawmp17game.so`, 4 minutes; its statement is the
+one a build on the PC states, `generated-code 2ed750bc…`):
+
+| | |
+|---|---|
+| Campaign, New Game, then Resume Game | no notice; the opening scene at 119 frames a second; two packages given, eleven left to the updated multiplayer |
+| Multiplayer from the campaign's menu | "We strongly recommend you play Campaign first", Continue, and the updated multiplayer's menu (1.20) |
+| Exo Survival from the campaign's menu | the updated multiplayer's Exo Survival menu |
+| Exo Zombies from the launcher | its opening scene |
+| Team Deathmatch on Kremlin (a map pack), six bots | 119 frames a second |
+| without the packs: Campaign and New Game; Riot with six bots; Exo Survival from the menu | as before: 119, 120, the disc's multiplayer |
+| Add DLC, a folder with a Compatibility Pack cut short at 40 MB | "Compatibility Pack 5 is incomplete: copy it again from your console."; the whole copy already added is kept |
+
+The updated multiplayer was not built again by the update: the app took
+the library the released app had built. The game code's statements are
+what they were at the release (`aw 9d6d843d6d64`, `awmp b93934d57d53`,
+`awmp17 ca2d9453cd0e`): nothing they are made of changed.
+
+A game library built on the PC was refused during this work
+(`generated-code fff598…` against the app's `2ed750…`). The recompiled
+tree was at fault and not the app: `XenonRecomp.exe` had been copied in
+from another checkout, built before the recompiler kept XER's summary
+overflow in the context (24 November), and 210 of the 213 files came out
+with every register in the context. Built from this checkout's own
+`XenonRecomp/` the tree is the recorded one. Setup builds the recompiler
+itself; a copied `XenonRecomp/build` is the one way to get this.
+
+**Not done:** the Retroid Pocket Flip 2, and `tools/visualqa`'s three
+Advanced Warfare scenarios on either phone with this change.

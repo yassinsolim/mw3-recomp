@@ -8,12 +8,16 @@
 // marker that says which pack it is. The disc's two know the markers of their
 // own table (dlcinstall1 and 2, dlc1 to 5, seasonpass, mdlc0 to 5) and no
 // other: a package with none of them (a Compatibility Pack, which came with
-// the updates) is closed again and remembered as a corrupt one, and the menu
+// the updates) is closed again and remembered as a corrupt one. The menu
+// asks about that only when the campaign's own files are not all there, and
 // then says "An installed Content Pack is corrupt. It must be deleted to
-// continue." and offers only Exit. Their list also holds twelve packages and
-// is read to the first empty entry, so a thirteenth is read out of whatever
-// lies behind it. A console never shows either: it starts the updated
-// executables once the update is there.
+// continue." and offers only Exit. Their list holds twelve packages, so
+// eleven of a player's packs listed ahead of the install disc's two leave
+// the second of those out: with a Compatibility Pack among the eleven, that
+// is the notice (seen on the AYN Thor with the owner's eleven packs; ten do
+// not bring it up). The list is also read to the first empty entry, so a
+// thirteenth is read out of whatever lies behind it. A console never shows
+// either: it starts the updated executables once the update is there.
 //
 // So a package goes only to an executable that can use it. The install
 // disc's two and the bonus items (mdlc) are files and entitlements of the
@@ -22,6 +26,7 @@
 // updated game, and go to it alone: the disc's multiplayer would list a
 // pack's maps and fail to load them. A package with no marker at all is
 // nobody's, and of two packages that are the same pack the newer is taken.
+// The install disc's packages are listed first (content.cpp).
 //
 // No guest and no file is touched here, so the rules are tested as they are
 // (tests/content_route_test.cpp).
@@ -122,6 +127,22 @@ namespace kernel::content
             }
         }
         return verdicts;
+    }
+
+    // The order the given packages are listed in: the install disc's first,
+    // the others as they were found. The app finds a player's packs before
+    // the install disc's image, and a list that ends before an install
+    // package leaves the campaign without its files: eleven packs ahead of
+    // the two filled the disc's list of twelve, and that brought the
+    // "corrupt" notice up.
+    inline std::vector<size_t> ListOrder(const std::vector<Candidate>& found, const std::vector<Verdict>& verdicts)
+    {
+        std::vector<size_t> order;
+        for (const bool install : { true, false })
+            for (size_t i = 0; i < found.size(); i++)
+                if (verdicts[i] == Verdict::Given && (found[i].pack.kind == Kind::InstallDisc) == install)
+                    order.push_back(i);
+        return order;
     }
 
     // The most packages the disc's executables are listed: their list holds

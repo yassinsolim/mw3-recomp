@@ -25,8 +25,8 @@ int main()
     const Candidate pass{ { Kind::SeasonPass, 0 } }, bonus{ { Kind::Bonus, 4 } }, unknown{};
 
     // ---- the disc's executables: the install disc's and the bonus items ------
-    // The tester's case: the campaign was listed a Compatibility Pack, found
-    // no marker it knows and called it corrupt.
+    // A Compatibility Pack, which the campaign finds no marker it knows in
+    // and notes as a corrupt one, is not listed to it.
     {
         const auto verdicts = Route({ install1, compat3, havoc, install2, pass, bonus, unknown }, false);
         assert(verdicts[0] == Verdict::Given && verdicts[3] == Verdict::Given && verdicts[5] == Verdict::Given);
@@ -42,6 +42,14 @@ int main()
         size_t given = 0;
         for (const Verdict verdict : Route(every, false)) given += verdict == Verdict::Given;
         assert(given == every.size() && given <= kDiscListHolds);
+    }
+    // The tester's case: a player's packs found ahead of the install disc's
+    // two, as the app finds them. The install disc's are listed first, for
+    // either executable, and the others keep the order they were found in.
+    {
+        const std::vector<Candidate> found{ compat3, bonus, havoc, install1, unknown, pass, install2 };
+        assert((ListOrder(found, Route(found, false)) == std::vector<size_t>{ 3, 6, 1 }));
+        assert((ListOrder(found, Route(found, true)) == std::vector<size_t>{ 3, 6, 0, 1, 2, 5 }));
     }
 
     // ---- the updated multiplayer: every pack it can name ---------------------

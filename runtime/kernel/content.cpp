@@ -425,7 +425,16 @@ namespace
             for (const Downloaded& package : found)
                 candidates.push_back({ content::PackOf(package.volume->RootFiles()), package.volume->Header().version });
             const std::vector<content::Verdict> verdicts = content::Route(candidates, kUpdate);
+            // Which of them the list has room for, in the order it has them.
+            const std::vector<size_t> order = content::ListOrder(candidates, verdicts);
+            const size_t holds = kUpdate ? order.size() : std::min(order.size(), content::kDiscListHolds);
+            std::vector<bool> listed(found.size(), false);
             std::vector<Listed> given;
+            for (size_t at = 0; at < holds; at++)
+            {
+                listed[order[at]] = true;
+                given.push_back({ &found[order[at]] });
+            }
             for (size_t i = 0; i < found.size(); i++)
             {
                 const std::string what = Described(*found[i].volume, found[i].name);
@@ -433,13 +442,8 @@ namespace
                 switch (verdicts[i])
                 {
                 case content::Verdict::Given:
-                    if (!kUpdate && given.size() == content::kDiscListHolds)
-                    {
-                        LOGW("content: %s is %s, one more than this executable lists; it is not used", what.c_str(), pack.c_str());
-                        break;
-                    }
-                    LOGI("content: %s is %s: given to " MW2_TITLE_NAME, what.c_str(), pack.c_str());
-                    given.push_back({ &found[i] });
+                    if (listed[i]) LOGI("content: %s is %s: given to " MW2_TITLE_NAME, what.c_str(), pack.c_str());
+                    else LOGW("content: %s is %s, one more than this executable lists; it is not used", what.c_str(), pack.c_str());
                     break;
                 case content::Verdict::OtherExecutable:
                     LOGI("content: %s is %s, which is for %s: not given to " MW2_TITLE_NAME, what.c_str(), pack.c_str(), kOther);

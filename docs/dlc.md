@@ -375,17 +375,31 @@ only to those that can use it. A tester with seventeen packages and two
 title updates in the `dlc` folder chose Campaign and got the game's own
 "An installed Content Pack is corrupt. It must be deleted to continue."
 with nothing but Exit; taking the Compatibility Packs out again was the
-only cure. Nothing of his was corrupt. The disc's executables list the
-console's downloads, mount each package and look for the marker of a pack
-in their own table (`dlcinstall1`, `dlcinstall2`, `dlc1` to `dlc5`,
-`seasonpass`, `mdlc0` to `mdlc5`: the table at `8281FC08` of the campaign,
-`8288D2A0` of the multiplayer). A package with none of them, which every
-Compatibility Pack is, is closed again and noted as a corrupt one
-(`8249AD90`: the marker search `8249A250` answers 1, and the byte at
-`843A3B61` is set, which the menus ask for through `821A41B0`). Their list
-also holds twelve packages and is read to the first empty entry, so with
-more the entry after the twelfth is read out of what lies behind the list.
-A console never gets there: it starts the updated executables once the
+only cure. Nothing of his was corrupt, and two things had to meet:
+
+- The disc's executables list the console's downloads, mount each package
+  and look for the marker of a pack in their own table (`dlcinstall1`,
+  `dlcinstall2`, `dlc1` to `dlc5`, `seasonpass`, `mdlc0` to `mdlc5`: the
+  table at `8281FC08` of the campaign, `8288D2A0` of the multiplayer). A
+  package with none of them, which every Compatibility Pack is, is closed
+  again and noted as a corrupt one (`8249AD90`: the marker search `8249A250`
+  answers 1, and the byte at `843A3B61` is set). That alone shows nothing:
+  the menu asked for the byte (`AnyContentDamaged`, `821A41B0`) in no run
+  that had both of the install disc's packages on the list, and on choosing
+  Campaign in the run that had one of them left off.
+- Their list holds twelve packages (`843A7D28`, 308 bytes each), and the
+  app found the player's packs in the `dlc` folder before the install
+  disc's two in its image. Eleven packs or more therefore left the second
+  install package, or both, off the list.
+
+Reproduced on the AYN Thor with the app as released (v0.1.2) and the
+owner's eleven packs listed ahead of the install disc's: the notice, on
+choosing Campaign. With ten packs, or with the install disc's two listed
+first, there is none; fifteen and nineteen packages listed after the two
+showed none on Windows either. The list is also read to the first empty
+entry, so the entry after the twelfth is read out of what lies behind the
+list (a table of file-name hashes, empty until a pack has been mounted). A
+console never gets there: it starts the updated executables once the
 update is on it.
 
 | a package with | is | the disc's campaign and multiplayer | the updated multiplayer |
@@ -397,7 +411,9 @@ update is on it.
 | `dlccompat1.id` to `dlccompat6.id` | a Compatibility Pack | not given: the disc's executables do not know the marker | given |
 | no such marker | nobody's | not given | not given |
 
-Of two packages that are the same pack (a folder put together from two
+The install disc's packages are listed first, for every executable, in
+whatever folder or image they were found. Of two packages that are the
+same pack (a folder put together from two
 consoles, or an older and a newer version) the one with the higher version
 in its header is given and the other is not. Of several title updates each
 is tried until one makes this build's executable: an update is made for one
