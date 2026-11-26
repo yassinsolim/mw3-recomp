@@ -130,6 +130,15 @@ float except where all three corners agree (packed colours).
 - **Alpha test** runs in the pixel shader, and is forced to `ALWAYS` in
   depth-only mode, where the console runs no pixel shader. Shadow casters have
   none and would otherwise run whatever the stream loaded last.
+- **A draw that writes no colour** is not drawn with the pixel shader the
+  stream loaded last. In depth-only mode, and with every channel masked when
+  the shader neither kills, nor writes depth or memory, nor has its alpha
+  tested, the pixel shader is one that does nothing
+  (`vk::shaders::kNoPixelCode`, a program of the console's microcode that
+  ends at once), and the blend and mask are one pair. The pipeline is then
+  the vertex shader's alone: named after the leftover shader, the sun's
+  shadow casters were a new pipeline each time the shader before them
+  changed (`WritesNoColour`; `MW2_DEPTH_ONLY_PIPELINES=0` is the old way).
 
 ## The frame arena
 
@@ -1186,7 +1195,26 @@ the map, so what they draw appears late. A skipped draw queues no command
 and changes none of the bound state, and the indices it wrote keep the next
 draw from joining the run before it.
 
-The consumer never builds one of these itself. It did once a draw had been
+A draw that writes no colour is never skipped: its pipeline is built at the
+draw. What such a draw leaves out is not a surface that comes late. It is
+every shadow of the sun for a frame, or the depth the models after it are
+drawn against, and those models with it: a frame checker found single
+frames with a fuel tank, half a wall and all the shadows gone in Modern
+Warfare 2's Rust, each at a second where a shadow caster's pipeline was new
+only by the pixel shader left loaded before it.
+
+Nor is a draw skipped the moment its pipeline is found missing. An object
+already on screen that changes its shaders, as the held weapon does when
+its lighting changes, was gone for the frame its new pipeline compiled in:
+the weapon blinked. The consumer now stands still for the workers
+(`WaitForPipeline`) within an allowance: 32 ms at most
+(`MW2_PIPELINE_WAIT_MS`), which comes back a millisecond a frame and is
+drawn on only when half of it is there. A pipeline alone, as in play, is
+waited for and its draw made in its own frame, a frame late at worst. Of a
+first visit's hundreds the first is waited for and the rest are skipped as
+before, with a wait of 16 ms every sixteen frames or so.
+
+The consumer builds none of the others itself. It did once a draw had been
 skipped for 20 frames, one pipeline a frame, behind a single worker
 compiling the same ones: a first visit's hundreds were then 25 to 35 ms of
 every frame, 193 of an AYN Thor's 201 logged stutters in one multiplayer

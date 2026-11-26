@@ -5,6 +5,38 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Fixed
+- **No shadow, model or held weapon goes missing for a frame while a
+  shader compiles (all four games on Android).** With "Compile shaders in
+  the background" on, which it is unless you turned it off, a draw whose
+  pipeline was not built yet was skipped until it was. That is meant for
+  surfaces seen for the first time, which then come a moment late. It also
+  took out things already on screen. The sun's shadow casters and the depth
+  pass before the models have no pixel shader of their own, and their
+  pipeline was named after whichever one the game had loaded last: each
+  time that changed they were a new pipeline, and for the frame or two it
+  compiled in every sun shadow was gone, and the models drawn against that
+  depth with them (a fuel tank and half a shed wall in Modern Warfare 2's
+  Rust, seen through for one frame). And the held weapon blinked when its
+  lighting changed its shaders. Now a draw that writes no colour is drawn
+  with a pixel shader that does nothing and one blend and mask, so its
+  pipeline depends on the vertex shader alone, and it is built at the draw
+  and never skipped (9 such pipelines in a first match, 32 to 40 ms in
+  all); and a pipeline or two alone are waited for, 32 ms at most
+  (`MW2_PIPELINE_WAIT_MS`), before their draws are skipped, while a first
+  visit's crowd is skipped as before. On Windows with the Android settings
+  (Rust and Afghan with six bots, every frame written and compared with
+  its neighbours): 9 frames with something missing in 17 minutes of play
+  before, each one a frame where such draws were skipped. On the AYN Thor
+  one frame with a wall missing in a 170 s match before and none after; on
+  the Retroid Pocket Flip 2 the skipped draws that write no colour went
+  from 1,747 to 0. A first Rust match builds 212 pipelines for 228 on the
+  Flip 2 and 208 for 229 on the Thor, at the same 60 and 119 frames a
+  second. The cost is on a first visit only: the waits are late frames (29
+  for 15 on the Flip 2, 41 for 13 on the Thor, none longer than before:
+  46 and 43 ms the longest frame for 48 and 46). `MW2_DEPTH_ONLY_PIPELINES=0`
+  and `MW2_PIPELINE_WAIT_MS=0` are the old way, and `MW2_FRAME_LOG=<file>`
+  writes a line a frame of the draws asked for, drawn and skipped
+  ([docs/rendering.md](docs/rendering.md#pipelines)).
 - **Call of Duty 4 no longer stops for good the first time a level is played
   on an AYN Thor** (The Bog, 90 to 110 seconds in, a still picture until the
   game was closed; the second visit played). The sun's occlusion count was

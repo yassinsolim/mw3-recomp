@@ -2309,6 +2309,7 @@ namespace
         Module::Emit(m_module.Code(), Op::Store,
                      { m_killed, Emit(Op::LogicalOr, m_bool, { already, condition }) });
         m_haveKill = true;
+        m_result.kills = true;
     }
 
     // The operand arrives swizzled .z_xy -- the title writes `cube r, src.zzxy,

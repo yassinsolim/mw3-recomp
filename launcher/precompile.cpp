@@ -262,6 +262,9 @@ precompile::Result precompile::Run(const std::string& asked, bool always, Progre
         return result;
     }
     if (cancelled()) return result;
+    // The renderer's own, which no file of the game holds.
+    all.try_emplace({ true, 0 }, zone::Shader{ true, 0, { std::begin(vk::shaders::kNoPixelCode),
+                                                           std::end(vk::shaders::kNoPixelCode) } });
     result.shaders = uint32_t(all.size());
     progress.shaders = result.shaders;
 

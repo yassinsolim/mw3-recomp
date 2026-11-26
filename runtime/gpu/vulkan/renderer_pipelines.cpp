@@ -56,7 +56,9 @@ namespace vk::renderer::detail
             key.depthFormat = recorded.depthFormat;
             key.topology = recorded.topology;
             key.blendControl = recorded.blendControl;
-            key.colourMask = recorded.colourMask;
+            // One colour target, so four bits of the mask: a list recorded
+            // before the key was cut to them names the same pipelines.
+            key.colourMask = recorded.colourMask & 0xF;
             key.samples = recorded.samples;
             if (vk::pipeline::LegacyMode())
             {
@@ -438,6 +440,11 @@ namespace vk::renderer::detail
             std::chrono::steady_clock::now() - compileStart).count());
         g.compileMicroseconds += took;
         report::Add(report::kPipeline, took);
+        if (!t_warmupThread)
+        {
+            g.pipelinesAtDraw++;
+            g.pipelineAtDrawMicroseconds += took;
+        }
         if (!built)
             LOGW("renderer: pipeline for %016llX/%016llX rejected",
                  (unsigned long long)key.vertexShader, (unsigned long long)key.pixelShader);
@@ -902,19 +909,92 @@ namespace vk::renderer::detail
             awaited.lastPublished = published;
             awaited.lastValid = true;
         }
+        // Not skipped at once: an object already on screen that changes
+        // its shaders (the held weapon as its lighting changes) is gone for
+        // the frames its new pipeline compiles in, and a frame late is seen
+        // far less than a weapon that blinks.
+        VkPipeline built = VK_NULL_HANDLE;
+        if (WaitForPipeline(key, built))
+        {
+            g.lastPipelineKey = key;
+            g.lastPipeline = built;
+            g.lastPipelineSwaps = g.pipelinesOptimised;
+            recent = { key, built, g.pipelinesOptimised };
+            return built;
+        }
         compiling = true;
         g.drawsAwaitingPipelines++;
         return VK_NULL_HANDLE;
+    }
+
+    // MW2_PIPELINE_WAIT_MS=<n>: how long the consumer may stand still for
+    // pipelines the workers are compiling, 32 ms unless said; 0 never waits.
+    uint64_t PipelineWaitMicroseconds()
+    {
+        static const uint64_t microseconds = env::Number("MW2_PIPELINE_WAIT_MS", 32) * 1000;
+        return microseconds;
+    }
+
+    // Stands still until the workers have built `key`, for as long as the
+    // allowance holds, and says whether they did (`built` is then the
+    // pipeline, null for one the driver refused).
+    //
+    // Two things keep a first visit as it was. No wait is begun while more
+    // pipelines are awaited than there are threads compiling them: a wait
+    // then ends with nothing, and of a first visit's hundreds that was two
+    // in three. And the allowance: PipelineWaitMicroseconds at most, coming
+    // back a millisecond a frame and drawn on only when half of it is
+    // there. So a pipeline or two alone, as in play, are waited for and
+    // their draws made in their own frame, and a crowd is skipped as before.
+    bool WaitForPipeline(const PipelineKey& key, VkPipeline& built)
+    {
+        State::PipelineWait& wait = g.pipelineWait;
+        const uint64_t most = PipelineWaitMicroseconds();
+        wait.left = wait.begun ? std::min(most, wait.left + (g.frames - wait.frame) * 1000) : most;
+        wait.begun = true;
+        wait.frame = g.frames;
+        if (!most || wait.left < most / 2 || g.awaited.since.size() > warmup::CompileThreads()) return false;
+
+        stutters::Timed timed(stutters::kPipelines);
+        const auto from = std::chrono::steady_clock::now();
+        const auto until = from + std::chrono::microseconds(wait.left);
+        uint64_t seen = g_pipelinesPublished.load(std::memory_order_acquire);
+        bool found = false;
+        while (!found && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds(250));
+            const uint64_t published = g_pipelinesPublished.load(std::memory_order_acquire);
+            if (published == seen) continue;
+            seen = published;
+            std::lock_guard lock(g_pipelinesMutex);
+            const auto entry = g.pipelines.find(key);
+            if (entry == g.pipelines.end()) continue;
+            built = entry->second;
+            found = true;
+        }
+        const uint64_t took = uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - from).count());
+        wait.left -= std::min(wait.left, took);
+        report::Add(report::kPipeline, took);
+        g.pipelineWaits++;
+        g.pipelineWaitsMet += found;
+        g.pipelineWaitMicroseconds += took;
+        return found;
     }
 
     void ReportAsyncPipelines()
     {
         if (!AsyncPipelines()) return;
         LOGI("renderer: MW2_ASYNC_PIPELINES: %llu pipelines built in the background on %u thread%s, %llu draws"
-             " skipped while waiting for one, the longest wait %llu frames",
+             " skipped while waiting for one (%llu of them writing no colour), the longest wait %llu frames;"
+             " %llu pipelines built at their draw in %llu ms; the renderer's thread stood still for one %llu times,"
+             " %llu ms in all, and had it %llu times",
              (unsigned long long)g_pipelinesBuiltForDraws.load(std::memory_order_relaxed),
              warmup::CompileThreads(), warmup::CompileThreads() == 1 ? "" : "s",
-             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.longestPipelineWait);
+             (unsigned long long)g.drawsAwaitingPipelines, (unsigned long long)g.depthDrawsAwaitingPipelines,
+             (unsigned long long)g.longestPipelineWait, (unsigned long long)g.pipelinesAtDraw,
+             (unsigned long long)(g.pipelineAtDrawMicroseconds / 1000), (unsigned long long)g.pipelineWaits,
+             (unsigned long long)(g.pipelineWaitMicroseconds / 1000), (unsigned long long)g.pipelineWaitsMet);
     }
 
     void StopWarmupScheduler()

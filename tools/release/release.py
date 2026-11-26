@@ -4,6 +4,7 @@
     python tools/release/release.py status
     python tools/release/release.py sync [--push]
     python tools/release/release.py tag
+    python tools/release/release.py withdraw
     python tools/release/release.py gates [--wait]
     python tools/release/release.py device-template
     python tools/release/release.py publish --device-report <report.json>
@@ -21,6 +22,8 @@ person or an agent fills after trying the apps on the devices.
            --push then pushes main, never forced.
   tag      pushes the next version's tag to each mirror: its workflow builds
            the app and drafts the release.
+  withdraw takes a tag and its draft back, for a release that is to be cut
+           from a later commit after all; never one that was published.
   gates    1 CI: every workflow on the mirror's main and the tag's release
              workflow ended well.
            2 tools/check_runtime_apk.py on the draft's APK; its certificate is
@@ -278,6 +281,27 @@ class Release:
             self.state["published"][game], self.state["tags"][game] = was, tag
             self.save()
             print(f"{game}: {tag} at {head[:9]} (published: {was})")
+
+    def withdraw(self):
+        """Takes the tags pushed by `tag` back, with their drafts; a published release stays for ever."""
+        for game in self.games:
+            clone, tag = self.clone(game), self.state.get("tags", {}).get(game)
+            if not tag:
+                continue
+            # A workflow still building for the tag would draft the release again after it is gone.
+            for one in gh_json("run", "list", "-R", self.repo(game), "--branch", tag, "--json", "databaseId,status"):
+                if one["status"] != "completed":
+                    run("gh", "run", "cancel", str(one["databaseId"]), "-R", self.repo(game), check=False)
+            releases = gh_json("api", f"repos/{self.repo(game)}/releases?per_page=30")
+            release = next((one for one in releases if one["tag_name"] == tag), None)
+            if release and not release["draft"]:
+                raise Refused(f"{game}: {tag} is published: players have it, and it is not taken back")
+            if release:
+                run("gh", "api", "-X", "DELETE", f"repos/{self.repo(game)}/releases/{release['id']}")
+            if run("git", "ls-remote", "--tags", "public", tag, cwd=clone):
+                run("git", "push", "public", f":refs/tags/{tag}", cwd=clone)
+            run("git", "tag", "-d", tag, cwd=clone, check=False)
+            print(f"{game}: {tag} withdrawn" + (" with its draft" if release else ""))
 
     # ---- the gates ----------------------------------------------------------
     def wait_for_runs(self, game, sha, minutes):
@@ -556,7 +580,8 @@ class Release:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("step", choices=("status", "sync", "tag", "gates", "device-template", "publish", "verify-public"))
+    parser.add_argument("step", choices=("status", "sync", "tag", "withdraw", "gates", "device-template", "publish",
+                                         "verify-public"))
     parser.add_argument("--work", help="the folder with the mirrors' clones and the SDK (RELEASE_WORK)")
     parser.add_argument("--branch", default="origin/android", help="the private branch to release")
     parser.add_argument("--games", default=",".join(GAMES))
@@ -574,6 +599,8 @@ def main():
             release.sync(args.push)
         elif args.step == "tag":
             release.tag()
+        elif args.step == "withdraw":
+            release.withdraw()
         elif args.step == "gates":
             release.gates(args.wait)
         elif args.step == "device-template":

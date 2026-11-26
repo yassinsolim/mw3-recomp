@@ -22,6 +22,14 @@ namespace vk::shaders
     // layout, the launcher's reader of the game's shaders. Another build's
     // cache holds other shaders.
     extern const char kBuildId[];
+
+    // The pixel shader of a draw that leaves no colour behind (the
+    // renderer's WritesNoColour): a program that ends at once, in the
+    // console's own microcode, so that it is translated, cached and warmed
+    // up as every other shader is, and compiled by the launcher with the
+    // game's. Its two control flow words are an `exece` of no instructions
+    // and a `nop`.
+    inline constexpr uint32_t kNoPixelCode[3] = { 0x00000000, 0x00002000, 0x00000000 };
 }
 
 #ifdef MW2_HAVE_VULKAN

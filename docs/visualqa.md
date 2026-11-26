@@ -156,8 +156,8 @@ What is left out, and why:
   looked for in both neighbours up to 72 pixels across and 40 down (of a
   frame 480 wide) from where it is, and is not counted when one of them has
   it: with it there the difference falls to 0.13 to 0.60 of what it was
-  (under 0.7 is taken) and the two pictures agree in shape (a correlation
-  of 0.45 or more). The two faults found in runs fell to 0.93 and 0.96:
+  (under 0.7 is taken; what the HUD covers is left out of the comparison) and the two pictures agree in shape (a correlation
+  of 0.35 or more). The two faults found in runs fell to 0.93 and 0.96:
   what flashed is nowhere in the neighbours.
 - **A game at 30 frames a second** is recorded twice a frame; repeated
   frames are dropped before a frame is compared with its neighbours.
@@ -186,6 +186,35 @@ Every other check (`flicker`, `blocks`, black and white frames, `frozen`,
 stalls, pacing, the driver) judges every scenario from its start of play to
 its end.
 
+## Where the suite stands
+
+On 26 November 2026, every run on the bundled Turnip, judged with the checks
+as they are now. Modern Warfare 2 and 3 and Call of Duty 4 were run on
+android `82c579e`, Advanced Warfare on the AYN Thor on `2ce5e12` (before the
+far shadow map's fix, `f2311ad`); the figure is the frames a second in play
+and the longest frame.
+
+| scenario | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
+|---|---|---|
+| `mw2-campaign` | PASS, 111.1, 84 ms | PASS, 60.2, 68 ms |
+| `mw2-bots` | PASS, 118.7, 51 ms | **FAIL**, 60.1, 58 ms: one frame at 72.4 s without the fuel tank's body, half a shed's wall and the sun's shadows (a real fault, the one-frame missing geometry: one frame in 40 s of calm play) |
+| `mw3-campaign` | PASS, 116.4, 79 ms | PASS, 60.1, 56 ms |
+| `mw3-bots` | PASS, 117.5, 78 ms | PASS, 60.0, 59 ms (an earlier run: one frame at 97.6 s with shadowed ground drawn sunlit, the sun shadow's fault) |
+| `mw3-survival` | PASS, 119.4, 61 ms | PASS, 60.1, 66 ms |
+| `cod4-campaign` | PASS, 117.5, 115 ms | PASS, 59.8, 213 ms |
+| `cod4-bots` | PASS, 119.5, 47 ms | not run |
+| `aw-campaign` | PASS, 116.4, 55 ms | not run |
+| `aw-match` | PASS, 118.8, 59 ms | not run |
+| `aw-shadows` | PASS, 118.9, 105 ms: no shadow lost in 100 s, before the fix | not run |
+
+What failed before and was the check's mistake, each now in the labelled
+set or the tests: posts, a shadow's band and a ribbed wall passing in fast
+turns, a view reversing its turn and a beam crossing a dark shed in a jump
+(`local-flicker`, Rust and Dome on both phones); Survival's results screen
+(`frozen`); Solar's honeycomb wall and grille (`blocks`) and its bare walls
+sliding past (`missing`). A run that fails is looked at in its pictures
+before it is called a fault.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
@@ -208,8 +237,9 @@ On 26 November 2026, with the numbers in `Thresholds`:
 | fresh runs on the bundled Turnip (S.S.D.D. twice, Rust with bots, Black Tuesday, Survival, The Bog) | 6 | 6 passed |
 | empty matches whose posts, ribbed walls and jumps the check once took for flashes (Rust at 120 Hz, Dome at 60 and 120 Hz) | 3 | 3 passed |
 | Solar with the sun's shadows on, whose honeycomb wall, grille and bare walls two checks once took for blocks and missing ground | 1 | passed |
+| Riot on the Flip 2, where a pillar passing behind the minimap in a turn was taken for a flash | 1 | passed |
 
-14 of 14 faulty recordings caught and 22 of 22 clean ones passed: recall
+14 of 14 faulty recordings caught and 23 of 23 clean ones passed: recall
 1.00, precision 1.00, by recording. The set is small, and nothing in it is
 a black world, a washed frame, a frozen picture or missing ground in a
 recording of a real run: those checks are tested on drawn pictures alone
