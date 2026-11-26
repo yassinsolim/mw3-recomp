@@ -68,6 +68,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   and the first run's Brightness screen takes A once the slider was moved.
 
 ### Changed
+- **An app is no longer built without its graphics driver by accident.**
+  The apps bundle the Turnip driver and load it through libadrenotools;
+  neither is in the repository (`android/fetch_deps.sh` fetches both). A
+  tree without them built an app all the same, which ran on the phone's
+  own driver and said so only in its log. On the AYN Thor that is a picture
+  in 32-pixel blocks, missing ground and 50 to 80 frames a second where
+  Turnip gives 119: test apps built that way were taken for a regression of
+  the renderer on 26 November 2026, and none was there (Modern Warfare 3's
+  multiplayer with six bots on current code and Turnip: clean, 118.8 frames
+  a second). The Gradle build of an app now stops when either piece is
+  missing and names it (`bundledDriverCheck`), a tree configured before
+  libadrenotools was fetched is configured again, and CMake refuses one
+  without it. `-PwithoutBundledDriver=true` builds an app for the phone's
+  own driver on purpose; `setup.cmd` passes it, and says so, when the
+  driver cannot be downloaded. A release never lacked the driver: the
+  workflows fetch it.
 - **An update of the app no longer asks you to build the game code again
   unless the code really changed, and then does it for you.** Nothing has
   to be built to get this: the game code you have is taken as it is, in all

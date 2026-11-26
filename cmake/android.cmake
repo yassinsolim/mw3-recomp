@@ -79,6 +79,11 @@ if(EXISTS "${MW2_ADRENOTOOLS_DIR}/CMakeLists.txt")
         endif()
     endforeach()
     message(STATUS "Custom Vulkan drivers: libadrenotools")
+elseif(MW2_REQUIRE_ADRENOTOOLS)
+    # The app's Gradle build asks for it (android/app/build.gradle.kts): an
+    # app without it cannot load the driver it bundles.
+    message(FATAL_ERROR "third_party/libadrenotools is not there: run android/fetch_deps.sh, "
+                        "or build with -PwithoutBundledDriver=true for an app on the phone's own driver")
 else()
     message(STATUS "Custom Vulkan drivers: off (run android/fetch_deps.sh to enable)")
 endif()

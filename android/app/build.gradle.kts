@@ -61,6 +61,32 @@ val awApplicationId = "com.aw.recomp$appSuffix"
 // (bundledDriverAssets, at the end of this file).
 val mw2DriverAssets = layout.buildDirectory.dir("mw2-driver-assets").get().asFile
 
+// The graphics driver the apps bundle and what loads it, both fetched by
+// android/fetch_deps.sh and neither committed: the Turnip package under
+// src/mw3/assets/drivers and third_party/libadrenotools. An app built without
+// either runs on the phone's own driver and only its log says so, and on an
+// Adreno 740 that is a picture in 32-pixel blocks at half the frame rate:
+// test apps built from worktrees that had neither were taken for a
+// regression of the renderer for a night. So the app is not built without
+// them unless the build says it means to: -PwithoutBundledDriver=true
+// (setup\setup.ps1, when the driver could not be downloaded).
+val withoutBundledDriver = (findProperty("withoutBundledDriver") as String?) == "true"
+val bundledDriverPackage = file("src/mw3/assets/drivers/turnip_v27_r2.zip")
+val adrenotoolsSources = rootProject.file("../third_party/libadrenotools/CMakeLists.txt")
+val bundledDriverCheck = tasks.register("bundledDriverCheck") {
+    doLast {
+        val missing = listOf(bundledDriverPackage, adrenotoolsSources).filterNot { it.isFile }
+        if (missing.isNotEmpty() && !withoutBundledDriver) {
+            throw GradleException(
+                "The bundled graphics driver is incomplete: ${missing.joinToString { it.path }} " +
+                    "is not there. Run android/fetch_deps.sh (bash), which fetches both, and build again. " +
+                    "To build an app that runs on the phone's own driver on purpose, add -PwithoutBundledDriver=true."
+            )
+        }
+    }
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(bundledDriverCheck) }
+
 // The app's own sources have to be here. They went missing once -- written,
 // built against, and never committed -- and the result was an apk that
 // installed, launched, and died on a manifest pointing at classes that did
@@ -144,6 +170,10 @@ android {
                     "-DMW2_USE_SDL=OFF",
                     "-DMW2_LOGGING=ON",
                     "-DCMAKE_BUILD_TYPE=Release",
+                    // A tree configured before libadrenotools was fetched
+                    // keeps building without it: the argument makes it be
+                    // configured again, and CMake refuse a tree without it.
+                    "-DMW2_REQUIRE_ADRENOTOOLS=${if (withoutBundledDriver) "OFF" else "ON"}",
                 )
                 setting("MW2_COMPILER_LAUNCHER")?.let {
                     arguments += listOf(
