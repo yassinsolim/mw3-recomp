@@ -210,7 +210,9 @@ namespace
 
     const char* TitleExecutable()
     {
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
+#if defined(BO3_TITLE_ZM)
+        return "default_zm.xex";
+#elif defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
         return "default_mp.xex";
 #else
         return "default.xex";
@@ -652,13 +654,14 @@ MW2_NATIVE(jstring, nativeApplyTu6)(JNIEnv* env, jobject, jstring packagePath, j
     return FromString(env, error);
 }
 
-// Blocking: writes Advanced Warfare's updated multiplayer executable for the
-// build of its game code on the device. Returns null when it worked, else the
-// sentence to show; other games' apps have no such executable.
+// Blocking: writes an executable a title update makes (Advanced Warfare's
+// updated multiplayer, Black Ops III's two) for the build of its game code on
+// the device. Returns null when it worked, else the sentence to show; other
+// games' apps have no such executable.
 MW2_NATIVE(jstring, nativeMakeUpdatedExecutable)(JNIEnv* env, jobject, jstring packagePath, jstring discExecutable, jstring target)
 {
     std::string error = "This game has no title update to build.";
-#if defined(AW_TITLE) && defined(MW2_HAVE_XEX_PATCHER)
+#if (defined(AW_TITLE) || defined(BO3_TITLE)) && defined(MW2_HAVE_XEX_PATCHER)
     if (install::MakeUpdatedExecutable(ToString(env, packagePath), ToString(env, discExecutable), ToString(env, target), error))
         return nullptr;
 #else

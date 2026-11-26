@@ -664,22 +664,11 @@ namespace
         }
     }
 
-    LONG CALLBACK Handler(EXCEPTION_POINTERS* exception)
+    // Reports a fault and ends the process.
+    LONG Report(EXCEPTION_POINTERS* exception, const char* name)
     {
         const EXCEPTION_RECORD* record = exception->ExceptionRecord;
         const DWORD code = record->ExceptionCode;
-        if (code == EXCEPTION_ACCESS_VIOLATION && record->NumberParameters >= 2)
-        {
-            const bool write = record->ExceptionInformation[0] == 1;
-            const void* at = reinterpret_cast<const void*>(record->ExceptionInformation[1]);
-            if (write && gpu::watch::HandleFault(at)) return EXCEPTION_CONTINUE_EXECUTION;
-            if (guest::CommitOnTouch(at)) return EXCEPTION_CONTINUE_EXECUTION;
-        }
-        // Everything else Windows raises -- C++ exceptions, debug output -- is
-        // someone else's to handle.
-        const char* name = Describe(code);
-        if (!name) return EXCEPTION_CONTINUE_SEARCH;
-
         std::fprintf(stderr, "\n[E] ---- guest fault: %s at %p ----\n", name, record->ExceptionAddress);
         std::fprintf(stderr, "[E] last step: %s\n", crash::LastStep());
         if (code == EXCEPTION_BREAKPOINT)
@@ -699,11 +688,55 @@ namespace
         TerminateProcess(GetCurrentProcess(), 3);
         return EXCEPTION_CONTINUE_SEARCH;
     }
+
+    // Whether an instruction is this executable's own (the runtime and the
+    // recompiled code), not a library's.
+    bool OwnCode(const void* address)
+    {
+        HMODULE module = nullptr;
+        return GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                  static_cast<LPCWSTR>(address), &module) &&
+               module == GetModuleHandleW(nullptr);
+    }
+
+    // Runs before any handler of the faulting code's own. A fault in a
+    // library is left to those first: when NVIDIA's Vulkan driver cannot make
+    // a device it reads through a null pointer inside vkCreateDevice, handles
+    // that itself and returns VK_ERROR_INITIALIZATION_FAILED, after which the
+    // game goes on without a picture and says so. Ending the process here, in
+    // the middle of the driver's call, lost that message (exit 3 with the
+    // driver's addresses for a backtrace). What no handler takes comes back
+    // through Unhandled and is reported the same.
+    LONG CALLBACK Handler(EXCEPTION_POINTERS* exception)
+    {
+        const EXCEPTION_RECORD* record = exception->ExceptionRecord;
+        const DWORD code = record->ExceptionCode;
+        if (code == EXCEPTION_ACCESS_VIOLATION && record->NumberParameters >= 2)
+        {
+            const bool write = record->ExceptionInformation[0] == 1;
+            const void* at = reinterpret_cast<const void*>(record->ExceptionInformation[1]);
+            if (write && gpu::watch::HandleFault(at)) return EXCEPTION_CONTINUE_EXECUTION;
+            if (guest::CommitOnTouch(at)) return EXCEPTION_CONTINUE_EXECUTION;
+        }
+        // Everything else Windows raises -- C++ exceptions, debug output -- is
+        // someone else's to handle.
+        const char* name = Describe(code);
+        if (!name || !OwnCode(record->ExceptionAddress)) return EXCEPTION_CONTINUE_SEARCH;
+        return Report(exception, name);
+    }
+
+    LONG WINAPI Unhandled(EXCEPTION_POINTERS* exception)
+    {
+        const char* name = Describe(exception->ExceptionRecord->ExceptionCode);
+        return name ? Report(exception, name) : EXCEPTION_CONTINUE_SEARCH;
+    }
 }
 
 void crash::Install()
 {
     AddVectoredExceptionHandler(1, Handler);
+    SetUnhandledExceptionFilter(Unhandled);
     if (const unsigned seconds = unsigned(diag::Number("MW2_WATCHDOG")))
     {
         LOGI("watchdog armed for %u seconds", seconds);

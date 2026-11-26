@@ -676,11 +676,13 @@ void vk::renderer::Shutdown()
             if (resolved.view) vkDestroyImageView(g.device, resolved.view, nullptr);
             if (resolved.gammaView) vkDestroyImageView(g.device, resolved.gammaView, nullptr);
             if (resolved.attachmentView) vkDestroyImageView(g.device, resolved.attachmentView, nullptr);
+            DestroyResolveVolume(resolved);
             if (resolved.image) vkDestroyImage(g.device, resolved.image, nullptr);
             if (resolved.memory) vkFreeMemory(g.device, resolved.memory, nullptr);
         }
     g.resolvedTo.clear();
     g.fetchedWidth.clear();
+    g.fetchedVolume.clear();
     g.resolveEpoch++;
     if (g.readBack) vkDestroyBuffer(g.device, g.readBack, nullptr);
     if (g.readBackMemory) vkFreeMemory(g.device, g.readBackMemory, nullptr);

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What the bo3 flavour says in place of the MW2 app's wording: the
+         game's name, and its two halves, which on this console are the
+         multiplayer and the zombies (it has no campaign). Setup on a PC does
+         not build this game yet, so nothing here names a setup command that
+         would do it. -->
+    <string name="wordmark">BLACK OPS III</string>
+    <string name="wordmark_recompiled">BO3 RECOMPILED</string>
+    <string name="title_campaign">MULTIPLAYER</string>
+    <string name="title_multiplayer">ZOMBIES</string>
+    <string name="title_multiplayer_install">ZOMBIES · INSTALL</string>
+    <string name="game_code_missing">The game code is not on this device. It is made from your own disc and title update 5; for this game that is not automated yet (docs/BO3-BRINGUP.md).</string>
+    <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, TREYARCH OR MICROSOFT.</string>
+</resources>

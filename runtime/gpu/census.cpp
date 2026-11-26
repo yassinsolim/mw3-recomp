@@ -81,9 +81,9 @@ namespace
         uint32_t width = 0, height = 0;
         ScissorExtent(r, width, height);
         const char* colourName = gpu::ColorTargetFormatName(colour.Format());
-        LOGK("surface: pitch %u, %ux MSAA, colour %s at tile %u, depth %s at tile %u,"
+        LOGK("surface: pitch %u, %ux MSAA, colour %s (exponent bias %d) at tile %u, depth %s at tile %u,"
              " %s, scissor %ux%u", surface.Pitch(), 1u << surface.MsaaSamples(),
-             colourName ? colourName : "unknown", colour.BaseTile(),
+             colourName ? colourName : "unknown", colour.ExpBias(), colour.BaseTile(),
              gpu::DepthTargetFormatName(depth.Format()), depth.BaseTile(),
              gpu::EdramModeName(mode), width, height);
     }
@@ -99,10 +99,10 @@ namespace
         ScissorExtent(r, width, height);
         const uint32_t destination = r[gpu::RB_COPY_DEST_BASE];
         const uint32_t command = control.Command();
-        LOGK("resolve: %s -> %08X (%08X), %ux%u of a %ux%u surface, format %u,"
+        LOGK("resolve: %s -> %08X (%08X), %ux%u of a %ux%u surface, format %u, exponent bias %d,"
              " endian %u, %s%s%s", control.FromDepth() ? "depth" : "colour", destination,
              kernel::FromPhysical(destination), width, height, pitch.Pitch(), pitch.Height(),
-             info.Format(), info.Endian(),
+             info.Format(), info.ExpBias(), info.Endian(),
              command == 0 ? "raw" : (command == 1 ? "converting" : "other"),
              control.ClearsColor() ? ", clears colour" : "",
              control.ClearsDepth() ? ", clears depth" : "");

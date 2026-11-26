@@ -369,7 +369,7 @@ namespace
         const bool writable = at.writable;
         const fs::path& root = at.root;
 
-#ifdef AW_TITLE
+#if defined(AW_TITLE) || defined(BO3_TITLE)
         // The root of a content package, opened as a folder to list it:
         // Advanced Warfare reads what an installed package holds that way
         // (docs/AW-BRINGUP.md). For this title only: the earlier ones were
@@ -817,6 +817,22 @@ namespace
         auto wanted = [&](const std::string& name) { return pattern.empty() || MatchesPattern(pattern.c_str(), name.c_str()); };
         if (folder.volume)
         {
+#if defined(BO3_TITLE)
+            // Black Ops III walks a package folder by folder (sub_82660FA8)
+            // and keeps every file's name with the folders above it: a sound
+            // bank asked for as D:\snd\en\<bank> is read from the package
+            // whose snd folder has it, and without the folders listed the
+            // title looked on the disc alone and gave up on the first bank
+            // only the update has. Advanced Warfare is told a folder's files
+            // alone, as its reading of a package was verified.
+            const std::string within = folder.path.string();
+            if (const auto* names = folder.volume->Children(within))
+                for (const std::string& name : *names)
+                {
+                    const ReadVolume::Entry* entry = folder.volume->Find(within.empty() ? name : within + "\\" + name);
+                    if (entry && wanted(name)) folder.listing.push_back({ name, entry->size, entry->directory });
+                }
+#else
             // The package's root, or one of its folders (a language's): the
             // title adds every name it is told to one list of 1440, and a
             // folder answered with the root's files filled it twice over.
@@ -824,6 +840,7 @@ namespace
             for (const std::string& name : in.empty() ? folder.volume->RootFiles() : folder.volume->FilesIn(in))
                 if (const ReadVolume::Entry* entry = folder.volume->Find(in.empty() ? name : in + "\\" + name); entry && wanted(name))
                     folder.listing.push_back({ name, entry->size, entry->directory });
+#endif
             return;
         }
         std::error_code ec;

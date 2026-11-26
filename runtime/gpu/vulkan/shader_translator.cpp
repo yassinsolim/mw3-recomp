@@ -403,11 +403,17 @@ namespace
                     // below: often the only read of that interpolator.
                     if (m_type == shader::Type::Pixel && f.SourceRegister() < kInterpolatorCount)
                         m_result.interpolatorMask |= 1u << f.SourceRegister();
-                    if (f.Opcode() == FetchOpcode::TextureFetch)
+                    if (f.Opcode() == FetchOpcode::TextureFetch || f.Opcode() == FetchOpcode::GetWeights)
                     {
                         const uint32_t slot = f.ConstantIndex() & 31;
                         m_result.textureMask |= 1u << slot;
-                        m_textureDimensions[slot] = f.Dimension();
+                        // A slot is one image type for the whole program. Where
+                        // one fetch reads it as a volume and another along two
+                        // axes (Black Ops III asks a volume for its weights so),
+                        // it is a volume: the last fetch used to decide, and the
+                        // other fetch's code was not valid SPIR-V for the image.
+                        if (m_textureDimensions[slot] != FetchDimension::D3)
+                            m_textureDimensions[slot] = f.Dimension();
                     }
                     else if (f.Opcode() == FetchOpcode::VertexFetch)
                     {
@@ -2076,7 +2082,9 @@ namespace
         Id size = 0;
         if (!texels)
         {
-            const uint32_t sizeCount = dimension == FetchDimension::D3 ? 3 : 2;
+            // The image's own count, which is the fetch's except for a
+            // volume read along two axes.
+            const uint32_t sizeCount = m_result.textureKinds[slot] == 2 ? 3 : 2;
             size = Emit(Op::ConvertSToF, sizeCount == 3 ? m_module.Float3() : m_module.Float2(),
                         { Emit(Op::ImageQuerySizeLod, m_module.IntVector(sizeCount),
                                { bare, m_module.ConstantS(0) }) });
@@ -2088,11 +2096,14 @@ namespace
         // texel, and a point sample exactly between two texels has to land on
         // the one the console's rounding picks, not wherever float arithmetic
         // does. The sliver is Xenia's, 1.5/1024 of a texel (BSD-3).
-        constexpr float kRounding = 1.5f / 1024.0f;
+        // getWeights asks where between texels the same coordinates fall, and
+        // is given them without the sliver.
+        const bool weights = op.Opcode() == FetchOpcode::GetWeights;
+        const float rounding = weights ? 0.0f : 1.5f / 1024.0f;
         const int32_t offsets[3] = { op.OffsetX(), op.OffsetY(), op.OffsetZ() };
         for (uint32_t i = 0; i < axes; i++)
         {
-            Id offset = m_module.ConstantF(float(offsets[i]) * 0.5f + kRounding);
+            Id offset = m_module.ConstantF(float(offsets[i]) * 0.5f + rounding);
             if (texels)
                 c[i] = op.CoordinatesUnnormalised()
                     ? Emit(Op::FMul, m_float, { Emit(Op::FAdd, m_float, { c[i], offset }), perTexel[i] })
@@ -2106,6 +2117,27 @@ namespace
             }
         }
 
+        if (weights)
+        {
+            // getWeights: how far the coordinates are from the first of the
+            // texels a linear filter would blend, along each axis: the
+            // fraction of the place in texels, half a texel back, since a
+            // texel's centre is at its half. Forty-one of Black Ops III's
+            // pixel shaders have it, and none of them was usable without.
+            // The fourth component is how far the level lies between two
+            // mips, and is given as none.
+            const Id zero = m_module.ConstantF(0.0f);
+            Id components[4] = { zero, zero, zero, zero };
+            for (uint32_t i = 0; i < axes; i++)
+            {
+                const Id texel = texels ? Emit(Op::FDiv, m_float, { c[i], perTexel[i] })
+                                        : Emit(Op::FMul, m_float, { c[i], Component(size, i) });
+                components[i] = Glsl450(Glsl::Fract, m_float, { Emit(Op::FSub, m_float, { texel, m_module.ConstantF(0.5f) }) });
+            }
+            WriteFetchResult(op, components, 4);
+            return;
+        }
+
         Id coordinates;
         if (dimension == FetchDimension::Cube)
         {
@@ -2116,6 +2148,10 @@ namespace
         }
         else if (axes == 3)
             coordinates = Emit(Op::CompositeConstruct, m_module.Float3(), { c[0], c[1], c[2] });
+        else if (m_result.textureKinds[slot] == 2)
+            // Two axes of a volume: its first slice.
+            coordinates = Emit(Op::CompositeConstruct, m_module.Float3(),
+                               { c[0], c[1], m_module.ConstantF(0.0f) });
         else
             coordinates = Emit(Op::CompositeConstruct, m_module.Float2(), { c[0], c[1] });
 
@@ -2156,7 +2192,8 @@ namespace
         switch (op.Opcode())
         {
         case FetchOpcode::VertexFetch:  TranslateVertexFetch(op); break;
-        case FetchOpcode::TextureFetch: TranslateTextureFetch(op); break;
+        case FetchOpcode::TextureFetch:
+        case FetchOpcode::GetWeights:   TranslateTextureFetch(op); break;
         case FetchOpcode::GetGradients: TranslateGetGradients(op); break;
         case FetchOpcode::SetLod:       TranslateSetLod(op); break;
         case FetchOpcode::GetBorderColourFrac:

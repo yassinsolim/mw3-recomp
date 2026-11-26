@@ -159,6 +159,107 @@
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
 
+// Call of Duty: Black Ops III (cod_xenon_mp_Final.pe and cod_xenon_zm_Final.pe,
+// Treyarch's engine as built for this console, which has the multiplayer and
+// the zombies and no campaign; ppc_bo3/ and ppc_bo3_zm/; docs/BO3-BRINGUP.md)
+// comes before Advanced Warfare, on the same terms: BO3_TITLE (and
+// BO3_TITLE_ZM for the zombies) beside MW3_TITLE. The executables are the
+// ones title update 5 makes of the disc's (version 0.0.8.5): the disc's own
+// read none of the fastfiles the game was completed with. Its D3D9 is
+// Advanced Warfare's XDK (21256) linked as a library of separate functions,
+// and the D3D9 entries were found by laying each function beside Advanced
+// Warfare's.
+#elif defined(BO3_TITLE) && defined(BO3_TITLE_ZM)
+
+#define MW2_TITLE_NAME  "BO3 zombies"
+#define T_ENTRY_POINT   0x826E19B0u          // the XEX header's ENTRY_POINT
+
+// The multiplayer's entries below, each found in this executable the way the
+// multiplayer's was.
+#define T_Com_Error            8263FF40
+#define T_COM_ERROR_TREYARCH   1
+#define T_Lua_Error            8250F840
+#define T_Lua_Require          82501420
+#define T_D3D_Present          826EAD10   // the one caller of VdSwap
+#define T_D3D_ArenaWait        826F0530
+#define T_DEV_PresentInterval  14000u     // the flip packet writer, sub_826EA850
+#define T_DEV_ProgressBlock    11024u
+// The streamed images' move, as the multiplayer's: the same function with
+// the registers in another order (the one place `oris r8,r8,0x4b02` stands).
+#define T_Image_FlushMove      824871A8
+
+// the kernel's data imports, found as the multiplayer's
+#define T_DATA_TimeStampBundlePtr 0x820008E0u   // the KeTimeStampBundle import record
+#define T_DATA_DebugMonitorPtr    0x82000A20u   // the KeDebugMonitorData import record
+#define T_DATA_ModuleHandlePtr    0x820008A8u   // the XexExecutableModuleHandle import record
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
+#elif defined(BO3_TITLE)
+
+#define MW2_TITLE_NAME  "BO3 multiplayer"
+#define T_ENTRY_POINT   0x826EF040u          // the XEX header's ENTRY_POINT
+
+// the engine
+// The function with the most callers (384) of those that leave by longjmp; it
+// formats into 4096 bytes of its stack. Treyarch's takes the source file and
+// the line before the code and the format, (file, line, code, format, ...):
+// its callers load a name such as "src\bgame\bg_animation.cpp", a line, 2
+// and a message, and it keeps r7 to r10 as the first of the variable
+// arguments (T_COM_ERROR_TREYARCH, engine_log.cpp).
+#define T_Com_Error            82649010
+#define T_COM_ERROR_TREYARCH   1
+// The Lua library's error function, (state, format, ...): the variadic
+// function the interpreter calls with "table index is NaN" and "loop in
+// gettable" (84 callers).
+#define T_Lua_Error            825105D0
+// The Lua library's `require`, with Treyarch's lowering of the name: the one
+// user of the format `unable to load module "%s":%s` (820D7068); (state).
+#define T_Lua_Require          82502288
+
+// A move of a streamed image's memory, done by the GPU with a memory export
+// (image_move.cpp): (destination, source, size, flags). One of the four
+// functions that load the export's 0x4B000000, and the only one outside the
+// D3D9 library; it makes the stream constant of its first argument as the
+// earlier titles' do (0x40000000 | the physical address in dwords). The
+// streamer loads a texture into a block of its own and has this move it to
+// where the texture lies: without it every texture streamed in after the
+// first is whatever the memory held before, a video's frames among them.
+#define T_Image_FlushMove      824880D0
+
+// the D3D9 library (XDK 21256)
+// The one caller of VdSwap.
+#define T_D3D_Present          826F83A0
+// Advanced Warfare's sub_820DD7F8 but for the wait's record, which this build
+// makes by a call (sub_826FBAB0): the first load is [device+11024], and the
+// same tests of the position against the block's second word follow.
+#define T_D3D_ArenaWait        826FDBC0
+// The device structure, from the flip packet writer (sub_826F7EE0), which
+// reads 11028, the present interval, 12284, 11028 and 11069 as Advanced
+// Warfare's sub_820D82E8 does, at its offsets.
+#define T_DEV_PresentInterval  14000u
+#define T_DEV_ProgressBlock    11024u
+
+// the kernel's data imports: the image's own import records, found by their
+// (library, ordinal) words 0x000100AD, 0x00010059 and 0x00010193, each present once
+#define T_DATA_TimeStampBundlePtr 0x820008ECu   // the KeTimeStampBundle import record
+#define T_DATA_DebugMonitorPtr    0x82000A2Cu   // the KeDebugMonitorData import record
+#define T_DATA_ModuleHandlePtr    0x820008B4u   // the XexExecutableModuleHandle import record
+
+// Not derived for this title: the code that reads each of these checks for zero.
+#define T_DATA_DeviceTable        0u
+#define T_DATA_ClientStates       0u
+#define T_CLIENT_STRIDE           0u
+#define T_CLIENT_VALID            0u
+#define T_CLIENT_ORIGIN           0u
+#define T_CLIENT_ANGLES           0u
+
 #elif defined(AW_TITLE) && defined(AW_TITLE_MP)
 
 #define MW2_TITLE_NAME  "AW multiplayer"
@@ -1980,7 +2081,11 @@
 // service tells copies apart by; and the four letters that mark what this
 // build's copies send each other, so another title's copies on the same
 // network or relay are not heard.
-#if defined(AW_TITLE)
+#if defined(BO3_TITLE)
+#define T_TITLE_ID             0x4156091Du
+#define T_NET_TAG              "BO3"
+#define T_NET_NAME             "bo3recomp"
+#elif defined(AW_TITLE)
 #define T_TITLE_ID             0x41560914u
 #define T_NET_TAG              "AW1"
 #define T_NET_NAME             "awrecomp"

@@ -22,7 +22,9 @@ import javax.crypto.spec.SecretKeySpec
  * and without an entry for it the recompiler takes the bctr for a call
  * through a pointer. Title update 17 of Advanced Warfare's multiplayer also
  * has a table of halfwords with no guard before it, which the analyser
- * passes over for want of a length. What is appended has to be the script's
+ * passes over for want of a length, and Black Ops III has such dispatches in
+ * every form its compiler writes, their tables in .rdata. What is appended
+ * has to be the script's
  * output to the byte: the file's hash is part of what the game library
  * states (cmake/game_abi.cmake), and the build compares it with the app's.
  */
@@ -156,6 +158,99 @@ internal object InTextTables {
                     }
                 }
                 bctr += 4
+            }
+        }
+        // Black Ops III's dispatches with no bound on their index (a switch
+        // the compiler knew to be complete), for its two titles alone, as
+        // the script has them:
+        //     lis r12 / slwi r0,rN,1 / addi r12,r12,lo / lhzx r0,r12,r0    the case's distance from the first
+        //     lis r12 / addi r12,r12,lo / add r12,r12,r0 / mtctr r12 / bctr
+        // A table of bytes has neither shift and loads with lbzx r0,r12,rN;
+        // its distances may be in words (slwi r0,r0,2 after the load). The
+        // cases are counted off the table: every entry that is the distance
+        // to an instruction of the same function, up to where the next
+        // dispatch's table starts.
+        if (Title.isBo3) {
+            fun pair(upper: Long, lower: Long) = (((upper and 0xFFFF) shl 16) + (lower and 0xFFFF).toShort()) and 0xFFFFFFFFL
+            // Where every dispatch's table starts.
+            val starts = HashSet<Long>()
+            for ((first, end) in code) {
+                var at = first
+                while (at < end - 16) {
+                    if ((word(at) and 0xFFFF0000L) == 0x3D800000L) {
+                        var low: Long? = null
+                        var after = at + 4
+                        while (after < at + 16) {
+                            val x = word(after)
+                            if (low == null) {
+                                if ((x and 0xFFFF0000L) == 0x398C0000L) low = x
+                            } else if ((x and 0xFFFF07FFL) == 0x7C0C00AEL || (x and 0xFFFF07FFL) == 0x7C0C022EL || (x and 0xFFFF07FFL) == 0x7C0C002EL) {
+                                starts.add(pair(word(at), low))
+                                break
+                            }
+                            after += 4
+                        }
+                    }
+                    at += 4
+                }
+            }
+            for ((sectionStart, sectionEnd) in code) {
+                var bctr = sectionStart + 40
+                while (bctr < sectionEnd) {
+                    if (word(bctr) == 0x4E800420L && word(bctr - 4) == 0x7D8903A6L && word(bctr - 8) == 0x7D8C0214L) {
+                        // Back over the dispatch: the two lis/addi pairs of
+                        // r12 around the load, and the shifts of the index
+                        // and of what was loaded.
+                        val pairs = ArrayList<Long>()
+                        var register = -1L
+                        var size = 0
+                        var shift = 0
+                        var start = -1L
+                        var low: Long? = null
+                        var at = bctr - 12
+                        while (at > bctr - 56) {
+                            val x = word(at)
+                            if ((x and 0xFFFF0000L) == 0x398C0000L) low = x
+                            else if ((x and 0xFFFF0000L) == 0x3D800000L) {
+                                val lower = low ?: break
+                                pairs.add(pair(x, lower))
+                                low = null
+                                start = at
+                                if (pairs.size == 2) break
+                            } else if (x == 0x7C0C022EL) size = 2
+                            else if ((x and 0xFFFF07FFL) == 0x7C0C00AEL) {
+                                size = 1
+                                register = (x shr 11) and 31
+                            } else if (x == 0x5400103AL) shift = 2
+                            else if ((x and 0xFC1FFFFFL) == 0x5400083CL) register = (x shr 21) and 31
+                            else if (x != 0x60000000L) break
+                            at -= 4
+                        }
+                        // A compare of the index within the eight instructions
+                        // before it bounds it: that dispatch is the analyser's.
+                        val bounded = pairs.size == 2 && (start - 32 until start step 4).any {
+                            (word(it) and 0xFC000000L) == 0x28000000L && ((word(it) shr 16) and 31) == register
+                        }
+                        if (pairs.size == 2 && size != 0 && register >= 0 && start !in bases && !bounded) {
+                            val origin = pairs[0]
+                            val table = pairs[1]
+                            val within = functions.floorEntry(bctr)?.value?.takeIf { bctr < it }
+                                ?: throw IOException("the unbounded dispatch at %08X is in no function .pdata describes".format(start))
+                            val labels = ArrayList<Long>()
+                            while (labels.isEmpty() || table + size * labels.size !in starts) {
+                                val entryAt = (table - BASE).toInt() + size * labels.size
+                                val stored = if (size == 1) image[entryAt].toLong() and 0xFF else big.getShort(entryAt).toLong() and 0xFFFF
+                                val distance = stored shl shift
+                                if (distance % 4 != 0L || origin + distance >= within) break
+                                labels.add(origin + distance)
+                            }
+                            if (labels.size < 2) throw IOException("the unbounded dispatch at %08X has no table at %08X".format(start, table))
+                            entry(start, register, labels)
+                            bases.add(start)
+                        }
+                    }
+                    bctr += 4
+                }
             }
         }
         // A table of halfwords with no guard before it (826B46E8 there: the

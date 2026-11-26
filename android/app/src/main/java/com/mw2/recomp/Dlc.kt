@@ -8,15 +8,16 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * A player's own downloadable content for Advanced Warfare (docs/dlc.md):
- * the map packs and the title update, each one file as the console keeps it
- * on its hard disk, copied into the dlc folder beside the game folder, where
- * the install disc's two packages already are and where the game looks for
- * a title's content (runtime/kernel/content.cpp). The files are the
- * player's; the app brings none and fetches none.
+ * A player's own downloadable content for Advanced Warfare and Black Ops III
+ * (docs/dlc.md): the map packs and the title update, each one file as the
+ * console keeps it on its hard disk, copied into the dlc folder beside the
+ * game folder, where Advanced Warfare's install disc's two packages already
+ * are and where the game looks for a title's content
+ * (runtime/kernel/content.cpp). The files are the player's; the app brings
+ * none and fetches none.
  */
 object Dlc {
-    private const val TITLE_ID = 0x41560914
+    private val TITLE_ID = Title.titleId.toInt()
     private const val CONTENT = 0x00000002
     private const val UPDATE = 0x000B0000
     private const val HEADER = 0x511
@@ -39,7 +40,7 @@ object Dlc {
     class Package(val file: File, val header: Header)
 
     /** Whether this app's game has downloadable content at all. */
-    val offered: Boolean = Title.isAw
+    val offered: Boolean = Title.isAw || Title.isBo3
 
     /** The dlc folder: beside the game folder, wherever that is. */
     fun folder(context: Context): File {

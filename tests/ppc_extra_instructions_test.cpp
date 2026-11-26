@@ -1,5 +1,6 @@
-// Advanced Warfare's stepped-over instructions (runtime/recomp/
-// ppc_extra_instructions.cpp, config/AW.toml) against what the instructions
+// Advanced Warfare's stepped-over instructions, and the eight Black Ops III
+// adds to them (runtime/recomp/ppc_extra_instructions.cpp, config/AW.toml,
+// config/BO3.toml), against what the instructions
 // are defined to do: the AltiVec ones by the PowerPC vector definition, the
 // two VMX128 packs and the half-float unpacks of vupkd3d128 as Xenia's
 // implementations have them (xenia/cpu/ppc/ppc_emit_altivec.cc: the packs
@@ -45,9 +46,30 @@ void PpcVupkd3dHalf4_aa(PPCVRegister& d);
 void PpcLvehx(PPCVRegister& d, PPCRegister& b);
 void PpcMulhd(PPCRegister& d, PPCRegister& a, PPCRegister& b);
 bool PpcBdnzt_eq(PPCRegister& ctr, PPCCRRegister& cr);
+// Black Ops III's.
+void PpcVaddsws_aab(PPCVRegister& d, PPCVRegister& b);
+void PpcVaddsws_aba(PPCVRegister& d, PPCVRegister& a);
+void PpcVsubuwm_aab(PPCVRegister& d, PPCVRegister& b);
+void PpcVcmpgtsw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b);
+void PpcVcmpgtsw_aab(PPCVRegister& d, PPCVRegister& b);
+void PpcVcmpgtsw_aba(PPCVRegister& d, PPCVRegister& a);
+void PpcVcmpgtuw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b);
+void PpcVcmpgtuw_aba(PPCVRegister& d, PPCVRegister& a);
+void PpcVcmpgtuwRc(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b, PPCCRRegister& cr6);
+void PpcVcmpgtuwRc_aab(PPCVRegister& d, PPCVRegister& b, PPCCRRegister& cr6);
+void PpcVcmpgtuwRc_aba(PPCVRegister& d, PPCVRegister& a, PPCCRRegister& cr6);
+void PpcVnor_abb(PPCVRegister& d, PPCVRegister& a);
+void PpcVnor_aaa(PPCVRegister& d);
+void PpcVrfip(PPCVRegister& d, PPCVRegister& b);
+void PpcVsl(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b);
+void PpcVaddsws_abb(PPCVRegister& d, PPCVRegister& a);
+void PpcVminsw_aab(PPCVRegister& d, PPCVRegister& b);
+void PpcVavgsw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b);
+void PpcVavgsw_aba(PPCVRegister& d, PPCVRegister& a);
+void PpcStvebx(PPCVRegister& s, PPCRegister& b);
 void PpcRecordCr0(PPCRegister& result, PPCCRRegister& cr, PPCXERRegister& xer);
 
-// The guest memory lvehx reads: four vectors, each byte its own address.
+// The guest memory lvehx reads and stvebx writes: four vectors, each byte its own address.
 alignas(16) static uint8_t memory[64];
 extern "C" uint8_t* mw2_guest_base() { return memory; }
 
@@ -178,6 +200,47 @@ namespace
     Bytes ModelHalf4(const Bytes& b)
     {
         return Floats(ModelHalf(Half(b, 4)), ModelHalf(Half(b, 5)), ModelHalf(Half(b, 6)), ModelHalf(Half(b, 7)));
+    }
+
+    // Black Ops III's eight.
+    Bytes ModelVavgsw(const Bytes& a, const Bytes& b)
+    {
+        Bytes d;
+        for (int i = 0; i < 4; i++)
+        {
+            // Floor of (a + b + 1) / 2, without relying on how a negative number shifts.
+            const int64_t sum = int64_t(int32_t(Word(a, i))) + int64_t(int32_t(Word(b, i))) + 1;
+            SetWord(d, i, uint32_t(int32_t(sum >= 0 ? sum / 2 : -((-sum + 1) / 2))));
+        }
+        return d;
+    }
+    Bytes ModelVcmpgtsw(const Bytes& a, const Bytes& b)
+    {
+        Bytes d;
+        for (int i = 0; i < 4; i++) SetWord(d, i, int32_t(Word(a, i)) > int32_t(Word(b, i)) ? 0xFFFFFFFFu : 0u);
+        return d;
+    }
+    Bytes ModelVcmpgtuw(const Bytes& a, const Bytes& b)
+    {
+        Bytes d;
+        for (int i = 0; i < 4; i++) SetWord(d, i, Word(a, i) > Word(b, i) ? 0xFFFFFFFFu : 0u);
+        return d;
+    }
+    Bytes ModelNot(const Bytes& a)
+    {
+        Bytes d;
+        for (int i = 0; i < 16; i++) d[i] = uint8_t(~a[i]);
+        return d;
+    }
+    // The whole vector as one number of 128 bits, byte 0 its highest, moved
+    // left by the count in the last byte's low three bits.
+    Bytes ModelVsl(const Bytes& a, const Bytes& b)
+    {
+        const int count = b[15] & 7;
+        Bytes d;
+        for (int i = 0; i < 16; i++)
+            d[i] = uint8_t((a[i] << count) | (i < 15 ? a[i + 1] >> (8 - count) : 0));
+        return d;
     }
 
     using Hook3 = void (*)(PPCVRegister&, PPCVRegister&, PPCVRegister&);
@@ -321,7 +384,7 @@ int main()
         const Bytes four = Halves({0xDEAD, 0xBEEF, 0xDEAD, 0xBEEF, uint16_t(h), other, uint16_t(~h), uint16_t(other ^ 0x8000)});
         assert(Run(PpcVupkd3dHalf4, four) == ModelHalf4(four));
         assert(Run(PpcVupkd3dHalf2, four) == ModelHalf2(four));
-        // In place, as title update 17's multiplayer has it.
+        // In place, as title update 17's multiplayer and Black Ops III have it.
         PPCVRegister inPlace = ToRegister(four);
         PpcVupkd3dHalf4_aa(inPlace);
         assert(FromRegister(inPlace) == ModelHalf4(four));
@@ -390,6 +453,143 @@ int main()
         assert(compared == 3 && !cr.eq && ctr.u64 == 1);
     }
 
+    // ---- Black Ops III's -------------------------------------------------
+    // vcmpgtsw: signed and strictly greater; vcmpgtuw: unsigned, so
+    // 0x80000000 is above 0x7FFFFFFF.
+    {
+        const Bytes a = Words(1, 0x80000000, 0x7FFFFFFF, 5), b = Words(0, 0x7FFFFFFF, 0x80000000, 5);
+        assert(Run(PpcVcmpgtsw, a, b) == Words(0xFFFFFFFF, 0, 0xFFFFFFFF, 0));
+        assert(Run(PpcVcmpgtuw, a, b) == Words(0xFFFFFFFF, 0xFFFFFFFF, 0, 0));
+    }
+    Sweep(PpcVcmpgtsw, ModelVcmpgtsw);
+    Sweep(PpcVcmpgtuw, ModelVcmpgtuw);
+    // The forms with the result in an operand's register, and the forms of
+    // vaddsws and vsubuwm these executables add, against the same models.
+    for (int n = 0; n < 20000; n++)
+    {
+        const Bytes a = Random(), b = Random();
+        PPCVRegister x = ToRegister(a), y = ToRegister(b);
+        PpcVcmpgtsw_aab(x, y);
+        assert(FromRegister(x) == ModelVcmpgtsw(a, b) && FromRegister(y) == b);
+        x = ToRegister(a); PpcVcmpgtsw_aba(y, x);
+        assert(FromRegister(y) == ModelVcmpgtsw(a, b) && FromRegister(x) == a);
+        y = ToRegister(b); PpcVcmpgtuw_aba(y, x);
+        assert(FromRegister(y) == ModelVcmpgtuw(a, b) && FromRegister(x) == a);
+        y = ToRegister(b); PpcVaddsws_aab(x, y);
+        assert(FromRegister(x) == ModelVaddsws(a, b) && FromRegister(y) == b);
+        x = ToRegister(a); PpcVaddsws_aba(y, x);
+        assert(FromRegister(y) == ModelVaddsws(a, b) && FromRegister(x) == a);
+        y = ToRegister(b); PpcVsubuwm_aab(x, y);
+        assert(FromRegister(x) == ModelVsubuwm(a, b) && FromRegister(y) == b);
+        x = ToRegister(a); PpcVaddsws_abb(y, x);
+        assert(FromRegister(y) == ModelVaddsws(a, a) && FromRegister(x) == a);
+        y = ToRegister(b); PpcVminsw_aab(x, y);
+        assert(FromRegister(x) == ModelVminsw(a, b) && FromRegister(y) == b);
+        x = ToRegister(a); PpcVavgsw_aba(y, x);
+        assert(FromRegister(y) == ModelVavgsw(a, b) && FromRegister(x) == a);
+        y = ToRegister(b);
+        x = ToRegister(a); PpcVpkuhus_aaa(x);
+        assert(FromRegister(x) == ModelVpkuhus(a, a));
+        x = ToRegister(a); PpcVpkuwus_aaa(x);
+        assert(FromRegister(x) == ModelVpkuwus(a, a));
+    }
+
+    // vcmpgtuw.: the same result, and cr6 with lt for "every word greater",
+    // eq for "none", neither for a mix; gt and so are cleared.
+    {
+        auto compare = [](const Bytes& a, const Bytes& b, PPCCRRegister& cr)
+        {
+            PPCVRegister d = ToRegister(Bytes{}), ra = ToRegister(a), rb = ToRegister(b);
+            cr.lt = cr.gt = cr.eq = cr.so = 1;
+            PpcVcmpgtuwRc(d, ra, rb, cr);
+            assert(FromRegister(ra) == a && FromRegister(rb) == b);
+            return FromRegister(d);
+        };
+        PPCCRRegister cr{};
+        assert(compare(Words(1, 2, 3, 0x80000000), Words(0, 1, 2, 0x7FFFFFFF), cr) == Words(~0u, ~0u, ~0u, ~0u));
+        assert(cr.lt == 1 && cr.gt == 0 && cr.eq == 0 && cr.so == 0);
+        assert(compare(Words(0, 1, 2, 0x7FFFFFFF), Words(0, 1, 2, 0x80000000), cr) == Words(0, 0, 0, 0));
+        assert(cr.lt == 0 && cr.gt == 0 && cr.eq == 1 && cr.so == 0);
+        assert(compare(Words(5, 0, 0, 0), Words(4, 0, 0, 0), cr) == Words(~0u, 0, 0, 0));
+        assert(cr.lt == 0 && cr.gt == 0 && cr.eq == 0 && cr.so == 0);
+        // The title's use (82507A6C): `vcmpgtuw. v0,v0,v13; beq cr6` leaves
+        // when no word of v0 is above v13's.
+        for (int n = 0; n < 20000; n++)
+        {
+            const Bytes a = Random(), b = (n & 7) == 0 ? a : Random(), expected = ModelVcmpgtuw(a, b);
+            bool all = true, none = true;
+            for (int i = 0; i < 4; i++) { all &= Word(expected, i) != 0; none &= Word(expected, i) == 0; }
+            assert(compare(a, b, cr) == expected && cr.lt == all && cr.eq == none && cr.gt == 0 && cr.so == 0);
+            PPCVRegister x = ToRegister(a), y = ToRegister(b);
+            PPCCRRegister c2{};
+            PpcVcmpgtuwRc_aab(x, y, c2);
+            assert(FromRegister(x) == expected && FromRegister(y) == b && c2.lt == all && c2.eq == none);
+            x = ToRegister(a);
+            PpcVcmpgtuwRc_aba(y, x, c2);
+            assert(FromRegister(y) == expected && FromRegister(x) == a && c2.lt == all && c2.eq == none);
+        }
+    }
+
+    // vnor128 with one register for both operands: every bit turned over.
+    assert((Run(PpcVnor_abb, Words(0, 0xFFFFFFFF, 0x12345678, 0x80000001)) == Words(0xFFFFFFFF, 0, 0xEDCBA987, 0x7FFFFFFE)));
+    for (int n = 0; n < 20000; n++)
+    {
+        const Bytes a = Random();
+        assert(Run(PpcVnor_abb, a) == ModelNot(a));
+        PPCVRegister x = ToRegister(a);
+        PpcVnor_aaa(x);
+        assert(FromRegister(x) == ModelNot(a));
+    }
+
+    // vrfip128: up to the next whole number; whole numbers, zeroes and
+    // infinities stay, and what is above -1 and below 0 becomes minus zero.
+    assert(Run(PpcVrfip, Floats(1.25f, -1.25f, 2.0f, -0.5f)) == Floats(2.0f, -1.0f, 2.0f, -0.0f));
+    assert(Run(PpcVrfip, Floats(0.0f, -0.0f, 8388607.5f, -8388607.5f)) == Floats(0.0f, -0.0f, 8388608.0f, -8388607.0f));
+    assert(Run(PpcVrfip, Floats(1e30f, -1e30f, __builtin_inff(), -__builtin_inff())) == Floats(1e30f, -1e30f, __builtin_inff(), -__builtin_inff()));
+    assert(Run(PpcVrfip, Floats(0.000001f, 0.999999f, -0.999999f, 16777216.0f)) == Floats(1.0f, 1.0f, -0.0f, 16777216.0f));
+
+    // vsl: 128 bits as one number. A count of 4 moves every nibble one place
+    // up and the top one out; a count of 0 changes nothing; only the last
+    // three bits of the last byte count.
+    {
+        const Bytes a = Words(0x01234567, 0x89ABCDEF, 0xFEDCBA98, 0x76543210);
+        Bytes count{};
+        count[15] = 4;
+        assert(Run(PpcVsl, a, count) == Words(0x12345678, 0x9ABCDEFF, 0xEDCBA987, 0x65432100));
+        count[15] = 0xF8;
+        assert(Run(PpcVsl, a, count) == a);
+        count[15] = 0x0F; // 7
+        assert(Run(PpcVsl, Words(0, 0, 0x00000001, 0x80000001), count) == Words(0, 0, 0x000000C0, 0x00000080));
+        count[15] = 1;    // the bit crosses from the low half to the high one
+        assert(Run(PpcVsl, Words(0, 0, 0x80000000, 0), count) == Words(0, 1, 0, 0));
+    }
+    Sweep(PpcVsl, ModelVsl);
+
+    // vavgsw: signed, a half rounded up (towards plus infinity), and no
+    // overflow where the sum does not fit a word.
+    assert(Run(PpcVavgsw, Words(1, 0xFFFFFFFF, 0x7FFFFFFF, 0x80000000), Words(2, 0xFFFFFFFE, 0x7FFFFFFF, 0x80000000))
+           == Words(2, 0xFFFFFFFF, 0x7FFFFFFF, 0x80000000));                   // 1.5 -> 2, -1.5 -> -1
+    assert(Run(PpcVavgsw, Words(0x7FFFFFFF, 0x80000000, 0, 5), Words(0x80000000, 0x7FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFB))
+           == Words(0, 0, 0, 0));                                              // -0.5 -> 0
+    Sweep(PpcVavgsw, ModelVavgsw);
+
+    // stvebx: the byte of the vector that has the address's place within
+    // sixteen goes to that address, and nothing around it is touched.
+    {
+        Bytes v;
+        for (int i = 0; i < 16; i++) v[i] = uint8_t(0x10 + i);
+        for (uint32_t address = 16; address < 48; address++)
+        {
+            for (int i = 0; i < 64; i++) memory[i] = 0xEE;
+            PPCVRegister s = ToRegister(v);
+            PPCRegister b;
+            b.u64 = 0xFFFFFFFF00000000ull | address; // the upper half of a register is not part of an address
+            PpcStvebx(s, b);
+            assert(FromRegister(s) == v);
+            for (uint32_t i = 0; i < 64; i++) assert(memory[i] == (i == address ? v[address & 0xF] : 0xEE));
+        }
+    }
+
     // The recording forms' cr0: the result's low word, signed, against zero,
     // and the summary overflow carried over.
     {
@@ -409,6 +609,6 @@ int main()
         assert(record(7, true) == 5);
     }
 
-    std::puts("ppc_extra_instructions_test: twelve instructions and two unpacks as defined");
+    std::puts("ppc_extra_instructions_test: twenty instructions, two unpacks and the recording forms' cr0 as defined");
     return 0;
 }

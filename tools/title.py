@@ -63,6 +63,18 @@ AWMP17 = dict(xex="aw/tu17/default_mp.xex", image="aw/tu17/default_mp.pe", ppc="
               toml="config/AWMP.tu17.toml", tables="config/awmp_switch_tables.tu17.toml", build="build-awmp17",
               syms="config/awmp17_symbols.txt")
 
+# Call of Duty: Black Ops III's multiplayer and its zombies (cod_xenon_mp_Final.pe
+# and cod_xenon_zm_Final.pe: default.xex and default_zm.xex); the Xbox 360 game
+# has no campaign. Not the disc's executables but the ones title update 5 makes
+# of them (bo3/tu5/, by XenonRecomp's patcher): the disc's read fastfiles of
+# version 595 only, and every fastfile of the multiplayer and the zombies came
+# as a download, of version 606 (docs/BO3-BRINGUP.md).
+BO3 = dict(xex="bo3/tu5/default.xex", image="bo3/tu5/default.pe", ppc="ppc_bo3",
+           toml="config/BO3.toml", tables="config/bo3_switch_tables.toml", build="build-bo3",
+           syms="config/bo3_symbols.txt")
+BO3ZM = dict(xex="bo3/tu5/default_zm.xex", image="bo3/tu5/default_zm.pe", ppc="ppc_bo3_zm",
+             toml="config/BO3ZM.toml", tables="config/bo3zm_switch_tables.toml", build="build-bo3zm",
+             syms="config/bo3zm_symbols.txt")
 VERSIONS = ("tu6", "tu0")
 VERSION = os.environ.get("MW2_VERSION", "tu6")
 if VERSION not in VERSIONS:
@@ -84,6 +96,8 @@ TITLES["cod4mp"] = COD4MP
 TITLES["aw"] = AW
 TITLES["awmp"] = AWMP
 TITLES["awmp17"] = AWMP17
+TITLES["bo3"] = BO3
+TITLES["bo3zm"] = BO3ZM
 
 NAME = os.environ.get("MW2_TITLE", "sp")
 if NAME not in TITLES:

@@ -176,6 +176,12 @@ const ReadVolume::Entry* ReadVolume::Find(const std::string& relative) const
     return it == entries_.end() ? nullptr : &it->second;
 }
 
+const std::vector<std::string>* ReadVolume::Children(const std::string& folder) const
+{
+    const auto it = children_.find(Key(folder));
+    return it == children_.end() ? nullptr : &it->second;
+}
+
 std::shared_ptr<ReadVolume> ReadVolume::OpenDisc(const std::string& source, std::string& error)
 {
     const fs::path path = install::FromUtf8(source);
@@ -317,8 +323,12 @@ std::shared_ptr<ReadVolume> ReadVolume::OpenPackage(const std::string& source, u
             if (path.find('\\') == std::string::npos) volume->rootFiles_.push_back(path);
             else volume->folderFiles_.push_back(path);
         }
+        const size_t cut = path.rfind('\\');
+        volume->children_[cut == std::string::npos ? std::string() : Key(path.substr(0, cut))].push_back(nameOf(index));
+        if (entry.directory) volume->children_.try_emplace(Key(path));
         volume->entries_[Key(path)] = std::move(entry);
     }
+    volume->children_.try_emplace(std::string());
     return volume;
 }
 

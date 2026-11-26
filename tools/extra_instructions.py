@@ -3,7 +3,7 @@
 has no case for (docs/AW-BRINGUP.md, "Recompiling").
 
 Advanced Warfare's executables use twelve such instructions at 415 places
-each, and a kind of `vupkd3d128` (the unpacking of half floats) for which the
+each (Black Ops III's nineteen at 921: config/BO3.toml), and a kind of `vupkd3d128` (the unpacking of half floats) for which the
 recompiler writes a trap without a word; those are found in the image. The recompiler reports every one ("Unrecognized instruction at
 0x........: <mnemonic>") and writes nothing for it; this reads that report,
 decodes each instruction from the image and appends to the title's
@@ -67,12 +67,31 @@ def vector(name):
     return decode
 
 
+def vector_record(name):
+    """A compare that also sets cr6 (the mnemonic ends in a dot)."""
+    def decode(address, x):
+        function, registers = forms(name, [f"v{(x >> 21) & 31}", f"v{(x >> 16) & 31}", f"v{(x >> 11) & 31}"])
+        return (function, registers + ["cr6"]), None
+    return decode
+
+
 def vector128(name):
     def decode(address, x):
         d = ((x >> 21) & 31) | ((x & 0xC) << 3)
         a = ((x >> 16) & 31) | (x & 0x20) | ((x >> 4) & 0x40)
         b = ((x >> 11) & 31) | ((x & 3) << 5)
         return forms(name, [f"v{d}", f"v{a}", f"v{b}"]), None
+    return decode
+
+
+def vector128_unary(name):
+    """vD,vB of a VMX128 instruction with one operand."""
+    def decode(address, x):
+        d = ((x >> 21) & 31) | ((x & 0xC) << 3)
+        b = ((x >> 11) & 31) | ((x & 3) << 5)
+        if d == b:
+            raise SystemExit(f"{address:08X}: {name} in place, for which the runtime has no form")
+        return (name, [f"v{d}", f"v{b}"]), None
     return decode
 
 
@@ -90,6 +109,13 @@ def lvehx(address, x):
     return forms("PpcLvehxIndexed", [f"v{d}", f"r{a}", f"r{b}"]), None
 
 
+def stvebx(address, x):
+    s, a, b = (x >> 21) & 31, (x >> 16) & 31, (x >> 11) & 31
+    if a != 0:
+        raise SystemExit(f"{address:08X}: stvebx with two address registers, for which the runtime has no form")
+    return ("PpcStvebx", [f"v{s}", f"r{b}"]), None
+
+
 def bdnzt(address, x):
     if x & 3:
         raise SystemExit(f"{address:08X}: bdnzt with a link or an absolute address")
@@ -105,6 +131,10 @@ DECODERS = {
     "vmaxuh": vector("PpcVmaxuh"), "vsububm": vector("PpcVsububm"), "vcmpgtsb": vector("PpcVcmpgtsb"),
     "vaddsws": vector("PpcVaddsws"), "vpkuwus128": vector128("PpcVpkuwus"), "vpkuhus128": vector128("PpcVpkuhus"),
     "mulhd": mulhd, "lvehx": lvehx, "bdnzt": bdnzt,
+    # Black Ops III's eight more.
+    "vcmpgtsw": vector("PpcVcmpgtsw"), "vcmpgtuw": vector("PpcVcmpgtuw"), "vcmpgtuw.": vector_record("PpcVcmpgtuwRc"),
+    "vnor128": vector128("PpcVnor"), "vrfip128": vector128_unary("PpcVrfip"), "vsl": vector("PpcVsl"),
+    "vavgsw": vector("PpcVavgsw"), "stvebx": stvebx,
 }
 
 def vupkd3d(address, x):

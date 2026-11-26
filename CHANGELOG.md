@@ -5,6 +5,24 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Black Ops III (Xbox 360), started: Windows, and a first boot on
+  Android; not for players yet** ([docs/BO3-BRINGUP.md](docs/BO3-BRINGUP.md)).
+  - Windows: its multiplayer and zombies executables, as title update 5
+    makes them, reach their menus; a multiplayer match against bots and one
+    between two PCs through Find LAN Game; the zombies' Shadows of Evil into
+    its second round, and The Giant from a player's own pack, read where it
+    lies.
+  - Android (`com.bo3.recomp`, built from source only): on an AYN Thor the
+    menus at 57 to 60 frames a second, a multiplayer match at 43 and Shadows
+    of Evil at 56. The game code is one set, made from the disc and title
+    update 5; Compatibility Pack 1 and the map packs are only read from the
+    `dlc` folder, so no pack ever needs a build. Its game code was built on
+    a PC for these runs: the build on the device is written and has not been
+    run, and the app's installer does not copy this disc yet.
+  - A run under the Vulkan validation layer found a texture slot one shader
+    reads both as a volume and along two axes; it is a volume now. The
+    shader translator gains `getWeights`, so every game's shaders are
+    compiled again once.
 - **Advanced Warfare: the app says which Compatibility Packs are missing.**
   The updated game needs all six, whichever map packs you bought, and with
   one missing it only showed its own notice that required content had been

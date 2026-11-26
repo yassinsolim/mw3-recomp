@@ -96,11 +96,17 @@ const char* online::Name()
 // carries to everyone it reaches. MW2_LIVE=0 keeps it signed out on a relay.
 // Advanced Warfare's multiplayer is signed in on the same terms: its logon
 // to the publisher's servers and its matchmaking are answered there too.
+// Black Ops III is signed in only when asked: signed in, it wants files from
+// the publisher's title storage before its menus ("Could not download
+// required information from title storage") and starts itself again, and
+// nothing here answers for that storage. Its players meet in Find LAN Game.
 bool online::Live()
 {
     static const bool live = [] {
         auto* service = Get();
-#if defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
+#if defined(BO3_TITLE)
+        if (!env::Flag("MW2_LIVE")) return false;
+#elif defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
         const bool wanted = env::Text("MW2_LIVE") ? env::Flag("MW2_LIVE")
                                                   : g_name && std::strcmp(g_name, "server") == 0;
         if (!wanted) return false;

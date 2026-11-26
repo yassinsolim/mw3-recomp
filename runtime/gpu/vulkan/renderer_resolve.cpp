@@ -13,8 +13,11 @@
 #include "../../report.h"
 
 #include <algorithm>
+#include <bit>
 #include <cstdio>
 #include <cstring>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef MW2_HAVE_VULKAN
@@ -37,15 +40,37 @@ namespace vk::renderer::detail
     // first resolve of a frame moves on to the next one; the rest of the frame
     // -- the second shadow cascade, the draws that sample it -- get that same
     // one back.
-    Resolved& ResolveCopyFor(uint32_t destination)
+    Resolved& ResolveCopyFor(uint32_t destination, bool depth)
     {
-        ResolveRing& ring = g.resolvedTo[destination];
+        ResolveRing& ring = g.resolvedTo[ResolveKey(destination, depth)];
         if (ring.frame != g.frames)
         {
             ring.frame = g.frames;
             ring.newest = (ring.newest + 1) % kFrameSlots;
         }
         return ring.copies[ring.newest];
+    }
+
+    // The copies a fetch reads: the depth's for a fetch of a depth format
+    // (24_8 and 24_8_FLOAT), the colour's for any other, and whichever
+    // there is where the address has only one.
+    ResolveRing* ResolvedAt(const gpu::TextureFetch& fetch)
+    {
+        const bool depth = fetch.Format() == 22 || fetch.Format() == 23;
+        auto found = g.resolvedTo.find(ResolveKey(fetch.BaseAddress(), depth));
+        if (found == g.resolvedTo.end()) found = g.resolvedTo.find(ResolveKey(fetch.BaseAddress(), !depth));
+        return found == g.resolvedTo.end() ? nullptr : &found->second;
+    }
+
+    void DestroyResolveVolume(Resolved& resolved)
+    {
+        if (resolved.volumeView) vkDestroyImageView(g.device, resolved.volumeView, nullptr);
+        if (resolved.volume) vkDestroyImage(g.device, resolved.volume, nullptr);
+        if (resolved.volumeMemory) vkFreeMemory(g.device, resolved.volumeMemory, nullptr);
+        resolved.volumeView = VK_NULL_HANDLE;
+        resolved.volume = VK_NULL_HANDLE;
+        resolved.volumeMemory = VK_NULL_HANDLE;
+        resolved.volumeDepth = 0;
     }
 
     // `scale` is the surface's the copy comes out of: a copy is as many times
@@ -82,6 +107,7 @@ namespace vk::renderer::detail
         if (into.view) vkDestroyImageView(g.device, into.view, nullptr);
         if (into.gammaView) vkDestroyImageView(g.device, into.gammaView, nullptr);
         if (into.attachmentView) vkDestroyImageView(g.device, into.attachmentView, nullptr);
+        DestroyResolveVolume(into);
         if (into.image) vkDestroyImage(g.device, into.image, nullptr);
         if (into.memory) vkFreeMemory(g.device, into.memory, nullptr);
         into = Resolved{};
@@ -155,6 +181,160 @@ namespace vk::renderer::detail
              height * scale,
              depth ? "depth" : "colour");
         return true;
+    }
+}
+
+namespace vk::renderer::detail
+{
+    // Black Ops III grades the frame through a colour table 32 texels each
+    // way, a volume. It draws the table every frame into a surface 32 wide
+    // and 1,024 tall, resolves that and fetches the copy as a tiled volume:
+    // the rows of the surface are not the volume's slices one under the
+    // other, they are the volume's memory read as a tiled 2D texture's (the
+    // table it draws from is stored so). A 2D copy bound where the shader
+    // declares a volume gave the fallback, black, and the grading is the
+    // frame's last step: the whole world was black behind the interface.
+    //
+    // So a copy a fetch has named a volume is also written into a volume:
+    // block by block, each from where the two tilings put it in the surface.
+    // A block is 16 texels by 8, within which both tilings keep texels side
+    // by side (the plan checks the far corner of each, and gives up on a
+    // shape where that is not so).
+    struct VolumePlan
+    {
+        VolumeShape shape;
+        uint32_t surfaceWidth = 0, surfaceHeight = 0, pitch = 0, bytesLog2 = 0, scale = 0;
+        bool possible = false;
+        std::vector<VkImageCopy> regions;
+    };
+    std::unordered_map<uint32_t, VolumePlan> g_volumePlans;
+
+    const VolumePlan& PlanVolume(uint32_t destination, const VolumeShape& shape, uint32_t surfaceWidth,
+                                 uint32_t surfaceHeight, uint32_t pitch, uint32_t bytesLog2, uint32_t scale)
+    {
+        constexpr uint32_t kAcross = 16, kDown = 8;
+        VolumePlan& plan = g_volumePlans[destination];
+        if (plan.shape == shape && plan.surfaceWidth == surfaceWidth && plan.surfaceHeight == surfaceHeight &&
+            plan.pitch == pitch && plan.bytesLog2 == bytesLog2 && plan.scale == scale)
+            return plan;
+        plan = VolumePlan{ shape, surfaceWidth, surfaceHeight, pitch, bytesLog2, scale, false, {} };
+        if (shape.width % kAcross || shape.height % kDown || surfaceWidth % kAcross || surfaceHeight % kDown ||
+            uint64_t(shape.width) * shape.height * shape.depth > uint64_t(surfaceWidth) * surfaceHeight)
+            return plan;
+        const uint32_t pitch2D = (pitch + 31) & ~31u;
+        std::unordered_map<int64_t, VkOffset2D> surfaceBlocks;
+        for (uint32_t y = 0; y < surfaceHeight; y += kDown)
+            for (uint32_t x = 0; x < surfaceWidth; x += kAcross)
+                surfaceBlocks[gpu::TiledOffset2D(int32_t(x), int32_t(y), pitch2D, bytesLog2)] =
+                    { int32_t(x), int32_t(y) };
+        const uint32_t pitch3D = (shape.width + 31) & ~31u, height3D = (shape.height + 31) & ~31u;
+        for (uint32_t z = 0; z < shape.depth; z++)
+            for (uint32_t y = 0; y < shape.height; y += kDown)
+                for (uint32_t x = 0; x < shape.width; x += kAcross)
+                {
+                    const auto from = surfaceBlocks.find(
+                        gpu::TiledOffset3D(int32_t(x), int32_t(y), int32_t(z), pitch3D, height3D, bytesLog2));
+                    if (from == surfaceBlocks.end()) return plan;
+                    const VkOffset2D at = from->second;
+                    if (gpu::TiledOffset3D(int32_t(x + kAcross - 1), int32_t(y + kDown - 1), int32_t(z), pitch3D,
+                                           height3D, bytesLog2) !=
+                        gpu::TiledOffset2D(at.x + int32_t(kAcross) - 1, at.y + int32_t(kDown) - 1, pitch2D,
+                                           bytesLog2))
+                        return plan;
+                    VkImageCopy copy{};
+                    copy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+                    copy.srcOffset = Scaled(at.x, at.y, 0, scale);
+                    copy.dstSubresource = copy.srcSubresource;
+                    copy.dstOffset = Scaled(int32_t(x), int32_t(y), int32_t(z), scale);
+                    copy.extent = { kAcross * scale, kDown * scale, 1 };
+                    plan.regions.push_back(copy);
+                }
+        plan.possible = true;
+        return plan;
+    }
+
+    bool MakeResolveVolume(Resolved& into, const VolumeShape& shape)
+    {
+        if (into.volume && into.volumeDepth == shape.depth) return true;
+        // Made once for each copy, and again only with the copy itself
+        // (MakeResolveImage, which has waited for the GPU by then).
+        VkImageCreateInfo info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+        info.imageType = VK_IMAGE_TYPE_3D;
+        info.format = into.format;
+        info.extent = { shape.width * into.scale, shape.height * into.scale, shape.depth };
+        info.mipLevels = 1;
+        info.arrayLayers = 1;
+        info.samples = VK_SAMPLE_COUNT_1_BIT;
+        info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        VkMemoryRequirements needs{};
+        VkMemoryAllocateInfo allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        VkImageViewCreateInfo view{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+        view.viewType = VK_IMAGE_VIEW_TYPE_3D;
+        view.format = into.format;
+        view.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        const auto made = [&] {
+            if (vkCreateImage(g.device, &info, nullptr, &into.volume) != VK_SUCCESS) return false;
+            vkGetImageMemoryRequirements(g.device, into.volume, &needs);
+            allocate.allocationSize = needs.size;
+            allocate.memoryTypeIndex = FindMemory(needs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            if (allocate.memoryTypeIndex == UINT32_MAX ||
+                vkAllocateMemory(g.device, &allocate, nullptr, &into.volumeMemory) != VK_SUCCESS ||
+                vkBindImageMemory(g.device, into.volume, into.volumeMemory, 0) != VK_SUCCESS)
+                return false;
+            view.image = into.volume;
+            return vkCreateImageView(g.device, &view, nullptr, &into.volumeView) == VK_SUCCESS;
+        };
+        if (!made()) { DestroyResolveVolume(into); return false; }
+        into.volumeDepth = shape.depth;
+        LOGI("renderer: %ux%ux%u volume for a colour resolve destination the title fetches as one",
+             info.extent.width, info.extent.height, info.extent.depth);
+        return true;
+    }
+
+    // With `into` just written and readable by shaders, and left so.
+    void FillResolveVolume(Resolved& into, uint32_t destination, uint32_t pitch, uint32_t bytesLog2)
+    {
+        const auto shape = g.fetchedVolume.find(destination);
+        if (shape == g.fetchedVolume.end()) return;
+        const VolumePlan& plan = PlanVolume(destination, shape->second, into.width, into.height, pitch,
+                                            bytesLog2, into.scale);
+        if (!plan.possible)
+        {
+            static bool said = false;
+            if (!std::exchange(said, true))
+                LOGW("renderer: the texture at %08X is fetched as a %ux%ux%u volume, which the %ux%u surface"
+                     " resolved there cannot be read as", destination, shape->second.width,
+                     shape->second.height, shape->second.depth, into.width, into.height);
+            return;
+        }
+        if (!MakeResolveVolume(into, shape->second)) return;
+        RecordBarrier(into.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                      VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                      kShaderStages, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        // After the draws that sampled the volume's last contents.
+        RecordBarrier(into.volume, VK_IMAGE_ASPECT_COLOR_BIT,
+                      VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                      0, VK_ACCESS_TRANSFER_WRITE_BIT, kShaderStages, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        const VkImage from = into.image, volume = into.volume;
+        // The plan is kept for the destination and outlives the recording.
+        const std::vector<VkImageCopy>* regions = &plan.regions;
+        Record([=](VkCommandBuffer command) {
+            vkCmdCopyImage(command, from, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           volume, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, uint32_t(regions->size()),
+                           regions->data());
+        });
+        RecordBarrier(into.volume, VK_IMAGE_ASPECT_COLOR_BIT,
+                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                      VK_PIPELINE_STAGE_TRANSFER_BIT, kShaderStages);
+        RecordBarrier(into.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                      VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT,
+                      VK_PIPELINE_STAGE_TRANSFER_BIT, kShaderStages);
     }
 }
 
@@ -333,7 +513,27 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
         g.resolves++;
         EndPass();
         PassTimesBetween();
-        from->rowsRead = std::max(from->rowsRead, uint32_t(rect.offset.y) + rect.extent.height);
+        // A rectangle taller than the surface goes on into the surface that
+        // lies after it in EDRAM, where there is one. Black Ops III's two
+        // shadow maps are 1,024 rows each, one after the other, and one
+        // resolve 2,048 rows tall copies both out as the one texture the
+        // world's shaders read; a surface here is an image, and the copy
+        // held the first map alone, the second half of it empty.
+        // `rows` is how many rows of EDRAM, from the first surface's first,
+        // lie before the surface asked for.
+        const uint32_t bottom = uint32_t(rect.offset.y) + rect.extent.height;
+        const uint32_t tilesAcross = ((surface.Pitch() << (surface.MsaaSamples() == 2 ? 1 : 0)) + 79) / 80;
+        const auto after = [&](uint32_t rows) -> Target* {
+            if (rows >= bottom || rect.offset.y) return nullptr;
+            const uint32_t tile = depthInfo.BaseTile() +
+                                  ((rows << (surface.MsaaSamples() ? 1 : 0)) + 15) / 16 * tilesAcross;
+            Target* const next = FindTarget(DepthKey(tile, uint32_t(g.depthFormat), surface.MsaaSamples(),
+                                                     from->scale));
+            return next && next->scale == from->scale && next->samples == from->samples ? next : nullptr;
+        };
+        // Rows the surface lacks and no other holds are the surface's own,
+        // which a draw with no scissor then grows to.
+        if (!after(from->height)) from->rowsRead = std::max(from->rowsRead, bottom);
 
         uint32_t width = std::min(rect.extent.width, from->width - uint32_t(rect.offset.x));
         uint32_t height = std::min(rect.extent.height, from->height - uint32_t(rect.offset.y));
@@ -375,7 +575,7 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
         const uint32_t destX = uint32_t(rect.offset.x);
         const uint32_t destY = row + uint32_t(rect.offset.y);
 
-        Resolved& into = ResolveCopyFor(surfaceBase);
+        Resolved& into = ResolveCopyFor(surfaceBase, true);
         // Sized for the whole surface, so the lower half has somewhere to go.
         const uint32_t imageWidth = std::max(destX + width, std::min(destPitch.Pitch(), 4096u));
         const uint32_t imageHeight = std::max(destY + height,
@@ -407,16 +607,15 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
         // first left it in rather than out of UNDEFINED, which may discard.
         const VkImageLayout before = keep ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
 
-        if (direct)
-            ResolveDepthInto(*from, rect.offset, width, height, into.image, into.attachmentView, before,
-                             kShaderStages, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,
-                             kShaderStages);
-        else
-        {
-            VkImage fromImage = BeginReadingDepth(*from, rect.offset, width, height);
-            if (!fromImage) { Skip("depth resolve of a multisampled surface"); SubmitIfFilling(); return; }
+        // What a copy out of one surface is, where the copy is not the
+        // surface's own resolve attachment: `rows` of `source` from `at`, to
+        // row `toY` of the copy, which is left for the shaders to read.
+        const auto copyOut = [&](Target& source, VkOffset2D at, uint32_t toY, uint32_t across, uint32_t rows,
+                                 VkImageLayout layout) {
+            VkImage fromImage = BeginReadingDepth(source, at, across, rows);
+            if (!fromImage) return false;
             // Layouts change for both aspects together.
-            RecordBarrier(into.image, kDepthAspects, before, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            RecordBarrier(into.image, kDepthAspects, layout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                           0, VK_ACCESS_TRANSFER_WRITE_BIT, kShaderStages, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
             // A copy rather than a blit: depth cannot be filtered on the way
@@ -425,10 +624,10 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
             // depth-only view, so its stencil is never read. The scene's
             // depth drawn smaller is stretched as its colour is, unfiltered.
             const VkImage intoImage = into.image;
-            if (DrawnSmaller(*from))
+            if (DrawnSmaller(source))
             {
-                const VkImageBlit blit = SceneBlit(*from, VK_IMAGE_ASPECT_DEPTH_BIT, rect.offset,
-                                                   { int32_t(destX), int32_t(destY) }, width, height);
+                const VkImageBlit blit = SceneBlit(source, VK_IMAGE_ASPECT_DEPTH_BIT, at,
+                                                   { int32_t(destX), int32_t(toY) }, across, rows);
                 Record([=](VkCommandBuffer command) {
                     vkCmdBlitImage(command, fromImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                    intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
@@ -438,10 +637,10 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
             {
                 VkImageCopy copy{};
                 copy.srcSubresource = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1 };
-                copy.srcOffset = Scaled(rect.offset.x, rect.offset.y, 0, from->scale);
+                copy.srcOffset = Scaled(at.x, at.y, 0, source.scale);
                 copy.dstSubresource = copy.srcSubresource;
-                copy.dstOffset = Scaled(int32_t(destX), int32_t(destY), 0, from->scale);
-                copy.extent = { width * from->scale, height * from->scale, 1 };
+                copy.dstOffset = Scaled(int32_t(destX), int32_t(toY), 0, source.scale);
+                copy.extent = { across * source.scale, rows * source.scale, 1 };
                 Record([=](VkCommandBuffer command) {
                     vkCmdCopyImage(command, fromImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                    intoImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
@@ -453,10 +652,37 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                           VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                           VK_PIPELINE_STAGE_TRANSFER_BIT, kShaderStages);
-            EndReadingDepth(*from);
+            EndReadingDepth(source);
+            return true;
+        };
+
+        if (direct)
+            ResolveDepthInto(*from, rect.offset, width, height, into.image, into.attachmentView, before,
+                             kShaderStages, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,
+                             kShaderStages);
+        else if (!copyOut(*from, rect.offset, destY, width, height, before))
+        {
+            Skip("depth resolve of a multisampled surface");
+            SubmitIfFilling();
+            return;
+        }
+        // The rows past the surface's last are those of the surface after it
+        // in EDRAM, each copied out to where the rectangle puts it.
+        for (uint32_t rows = from->height; Target* const part = after(rows); rows += part->height)
+        {
+            const uint32_t partRows = std::min({ part->height, bottom - rows,
+                                                 into.height > row + rows ? into.height - (row + rows) : 0u });
+            const uint32_t partWidth = std::min(width, part->width > uint32_t(rect.offset.x)
+                                                           ? part->width - uint32_t(rect.offset.x) : 0u);
+            if (!partRows || !partWidth ||
+                !copyOut(*part, { rect.offset.x, 0 }, row + rows, partWidth, partRows,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
+                break;
         }
         PassTimesMark("depth resolve %ux%u %ux", width * from->scale, height * from->scale, unsigned(from->samples));
         g.depthResolves++;
+        if (DumpingResolves())
+            DumpResolve(into, destination, { depthInfo.BaseTile(), surface.Pitch(), 0, surface.MsaaSamples(), true, 0 });
         ClearAfterResolve(r, control);
         PassTimesMark("clears after a resolve");
         if (!SubmitIfFilling()) Skip("frame submission failed");
@@ -505,7 +731,7 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
                                       room(source->width, destX) });
     const uint32_t height = std::min({ rect.extent.height, room(surfaceHeight, destY),
                                        room(source->height, destY) });
-    Resolved& into = ResolveCopyFor(destination);
+    Resolved& into = ResolveCopyFor(destination, false);
     const bool firstThisFrame = into.writtenFrame != g.frames;
     if (!destination || !width || !height ||
         !MakeResolveImage(into, surfaceWidth, surfaceHeight, source->scale, source->format, false,
@@ -564,7 +790,14 @@ void vk::renderer::Resolve(const gpu::RegisterFile& r)
                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                   VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                   VK_PIPELINE_STAGE_TRANSFER_BIT, kShaderStages);
+    if (!g.fetchedVolume.empty())
+    {
+        const gpu::CopyDestInfo destInfo{ r[gpu::RB_COPY_DEST_INFO] };
+        const uint32_t texelBytes = std::max(1u, gpu::TextureFormatOf(destInfo.Format()).bitsPerBlock / 8);
+        FillResolveVolume(into, destination, destPitch.Pitch(), uint32_t(std::countr_zero(texelBytes)));
+    }
     PassTimesMark("colour resolve %ux%u %ux", width * source->scale, height * source->scale, unsigned(source->samples));
+    if (DumpingResolves()) DumpResolve(into, destination, sourceKey);
     ClearAfterResolve(r, control);
     PassTimesMark("clears after a resolve");
     if (!SubmitIfFilling()) Skip("frame submission failed");

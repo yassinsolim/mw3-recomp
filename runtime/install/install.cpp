@@ -24,7 +24,7 @@
 #ifdef MW2_HAVE_XEX_PATCHER
 #include <xex_patcher.h>
 #endif
-#if defined(AW_TITLE_TU17)
+#if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
 #include "../kernel/kernel.h"
 #endif
 #ifdef MW2_ANDROID
@@ -53,7 +53,10 @@ namespace fs = std::filesystem;
 // version -- has other code at other addresses, so it is not run.
 namespace
 {
-#if defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
+#if defined(BO3_TITLE_ZM)
+    constexpr const char* kXex = "default_zm.xex";
+    constexpr const char* kSha256 = MW2_XEX_SHA256_MP;
+#elif defined(MW2_TITLE_MP) || defined(MW3_TITLE_MP) || defined(COD4_TITLE_MP) || defined(AW_TITLE_MP)
     constexpr const char* kXex = "default_mp.xex";
     constexpr const char* kSha256 = MW2_XEX_SHA256_MP;
 #else
@@ -145,24 +148,44 @@ namespace
     // pressings (base versions 0x10 and 0x15) make the same image and differ
     // in the header.
     constexpr const char* kUpdateImageSha256 = "9112629a870d860e17f4f30abe3c1c60ae2919d9697e58ddf12552ab74efaf55";
+#elif defined(BO3_TITLE_ZM)
+    // Black Ops III's two executables as title update 5 makes them, which
+    // are the only ones recompiled: the disc's own refuse the fastfiles the
+    // game was completed with (docs/BO3-BRINGUP.md).
+    constexpr const char* kUpdateImageSha256 = "c30f6d88a19390dea7515442289d42188b866e327098eddede1785ec536c86f8";
+#elif defined(BO3_TITLE)
+    constexpr const char* kUpdateImageSha256 = "1368d16af20790dd735b82edf700fdf2dfacdbb42f4755fc55f62938fd31d454";
 #endif
 
-#if defined(AW_TITLE_TU17)
-    // The game folder has the disc's default_mp.xex and the dlc folder the
+#if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
+#define MW2_UPDATE_MADE_EXECUTABLE 1
+#if defined(BO3_TITLE_ZM)
+    constexpr const char* kUpdatePatch = "default_zm.xexp";
+    constexpr const char* kUpdateName = "title update 5";
+    constexpr const char* kUpdateMissing = "Black Ops III needs its title update 5, and no update package is in the dlc folder.";
+#elif defined(BO3_TITLE)
+    constexpr const char* kUpdatePatch = "default.xexp";
+    constexpr const char* kUpdateName = "title update 5";
+    constexpr const char* kUpdateMissing = "Black Ops III needs its title update 5, and no update package is in the dlc folder.";
+#else
+    constexpr const char* kUpdatePatch = "default_mp.xexp";
+    constexpr const char* kUpdateName = "title update 17";
+    constexpr const char* kUpdateMissing = "The map packs' multiplayer needs the game's title update, and no update package is in the dlc folder (docs/dlc.md).";
+#endif
+    // The game folder has the disc's executable and the dlc folder the
     // player's own update package; the update's executable is the first with
-    // the second's default_mp.xexp applied, made here at every start and
-    // kept nowhere.
+    // the second's patch applied, made here at every start and kept nowhere.
     bool ApplyTitleUpdate(std::vector<uint8_t>& file, const fs::path& gameRoot, std::string& error)
     {
         std::vector<uint8_t> patch, updated;
-        if (!kernel::ReadTitleUpdateFile(gameRoot, "default_mp.xexp", patch))
+        if (!kernel::ReadTitleUpdateFile(gameRoot, kUpdatePatch, patch))
         {
-            error = "The map packs' multiplayer needs the game's title update, and no update package is in the dlc folder (docs/dlc.md).";
+            error = kUpdateMissing;
             return false;
         }
         if (XexPatcher::apply(file.data(), file.size(), patch.data(), patch.size(), updated, false) != XexPatcher::Result::Success)
         {
-            error = "The title update in the dlc folder does not apply to this disc's default_mp.xex.";
+            error = std::string("The title update in the dlc folder does not apply to this disc's ") + kXex + ".";
             return false;
         }
         file = std::move(updated);
@@ -174,7 +197,8 @@ namespace
         install::crypto::Sha256 hash;
         hash.Update(image.data(), image.size());
         if (hash.FinalHex() == kUpdateImageSha256) return true;
-        error = "the title update in the dlc folder makes another executable than the one this build is for (title update 17's)";
+        error = std::string("the title update in the dlc folder makes another executable than the one this build is for (") +
+                kUpdateName + "'s)";
         return false;
     }
 #endif
@@ -193,11 +217,11 @@ namespace
         install::crypto::Sha256 hash;
         hash.Update(file.data(), file.size());
         if (hash.FinalHex() != kSha256) return Installed::No;
-#if defined(AW_TITLE_TU17)
+#if defined(MW2_UPDATE_MADE_EXECUTABLE)
         if (!ApplyTitleUpdate(file, g_gameFolder, error)) return Installed::Unreadable;
 #endif
         if (!install::xex::Header(file, xexHeader, error) ||
-#if defined(AW_TITLE_TU17)
+#if defined(MW2_UPDATE_MADE_EXECUTABLE)
             !install::xex::Image(file, image, error) || !IsUpdateImage(image, error))
 #else
             !install::xex::Image(file, image, error))
@@ -212,7 +236,10 @@ namespace
 #ifdef MW2_ANDROID
     struct Title { const char* xex; const char* sha256; const char* disc; };
 #ifdef MW3_TITLE
-#if defined(AW_TITLE)
+#if defined(BO3_TITLE)
+    constexpr uint32_t kTitleId = 0x4156091D;
+    constexpr const char* kTitleName = "Call of Duty: Black Ops III";
+#elif defined(AW_TITLE)
     constexpr uint32_t kTitleId = 0x41560914;
     constexpr const char* kTitleName = "Call of Duty: Advanced Warfare";
 #elif defined(COD4_TITLE)
@@ -229,7 +256,12 @@ namespace
     constexpr bool kEveryTitleNeeded = true;
     constexpr Title kTitles[] = {
         { "default.xex", MW2_XEX_SHA256_SP, MW2_DISC_SHA256_SP },
+#if defined(BO3_TITLE)
+        // Its second executable is the zombies'.
+        { "default_zm.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
+#else
         { "default_mp.xex", MW2_XEX_SHA256_MP, MW2_DISC_SHA256_MP },
+#endif
     };
 #else
     // MW3, an app of one title: the campaign's executable (default.xex, with
@@ -698,24 +730,38 @@ namespace install
 #endif
     }
 
-#if defined(AW_TITLE) && defined(MW2_HAVE_XEX_PATCHER)
-    // The file the recompiler needs to build the updated multiplayer's game
+#if (defined(AW_TITLE) || defined(BO3_TITLE)) && defined(MW2_HAVE_XEX_PATCHER)
+    // The file the recompiler needs to build an update-made title's game
     // code on the device: what the runtime makes in memory at every start
-    // (ApplyTitleUpdate), written out once.
+    // (ApplyTitleUpdate), written out once. The patch is the one of the
+    // executable's name (default_mp.xexp for default_mp.xex). Black Ops
+    // III's app builds both of its titles through the library of the first,
+    // so the zombies' image is known here by its name as well.
     bool MakeUpdatedExecutable(const fs::path& package, const fs::path& disc, const fs::path& to, std::string& error)
     {
+        const std::string name = Utf8(to.filename());
+        const std::string patchName = name + "p";
+#if defined(BO3_TITLE)
+        const char* expected = name == "default_zm.xex"
+            ? "c30f6d88a19390dea7515442289d42188b866e327098eddede1785ec536c86f8"
+            : "1368d16af20790dd735b82edf700fdf2dfacdbb42f4755fc55f62938fd31d454";
+        const char* update = "title update 5";
+#else
+        const char* expected = kUpdateImageSha256;
+        const char* update = "title update 17";
+#endif
         std::vector<uint8_t> base, patch, updated, image;
         {
             std::ifstream in(disc, std::ios::binary);
             base.assign(std::istreambuf_iterator<char>(in), {});
         }
-        if (base.empty()) { error = "The disc's default_mp.xex is not here yet."; return false; }
+        if (base.empty()) { error = "The disc's " + name + " is not here yet."; return false; }
         std::string why;
         const auto volume = kernel::ReadVolume::OpenPackage(package, why);
-        const kernel::ReadVolume::Entry* entry = volume ? volume->Find("default_mp.xexp") : nullptr;
+        const kernel::ReadVolume::Entry* entry = volume ? volume->Find(patchName) : nullptr;
         if (!entry || entry->directory)
         {
-            error = "The title update's package has no default_mp.xexp" + (why.empty() ? std::string(".") : ": " + why + ".");
+            error = "The title update's package has no " + patchName + (why.empty() ? std::string(".") : ": " + why + ".");
             return false;
         }
         patch.resize(size_t(entry->size));
@@ -725,12 +771,12 @@ namespace install
         if (read != patch.size()) { error = "The title update's package could not be read to its end."; return false; }
         if (XexPatcher::apply(base.data(), base.size(), patch.data(), patch.size(), updated, false) != XexPatcher::Result::Success)
         {
-            error = "This title update does not apply to this disc's default_mp.xex.";
+            error = "This title update does not apply to this disc's " + name + ".";
             return false;
         }
-        if (!install::xex::Image(updated, image, why) || TuSha256(image) != kUpdateImageSha256)
+        if (!install::xex::Image(updated, image, why) || TuSha256(image) != expected)
         {
-            error = "This title update makes another executable than the one this app is for (title update 17's).";
+            error = std::string("This title update makes another executable than the one this app is for (") + update + "'s).";
             return false;
         }
         return TuWriteWhole(to, updated, error);
@@ -789,7 +835,7 @@ bool install::LoadImageFile(const fs::path& path, std::vector<uint8_t>& image, s
     if (file.size() >= 4 && std::memcmp(file.data(), "XEX2", 4) == 0)
     {
         std::string error;
-#if defined(AW_TITLE_TU17)
+#if defined(MW2_UPDATE_MADE_EXECUTABLE)
         // The disc's executable, in its game folder: the update is applied.
         // One that is the update's already is taken as it is.
         crypto::Sha256 hash;

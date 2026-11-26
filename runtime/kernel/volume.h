@@ -68,6 +68,9 @@ namespace kernel
         const Entry* Find(const std::string& relative) const;
         // The names of the files at the root.
         const std::vector<std::string>& RootFiles() const { return rootFiles_; }
+        // What a package's folder holds, files and folders, by their names
+        // there ("" for the root); null for a folder it has not.
+        const std::vector<std::string>* Children(const std::string& folder) const;
         // The names of the files in one of a package's folders.
         std::vector<std::string> FilesIn(const std::string& folder) const;
         const Package& Header() const { return package_; }
@@ -97,6 +100,7 @@ namespace kernel
         uint64_t size_ = 0;
         std::unordered_map<std::string, Entry> entries_;
         std::vector<std::string> rootFiles_;
+        std::unordered_map<std::string, std::vector<std::string>> children_;   // a package's, by the folder's key
         std::vector<std::string> folderFiles_;  // a package's other files, by their paths
         Package package_;
     };

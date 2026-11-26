@@ -116,11 +116,12 @@ namespace install
     // package is the STFS file the app downloaded at install time; game files
     // never ride in the APK. False with `error` set, a sentence to show.
     bool ApplyTu6(const std::filesystem::path& package, std::string& error);
-#if defined(AW_TITLE)
-    // Advanced Warfare's multiplayer executable as the player's title update
-    // makes it: the disc's default_mp.xex with the default_mp.xexp of the
-    // update's package applied, written to `to` when its image is title
-    // update 17's. For building that game code on the device (GameBuild.kt).
+#if defined(AW_TITLE) || defined(BO3_TITLE)
+    // An executable as the player's title update makes it: the disc's (say
+    // default_mp.xex) with the patch of its name in the update's package
+    // (default_mp.xexp) applied, written to `to` when its image is the one
+    // this app's game code is for (Advanced Warfare's title update 17, Black
+    // Ops III's 5). For building that game code on the device (GameBuild.kt).
     // False with `error` set, a sentence to show.
     bool MakeUpdatedExecutable(const std::filesystem::path& package, const std::filesystem::path& disc,
                                const std::filesystem::path& to, std::string& error);

@@ -36,7 +36,7 @@ uint64_t vk::textures::UploadData(const gpu::TextureData&, uint32_t, const char*
     if (error) *error = "built without Vulkan";
     return kNone;
 }
-uint64_t vk::textures::Adopt(uint64_t, void*, const gpu::TextureFetch&, uint32_t, uint32_t) { return kNone; }
+uint64_t vk::textures::Adopt(uint64_t, void*, const gpu::TextureFetch&, uint32_t, uint32_t, uint32_t) { return kNone; }
 void vk::textures::ForgetViews() {}
 uint32_t vk::textures::Handle(uint64_t, uint8_t, const float**) { return 0; }
 void* vk::textures::Set() { return nullptr; }
@@ -2640,7 +2640,7 @@ uint64_t vk::textures::UploadData(const gpu::TextureData& data, uint32_t xenosFo
 }
 
 uint64_t vk::textures::Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch, uint32_t width,
-                             uint32_t height)
+                             uint32_t height, uint32_t depth)
 {
     if (!g.device && !Initialise()) return kNone;
     // A resolve's copy is one level, whatever the fetch constant says.
@@ -2658,6 +2658,9 @@ uint64_t vk::textures::Adopt(uint64_t key, void* view, const gpu::TextureFetch& 
     image.height = height;
     image.perTexel[0] = 1.0f / float(width);
     image.perTexel[1] = 1.0f / float(height);
+    image.volume = depth != 0;
+    image.layers = std::max(depth, 1u);
+    image.perTexel[2] = 1.0f / float(image.layers);
     // A copy's view changes only once the GPU is done with the old one
     // (ForgetViews), so nothing pending reads the entry being rewritten.
     if (image.written != image.view) WriteImage(ElementOf(id), image);

@@ -347,7 +347,7 @@ uint32_t apu::audio::RegisterClient(uint32_t callback, uint32_t callbackContext)
         if (c.inUse) continue;
         c.callback = callback;
         c.context = callbackContext;
-#ifdef AW_TITLE
+#if defined(AW_TITLE) || defined(BO3_TITLE)
         // This XAudio2 (XDK 21256) registers a callback that starts by loading
         // its object from where its argument points (`lwz r3,0(r3)`), and the
         // context it registers is not such a place: what stands there is the

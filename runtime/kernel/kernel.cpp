@@ -144,7 +144,7 @@ namespace
     }
 #endif
 
-#if defined(AW_TITLE)
+#if defined(AW_TITLE) || defined(BO3_TITLE)
     // The kernel's variables, which an executable imports as it does the
     // kernel's functions: its record for one holds, once loaded, the
     // variable's address. Advanced Warfare's D3D9 (XDK 21256) enters
@@ -290,13 +290,13 @@ void kernel::Initialise(const std::filesystem::path& gameRoot, const std::vector
 #else
     (void)xexHeader;
 #endif
-#if defined(AW_TITLE)
+#if defined(AW_TITLE) || defined(BO3_TITLE)
     InstallKernelVariables();
 #endif
     g_gameRoot = gameRoot;
     LOGI("game root: %s%s", gameRoot.string().c_str(),
          std::filesystem::exists(gameRoot) ? "" : "  (does not exist)");
-#if defined(AW_TITLE_TU17)
+#if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
     MountTitleUpdate();
 #endif
 }
