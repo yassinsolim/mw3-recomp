@@ -249,6 +249,36 @@ namespace vk::renderer::detail
                     copy.extent = { kAcross * scale, kDown * scale, 1 };
                     plan.regions.push_back(copy);
                 }
+        // Blocks that lie side by side in the surface and in the volume are
+        // one copy: the table is copied every frame, and a mobile chip takes
+        // each region of a copy as a pass of its own.
+        const auto joins = [](const VkImageCopy& a, const VkImageCopy& b, bool across)
+        {
+            if (a.dstOffset.z != b.dstOffset.z) return false;
+            if (across)
+                return a.dstOffset.y == b.dstOffset.y && a.srcOffset.y == b.srcOffset.y &&
+                       a.extent.height == b.extent.height &&
+                       a.dstOffset.x + int32_t(a.extent.width) == b.dstOffset.x &&
+                       a.srcOffset.x + int32_t(a.extent.width) == b.srcOffset.x;
+            return a.dstOffset.x == b.dstOffset.x && a.srcOffset.x == b.srcOffset.x &&
+                   a.extent.width == b.extent.width &&
+                   a.dstOffset.y + int32_t(a.extent.height) == b.dstOffset.y &&
+                   a.srcOffset.y + int32_t(a.extent.height) == b.srcOffset.y;
+        };
+        for (const bool across : { true, false })
+            for (size_t a = 0; a < plan.regions.size(); a++)
+                for (size_t b = 0; b < plan.regions.size();)
+                {
+                    if (a == b || !joins(plan.regions[a], plan.regions[b], across)) { b++; continue; }
+                    if (across) plan.regions[a].extent.width += plan.regions[b].extent.width;
+                    else plan.regions[a].extent.height += plan.regions[b].extent.height;
+                    plan.regions.erase(plan.regions.begin() + ptrdiff_t(b));
+                    if (b < a) a--;
+                    // The block just joined may have a neighbour passed over before.
+                    b = 0;
+                }
+        LOGI("renderer: the %ux%ux%u volume at %08X is copied out of its %ux%u surface in %zu pieces", shape.width,
+             shape.height, shape.depth, destination, surfaceWidth, surfaceHeight, plan.regions.size());
         plan.possible = true;
         return plan;
     }

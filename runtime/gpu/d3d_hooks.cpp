@@ -162,6 +162,12 @@ namespace
 
     const char* WhyNoShadows()
     {
+#if defined(BO3_TITLE)
+        // Black Ops III's console is not reached (its dvars go by hashes, and
+        // sm_enable is none of them): its sun's shadows stay, and nothing is
+        // said of a switch that would do nothing.
+        return nullptr;
+#else
         int asked = g_shadowsAsked.load(std::memory_order_relaxed);
         if (asked == kUnread)
         {
@@ -179,6 +185,7 @@ namespace
 #endif
 #endif
         return nullptr;
+#endif
     }
 
     void Shadows()

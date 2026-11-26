@@ -178,6 +178,9 @@
 // multiplayer's was.
 #define T_Com_Error            8263FF40
 #define T_COM_ERROR_TREYARCH   1
+#define T_DATA_AssetPools      0x83324DC8u
+#define T_DB_ASSET_TYPES       110u
+#define T_DB_POOL_EXHAUSTED_LINE 1407u
 #define T_Lua_Error            8250F840
 #define T_Lua_Require          82501420
 #define T_D3D_Present          826EAD10   // the one caller of VdSwap
@@ -215,6 +218,13 @@
 // arguments (T_COM_ERROR_TREYARCH, engine_log.cpp).
 #define T_Com_Error            82649010
 #define T_COM_ERROR_TREYARCH   1
+// The asset pools, one record of 24 bytes for each asset type (sub_822FE478
+// fills one: entries, entry size, limit, a flag byte, the count in use and
+// the head of the list of free entries), and the line of db_registry.cpp
+// that gives up when a pool's list is empty (sub_82326EE0).
+#define T_DATA_AssetPools      0x832AB188u
+#define T_DB_ASSET_TYPES       110u
+#define T_DB_POOL_EXHAUSTED_LINE 1407u
 // The Lua library's error function, (state, format, ...): the variadic
 // function the interpreter calls with "table index is NaN" and "loop in
 // gettable" (84 callers).

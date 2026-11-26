@@ -92,6 +92,12 @@ namespace vk::renderer::detail
 #ifdef MW2_ANDROID
         // The class whose frame the scene's pixels decide (docs/android.md).
         if (!asked) on = android::perf::Adreno6xx();
+#if defined(BO3_TITLE)
+        // And every chip in Black Ops III, whose 880x720 scene is two thirds
+        // of the frame on an Adreno 740 too: 10.7 of the 16.1 ms a frame of a
+        // match on Combine (AYN Thor, 52 frames a second).
+        if (!asked) on = true;
+#endif
 #endif
         // Diagnostic, MW2_SCENE_SHARE=<percent>[,<frames>]: that share for the
         // whole run, or it and the whole scene in turn, so many frames each

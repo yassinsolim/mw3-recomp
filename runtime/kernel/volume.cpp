@@ -204,6 +204,34 @@ std::shared_ptr<ReadVolume> ReadVolume::OpenDisc(const std::string& source, std:
         folder.directory = true;
         volume->entries_.try_emplace(Key(file.name.substr(0, file.name.find('/'))), folder);
     }
+#if defined(BO3_TITLE)
+    // Black Ops III's disc keeps its sound banks two folders down
+    // (snd\en\<bank>), and the title lists a folder before it reads from it
+    // (files.cpp), as it does a package's: so the files further down are
+    // here too, and every folder knows what it holds.
+    for (const auto& file : listing->DeepFiles()) volume->entries_[Key(file.name)] = Entry{ file.size, file.offset };
+    for (const auto* files : { &listing->Files(), &listing->FolderFiles(), &listing->DeepFiles() })
+        for (const auto& file : *files)
+        {
+            // The file in its folder and each folder in the one above it; a
+            // name that is there already is a folder met before, and so are
+            // those above it.
+            std::string path = file.name;
+            while (true)
+            {
+                const size_t cut = path.rfind('/');
+                const std::string name = path.substr(cut == std::string::npos ? 0 : cut + 1);
+                auto& names = volume->children_[cut == std::string::npos ? std::string() : Key(path.substr(0, cut))];
+                if (std::find(names.begin(), names.end(), name) != names.end()) break;
+                names.push_back(name);
+                if (cut == std::string::npos) break;
+                path.resize(cut);
+                Entry folder;
+                folder.directory = true;
+                volume->entries_.try_emplace(Key(path), folder);
+            }
+        }
+#endif
     return volume;
 }
 

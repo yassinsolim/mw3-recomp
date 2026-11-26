@@ -26,12 +26,16 @@ object Dlc {
     private val installDisc = setOf("41560914051BF3C0", "4156091407406280")
 
     /**
-     * How many Compatibility Packs the updated game asks for: title update 17
-     * is the game's last and wants all six. Each is a package with the marker
+     * How many Compatibility Packs the updated game asks for: Advanced
+     * Warfare's title update 17 is the game's last and wants all six, Black
+     * Ops III's title update 5 the first two (with the first alone its
+     * multiplayer asks to download required content; a third it looks for
+     * and does without). Each is a package with the marker
      * `dlccompat<n>.id` at its root, which is what the title tells it by
-     * (docs/dlc.md); the name the console shows is another in another language.
+     * (docs/dlc.md); the name the console shows is another in another
+     * language.
      */
-    private const val COMPATIBILITY_PACKS = 6
+    private val COMPATIBILITY_PACKS = if (Title.isBo3) 2 else 6
 
     /** A content package of this game: its name as the console shows it, and whether it is the title update. */
     class Header(val name: String, val update: Boolean)
@@ -221,13 +225,20 @@ object Dlc {
 }
 
 /**
- * Advanced Warfare's multiplayer as its title update makes it: another
- * executable than the disc's, so another library of the app and another of
- * the game code (awmp17; docs/dlc.md). The map packs and Exo Zombies are for
- * it, and it plays only with others who have it, as an updated console does.
- * It is what the multiplayer starts as while the update's package and every
- * Compatibility Pack are in the dlc folder and its game code is on the
- * device; otherwise the disc's.
+ * The game as the player's title update makes it.
+ *
+ * Advanced Warfare's multiplayer: another executable than the disc's, so
+ * another library of the app and another of the game code (awmp17;
+ * docs/dlc.md). The map packs and Exo Zombies are for it, and it plays only
+ * with others who have it, as an updated console does. It is what the
+ * multiplayer starts as while the update's package and every Compatibility
+ * Pack are in the dlc folder and its game code is on the device; otherwise
+ * the disc's.
+ *
+ * Black Ops III is nothing else ([required]): the disc alone has neither a
+ * multiplayer map nor the zombies' (docs/BO3-BRINGUP.md), so both of its
+ * titles are the update's, built from the disc and the update's package, and
+ * there is no game until that package and Compatibility Packs 1 and 2 are here.
  */
 object TitleUpdate {
     /** The library's name, "" in an app whose game has no such build. */
@@ -242,9 +253,21 @@ object TitleUpdate {
      */
     val zombiesLaunchData: String = "0000000b" + "00".repeat(0x3D4) + "00000005" + "00".repeat(0x1C)
 
-    /** Whether the multiplayer is the update's in this process's runs. */
+    /** Whether the game is played only as its update makes it. */
+    val required: Boolean = Title.isBo3
+
+    /** Whether the update's package, every Compatibility Pack it asks for and its game code are all here. */
     @Volatile
-    var inUse: Boolean = false
+    var ready: Boolean = false
+        private set
+
+    /** Whether the multiplayer is the update's in this process's runs, where the disc's is the other choice. */
+    val inUse: Boolean
+        get() = LIBRARY.isNotEmpty() && ready
+
+    /** Whether a game that is [required] to have its update has not got the package yet. */
+    @Volatile
+    var updateMissing: Boolean = false
         private set
 
     /** Whether the update's package is there and its game code is missing: the app builds it then. */
@@ -253,9 +276,10 @@ object TitleUpdate {
         private set
 
     /**
-     * The Compatibility Packs still to add while the update's package is
-     * there (Dlc.missingCompatibilityPacks): the multiplayer stays the disc's
-     * until there are none, and the launcher and Add DLC say which.
+     * The Compatibility Packs still to add (Dlc.missingCompatibilityPacks),
+     * counted while the update's package is there or the game is nothing
+     * without it: the multiplayer stays the disc's until there are none, or
+     * the game does not start, and the launcher and Add DLC say which.
      */
     @Volatile
     var missingPacks: List<Int> = emptyList()
@@ -263,12 +287,13 @@ object TitleUpdate {
 
     /** Looks again: as each process starts, and when the player adds or removes a package. */
     fun refresh(context: Context) {
-        if (LIBRARY.isEmpty()) return
+        if (LIBRARY.isEmpty() && !required) return
         val packages = Dlc.installed(context)
         val update = packages.any { it.header.update }
-        val code = GameLibrary.updateReady(context)
-        missingPacks = if (update) Dlc.missingCompatibilityPacks(packages) else emptyList()
-        inUse = update && code && missingPacks.isEmpty()
+        val code = if (required) Title.carried.all { GameLibrary.current(context, it.library) } else GameLibrary.updateReady(context)
+        missingPacks = if (update || required) Dlc.missingCompatibilityPacks(packages) else emptyList()
+        ready = update && code && missingPacks.isEmpty()
+        updateMissing = required && !update
         codeMissing = update && !code
     }
 }

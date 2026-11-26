@@ -337,15 +337,43 @@ namespace
             return lower.size() >= n && lower.compare(lower.size() - n, n, suffix) == 0;
         };
         // .bikbe: Call of Duty 4's two movies shown on a screen inside a level.
+        // .xpak: Black Ops III's streamed images, beside its fastfiles.
+#if defined(BO3_TITLE)
+        if (endsWith(".xpak")) return true;
+#endif
         return endsWith(".ff") || endsWith(".pak") || endsWith(".bik") || endsWith(".bikbe") || lower == "nxeart";
     }
 
-    // The one folder of the disc a title reads besides its root, and the
-    // files of it that are the game's. Call of Duty 4's high mips: the top mip
+    // The folders of the disc a title reads besides its root, and the files
+    // of them that are the game's. Call of Duty 4's high mips: the top mip
     // of each streamed texture, a file each in the disc's highmip folder,
     // which the title opens as D:\highmip\<name>.hi; without them it draws
     // the lower mips. Advanced Warfare's language: the fastfiles, sound packs
     // and movies it opens as D:\english\<name>, and does not start without.
+    // Black Ops III's movies (video\<name>.bik) and its sound banks, which
+    // are a folder further down, one for each language (snd\en\<bank>).
+#if defined(BO3_TITLE)
+    bool IsFolderFile(const std::string& name)
+    {
+        std::string lower = name;
+        for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+        if (lower.find_first_of("\\:") != std::string::npos) return false;
+        auto endsWith = [&](const char* suffix) {
+            const size_t n = std::strlen(suffix);
+            return lower.size() > n && lower.compare(lower.size() - n, n, suffix) == 0;
+        };
+        if (lower.compare(0, 6, "video/") == 0)
+            return lower.find('/', 6) == std::string::npos && endsWith(".bik");
+        if (lower.compare(0, 4, "snd/") != 0) return false;
+        // snd/<language>/<bank>: a language is two or three letters, so no
+        // part of the path is "." or "..".
+        const size_t bank = lower.find('/', 4);
+        if (bank == std::string::npos || bank == 4 || lower.find('/', bank + 1) != std::string::npos) return false;
+        for (size_t at = 4; at < bank; at++)
+            if (!std::isalpha(uint8_t(lower[at]))) return false;
+        return endsWith(".sabs") || endsWith(".sabl");
+    }
+#else
 #ifdef AW_TITLE
     constexpr const char* kDiscFolder = "english";
 #else
@@ -364,6 +392,21 @@ namespace
 #else
         return file.compare(file.size() - 3, 3, ".hi") == 0;
 #endif
+    }
+#endif
+
+    // The disc's files in its folders that are the game's: a folder down,
+    // and for Black Ops III's sound banks two.
+    std::vector<const install::Source::File*> FolderFilesOf(const install::Source& source)
+    {
+        std::vector<const install::Source::File*> files;
+        for (const auto& file : source.FolderFiles())
+            if (IsFolderFile(file.name)) files.push_back(&file);
+#if defined(BO3_TITLE)
+        for (const auto& file : source.DeepFiles())
+            if (IsFolderFile(file.name)) files.push_back(&file);
+#endif
+        return files;
     }
 
 #ifdef AW_TITLE
@@ -580,8 +623,7 @@ namespace
         for (const auto& file : source->Files())
             if (link ? IsArt(file.name) : IsGameFile(file.name)) files.push_back(&file);
         if (!link)
-            for (const auto& file : source->FolderFiles())
-                if (IsFolderFile(file.name)) files.push_back(&file);
+            for (const auto* file : FolderFilesOf(*source)) files.push_back(file);
         for (const Title& title : kTitles)
             if (const auto* file = source->Find(title.xex)) files.push_back(file);
 
@@ -592,22 +634,26 @@ namespace
 
         std::vector<Wanted> wanted;
         const fs::path canonicalFolder = folder.lexically_normal();
-        const fs::path discFolder = (folder / kDiscFolder).lexically_normal();
         for (const auto* file : files)
         {
-            // One file in the game folder, or one in its folder of the disc's
-            // (kDiscFolder): a name with any other path in it is not copied.
+            // One file in the game folder, or one in a folder of the disc's
+            // that the title reads (IsFolderFile): a name with any other path
+            // in it is not copied.
             const bool inFolder = IsFolderFile(file->name);
             if (file->name.empty() || file->name == "." || file->name == ".." ||
                 file->name.find('\\') != std::string::npos ||
                 (!inFolder && file->name.find('/') != std::string::npos))
                 continue;
             const fs::path to = (folder / install::FromUtf8(file->name)).lexically_normal();
-            if (to.parent_path() != (inFolder ? discFolder : canonicalFolder)) continue;
+            // Where the name says it goes, and nowhere a "." or ".." in it leads.
+            const fs::path in = inFolder
+                ? (folder / install::FromUtf8(file->name.substr(0, file->name.rfind('/')))).lexically_normal()
+                : canonicalFolder;
+            if (to.parent_path() != in) continue;
             if (inFolder)
             {
-                fs::create_directories(discFolder, ec);
-                if (ec) { error = "Cannot create " + Utf8(fs::absolute(discFolder)) + ": " + ec.message(); return false; }
+                fs::create_directories(in, ec);
+                if (ec) { error = "Cannot create " + Utf8(fs::absolute(in)) + ": " + ec.message(); return false; }
             }
             wanted.push_back({ file, folder / install::FromUtf8(file->name) });
         }
@@ -961,10 +1007,19 @@ uint64_t install::CopiedFiles(const fs::path& from, bool remove)
 #endif
     for (const auto& file : source->Files())
         if (IsGameFile(file.name) && !IsArt(file.name)) count(file, g_gameFolder / install::FromUtf8(file.name));
-    for (const auto& file : source->FolderFiles())
-        if (IsFolderFile(file.name)) count(file, g_gameFolder / install::FromUtf8(file.name));
-    // The disc's folder goes when it is left empty, and only then.
-    if (remove) fs::remove(g_gameFolder / kDiscFolder, ec);
+    // A folder of the disc's goes when it is left empty, and only then: the
+    // deepest first.
+    std::vector<fs::path> folders;
+    for (const auto* file : FolderFilesOf(*source))
+    {
+        const fs::path copy = g_gameFolder / install::FromUtf8(file->name);
+        count(*file, copy);
+        for (fs::path in = copy.parent_path(); in != g_gameFolder && in.has_relative_path(); in = in.parent_path())
+            if (std::find(folders.begin(), folders.end(), in) == folders.end()) folders.push_back(in);
+    }
+    std::sort(folders.begin(), folders.end(), [](const fs::path& a, const fs::path& b) { return a.native().size() > b.native().size(); });
+    if (remove)
+        for (const fs::path& in : folders) fs::remove(in, ec);
     if (remove) LOGI("install: removed %.1f GB of copies of the disc image's files", bytes / 1e9);
 #else
     (void)from; (void)remove;

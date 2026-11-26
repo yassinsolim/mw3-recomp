@@ -85,6 +85,19 @@ GUEST_HOOK(T_Com_Error)
     // Treyarch's is (file, line, code, format, ...).
     LOGE("Com_Error(%u) at %s:%u from %08X: %s", ctx.r5.u32, ctx.r3.u32 ? GuestAnsi(ctx.r3.u32).c_str() : "?",
          ctx.r4.u32, (uint32_t)ctx.lr, Format(ctx, ctx.r6.u32, 7).c_str());
+#ifdef T_DATA_AssetPools
+    // "Exceeded limit of N assets" is raised when a pool's list of free
+    // entries is empty, not when its count reaches N: said with the count,
+    // it tells a pool that really ran out from a list that lost its entries.
+    if (ctx.r4.u32 == T_DB_POOL_EXHAUSTED_LINE)
+        for (uint32_t type = 0; type < T_DB_ASSET_TYPES; type++)
+        {
+            const uint32_t pool = T_DATA_AssetPools + type * 24;
+            if (PPC_LOAD_U8(pool + 12) == 0 && PPC_LOAD_U32(pool + 20) == 0 && PPC_LOAD_U32(pool + 8) != 0)
+                LOGE("  asset pool %u: %u of %u entries in use, and no free entry", type, PPC_LOAD_U32(pool + 16),
+                     PPC_LOAD_U32(pool + 8));
+        }
+#endif
 #else
     LOGE("Com_Error(%u) from %08X: %s", ctx.r3.u32, (uint32_t)ctx.lr,
          Format(ctx, ctx.r4.u32).c_str());

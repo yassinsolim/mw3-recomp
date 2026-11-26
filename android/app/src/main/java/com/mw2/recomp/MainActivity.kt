@@ -532,11 +532,16 @@ class MainActivity : AppCompatActivity() {
                 it.isNotEmpty() && DiscImage.source(this, it).also { source -> DiscImage.close(source) } == null
             } ?: prefs.discImage
             val discGone = disc.isNotEmpty() && DiscImage.source(this, disc).also { DiscImage.close(it) } == null
+            // Black Ops III is no game until its title update and
+            // Compatibility Pack 1 are in the dlc folder: the status says so
+            // before the game code, which is built from that update.
+            val updateNeeded = TitleUpdate.required && (TitleUpdate.updateMissing || TitleUpdate.missingPacks.isNotEmpty())
             // Game code that this version of the app does not take starts no
             // game: the status says it is being updated, or how to.
-            play.isEnabled = gameCode && !discGone && Title.carried.any { GameLibrary.current(this, it) }
+            play.isEnabled = gameCode && !discGone && !updateNeeded && Title.carried.any { GameLibrary.current(this, it) }
             play.text = if (Title.both) "▶ " + getString(R.string.title_campaign) else "▶ LAUNCH GAME"
             status.text = when {
+                updateNeeded -> getString(R.string.status_update_needed)
                 !gameCode -> getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
                 missing.isNotEmpty() -> getString(R.string.status_multiplayer_missing)
                 discGone -> getString(R.string.status_disc_missing, DiscImage.label(this, disc))
@@ -630,7 +635,10 @@ class MainActivity : AppCompatActivity() {
             .setMessage(setupSteps(gameCode, gameFiles) + "\n\n" + getString(R.string.setup_guide_where, setupGuide()))
             .setNegativeButton(R.string.close, null)
             .setNeutralButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
-        if (GameBuild.offered(this)) {
+        if (TitleUpdate.updateMissing && gameFiles) {
+            // The game code is made from the update: adding it comes first, and starts the build.
+            dialog.setPositiveButton(R.string.dlc_title) { _, _ -> startActivity(Intent(this, DlcActivity::class.java)) }
+        } else if (GameBuild.offered(this)) {
             dialog.setPositiveButton(R.string.setup_build_here) { _, _ -> startActivity(Intent(this, BuildActivity::class.java)) }
         }
         dialog.show()
@@ -706,6 +714,12 @@ class MainActivity : AppCompatActivity() {
                 File("/sdcard/Download/Call of Duty - Advanced Warfare (USA, Europe) (En,Fr,De,Es,It,Pl,Ru) (Game Disc).iso"),
                 File(getExternalFilesDir(null) ?: filesDir, "aw.iso"),
             )
+        } else if (Title.isBo3) {
+            listOf(
+                File("/sdcard/Download/bo3.iso"),
+                File("/sdcard/Download/Call of Duty - Black Ops III (USA, Europe) (En,Fr,De,Es,It,Pt,Pl,Ru).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "bo3.iso"),
+            )
         } else if (Title.isCod4) {
             listOf(
                 File("/sdcard/Download/cod4.iso"),
@@ -757,7 +771,10 @@ class MainActivity : AppCompatActivity() {
             startGame(title)
             return
         }
-        if (!GameLibrary.installed(this)) {
+        // The game code is the first step, but for a game whose code is
+        // built from its title update (Black Ops III): there the disc comes
+        // first, the update with Add DLC next, and the build follows by itself.
+        if (!GameLibrary.installed(this) && !TitleUpdate.required) {
             explainSetup(gameCode = false, gameFiles = firstTitle.installed(prefs.gameDirectory))
             return
         }

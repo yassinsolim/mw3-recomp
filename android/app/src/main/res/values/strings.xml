@@ -45,6 +45,7 @@
     <string name="bots_title">Bots</string>
     <string name="bots_detail">Computer players for multiplayer. They join the matches this device hosts: System Link, Create Game, or a private match. They do nothing in a match somebody else hosts. Choose how many and how good here, then start Multiplayer.</string>
     <string name="bots_more">More in Settings</string>
+    <string name="status_update_needed">The game needs its title update and Compatibility Pack before it can be played: add them with Add DLC.</string>
     <string name="status_multiplayer_missing">The campaign is ready.\nThe multiplayer\'s executable is not in the game folder yet: install from your disc image once more. Only what is missing is copied.</string>
 
     <!-- launcher -->
