@@ -1,0 +1,84 @@
+name: Bug report
+description: The game or the app crashes, closes, freezes, shows something wrong or does not start.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. **The log is what lets us fix it**: without it we can only guess, and a report without one is likely to be closed.
+
+        **How to get the log (on your phone, in this app):**
+        1. Open the app. If the game closed or crashed, open the app again first: the log from the last run is kept.
+        2. Tap **LOG**, then **SHARE**.
+        3. SHARE gives your phone's share list. Pick something that saves a file (Files, Drive, Notes, or email it to yourself), then **drag that file into the Log box below**. If you can only paste, paste the text there instead.
+
+        Do not edit the log. It contains no game data.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      description: Which game's app is this about?
+      options:
+        - MW3 (Modern Warfare 3)
+        - MW2 (Modern Warfare 2)
+        - CoD4 (Call of Duty 4)
+        - AW (Advanced Warfare)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the top right of the app's main screen.
+      placeholder: "for example: 0.1.9"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      description: Your phone or handheld, and its Android version if you know it.
+      placeholder: "for example: AYN Thor, Android 13"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you did, in order, until it happened. Say the map or mode, and whether it happens every time.
+      placeholder: |
+        1. Start the campaign
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: "In the app: tap LOG, then SHARE, and attach the file here (drag it into this box). If the game closed, open the app again first; the log from the last run is kept."
+      placeholder: Drag the log file into this box.
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or video
+      description: Optional. Drag it into this box.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I built the game from my own disc image.
+          required: true
+        - label: I downloaded the app from this repository's Releases page.
+          required: true

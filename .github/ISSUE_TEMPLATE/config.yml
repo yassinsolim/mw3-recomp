@@ -1,3 +1,18 @@
-# Every issue starts from issue.md, whose text sends crashes, glitches and
-# performance problems to the launcher's REPORT A BUG.
+# Issues are filed with one of the two forms here (bug-report.yml,
+# performance-report.yml); each asks for the app's log. The same file is in
+# all four public repositories (tools/release/release.py keeps .github), and
+# a contact link cannot be relative, so each game's FAQ is named.
 blank_issues_enabled: false
+contact_links:
+  - name: Read the FAQ first (Modern Warfare 3)
+    url: https://github.com/yassinsolim/mw3-recomp#faq
+    about: Setup, the disc image, updating and the common problems are answered in the README's FAQ.
+  - name: Read the FAQ first (Modern Warfare 2)
+    url: https://github.com/yassinsolim/mw2-recomp#faq
+    about: Setup, the disc image, updating and the common problems are answered in the README's FAQ.
+  - name: Read the FAQ first (Call of Duty 4)
+    url: https://github.com/yassinsolim/cod4-recomp#faq
+    about: Setup, the disc image, updating and the common problems are answered in the README's FAQ.
+  - name: Read the FAQ first (Advanced Warfare)
+    url: https://github.com/yassinsolim/aw-recomp#faq
+    about: Setup, the disc image, updating and the common problems are answered in the README's FAQ.

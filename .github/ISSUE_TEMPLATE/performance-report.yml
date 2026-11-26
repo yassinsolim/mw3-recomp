@@ -1,0 +1,87 @@
+name: Performance report
+description: The game runs slowly, stutters or drops frames.
+title: "[Performance]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. **The log is what lets us fix it**: it names your graphics driver and ends with the run's frame rate.
+
+        **How to get the log (on your phone, in this app):**
+        1. Play for a minute or two where it is slow, then close the game and open the app again: the log from the last run is kept.
+        2. Tap **LOG**, then **SHARE**.
+        3. SHARE gives your phone's share list. Pick something that saves a file (Files, Drive, Notes, or email it to yourself), then **drag that file into the Log box below**. If you can only paste, paste the text there instead.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      options:
+        - MW3 (Modern Warfare 3)
+        - MW2 (Modern Warfare 2)
+        - CoD4 (Call of Duty 4)
+        - AW (Advanced Warfare)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the top right of the app's main screen.
+      placeholder: "for example: 0.1.9"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      description: Your phone or handheld, and its Android version if you know it.
+      placeholder: "for example: AYN Thor, Android 13"
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Map or mode
+      description: Where it is slow, as exactly as you can.
+      placeholder: "for example: Campaign, Hunter Killer / Multiplayer, Dome"
+    validations:
+      required: true
+  - type: input
+    id: fps
+    attributes:
+      label: FPS you see
+      description: Roughly, and what you expected. Say whether it is slow all the time or only at some moments.
+      placeholder: "for example: 25 to 30, I expected 60"
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: The graphics, resolution, FPS cap and any other options you changed from their defaults.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: "In the app: tap LOG, then SHARE, and attach the file here (drag it into this box). If the game closed, open the app again first; the log from the last run is kept."
+      placeholder: Drag the log file into this box.
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or video
+      description: Optional. Drag it into this box.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I built the game from my own disc image.
+          required: true
+        - label: I downloaded the app from this repository's Releases page.
+          required: true

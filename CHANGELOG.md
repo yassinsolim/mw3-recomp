@@ -5,6 +5,7 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Docs
+- Issues on the four public repositories are now filed with a form: a bug report (game, app version, device, what happened, steps, the log, an optional screenshot or video) and a performance report (device, game, map or mode, the FPS seen, settings, the log). The log is required, and the form says how to get it (LOG, then SHARE, in the app; after a crash, open the app again first, the last run's log is kept). Blank issues are off, and the issue page links each game's README FAQ. The old text that sent players to the PC launcher's REPORT A BUG is gone (`.github/ISSUE_TEMPLATE/`).
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
