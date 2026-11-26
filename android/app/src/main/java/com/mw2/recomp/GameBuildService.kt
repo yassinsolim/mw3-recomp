@@ -52,11 +52,12 @@ class GameBuildService : Service() {
 
     private fun working(): Notification {
         val progress = GameBuild.progress
+        // The one bar and the plain line the setup's screen shows (Setup.kt).
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(getString(heading(this)))
-            .setContentText(describe(this, progress))
-            .setProgress(progress.total, progress.done, progress.total == 0)
+            .setContentText(Setup.progressLine(this, progress))
+            .setProgress(100, Setup.percent(progress), progress.total == 0)
             .setContentIntent(open(this))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -110,7 +111,7 @@ class GameBuildService : Service() {
             is GameBuild.Outcome.Done -> {
                 state.wanted = false
                 state.stopped = false
-                getString(if (state.automatic) R.string.update_code_done else R.string.build_done)
+                getString(if (state.automatic) R.string.update_code_done else R.string.build_done_notice)
             }
             is GameBuild.Outcome.Failed -> {
                 state.wanted = false
@@ -118,7 +119,7 @@ class GameBuildService : Service() {
                 // The app does not try by itself again what has just failed:
                 // the launcher says the code is to be built, and why it was not.
                 if (state.automatic) state.stopped = true
-                getString(R.string.build_failed)
+                getString(R.string.build_failed_notice)
             }
             is GameBuild.Outcome.Waiting -> when (outcome.why) {
                 // The build is still wanted, and carries on when Android has
@@ -205,14 +206,23 @@ class GameBuildService : Service() {
             )
         }
 
+        /**
+         * Where a tap on the notification leads: the app as the player left
+         * it, which is the guided setup's screen while that is open, and the
+         * launcher, whose large button says how far the build is, otherwise.
+         * The launcher's own intent brings the app's task to the front
+         * without putting a second screen on it.
+         */
         private fun open(context: Context): PendingIntent = PendingIntent.getActivity(
-            context, 0, Intent(context, BuildActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            context, 0,
+            context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         /** What the build is called: the player's own, or the app's after an update of it. */
-        fun heading(context: Context): Int = if (State(context).automatic) R.string.update_code_title else R.string.build_title
+        fun heading(context: Context): Int = if (State(context).automatic) R.string.update_code_title else R.string.build_notice_title
 
-        /** News, unlike the progress: it stays until the player has seen it, and leads to the build's screen. */
+        /** News, unlike the progress: it stays until the player has seen it, and leads back into the app. */
         private fun say(context: Context, text: String) {
             channel(context)
             notifications(context).notify(

@@ -162,6 +162,16 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
+        <!-- The guided setup: the disc image, the build and the map packs,
+             a step to a screen (SetupActivity.kt). -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
         <activity
             android:name=".InstallActivity"
             android:exported="false"
@@ -220,5 +230,17 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <!-- The log a player shares is a file (LogShare.kt): the app they
+             pick reads that one file through this, and nothing else. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.logs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_paths" />
+        </provider>
     </application>
 </manifest>

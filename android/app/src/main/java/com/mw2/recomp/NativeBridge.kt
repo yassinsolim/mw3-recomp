@@ -51,6 +51,37 @@ object NativeBridge {
         loadError = reason
     }
 
+    /**
+     * The runtime for a screen of the launcher's process: the app's first
+     * title's library loaded and initialised, which the installer and the
+     * log need. False when it would not load or start ([loadError] says
+     * why). The launcher does this when it opens, and the guided setup when
+     * the system has made it again without the launcher under it
+     * (SetupActivity). The breadcrumbs are what identify a native crash
+     * inside the load itself, which no handler can catch.
+     */
+    fun launcher(context: android.content.Context): Boolean {
+        Trail.note(context, "launcher: loading the runtime library")
+        if (!load(Title.carried.first())) return false
+        Trail.note(context, "launcher: library loaded, initialising")
+        return try {
+            nativeInit(
+                context.filesDir.absolutePath,
+                (context.getExternalFilesDir(null) ?: context.filesDir).absolutePath,
+                context.cacheDir.absolutePath,
+                context.applicationInfo.nativeLibraryDir,
+                null,
+            )
+            // Here too, where the phone's GPU is asked its name: a run
+            // that dies before it has a device finds it written down.
+            DeviceInfo.log(context)
+            true
+        } catch (error: Throwable) {
+            noteInitFailure(error.message ?: error.toString())
+            false
+        }
+    }
+
     // ---- start-up ---------------------------------------------------------
 
     external fun nativeInit(

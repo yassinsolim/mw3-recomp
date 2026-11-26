@@ -141,9 +141,10 @@ object LogSummary {
      * crash's backtrace), each process's log, the crash files, what the app
      * was in the middle of, and this session's lines.
      *
-     * The share takes 200,000 characters (MainActivity.share) and each part
-     * has a share of them, 190,000 at most together, so no part can push
-     * another out: the ends of the logs are the parts anyone reads.
+     * It is shared as a file (LogShare.kt). Each part has a share of at
+     * most 190,000 characters together, so no part can push another out and
+     * the file stays one any app takes: the ends of the logs are the parts
+     * anyone reads.
      */
     fun whole(context: Context, sessionTail: String): String = buildString {
         append("===== report =====\n")

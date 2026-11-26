@@ -463,7 +463,12 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (overlay.editing) endEditing(save = true) else if (menu.isOpen) menu.back() else showMenu()
+                when {
+                    overlay.editing -> endEditing(save = true)
+                    help.isOpen -> help.close()
+                    menu.isOpen -> menu.back()
+                    else -> showMenu()
+                }
             }
         })
 
@@ -506,6 +511,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
             return
         }
         started = true
+        // How to open the menu, change settings and quit, until the player
+        // has asked not to be told again.
+        help.openUnlessSeen()
         // The run is up, so ask the system to treat its process as one still
         // wanted: stepping out to a message then costs a pause, not the whole
         // load again (GameService.kt).
@@ -1045,6 +1053,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     private val menu: GameMenu by lazy { GameMenu(this, root) { goFullscreen() } }
 
+    private val help: GameHelp by lazy { GameHelp(this, root, prefs) { goFullscreen() } }
+
     private fun onOff(): List<String> = listOf(getString(R.string.state_off), getString(R.string.state_on))
 
     /**
@@ -1572,6 +1582,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // The menu, the dialogs and the editor come first; a pad should not
         // fire a gun through a menu.
         if (started && !overlay.editing) {
+            // The help of a first run is closed by the pad, and passes nothing on.
+            if (help.isOpen && help.onKey(event)) return true
             if (menu.isOpen) return menu.onKey(event) || super.dispatchKeyEvent(event)
             if (opensMenu(event)) {
                 showMenu()

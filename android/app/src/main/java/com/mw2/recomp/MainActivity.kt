@@ -39,13 +39,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var footer: TextView
     private lateinit var play: Button
-    private lateinit var installButton: Button
+    private lateinit var groupPlay: android.view.View
+    private lateinit var groupExtras: android.view.View
     private lateinit var secondButton: Button
     private lateinit var botsButton: Button
     private lateinit var zombiesButton: Button
     private lateinit var dlcButton: Button
     private lateinit var packLevelsButton: Button
-    private lateinit var buildButton: Button
+    private lateinit var repairButton: Button
     private lateinit var modsButton: Button
     private lateinit var tu6Button: Button
     private lateinit var updatesButton: Button
@@ -54,7 +55,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var detailText: TextView
     private lateinit var versionTag: TextView
     private lateinit var directLaunchSwitch: androidx.appcompat.widget.SwitchCompat
-    /** The disc image Install & Play would use: a path, or the document the player chose for the build. */
+    /** The disc image an app of one title would install from: a path, or the document the player chose for the build. */
     private var detectedImage: String? = null
 
     /**
@@ -75,11 +76,13 @@ class MainActivity : AppCompatActivity() {
     /** Whether the detail card is the Play entry's, which changes when an install finishes. */
     private var detailIsPlay = false
 
-    /** Whether the detail card is the two steps of setting up, which changes as they are done. */
-    private var detailIsSetup = false
+    /** Whether the guided setup was opened by itself since this launcher started: it is not put in front of a player twice. */
+    private var setupOpened = false
 
-    /** Whether the two steps were said in a dialog since this launcher started. */
-    private var setupExplained = false
+    /** The guided setup (SetupActivity): its last screen's Play comes back here, to the one way a run is started. */
+    private val setup = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) launch(firstTitle)
+    }
 
     /** What the large button starts: the campaign, where the app carries it. */
     private val firstTitle = Title.carried.first()
@@ -121,6 +124,7 @@ class MainActivity : AppCompatActivity() {
         // what was saved: it has done its direct launch, or been through an
         // install that started the game, and must not start it again.
         hasAutoLaunched = savedInstanceState?.getBoolean(STATE_AUTO_LAUNCHED) ?: false
+        setupOpened = savedInstanceState?.getBoolean(STATE_SETUP_OPENED) ?: false
         setContentView(R.layout.activity_main)
         prefs = Prefs(this)
         // Before anything reads the driver choice (refresh() applies it, and
@@ -132,13 +136,14 @@ class MainActivity : AppCompatActivity() {
         status = findViewById(R.id.status)
         footer = findViewById(R.id.footer)
         play = findViewById(R.id.play)
-        installButton = findViewById(R.id.install)
+        groupPlay = findViewById(R.id.group_play)
+        groupExtras = findViewById(R.id.group_extras)
         secondButton = findViewById(R.id.other_app)
         botsButton = findViewById(R.id.entry_bots)
         zombiesButton = findViewById(R.id.entry_zombies)
         dlcButton = findViewById(R.id.entry_dlc)
         packLevelsButton = findViewById(R.id.entry_pack_levels)
-        buildButton = findViewById(R.id.entry_build)
+        repairButton = findViewById(R.id.entry_repair)
         modsButton = findViewById(R.id.entry_mods)
         tu6Button = findViewById(R.id.entry_tu6)
         updatesButton = findViewById(R.id.entry_updates)
@@ -178,6 +183,11 @@ class MainActivity : AppCompatActivity() {
 
         play.setOnClickListener {
             select(play)
+            // Until the game is set up the large button is the guided setup.
+            if (Setup.guided && !Setup.complete(this)) {
+                openSetup()
+                return@setOnClickListener
+            }
             showDetail(getString(R.string.play), playDetail())
             detailIsPlay = true
             launch(firstTitle)
@@ -230,18 +240,24 @@ class MainActivity : AppCompatActivity() {
             showDetail(getString(R.string.bots_title), getString(R.string.bots_detail))
             showBots()
         }
-        installButton.setOnClickListener {
-            select(installButton)
-            showDetail(
-                getString(R.string.install_game),
-                getString(R.string.install_hint),
-            )
-            startActivity(Intent(this, InstallActivity::class.java))
-        }
-        buildButton.setOnClickListener {
-            select(buildButton)
-            showDetail(getString(R.string.build_title), getString(R.string.build_detail))
-            startActivity(Intent(this, BuildActivity::class.java))
+        // What the guided setup does for the player, for one who wants it
+        // done another way: another disc image or the files copied in
+        // (InstallActivity), the game code built again or paused
+        // (BuildActivity).
+        repairButton.setOnClickListener {
+            select(repairButton)
+            showDetail(getString(R.string.entry_repair), getString(R.string.repair_detail))
+            val screens = buildList {
+                add(R.string.repair_files to InstallActivity::class.java)
+                if (GameBuild.offered(this@MainActivity)) add(R.string.repair_build to BuildActivity::class.java)
+            }
+            AlertDialog.Builder(this)
+                .setTitle(R.string.entry_repair)
+                .setItems(screens.map { getString(it.first) }.toTypedArray()) { _, which ->
+                    startActivity(Intent(this, screens[which].second))
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
         }
         findViewById<Button>(R.id.driver).setOnClickListener {
             select(it as Button)
@@ -253,13 +269,19 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.settings).setOnClickListener {
             select(it as Button)
-            showDetail(getString(R.string.network_settings), getString(R.string.player_name_hint))
+            showDetail(getString(R.string.entry_settings), getString(R.string.settings_detail))
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         findViewById<Button>(R.id.log).setOnClickListener {
             select(it as Button)
             showDetail(getString(R.string.view_log), "")
             showLog()
+        }
+        // The bug report's form, with what it asks of the app filled in.
+        findViewById<Button>(R.id.entry_report).setOnClickListener {
+            select(it as Button)
+            showDetail(getString(R.string.report_problem_title), getString(R.string.report_problem_detail))
+            LogShare.report(this) { wholeLog() }
         }
         modsButton.setOnClickListener {
             select(modsButton)
@@ -299,28 +321,8 @@ class MainActivity : AppCompatActivity() {
         if (crash.isNotEmpty()) showLastCrash(crash)
 
         // The library is loaded after the screen exists, so a failure here
-        // is reported rather than fatal. The breadcrumb is what identifies a
-        // native crash inside the load itself, which no handler can catch.
-        Trail.note(this, "launcher: loading the runtime library")
-        nativeReady = NativeBridge.load(firstTitle)
-        if (nativeReady) {
-            Trail.note(this, "launcher: library loaded, initialising")
-            try {
-                NativeBridge.nativeInit(
-                    filesDir.absolutePath,
-                    (getExternalFilesDir(null) ?: filesDir).absolutePath,
-                    cacheDir.absolutePath,
-                    applicationInfo.nativeLibraryDir,
-                    null,
-                )
-                // Here too, where the phone's GPU is asked its name: a run
-                // that dies before it has a device finds it written down.
-                DeviceInfo.log(this)
-            } catch (error: Throwable) {
-                nativeReady = false
-                NativeBridge.noteInitFailure(error.message ?: error.toString())
-            }
-        }
+        // is reported rather than fatal.
+        nativeReady = NativeBridge.launcher(this)
         Trail.clear(this)
         // Exported: the broadcast comes from the system's download provider,
         // which is another app, and a receiver that is not exported never
@@ -343,6 +345,7 @@ class MainActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_AUTO_LAUNCHED, hasAutoLaunched)
+        outState.putBoolean(STATE_SETUP_OPENED, setupOpened)
     }
 
     override fun onDestroy() {
@@ -419,17 +422,18 @@ class MainActivity : AppCompatActivity() {
     private var sawBuilding = false
 
     /**
-     * While the launcher is in front: the build's progress in the status, the
-     * launcher as it is with the new code once the build has ended, and
-     * Android's question about the toolchain package, which a build in the
-     * background could not put (ToolchainInstall).
+     * While the launcher is in front: the build's progress on the large
+     * button and in the status, the launcher as it is with the new code
+     * once the build has ended, and Android's question about the toolchain
+     * package, which a build in the background could not put
+     * (ToolchainInstall).
      */
     private val buildTick = object : Runnable {
         override fun run() {
             val building = GameBuildService.State(this@MainActivity).wanted
             if (building) {
                 ToolchainInstall.ask(this@MainActivity)
-                showGameCode(firstTitle.installed(prefs.gameDirectory))
+                if (Setup.guided) showSetup(Setup.step(this@MainActivity))
             } else if (sawBuilding) {
                 refresh()
             }
@@ -438,24 +442,45 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun openSetup() = setup.launch(Intent(this, SetupActivity::class.java))
+
+    /** The large button's two lines: what it does, and under it, smaller, what that is. */
+    private fun largeButton(first: String, second: String) {
+        play.text = android.text.SpannableString("$first\n$second").apply {
+            setSpan(android.text.style.RelativeSizeSpan(0.6f), first.length + 1, length, 0)
+        }
+    }
+
     /**
-     * Building the game code here: offered while there is any to build, and
-     * said while a build is under way. With game code that this version of
-     * the app no longer takes, the status says what becomes of it.
+     * The game is not set up, or an update of the app needs it built again:
+     * the large button is the guided setup, and says how far it is; the
+     * status, in a line, what is in the way.
      */
-    private fun showGameCode(installed: Boolean) {
-        val building = GameBuildService.State(this).wanted
-        buildButton.visibility =
-            if (GameBuild.offered(this) && (building || GameBuild.wanted(this).isNotEmpty())) android.view.View.VISIBLE
-            else android.view.View.GONE
-        buildButton.text = getString(if (building) R.string.build_entry_running else R.string.build_entry)
-        if (!installed || !GameBuild.outdated(this)) return
+    private fun showSetup(step: Setup.Step) {
+        val state = GameBuildService.State(this)
+        val now = GameBuild.progress
+        val updating = GameBuild.outdated(this)
+        val lost = Setup.lostDisc(this)
+        val stepLine = getString(R.string.setup_step, Setup.number(step), Setup.STEPS)
+        play.isEnabled = true
+        when {
+            state.wanted && now.running ->
+                largeButton(getString(if (updating) R.string.setup_button_updating else R.string.setup_button_building, Setup.percent(now)), getString(R.string.setup_button_watch))
+            updating -> largeButton(getString(R.string.setup_button_update), getString(R.string.setup_button_update_hint))
+            // Nothing done yet: a first start.
+            step == Setup.Step.DISC && lost == null -> largeButton(getString(R.string.setup_button_start), getString(R.string.setup_button_start_hint))
+            else -> largeButton(getString(R.string.setup_button_continue), stepLine)
+        }
         status.text = when {
             ToolchainInstall.confirmation != null -> getString(R.string.update_code_confirm)
-            building -> getString(R.string.build_code_updating, GameBuildService.describe(this, GameBuild.progress))
-            GameUpdate.enabled(this) && !GameUpdate.batteryAllows(this) ->
-                getString(R.string.build_code_waiting_charger, GameUpdate.batteryLevel(this))
-            else -> getString(R.string.build_code_outdated)
+            state.wanted && now.running -> Setup.progressLine(this, now)
+            lost != null -> getString(R.string.status_disc_lost, DiscImage.label(this, lost).substringAfterLast('/'))
+            updating && GameUpdate.enabled(this) && !GameUpdate.batteryAllows(this) ->
+                getString(R.string.status_update_charger, GameUpdate.batteryLevel(this))
+            updating -> getString(R.string.status_update)
+            step == Setup.Step.DISC -> getString(R.string.status_setup_disc)
+            step == Setup.Step.SECOND_DISC -> getString(R.string.status_setup_second)
+            else -> getString(R.string.status_setup_build)
         }
     }
 
@@ -478,12 +503,9 @@ class MainActivity : AppCompatActivity() {
                 if (isDestroyed) return@runOnUiThread
                 artShown = if (picture != null) taken else 0L
                 findViewById<BackdropView>(R.id.backdrop).art = picture
-                // The cards let the picture through; alone they would hide
+                // The card lets the picture through; alone it would hide
                 // the half of it the menu does not.
-                val alpha = if (picture != null) 160 else 255
-                for (card in intArrayOf(R.id.detail_card, R.id.status_card)) {
-                    findViewById<android.view.View>(card).background.mutate().alpha = alpha
-                }
+                findViewById<android.view.View>(R.id.detail_card).background.mutate().alpha = if (picture != null) 160 else 255
             }
         }
     }
@@ -510,23 +532,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val installed = firstTitle.installed(gameDirectory)
-        // An install made by the campaign's app of old has every game file
-        // but the multiplayer's executable.
-        val missing = Title.carried.filterNot { it.installed(gameDirectory) }
-        // A disc to install from is looked for only while something is
-        // missing. The one the build screen took the executables from comes
-        // first: it is known to be this game's (another game's image in
-        // Download was offered here once), and it is chosen once that way.
-        detectedImage = if (missing.isEmpty()) null else chosenImage() ?: findDisc()?.absolutePath
-        refreshSecondEntry(gameDirectory)
+        refreshSecondEntry()
         refreshBotsEntry()
-        // The player's own map packs: offered once there is a game to add
-        // them to, and Exo Zombies while the update they need is in use.
-        // Compatibility Packs still to add are counted on the entry itself:
-        // the multiplayer is the disc's until they are there, and the title
-        // would not say why.
+        // The player's own map packs, and Exo Zombies while the update they
+        // need is in use. Compatibility Packs still to add are counted on
+        // the entry itself: the multiplayer is the disc's until they are
+        // there, and the title would not say why.
         TitleUpdate.refresh(this)
-        dlcButton.visibility = if (Dlc.offered && installed) android.view.View.VISIBLE else android.view.View.GONE
+        dlcButton.visibility = if (installed) android.view.View.VISIBLE else android.view.View.GONE
         dlcButton.text = TitleUpdate.missingPacks.size.let { missing ->
             if (missing == 0) getString(R.string.entry_dlc) else getString(R.string.entry_dlc_missing, missing)
         }
@@ -535,66 +548,21 @@ class MainActivity : AppCompatActivity() {
         // disc's menus have no entries for (docs/dlc.md).
         val packLevels = installed && Title.CAMPAIGN.carried && Title.CAMPAIGN.installed(gameDirectory) && Dlc.levels(this).isNotEmpty()
         packLevelsButton.visibility = if (packLevels) android.view.View.VISIBLE else android.view.View.GONE
-        // The app is published without the game's code: the files alone do
-        // not make it ready (GameLibrary.kt). Which of the two a player still
-        // has to do is said before either is started.
-        val gameCode = GameLibrary.installed(this)
-        showSetupSteps(gameCode, installed)
 
-        if (installed) {
-            // A game played from its disc image needs the image where it
-            // was, and Advanced Warfare its install disc's as well.
-            val disc = listOf(prefs.discImage, prefs.installDiscImage).firstOrNull {
-                it.isNotEmpty() && DiscImage.source(this, it).also { source -> DiscImage.close(source) } == null
-            } ?: prefs.discImage
-            val discGone = disc.isNotEmpty() && DiscImage.source(this, disc).also { DiscImage.close(it) } == null
-            // Game code that this version of the app does not take starts no
-            // game: the status says it is being updated, or how to.
-            play.isEnabled = gameCode && !discGone && Title.carried.any { GameLibrary.current(this, it) }
-            play.text = if (Title.both) "▶ " + getString(R.string.title_campaign) else "▶ LAUNCH GAME"
-            status.text = when {
-                !gameCode -> getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
-                missing.isNotEmpty() -> getString(R.string.status_multiplayer_missing)
-                discGone -> getString(R.string.status_disc_missing, DiscImage.label(this, disc))
-                disc.isNotEmpty() -> getString(R.string.status_ready_disc, DiscImage.label(this, disc))
-                else -> "Status: Game Ready\nLocation: $gameDirectory"
-            }
-            installButton.visibility =
-                if (missing.isEmpty() && !discGone) android.view.View.GONE else android.view.View.VISIBLE
-            installButton.text = getString(R.string.install_game)
-            directLaunchSwitch.visibility = android.view.View.VISIBLE
-
-            if (play.isEnabled && prefs.autoLaunch && !hasAutoLaunched) {
-                hasAutoLaunched = true
-                // The title played last, while its files are still there.
-                val last = RunRequest.read(this).title
-                startGame(if (last.installed(gameDirectory)) last else firstTitle)
-                return
-            }
-        } else {
-            // Direct launch is for the app's start. A launcher that started
-            // without the game sends the player through the install, which
-            // starts the game itself: coming back here from that run is a
-            // Quit, and must not start the game a second time.
+        val ready = if (Setup.guided) refreshGuided() else refreshOneTitle(installed)
+        directLaunchSwitch.visibility = if (ready) android.view.View.VISIBLE else android.view.View.GONE
+        if (ready && prefs.autoLaunch && !hasAutoLaunched) {
             hasAutoLaunched = true
-            val image = detectedImage
-            if (image != null) {
-                play.isEnabled = true
-                play.text = "⚡ INSTALL & PLAY"
-                status.text = getString(R.string.status_disc_found, DiscImage.label(this, image).substringAfterLast('/'))
-                installButton.visibility = android.view.View.VISIBLE
-                installButton.text = "Choose Another Source"
-            } else {
-                play.isEnabled = false
-                play.text = getString(R.string.play)
-                status.text = getString(R.string.status_not_installed)
-                installButton.visibility = android.view.View.VISIBLE
-                installButton.text = getString(R.string.install_game)
-            }
-            directLaunchSwitch.visibility = android.view.View.GONE
+            // The title played last, while its files are still there.
+            val last = RunRequest.read(this).title
+            startGame(if (last.installed(gameDirectory)) last else firstTitle)
+            return
         }
-
-        showGameCode(installed)
+        // Direct launch is for the app's start. A launcher that started
+        // without the game sends the player through the setup, whose last
+        // screen starts the game: coming back here from that run is a Quit,
+        // and must not start the game a second time.
+        if (!ready) hasAutoLaunched = true
 
         applyDriverChoice()
         footer.text = getString(
@@ -604,88 +572,78 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * The two things a player does before the first game, and which of them
-     * are done: in the detail card while one is not, and once in a dialog,
-     * with the way to the guide. A tester ran Install & Play, waited for
-     * seven gigabytes, and only then read that the game's code comes from a
-     * PC.
+     * The launcher of an app with the whole game: Play, a line that says it
+     * is ready, and what there is to play and to add; or, until the game is
+     * set up, the guided setup on the large button and nothing a game is
+     * needed for. A new player is taken into the setup once for each start
+     * of the launcher, with nothing to find first. True when the game can
+     * be played.
      */
-    private fun showSetupSteps(gameCode: Boolean, gameFiles: Boolean) {
-        // An app with the game's code inside has the one step, which the
-        // status says.
-        if (!GameLibrary.separate) return
-        if (gameCode && gameFiles) {
-            if (detailIsSetup) showDetail(getString(R.string.detail_default_title), getString(R.string.detail_default_text))
-            return
+    private fun refreshGuided(): Boolean {
+        val step = Setup.step(this)
+        val ready = step == Setup.Step.DLC || step == Setup.Step.DONE
+        // Hidden, not gone: the large button keeps its size.
+        val shown = if (ready) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        groupPlay.visibility = shown
+        groupExtras.visibility = shown
+        if (ready) {
+            // Set up before this version, or by the setup just left: its
+            // step for the map packs is a first setup's (Prefs.setupFinished).
+            if (!prefs.setupFinished) prefs.setupFinished = true
+            play.isEnabled = true
+            largeButton("▶  " + getString(R.string.play_large), getString(R.string.title_campaign))
+            status.text = getString(R.string.status_ready)
+            return true
         }
-        val untouched = detailTitle.text.toString() == getString(R.string.detail_default_title)
-        if (untouched || detailIsSetup) {
-            showDetail(getString(R.string.setup_title), setupSteps(gameCode, gameFiles))
-            detailIsSetup = true
+        showSetup(step)
+        if (!prefs.setupFinished && !setupOpened) {
+            setupOpened = true
+            openSetup()
         }
-        // The dialog is for the step a new player does not expect, making
-        // the game code, and leads to doing it here: with the game code on
-        // the device, the card and the Install & Play button say the rest.
-        if (setupExplained || gameCode) return
-        setupExplained = true
-        explainSetup(gameCode, gameFiles)
+        return false
     }
-
-    private fun setupSteps(gameCode: Boolean, gameFiles: Boolean): String {
-        val done = getString(R.string.setup_done)
-        val todo = getString(R.string.setup_todo)
-        return getString(
-            R.string.setup_steps, if (gameCode) done else todo, if (gameFiles) done else todo,
-            getString(R.string.setup_command),
-        )
-    }
-
-    private fun explainSetup(gameCode: Boolean, gameFiles: Boolean) {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.setup_title)
-            .setMessage(setupSteps(gameCode, gameFiles) + "\n\n" + getString(R.string.setup_guide_where, setupGuide()))
-            .setNegativeButton(R.string.close, null)
-            .setNeutralButton(R.string.setup_guide) { _, _ -> openPage(setupGuide()) }
-        if (GameBuild.offered(this)) {
-            dialog.setPositiveButton(R.string.setup_build_here) { _, _ -> startActivity(Intent(this, BuildActivity::class.java)) }
-        }
-        dialog.show()
-    }
-
-    /** The README's quick start, which has both steps and every way to do them, in this game's repository. */
-    private fun setupGuide(): String =
-        "https://github.com/${BuildConfig.UPDATE_REPO.ifEmpty { "yassinsolim/mw3-recomp" }}#quick-start-no-pc"
 
     /**
-     * The install screen, from the disc image found on the device when there
-     * is one, and with Advanced Warfare's install disc when that was found.
+     * The launcher of an app of one title (the older apps, and title update
+     * 6's): Play, or the install screen until the game's files are there.
+     * True when the game can be played.
      */
-    private fun install(title: Title = firstTitle) {
-        val installDisc = searched?.installs?.firstOrNull()?.path
-            ?.takeIf { Title.installDiscMissing(installFolder(), prefs.installDiscImage) }
+    private fun refreshOneTitle(installed: Boolean): Boolean {
+        // A disc to install from is looked for only while the game is not
+        // installed. The one the build screen took the executables from
+        // comes first: it is known to be this game's.
+        detectedImage = if (installed) null else chosenImage() ?: findDisc()?.absolutePath
+        val lost = Setup.lostDisc(this)
+        play.isEnabled = lost == null
+        play.text = getString(if (installed) R.string.play_large else R.string.install_game)
+        status.text = when {
+            !installed -> getString(R.string.status_setup_disc)
+            lost != null -> getString(R.string.status_disc_lost, DiscImage.label(this, lost).substringAfterLast('/'))
+            else -> getString(R.string.status_ready_one)
+        }
+        return installed && lost == null
+    }
+
+    /** The install screen of an app of one title, from the disc image found on the device when there is one. */
+    private fun install(title: Title) {
         startActivity(
             Intent(this, InstallActivity::class.java).apply {
                 putExtra(InstallActivity.EXTRA_TITLE, title.name)
                 detectedImage?.let { putExtra(InstallActivity.EXTRA_INITIAL_PATH, it) }
-                installDisc?.let { putExtra(InstallActivity.EXTRA_INSTALL_DISC, it) }
-                putExtra(InstallActivity.EXTRA_AUTO_START, detectedImage != null || installDisc != null)
+                putExtra(InstallActivity.EXTRA_AUTO_START, detectedImage != null)
             },
         )
     }
 
-    /** Where the game files are, or would be put: the install disc's packages are looked for beside it. */
-    private fun installFolder(): String =
-        prefs.gameDirectory.ifEmpty { File(getExternalFilesDir(null) ?: filesDir, "game").absolutePath }
-
     /**
-     * Looks for this game's disc images while there is something to install
-     * from one, off the main thread: it lists folders down the storage. What
-     * it finds is shown when it ends.
+     * Looks for the disc images an app of one title could install from,
+     * while its game is not installed, off the main thread: it lists
+     * folders down the storage. What it finds is shown when it ends. The
+     * apps with the whole game look for theirs in the guided setup
+     * (SetupActivity).
      */
     private fun searchDiscs() {
-        val wanted = Title.carried.any { !it.installed(prefs.gameDirectory) } ||
-            Title.installDiscMissing(installFolder(), prefs.installDiscImage)
-        if (!wanted || searching) return
+        if (Setup.guided || firstTitle.installed(prefs.gameDirectory) || searching) return
         searching = true
         thread(name = "disc-search", isDaemon = true) {
             val found = DiscImage.search(this)
@@ -706,29 +664,14 @@ class MainActivity : AppCompatActivity() {
         return image
     }
 
-    /** A disc image where players usually leave one, or null. */
+    /** A disc image where players usually leave one, or null: for an app of one title (the others have the guided setup). */
     private fun findDisc(): File? {
         // MW2's multiplayer needs the FULL disc: mw2_campaign_lean.iso pruned
         // the multiplayer fastfiles to save 2.7 GB, so it can never satisfy
-        // a multiplayer install, nor the app that carries both titles. SP
-        // accepts either, preferring lean.
+        // a multiplayer install. SP accepts either, preferring lean.
         // (TU6 installs from the same disc; the update applies after.)
         val isMp = Title.MULTIPLAYER.carried
-        val candidateIsos = if (Title.isAw) {
-            // The game disc: the install disc's packages are copied beside
-            // the game folder by setup (docs/AW-BRINGUP.md).
-            listOf(
-                File("/sdcard/Download/aw.iso"),
-                File("/sdcard/Download/Call of Duty - Advanced Warfare (USA, Europe) (En,Fr,De,Es,It,Pl,Ru) (Game Disc).iso"),
-                File(getExternalFilesDir(null) ?: filesDir, "aw.iso"),
-            )
-        } else if (Title.isCod4) {
-            listOf(
-                File("/sdcard/Download/cod4.iso"),
-                File("/sdcard/Download/Call of Duty 4 - Modern Warfare (USA, Europe).iso"),
-                File(getExternalFilesDir(null) ?: filesDir, "cod4.iso"),
-            )
-        } else if (Title.isMw3) {
+        val candidateIsos = if (Title.isMw3) {
             listOf(
                 File("/sdcard/Download/mw3.iso"),
                 File("/sdcard/Download/Call of Duty - Modern Warfare 3.iso"),
@@ -763,21 +706,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Starts a title, or the install that has to come first: from the disc
-     * image found on the phone when there is one, else by asking for it.
-     * Without the game's code the two steps are said first, since the
-     * install alone does not end in a game.
+     * Starts a title, or what has to come first: the guided setup, or in an
+     * app of one title the install, from the disc image found on the phone
+     * when there is one.
      */
     private fun launch(title: Title) {
-        if (title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory, prefs.installDiscImage)) {
-            startGame(title)
-            return
+        when {
+            title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory, prefs.installDiscImage) -> startGame(title)
+            Setup.guided -> openSetup()
+            else -> install(title)
         }
-        if (!GameLibrary.installed(this)) {
-            explainSetup(gameCode = false, gameFiles = firstTitle.installed(prefs.gameDirectory))
-            return
-        }
-        install(title)
     }
 
     private fun device(): String {
@@ -821,24 +759,11 @@ class MainActivity : AppCompatActivity() {
     private fun startGame(title: Title, launchData: String = "", level: String = "") {
         if (!nativeReady) return
         // Every way into a run comes through here: without the title's game
-        // code (GameLibrary.kt) one only ends in "The game could not start",
-        // and the second entry is not greyed out as Play is.
-        if (!GameLibrary.ready(this, title)) {
-            showDetail(
-                getString(R.string.cannot_start),
-                getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing),
-            )
-            return
-        }
-        if (!GameLibrary.current(this, title)) {
-            showDetail(
-                getString(R.string.cannot_start),
-                if (GameBuildService.State(this).wanted) {
-                    getString(R.string.build_code_updating, GameBuildService.describe(this, GameBuild.progress))
-                } else {
-                    getString(R.string.build_code_outdated)
-                },
-            )
+        // code, or with code this version of the app does not take
+        // (GameLibrary.kt), one only ends in "The game could not start",
+        // and the entries under Play are not replaced as Play is.
+        if (!GameLibrary.ready(this, title) || !GameLibrary.current(this, title)) {
+            showDetail(getString(R.string.cannot_start), getString(R.string.cannot_start_build))
             return
         }
         // A second controller means a second player can join (split-screen
@@ -856,7 +781,6 @@ class MainActivity : AppCompatActivity() {
         detailTitle.text = title
         detailText.text = text
         detailIsPlay = false
-        detailIsSetup = false
     }
 
     /** What the Play card says: the game that is installed, or what the status says is in the way. */
@@ -903,14 +827,10 @@ class MainActivity : AppCompatActivity() {
      * The second entry: the multiplayer in the app that carries both titles,
      * else the game's other app when that is installed.
      */
-    private fun refreshSecondEntry(gameDirectory: String) {
-        val second = secondTitle
-        if (second != null) {
+    private fun refreshSecondEntry() {
+        if (secondTitle != null) {
             secondButton.visibility = android.view.View.VISIBLE
-            secondButton.text = getString(
-                if (second.installed(gameDirectory)) R.string.title_multiplayer
-                else R.string.title_multiplayer_install,
-            )
+            secondButton.text = getString(R.string.title_multiplayer)
             return
         }
         val other = otherApp()
@@ -1235,7 +1155,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.last_crash)
             .setMessage(crash.take(4000))
             .setPositiveButton(R.string.close) { _, _ -> Trail.forgetCrash(this) }
-            .setNeutralButton(R.string.share) { _, _ -> share(crash) }
+            .setNeutralButton(R.string.share) { _, _ -> LogShare.share(this, crash) }
             .show()
     }
 
@@ -1269,28 +1189,19 @@ class MainActivity : AppCompatActivity() {
             .setView(scroll)
             .setPositiveButton(R.string.close, null)
             .setNegativeButton(R.string.log_everything) { _, _ -> showWholeLog() }
-            .setNeutralButton(R.string.share) { _, _ -> share(wholeLog()) }
+            .setNeutralButton(R.string.share) { _, _ -> LogShare.share(this, wholeLog()) }
             .show()
     }
 
-    /** What Share sends: every log and crash file, not the summary. */
+    /** What Share sends, as a file (LogShare.kt): every log and crash file, not the summary. */
     private fun wholeLog(): String {
         val session = if (nativeReady) safely("") { NativeBridge.nativeLogTail() } else ""
         return LogSummary.whole(this, session)
     }
 
-    private fun share(text: String) {
-        val intent = Intent(Intent.ACTION_SEND)
-        intent.type = "text/plain"
-        intent.putExtra(Intent.EXTRA_SUBJECT, "MW2 log")
-        // The head of it names the app and the device, so it is the end that
-        // goes when a text is too long for the share.
-        intent.putExtra(Intent.EXTRA_TEXT, text.take(200_000))
-        startActivity(Intent.createChooser(intent, getString(R.string.share)))
-    }
-
     companion object {
         private const val STATE_AUTO_LAUNCHED = "hasAutoLaunched"
+        private const val STATE_SETUP_OPENED = "setupOpened"
 
         /** A mode change takes under a second on the devices seen; the notice waits this long for it. */
         private const val DISPLAY_SETTLE_MS = 1500L

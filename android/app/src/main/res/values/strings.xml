@@ -8,7 +8,6 @@
     <string name="credit_line">Built on mw2-recompiled · mw2-android · XenonRecomp</string>
     <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, INFINITY WARD OR MICROSOFT.</string>
     <string name="hint_choose">TAP TO CHOOSE</string>
-    <string name="network_settings">NETWORK</string>
     <string name="entry_settings">SETTINGS</string>
     <string name="entry_mods">MODS</string>
     <string name="entry_tu6">GET TU6 BUILD</string>
@@ -26,8 +25,8 @@
     <string name="check_updates">CHECK FOR UPDATES</string>
     <string name="quit_launcher">QUIT</string>
     <string name="up_to_date">This is the newest version.</string>
-    <string name="detail_default_title">DEPLOYMENT</string>
-    <string name="detail_default_text">Pick an entry: its details show here, and choosing it acts at once.</string>
+    <!-- The launcher's card before an entry is chosen: what the app is. -->
+    <string name="detail_default_text">This app contains no game. It plays your own copy, built on this device from the disc you own. Tap an entry to open it.</string>
     <string name="launch_other">Launch %1$s</string>
     <string name="other_name_campaign">MW2 Campaign</string>
     <string name="other_name_multiplayer">MW2 Multiplayer</string>
@@ -35,7 +34,6 @@
     <!-- the app that carries the campaign and the multiplayer -->
     <string name="title_campaign">CAMPAIGN · SPECIAL OPS</string>
     <string name="title_multiplayer">MULTIPLAYER</string>
-    <string name="title_multiplayer_install">MULTIPLAYER · INSTALL</string>
     <string name="multiplayer_detail">Online through a relay, on the local network, or split screen. Network and voice chat are in Settings.</string>
     <string name="multiplayer_detail_bots">Online through a relay, on the local network, or split screen. Bots are the entry below; unlocks, match options, network and voice chat are in Settings.</string>
     <string name="multiplayer_detail_bots_only">Online through a relay, on the local network, or split screen. Bots are the entry below; the network is in Settings.</string>
@@ -45,7 +43,6 @@
     <string name="bots_title">Bots</string>
     <string name="bots_detail">Computer players for multiplayer. They join the matches this device hosts: System Link, Create Game, or a private match. They do nothing in a match somebody else hosts. Choose how many and how good here, then start Multiplayer.</string>
     <string name="bots_more">More in Settings</string>
-    <string name="status_multiplayer_missing">The campaign is ready.\nThe multiplayer\'s executable is not in the game folder yet: install from your disc image once more. Only what is missing is copied.</string>
 
     <!-- launcher -->
     <string name="play">Play</string>
@@ -60,10 +57,7 @@
     <string name="done">Done</string>
     <string name="share">Share</string>
 
-    <string name="status_ready_disc">Status: Game Ready\nPlayed from the disc image:\n%1$s</string>
-    <string name="status_disc_missing">The disc image the game is played from is not there any more:\n%1$s\nPut it back (a memory card, a moved or deleted file), or choose it again with Install the game files.</string>
-    <string name="status_disc_found">Game disc found:\n%1$s\nInstall &amp; Play plays from it where it is: nothing is copied.</string>
-    <string name="status_not_installed">The game files are not set up yet.\n\nThis app contains no game data. You supply your own copy: a disc image (.iso) of the game you own, on this device or its memory card.</string>
+    <string name="status_disc_missing">The .iso file the game plays from is not where it was:\n%1$s\nPut it back (an SD card, a moved or deleted file), or pick it again from the main screen.</string>
     <string name="status_library_missing">The runtime could not be loaded:\n%1$s</string>
     <string name="footer">%1$s\nDriver: %2$s\nBuild %3$s, %4$s</string>
 
@@ -383,7 +377,7 @@
     <string name="error_not_installed">The game files are not installed. Install them from the launcher first.</string>
     <string name="error_start">The runtime would not start. The log has the details.</string>
     <!-- the game's code, where the app is published without it (GameLibrary.kt) -->
-    <string name="game_code_missing">Step 1 is not done: the game code is not on this device. It is made from your own disc.\nOn your PC, run setup\\setup.cmd (on Linux: bash setup/setup.sh) with this device connected over USB.\nNo PC? Settings, Files, Prepare files for building online.</string>
+    <string name="game_code_missing">This copy of the app cannot build the game on the device. The game can be built on a PC from your own disc: the guide (the README of this project on GitHub) says how, under PC setup.</string>
     <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -GameOnly with this device connected over USB. If you built it online: in your private repository, Actions, Build my game package, Run workflow. Your game files and saves are kept.</string>
     <string name="game_code_refused_build_here">The game code on this device was built for another version of the app and has to be built again: %1$s.\n\nChoose \"Build on this device\": it takes a few minutes, and your game files and saves are kept. Or on your PC, update the project folder (git pull) and run %2$s -GameOnly with this device connected over USB.</string>
     <!-- for a player with no PC (BuildOnline.kt, docs/BUILD-WITHOUT-PC.md) -->
@@ -395,15 +389,10 @@
     <string name="build_online_failed">The files could not be prepared: %1$s.</string>
     <string name="build_online_done">%1$s and %2$s are now in this device\'s Download folder. They are your game\'s executables: keep them to yourself.\n\nNext, in your browser, signed in to GitHub:\n\n1. Open github.com/yassinsolim/recomp-builder, tap Use this template, Create a new repository, and choose Private.\n2. In your new repository: Add file, Upload files, choose the two files from Download, Commit changes.\n3. The build starts by itself and takes an hour or two (Actions shows it). Then open Releases, tap the .apk in the draft at the top and install it.\n\nNever make that repository public: it holds your copy of the game\'s code.</string>
     <string name="build_online_guide">Open the full guide</string>
-    <!-- the two steps of setting up, said before either is started (MainActivity.showSetupSteps) -->
-    <string name="setup_title">TWO STEPS TO PLAY</string>
+    <!-- what setup on a PC is run as: said where a PC is the other way to build the game code -->
     <string name="setup_command">setup\\setup.cmd</string>
-    <string name="setup_steps">1. BUILD THE GAME CODE (%1$s): on this device, with no PC: choose \"Build the game code\" and your disc image (.iso); it takes a few minutes. Or on a PC: run %3$s with this device connected over USB.\n2. INSTALL &amp; PLAY (%2$s): plays from your disc image (.iso) where it lies, also on an SD card.</string>
     <string name="setup_build_here">Build on this device</string>
-    <string name="setup_done">done</string>
-    <string name="setup_todo">to do</string>
     <string name="setup_guide">Open the guide</string>
-    <string name="setup_guide_where">The app alone is not the game: it carries no game code and no game files, and both come from your own disc. The guide has both ways, and every command for a PC:\n%1$s</string>
     <string name="stats_line">%1$.0f fps   %2$d MB textures   %3$d×%4$d</string>
 
     <!-- the run's own notification, which is there so the process is not the
@@ -430,13 +419,7 @@
 
     <!-- building the game code on this device (BuildActivity.kt, GameBuild.kt) -->
     <string name="build_title">Build the game code on this device</string>
-    <string name="build_entry">Build the game code</string>
-    <string name="build_entry_running">Building the game code…</string>
-    <string name="build_detail">The game code is made from your own disc and is in no download. This device can make it itself, with no PC: it takes your disc image (.iso), which is only read, a compiler package installed once, and some minutes of work that goes on in the background.</string>
-    <string name="build_code_missing">The game code is not on this device yet: it is made from your own disc.\nChoose \"Build the game code\" to make it here, or run setup\\setup.cmd on a PC with this device connected over USB.</string>
-    <string name="build_code_outdated">This update of the app needs the game code built again.\nChoose \"Build the game code\": your game files and saves are kept.</string>
-    <string name="build_code_updating">Updating the game code for this version of the app. %1$s\nThe game can be started when it is done; your game files and saves are kept.</string>
-    <string name="build_code_waiting_charger">This update of the app needs the game code updated. That starts by itself on the charger (battery %1$d%%), or now with \"Build the game code\".</string>
+    <string name="build_code_missing">The game is not built yet. Go to the main screen and tap the large button.</string>
     <string name="build_hint">The game code is made from your own copy of the game, here on this device. It needs your disc image (.iso), which is only read, the toolchain package (the compiler, installed once, a download of about 45 MB) and about 1 GB of free space while it works. The build took two to eight minutes on the devices it was measured on, by game and device, and takes longer on a slower or hot one; it carries on while you use other apps, and from where it was if it is interrupted.</string>
     <string name="build_have_executables">1. Your disc: found, and a version this app supports.</string>
     <string name="build_taking_executables">1. Your disc: reading the game code\'s source out of the image…</string>
@@ -456,7 +439,7 @@
     <string name="build_resume">Carry on</string>
     <string name="build_paused">Paused. What is finished is kept.</string>
     <string name="build_keep_charging">Connect the charger: the build uses every core for a long time and drains the battery quickly.</string>
-    <string name="build_channel">Building the game code</string>
+    <string name="build_channel">Building the game</string>
     <string name="build_starting">Starting…</string>
     <string name="build_name_campaign">campaign</string>
     <string name="build_name_multiplayer">multiplayer</string>
@@ -481,15 +464,134 @@
     <string name="build_toolchain_other">The toolchain package on this device is for another version of this app. Install the one from this app\'s release.</string>
     <string name="build_tool_failed">%1$s failed:\n%2$s</string>
     <string name="build_statement_differs">The recompiled code of %1$s is not what this version of the app expects (its %2$s differs). Update the app and the toolchain package to the same release.</string>
-    <string name="update_code_title">Updating the game code</string>
-    <string name="update_code_done">The game code is up to date for this version of the app.</string>
-    <string name="update_code_confirm">Android asks once whether the toolchain package may be updated. Tap to answer; the update of the game code then carries on.</string>
-    <string name="update_code_toolchain">This update of the app needs the game code built again. Tap to build it on this device, which takes a few minutes, or run setup on your PC.</string>
-    <string name="update_code_charger">The update of the game code waits for the charger (battery %1$d%%). Tap to build it now.</string>
-    <string name="update_code_open">The game code has to be updated for this version of the app. Tap to start; it takes a few minutes.</string>
+    <string name="update_code_title">Updating the game</string>
+    <string name="update_code_done">The game is up to date for this version of the app.</string>
+    <string name="update_code_confirm">Android asks once whether the build tools may be updated. Tap to answer; the update of the game then carries on.</string>
+    <string name="update_code_toolchain">This update of the app needs the game built again. Tap to build it; it takes a few minutes.</string>
+    <string name="update_code_charger">The update of the game waits for the charger (battery %1$d%%). Tap to build it now.</string>
+    <string name="update_code_open">The game has to be updated for this version of the app. Tap to start; it takes a few minutes.</string>
     <string name="update_code_never">Update the game code by itself: never</string>
     <string name="update_code_charging">Update the game code by itself: only on the charger</string>
     <string name="update_code_above">Update the game code by itself: on the charger, or with the battery above %1$d%%</string>
     <string name="update_code_always">Update the game code by itself: at any battery charge</string>
     <string name="update_code_hint">Some updates of the app need the game code built again from your disc. The app then does it by itself, in the background, as soon as the update is installed, and this says how far it may use the battery for it. It takes from under a minute to a quarter of an hour, by game and device.</string>
+
+    <!-- The guided setup (SetupActivity.kt, Setup.kt), and the launcher's large
+         button, status line and groups (MainActivity.kt). Short sentences and
+         everyday words: what the player sees is named (the .iso file), and the
+         facts stay as they are: the app contains no game, and the player uses
+         their own disc. -->
+    <string name="game_mw2">Modern Warfare 2</string>
+    <string name="game_mw3">Modern Warfare 3</string>
+    <string name="game_cod4">Call of Duty 4: Modern Warfare</string>
+    <string name="game_aw">Advanced Warfare</string>
+    <string name="play_large">PLAY</string>
+    <string name="group_play">Play options</string>
+    <string name="group_extras">Extras</string>
+    <string name="group_help">Help and settings</string>
+    <string name="direct_launch">Start the game when the app opens</string>
+    <string name="entry_repair">REPAIR / REBUILD</string>
+    <string name="repair_detail">For when something is wrong, or you want it done another way: pick another .iso file, copy the game files into the app, or build the game again. Your saves are kept.</string>
+    <string name="repair_files">Disc image and game files</string>
+    <string name="repair_build">Build the game again</string>
+    <string name="settings_detail">Graphics, controls, multiplayer, network and files.</string>
+    <string name="cannot_start_build">The game has to be built first. Tap the large button.</string>
+    <string name="status_ready">Ready - campaign and multiplayer installed</string>
+    <string name="status_ready_one">Ready</string>
+    <string name="status_setup_disc">Not set up yet. This app contains no game: it plays your own copy, from your own disc.</string>
+    <string name="status_setup_second">One more .iso file to pick: this game has two discs.</string>
+    <string name="status_setup_build">Your disc is set up. Next: build the game.</string>
+    <string name="status_disc_lost">Your .iso file is not where it was: %1$s. Put it back, or tap the large button to pick it again.</string>
+    <string name="status_update">This update needs the game built again. It takes a few minutes. Your saves are kept.</string>
+    <string name="status_update_charger">This update needs the game built again. That starts by itself on the charger (battery %1$d%%), or now with the large button.</string>
+    <string name="setup_button_start">SET UP THE GAME</string>
+    <string name="setup_button_start_hint">3 steps. You need your .iso file.</string>
+    <string name="setup_button_continue">CONTINUE SETUP</string>
+    <string name="setup_button_building">BUILDING THE GAME · %1$d%%</string>
+    <string name="setup_button_updating">UPDATING THE GAME · %1$d%%</string>
+    <string name="setup_button_watch">Tap to watch</string>
+    <string name="setup_button_update">UPDATE THE GAME</string>
+    <string name="setup_button_update_hint">A few minutes. Your saves are kept.</string>
+    <string name="setup_step">STEP %1$d OF %2$d</string>
+    <string name="setup_step_done">DONE</string>
+    <!-- step 1: the disc image -->
+    <string name="setup_disc_heading">Pick your disc image</string>
+    <string name="setup_disc_heading_two">Pick your two disc images</string>
+    <string name="setup_disc_sentence">This app contains no game. It plays your own copy: the .iso file you made from your own %1$s disc. Look in Downloads or on the SD card. The file is only read.</string>
+    <string name="setup_disc_sentence_two">This app contains no game. It plays your own copy: the two .iso files you made from your own %1$s discs, the game disc and the install disc. Look in Downloads or on the SD card. The files are only read.</string>
+    <string name="setup_disc_second_heading">Now pick the second disc</string>
+    <string name="setup_disc_second_install">The game disc is set up. Now pick the .iso file of the other disc, the install disc. The game needs both.</string>
+    <string name="setup_disc_lost">Your .iso file is not where it was: %1$s. Put it back (an SD card, a moved file) and come back here, or pick it again.</string>
+    <string name="setup_disc_found">Found on this device: %1$s</string>
+    <string name="setup_disc_use_found">USE THIS FILE</string>
+    <string name="setup_disc_pick">CHOOSE THE .ISO FILE</string>
+    <string name="setup_disc_pick_other">Choose another file</string>
+    <string name="setup_disc_browse">Look in a folder</string>
+    <string name="setup_disc_checking">Checking the file…</string>
+    <string name="setup_disc_other_game">This is %1$s. This app is for %2$s.</string>
+    <string name="setup_disc_unknown_game">This is another game\'s disc. This app is for %1$s.</string>
+    <string name="setup_disc_not_image">This is not an Xbox 360 disc image. Pick the .iso file made from your %1$s disc.</string>
+    <string name="setup_disc_not_on_device">This file is not stored on this device (a cloud file, for one). Download it to the device first, then pick it again.</string>
+    <string name="setup_disc_incomplete">This is %1$s, but part of the disc is missing from it (the multiplayer). Pick the complete .iso file of your disc.</string>
+    <string name="setup_disc_version">This is %1$s, but not a version of the disc this app supports yet (another region, or another edition).</string>
+    <string name="setup_disc_none_in_folder">There is no .iso file of %1$s in that folder. Open the folder the file is in and tap the file.</string>
+    <string name="setup_disc_failed">The disc image could not be set up: %1$s</string>
+    <!-- step 2: the build -->
+    <string name="setup_build_heading">Build the game</string>
+    <string name="setup_build_heading_update">Build the game again</string>
+    <string name="setup_build_sentence">The app now builds %1$s from your disc, here on this device. The campaign and the multiplayer are both included. It usually takes 3 to 15 minutes. If Android asks about notifications, allow them: they show how far the build is.</string>
+    <!-- What Android asks the first time, in its order (seen on a Retroid Pocket Flip 2, Android 13): notifications, "isn't allowed to install unknown apps from this source" with Settings, and "Do you want to install this app?". -->
+    <string name="setup_build_sentence_tools">The app now builds %1$s from your disc, here on this device. The campaign and the multiplayer are both included. It usually takes 3 to 15 minutes.\n\nThe first time, the app downloads its build tools (about 45 MB) and Android asks three things. Notifications: tap Allow. Installing unknown apps: tap Settings, turn on Allow from this source, then come back here. Install this app: tap Install.</string>
+    <string name="setup_build_sentence_update">This update of the app needs %1$s built again from your disc. It takes a few minutes. Your saves and settings are kept.</string>
+    <string name="setup_build_begin">BUILD THE GAME</string>
+    <string name="setup_build_running">Building %1$s from your disc: the campaign and the multiplayer.</string>
+    <string name="setup_build_keep_open">Keep the app open and plug in your charger. If you leave, the build carries on and a notification shows how far it is.</string>
+    <string name="setup_build_starting">Starting…</string>
+    <string name="setup_build_tools">Downloading the build tools: %1$d of %2$d MB</string>
+    <string name="setup_build_preparing">Getting your disc ready…</string>
+    <string name="setup_build_percent">Building: %1$d%% done.</string>
+    <string name="setup_build_left_unknown">Working out how long it will take…</string>
+    <string name="setup_build_left_soon">About a minute left.</string>
+    <string name="setup_build_left_minutes">About %1$d minutes left.</string>
+    <string name="setup_build_finishing">Finishing…</string>
+    <string name="setup_build_android_asks">Android is asking about the build tools. If it says this app isn\'t allowed to install unknown apps: tap Settings, turn on Allow from this source, and come back here. Then tap Install. If you see no question, tap the button below.</string>
+    <string name="setup_build_waiting_answer">Waiting for your answer…</string>
+    <string name="setup_build_ask_again">SHOW ANDROID\'S QUESTION AGAIN</string>
+    <string name="setup_build_failed">The build stopped before it was finished. Tap Retry: it carries on from where it stopped.</string>
+    <string name="setup_build_no_space">There is not enough free space: the build needs about 1 GB. Free some space, then tap Retry.</string>
+    <string name="setup_build_offline">The build tools could not be downloaded: there is no internet connection. Connect, then tap Retry.</string>
+    <string name="setup_build_tools_refused">The build tools were not installed. Tap Retry. When Android asks, tap Settings and turn on Allow from this source if it wants that, come back here, then tap Install.</string>
+    <string name="setup_retry">RETRY</string>
+    <string name="setup_share_log">Share log</string>
+    <string name="build_notice_title">Building the game</string>
+    <string name="build_done_notice">The game is built. Tap to play.</string>
+    <string name="build_failed_notice">The build stopped before it was finished. Tap to try again.</string>
+    <!-- step 3: the player's own map packs -->
+    <string name="setup_dlc_heading">Optional: add your DLC</string>
+    <string name="setup_dlc_sentence">Do you own map packs for this game on your Xbox 360? They are in the folder Content\\0000000000000000\\%1$s on the console\'s hard disk: copy that folder to this device and add it. You can also do this later, with Add DLC on the main screen.</string>
+    <string name="setup_dlc_skip">CONTINUE WITHOUT DLC</string>
+    <string name="setup_dlc_add">Add my DLC</string>
+    <string name="setup_done_heading">Ready to play</string>
+    <string name="setup_done_sentence">The campaign and the multiplayer are installed. Keep your .iso file where it is: the game plays from it.</string>
+    <string name="setup_done_sentence_two">The campaign and the multiplayer are installed. Keep your two .iso files where they are: the game plays from them.</string>
+    <string name="setup_play">PLAY</string>
+    <string name="setup_to_main">Back to the main screen</string>
+
+    <!-- The help over the game at the start of a run (GameHelp.kt). -->
+    <string name="game_help_title">Before you play</string>
+    <string name="game_help_menu">Menu: tap Menu at the top right of the screen. On a controller, press Select and Start together.</string>
+    <string name="game_help_settings">Settings: open the menu. Graphics, the on-screen buttons and controllers are all there.</string>
+    <string name="game_help_quit">Quit: open the menu, then choose Quit.</string>
+    <string name="game_help_ok">OK</string>
+    <string name="game_help_pad">On a controller: A closes this, Y closes it and does not show it again.</string>
+
+    <!-- Sharing the log as a file, and the bug report's form (LogShare.kt). -->
+    <string name="share_log_file">Share the log file</string>
+    <string name="share_log_copy">Copy the end of the log (for a chat)</string>
+    <string name="share_log_copied">Copied.</string>
+    <string name="entry_report">REPORT A PROBLEM</string>
+    <string name="report_problem_title">Report a problem</string>
+    <string name="report_problem_detail">Opens the report form in your browser, with the game, the app\'s version and your device filled in.</string>
+    <string name="report_problem_explained">The report needs the log file.\n\n1. Tap Share the log file and save it (Files, Drive) or email it to yourself.\n2. Come back and tap Open the form.\n3. In the form, attach that file in the Log box.</string>
+    <string name="report_problem_open">Open the form</string>
 </resources>

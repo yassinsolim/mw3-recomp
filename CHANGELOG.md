@@ -4,6 +4,50 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Changed
+- **Setting the game up is one button (all four games on Android).** A new
+  player asked which came first, "Build the game code" or "Install the game
+  files", and whether the multiplayer was installed by itself: the launcher
+  had both as entries of equal weight, in the reverse of the order they are
+  done in, beside a Play button that could start nothing yet. Now the large
+  button is **SET UP THE GAME** until the game can be played, and opens by
+  itself the first time. It leads through numbered screens, each with one
+  sentence and one button:
+  1. **Pick your disc image**: the `.iso` is found on the device, chosen in
+     the Files app, or tapped in a folder. It is checked before anything is
+     built, and what is wrong is said in a sentence ("This is Modern Warfare
+     3. This app is for Modern Warfare 2.", a disc with the multiplayer cut
+     out, a version the app does not support, a cloud file that is not on
+     the device). Advanced Warfare asks for its second disc in the same step.
+  2. **Build the game**: one button builds the campaign and the multiplayer
+     together, with one progress bar and the minutes left. It carries on in
+     the background with a notification, and after a restart or a failure
+     from where it stopped; a failure is one sentence, **Retry**, and
+     **Share log** under it.
+  3. **Optional: add your DLC**, skipped with one button.
+
+  Then **PLAY**. The game plays from the `.iso` where it lies, so nothing is
+  copied. An app updated over an older version with the game already set up
+  opens on the main screen as before, with nothing to do again.
+- **The main screen is Play, one line of status and three small groups.**
+  "Ready - campaign and multiplayer installed" under **PLAY**; *Play options*
+  (Multiplayer, Bots), *Extras* (Add DLC, Mods) and *Help and settings*
+  (Graphics driver, Settings, Log, Report a problem, Check for updates,
+  Repair / rebuild, Quit). The separate build and install screens are under
+  **Repair / rebuild**, for another disc image, copying the files into the
+  app or building again. The "TWO STEPS TO PLAY" text with its PC commands
+  is gone from the app; PC setup is in each README's advanced section.
+- **The first run shows how to open the menu.** One screen over the game:
+  Menu at the top right (Select and Start together on a controller), where
+  the settings are, how to quit. **OK** closes it, **Don't show again**
+  closes it for good.
+- **Log → Share sends a file.** `<game>-log-<version>-<date>.txt`, through
+  the share list, which a bug report's form takes as an attachment; it went
+  as up to 200,000 characters of text, more than an issue can hold. "Copy
+  the end of the log" is there for chat apps. **Report a problem** on the
+  main screen opens the report form with the game, the app's version and the
+  device filled in.
+
 ### Docs
 - Issues on the four public repositories are now filed with a form: a bug report (game, app version, device, what happened, steps, the log, an optional screenshot or video) and a performance report (device, game, map or mode, the FPS seen, settings, the log). The log is required, and the form says how to get it (LOG, then SHARE, in the app; after a crash, open the app again first, the last run's log is kept). Blank issues are off, and the issue page links each game's README FAQ. The old text that sent players to the PC launcher's REPORT A BUG is gone (`.github/ISSUE_TEMPLATE/`).
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.

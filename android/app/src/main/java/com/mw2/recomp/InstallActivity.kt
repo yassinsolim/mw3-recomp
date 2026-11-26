@@ -206,10 +206,9 @@ class InstallActivity : AppCompatActivity() {
             }
         })
 
-        // What the launcher found, or the document the player chose on the
-        // build screen, which the launcher has opened once already.
-        for (found in listOf(intent.getStringExtra(EXTRA_INITIAL_PATH), intent.getStringExtra(EXTRA_INSTALL_DISC))) {
-            if (!found.isNullOrEmpty() && (DiscImage.isDocument(found) || File(found).exists())) useSource(found)
+        // What the launcher of an app of one title found.
+        intent.getStringExtra(EXTRA_INITIAL_PATH)?.let { found ->
+            if (found.isNotEmpty() && (DiscImage.isDocument(found) || File(found).exists())) useSource(found)
         }
         if ((source.isNotEmpty() || installDisc.isNotEmpty()) && intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
             start()
@@ -232,9 +231,6 @@ class InstallActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_INITIAL_PATH = "initial_path"
-
-        /** Advanced Warfare's install disc, when the launcher found it too. */
-        const val EXTRA_INSTALL_DISC = "install_disc"
         const val EXTRA_AUTO_START = "auto_start"
 
         /** The title the launcher was asked for, or the app's first. */
@@ -683,14 +679,10 @@ class InstallActivity : AppCompatActivity() {
                 .setPositiveButton(R.string.play) { _, _ ->
                     GameActivity.start(this, titleToStart()) { finish() }
                 }
-        } else if (GameBuild.offered(this)) {
-            dialog.setMessage(getString(R.string.install_done) + "\n\n" + getString(R.string.build_code_missing))
-                .setPositiveButton(R.string.build_entry) { _, _ ->
-                    startActivity(Intent(this, BuildActivity::class.java))
-                    finish()
-                }
         } else {
-            dialog.setMessage(done + "\n\n" + getString(R.string.game_code_missing))
+            // The launcher's large button builds it (the guided setup), or
+            // says how where this app cannot.
+            dialog.setMessage(done + "\n\n" + getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing))
         }
         dialog.show()
     }

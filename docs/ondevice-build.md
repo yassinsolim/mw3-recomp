@@ -165,8 +165,11 @@ Found on the way, for whoever writes a build around the tools:
 
 ## The app's side
 
-A player with the app, the toolchain package and a disc image needs nothing
-else. In the launcher, **Build the game code** (`BuildActivity.kt`) says what
+A player with the app and a disc image needs nothing else. The guided setup
+([android.md](android.md#the-guided-setup-setupkt-setupactivitykt)) takes the
+image and starts the build with one button, and shows it as one bar. Under
+the launcher's **Repair / rebuild**, **Build the game again**
+(`BuildActivity.kt`) is the same build with its parts named: it says what
 is there and offers the one button for what is missing:
 
 1. **The executables.** `default.xex` and `default_mp.xex` are taken from the
@@ -428,7 +431,7 @@ same name, was deleted and said to have "not arrived whole".
 **The disc image, chosen once.** With no image in Download, the build screen's
 **Choose the disc image with the Files app** took one from the Flip 2's
 memory card (`ROMs/xbox360/`), with no storage permission asked; the app
-keeps the permission to that document, and the launcher's Install & Play
-then played from the same image without asking again.
+keeps the permission to that document, and the game was then played from
+the same image without asking again.
 
 Not tried: Android versions other than 13, and devices other than these two.

@@ -362,6 +362,26 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_PAD_WARNING, value).apply()
 
     /**
+     * The player asked not to be shown the help over the game again
+     * (GameHelp.kt): how to open the menu, change settings and quit. Until
+     * then it is shown at the start of each run: a player who closed it in
+     * a hurry still finds the menu the next time.
+     */
+    var seenGameHelp: Boolean
+        get() = store.getBoolean(KEY_GAME_HELP, false)
+        set(value) = store.edit().putBoolean(KEY_GAME_HELP, value).apply()
+
+    /**
+     * The guided setup has been through to its end on this device, or the
+     * launcher found the game set up already (an update over an older
+     * version): its optional DLC step is for a first setup only, and is not
+     * put again when a later update has the game built anew (Setup.kt).
+     */
+    var setupFinished: Boolean
+        get() = store.getBoolean(KEY_SETUP_FINISHED, false)
+        set(value) = store.edit().putBoolean(KEY_SETUP_FINISHED, value).apply()
+
+    /**
      * Compile every recorded pipeline synchronously at boot instead of the
      * small instant-boot budget (MW2_SHADER_PREWARM_ALL). Boot takes minutes
      * on a cold cache but there is no warmup debt left afterwards.
@@ -620,6 +640,8 @@ class Prefs(context: Context) {
         private const val KEY_AUTO_LAUNCH = "autoLaunch"
         private const val KEY_UPDATE_TAG = "seenUpdateTag"
         private const val KEY_PAD_WARNING = "seenPadWarning"
+        private const val KEY_GAME_HELP = "seenGameHelp"
+        private const val KEY_SETUP_FINISHED = "setupFinished"
         private const val KEY_PREWARM_ALL = "prewarmAllShaders"
         private const val KEY_ASYNC_PIPELINES = "asyncPipelines"
         private const val KEY_UNLOCK_ALL_ITEMS = "unlockAllItems"

@@ -79,6 +79,19 @@ object ToolchainInstall {
         }
     }
 
+    /**
+     * Shows Android's question again, when the player asks for it. Where
+     * the app is not yet allowed to install packages the question sends
+     * the player to Settings and closes; on the way back it does not come
+     * up again by itself, and the session waits for an answer nobody can
+     * give (seen on the AYN Thor, Android 13: "Waiting for your answer"
+     * with nothing to answer).
+     */
+    fun askAgain(activity: Activity) {
+        synchronized(lock) { asked = false }
+        ask(activity)
+    }
+
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->

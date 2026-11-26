@@ -544,9 +544,64 @@ The workflow in [.github/workflows/android.yml](../.github/workflows/android.yml
 
 ## 8. Game Files & Installation Workflow
 
-The app does not bundle game files. The player provides an Xbox 360 disc image (`.iso`, `.7z`, or `.zip` of version 1.0.557):
+The app does not bundle game files. The player provides an Xbox 360 disc image (`.iso`) of their own disc.
 
-- **Automatic Discovery**: Placing `Call of Duty - Modern Warfare 2 (USA, Europe).iso` in a `Download` folder, the device's or a memory card's, enables the one-tap **⚡ INSTALL & PLAY** option in the launcher.
+### The guided setup (`Setup.kt`, `SetupActivity.kt`)
+
+A new player is taken from the first start to a game by one button. Until the
+game can be played the launcher's large button is **SET UP THE GAME** (then
+**CONTINUE SETUP**, or **BUILDING THE GAME · 43%** while a build runs), and the
+setup opens by itself once for each start of the launcher until it has been
+through. It is numbered screens, each one sentence and one large button:
+
+1. **Pick your disc image.** An image of this game on the device or a memory
+   card is offered by name (`DiscImage.search`, where the app may list
+   folders); **CHOOSE THE .ISO FILE** is the system's picker, which needs no
+   permission, and **Look in a folder** the app's browser. The image is told
+   by what is in it before anything else is done (`DiscImage.inspect`, the
+   title number in its executable): "This is Advanced Warfare. This app is
+   for Modern Warfare 3.", an image with the multiplayer cut out, a version
+   the app has no tables for, a document that is no file on the device. The
+   game is then set up to play from the image where it lies, which copies
+   the two executables and takes a second (the runtime's installer).
+   Advanced Warfare's second disc is taken from beside the first, or asked
+   for in the same step.
+2. **Build the game.** `GameBuildService` builds both titles' game code
+   ([ondevice-build.md](ondevice-build.md)); the screen shows one bar
+   (`Setup.percent`: the download, the preparing, the compiling, the
+   linking), the minutes left, and what Android asks about the toolchain
+   package in the order it asks it. Leaving the app leaves the notification
+   with the same line, and a tap on it comes back to where the player was. A
+   failure is one sentence (no room, no network, the build tools refused, or
+   "The build stopped"), **RETRY** and **Share log** under it.
+3. **Optional: add your DLC**, once, with **CONTINUE WITHOUT DLC**.
+
+Then **PLAY**. Nothing of this is kept apart from the facts on the device
+(the executables in the game folder, the images readable, the game code this
+version runs: `Setup.step`), so a setup left half-way, ended by the system or
+failed is at the same step the next time, and an app updated over an older
+one with the game set up opens on the launcher as before. Measured from a
+fresh install on the Retroid Pocket Flip 2 (26 November 2026, an image in
+Download, the toolchain package not installed): Modern Warfare 2 from the
+first screen to Play in about 8 minutes, 5 min 14 s of it the build, with
+three questions of Android's on the way (notifications, "install unknown
+apps", "install this app"); Call of Duty 4's build 3 min 49 s.
+
+The launcher after setup is **PLAY**, a line of status ("Ready - campaign
+and multiplayer installed") and three groups: *Play options* (Multiplayer,
+Bots, and Exo Zombies or the map packs' Special Ops where there are any),
+*Extras* (Add DLC, Mods) and *Help and settings* (Graphics driver, Settings,
+Log, Report a problem, Check for updates, Repair / rebuild, Quit). **Repair /
+rebuild** leads to the two screens the setup runs for the player
+(`InstallActivity.kt`: another image, the files copied into the app, a folder
+of extracted files; `BuildActivity.kt`: the build with its steps, pausing).
+The apps of one title (the older `campaign`, `multiplayer` and `mw3mp`
+flavours) keep the install screen on the large button.
+
+The first run of a game shows one screen over it (`GameHelp.kt`): Menu at
+the top right or Select and Start together, where the settings are, how to
+quit; **OK** or A closes it, **Don't show again** or Y for good.
+
 - **Game folder**: `/sdcard/Android/data/com.mw2.recomp.sp/files/game/` holds the executables and the picture (11 MB) of a game played from its image, or every file of one that was copied in; mods, camouflage packs and an update's files are there either way.
 - **Saves Location**: Campaign and profile saves are stored in:
   `/sdcard/Android/data/com.mw2.recomp.sp/files/saves/`
@@ -582,13 +637,19 @@ Late frames in the half minute after the load: none from the device's storage or
 | **"Renderer Notice: GPU lacks Vulkan 1.3..."** | Device stock driver is Vulkan 1.1 without dynamic rendering. | Check for OEM system software updates. On Adreno devices, import a Turnip driver via the Driver menu. |
 | **"The runtime library would not load"** | Incompatible ABI or 32-bit device. | Ensure device supports 64-bit ARM (`arm64-v8a`). |
 | **Installation fails partway** | Insufficient storage space. | Ensure at least 8 GB of free storage is available on internal storage. |
-| **"The game could not start: the game code is not on this device"** | The app is published without the game's code, which is built from the player's disc on a PC ([game-library.md](game-library.md)). The game files alone (Install & Play) are not enough. | Run `setup\setup.cmd` on a PC with the device connected over USB. The log says `app: the run was not started: ...` and `game code: ... is not installed`. |
+| **"The game is not built yet"**, or "The game could not start: the game code is not on this device" in an older app | The app is published without the game's code, which is built from the player's disc ([game-library.md](game-library.md)). | The launcher's large button builds it on the device; `setup\setup.cmd` on a PC with the device connected over USB is the other way. The log says `app: the run was not started: ...` and `game code: ... is not installed`. |
 | **Log inspection** | Debugging game launch or crashes. | The in-app Log viewer's **Share**, or `/sdcard/Android/data/com.mw2.recomp.sp/files/game.log` via ADB. |
 
 ### What the log share holds
 
-**Share** on the Log screen sends one text that is enough for a bug report
-(`LogSummary.kt`, `DeviceInfo.kt`), 200,000 characters at most:
+**Share** on the Log screen offers the log as a file,
+`<game>-log-<version>-<date>.txt`, through the system's share list
+(`LogShare.kt`: a FileProvider over the app's cache), or the end of it on the
+clipboard for a chat. The file is what a bug report's form takes as an
+attachment; as text it was more than an issue holds (65,536 characters).
+**Report a problem** opens that form with the game, the app's version and the
+device filled in. The text is enough for a bug report (`LogSummary.kt`,
+`DeviceInfo.kt`), 200,000 characters at most:
 
 - `===== report =====`: the app and its version, the phone, its chip, its
   memory, the GPU with its driver's version (asked of OpenGL ES in the
