@@ -116,9 +116,9 @@ with what they were measured against.
 |---|---|---|
 | `flicker` | the whole frame's brightness steps 5 levels or more away from both neighbours for one frame, every region with it (the tenth that stepped least by 0.4 of the middle one's step) | Advanced Warfare's gamma fault: 13.4 levels on each of 33 flashes, the least region 0.56 to 0.79 of the middle; with Brightness four steps down 0.4 levels; the largest clean step 2.4; a weapon's flash, sparks and explosions step 6 to 40 levels with the least region at 0.00 to 0.25 |
 | `local-flicker` | where the scenario is calm, a patch at least 20 screen pixels thick and 0.4% of the frame (more in a turn: +12% of the share of the picture that is moving, measured between the two neighbours and against the frame before, whichever is larger) differs from both neighbours for one frame and is in neither of them at another place; once in a run | the sun shadow's wedge 3 to 29% of the frame; lit patches through a doorway 0.8 to 0.9%; Dome's shadow lost for a frame in a turn 8.0% with 43% moving; Rust with half its draws missing for a frame 7.5%; clean play standing still at most 0.14%; a beam crossing a dark shed in a jump at 120 Hz 2.6% with 20% moving |
-| `blocks` | eight or more rectangles of one size (16 to 80 px a side) stand in rows and columns on one lattice, in three frames | the lattices of Call of Duty 4's Bog, Modern Warfare 3's Dome and Modern Warfare 2's S.S.D.D. on the phone's own driver: 9 to 59 blocks, regularity 0.94 to 1.00; clean play at most 5 alike and not in rows |
+| `blocks` | eight or more squares of one size (16 to 38 px a side, as wide as high to within 3 px) stand in rows and columns on one lattice, in three frames | the lattices of Call of Duty 4's Bog, Modern Warfare 3's Dome and Modern Warfare 2's S.S.D.D. on the phone's own driver: 9 to 59 blocks, regularity 0.94 to 1.00; clean play at most 5 alike and not in rows; Solar's honeycomb wall and a grille's slots stand in rows and are 46 by 42 and 26 by 18 |
 | `black`, `white`, `uniform` | in play, 97% of the frame is black, or 60% white or nothing in it darker than level 150, or its spread is under 3 levels, for five seconds | a level's own fades are under five seconds (Black Tuesday's: four) |
-| `missing` | where the scenario is calm, three or more neighbouring regions (of 16 by 9) go from textured to one flat colour between two frames while no more than a fifth of the rest of the picture changes, twice in a run | the wedge does, with a tenth of the rest changing; a walk up to a dark wall goes flat with 0.45 to 0.58 of the rest changing |
+| `missing` | where the scenario is calm, four or more neighbouring regions (of 16 by 9) go from textured to one flat colour between two frames while no more than a fifth of the rest of the picture changes and no region beside them was that colour without texture the frame before, twice in a run | the wedge does, with a tenth of the rest changing; a walk up to a dark wall goes flat with 0.45 to 0.58 of the rest changing; a bare wall sliding in as an edge slides out in a turn is the colour of the region beside it to 1 to 4 levels |
 | `frozen` | in play, the picture does not change for two seconds while the log says frames were made | |
 | `stall` | the log has a `STALL` (a second or more without a world frame) in play | Call of Duty 4's first visit to The Bog: 9.9 s |
 | `unfinished` | the log has no closing report: the game stopped or was killed | |
@@ -207,8 +207,9 @@ On 26 November 2026, with the numbers in `Thresholds`:
 | a clean match with the player turning fast | 1 | passed |
 | fresh runs on the bundled Turnip (S.S.D.D. twice, Rust with bots, Black Tuesday, Survival, The Bog) | 6 | 6 passed |
 | empty matches whose posts, ribbed walls and jumps the check once took for flashes (Rust at 120 Hz, Dome at 60 and 120 Hz) | 3 | 3 passed |
+| Solar with the sun's shadows on, whose honeycomb wall, grille and bare walls two checks once took for blocks and missing ground | 1 | passed |
 
-14 of 14 faulty recordings caught and 21 of 21 clean ones passed: recall
+14 of 14 faulty recordings caught and 22 of 22 clean ones passed: recall
 1.00, precision 1.00, by recording. The set is small, and nothing in it is
 a black world, a washed frame, a frozen picture or missing ground in a
 recording of a real run: those checks are tested on drawn pictures alone

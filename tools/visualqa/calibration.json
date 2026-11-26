@@ -49,6 +49,8 @@
    "what": "Dome, no fault: posts and a shadow's band passing close in fast turns, the view reversing"},
   {"file": "runs/thor_mw3-bots.mp4", "log": "runs/thor_mw3-bots.log", "offset": 54.64, "play_from": 70, "combat_from": 110,
    "what": "Dome on an AYN Thor at 120 Hz, no fault"},
+  {"file": "runs/thor_aw-shadows.mp4", "log": "runs/thor_aw-shadows.log", "offset": 109.74, "play_from": 125,
+   "what": "Solar on an AYN Thor with the sun's shadows on, no fault seen: a honeycomb wall, a grille's slots, bare walls sliding past in turns"},
   {"file": "runs/flip_mw3-campaign.mp4", "log": "runs/flip_mw3-campaign.log", "offset": 50.65, "play_from": 95, "combat_from": 95,
    "what": "Black Tuesday: sparks in the overturned vehicle, the street fight"},
   {"file": "runs/flip_mw3-survival.mp4", "log": "runs/flip_mw3-survival.log", "offset": 50.65, "play_from": 70, "combat_from": 70,

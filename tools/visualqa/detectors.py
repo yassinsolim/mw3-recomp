@@ -63,6 +63,10 @@ class Thresholds:
     # Eight positions at random reach 0.85 both ways one time in sixty, six
     # one time in four: under eight blocks the regularity says nothing.
     block_count: int = 8
+    # The renderer's blocks are 32 pixels of a frame 1920 wide (30 to 36 as
+    # measured, in all three recordings); Solar's honeycomb wall is a lattice
+    # of 40 to 46.
+    block_side_most: float = 38.0
     block_regular: float = 0.85
     block_frames: int = 3
     # Black, white and one-colour frames, in play: how much of the frame, and
@@ -80,14 +84,16 @@ class Thresholds:
     # Missing geometry: regions that had texture (a spread of 6 levels or
     # more inside the region) and from one frame to the next are one flat
     # colour (under 0.8: the encoder leaves 0.2 to 0.5 on a flat field),
-    # three or more together, while no more than this share of the picture
+    # four or more together, while no more than this share of the picture
     # changed outside them. The sun shadow's wedge changes 0.10 of the rest;
     # a walk up to a dark wall, which goes flat as well, 0.45 to 0.58.
     textured: float = 6.0
     flat: float = 0.8
-    missing_regions: int = 3
+    # Four together: three went flat twice in a run on Solar with nothing
+    # missing (a dark doorway and a bare wall filling them in a turn).
+    missing_regions: int = 4
     # A region that went flat is the flat surface beside it slid in when a
-    # region next to it was flat the frame before and within this many levels
+    # region one or two across from it had no texture the frame before and was within this many levels
     # of its colour (Solar's bare walls in a turn: 1 to 4 levels apart).
     flat_slid_levels: float = 8.0
     missing_elsewhere: float = 0.2
@@ -242,7 +248,8 @@ def local_flicker(m, context, t, whole_rows=()):
 
 def blocks(m, context, t):
     """Frames with a lattice of blocks left out or drawn alone."""
-    rows = [int(row) for row in np.flatnonzero((m.blocks >= t.block_count) & (m.blocks_regular >= t.block_regular))
+    rows = [int(row) for row in np.flatnonzero((m.blocks >= t.block_count) & (m.blocks_regular >= t.block_regular)
+                                             & (m.blocks_side <= t.block_side_most))
             if context.in_play(m.seconds[row])]
     severity = FAIL if len(rows) >= t.block_frames else WARN
     findings = []
@@ -289,14 +296,14 @@ def missing_geometry(m, context, t):
             continue
         # A flat wall sliding into a region in a turn, as the edge that was
         # in it slides out, is flat there too: the region beside it was that
-        # flat colour the frame before. Geometry that goes missing leaves a
+        # colour, without texture, the frame before. Geometry that goes missing leaves a
         # colour its neighbours did not have.
-        was_flat = (texture[row - 1] < t.flat).reshape(down, across)
+        was_flat = (texture[row - 1] < t.textured).reshape(down, across)
         before = colour[row - 1].reshape(down, across, 3)
         now = colour[row].reshape(down, across, 3)
         grid = went_flat[row].reshape(down, across).astype(np.uint8)
         for at_down, at_across in zip(*np.nonzero(grid)):
-            beside = (slice(max(0, at_down - 1), at_down + 2), slice(max(0, at_across - 1), at_across + 2))
+            beside = (slice(max(0, at_down - 1), at_down + 2), slice(max(0, at_across - 2), at_across + 3))
             alike = np.abs(before[beside] - now[at_down, at_across]).max(axis=2) <= t.flat_slid_levels
             if (alike & was_flat[beside]).any():
                 grid[at_down, at_across] = 0
