@@ -3,20 +3,24 @@
 **The short answer for a player.** The games on the discs are complete and
 this project ships no map packs, and never will: they are sold content. If
 you bought a map pack on your own Xbox 360, the port can read **your own
-package file from your console's hard disk**: put it in a `dlc` folder and
-the multiplayer mounts it as the console did.
+package files from your console's hard disk**: copy them off the console
+([how](#copying-your-packs-off-an-xbox-360-hard-drive)), then in the app
+**Add DLC → Choose a folder**. The app copies them beside the game and the
+game mounts them as the console did. Nothing is unlocked for anybody: a
+player without the pack's file has not got the map.
 
-- **Advanced Warfare: it works, with a player's real packs.** The four map
-  packs' maps and Exo Zombies were played from the owner's own packages
-  ([Advanced Warfare](#advanced-warfare-map-packs-and-exo-zombies)). They
-  need the game's **title update** as well, which is a file on the same hard
-  disk, and the multiplayer built a second time from it.
-- **Modern Warfare 2, Modern Warfare 3 and Call of Duty 4: experimental.**
-  The path is written and tested with a synthetic package made from a disc's
-  own files; it has not been tried with a real map pack of these games,
-  because the project owns none, and a real pack was made for a later game
-  version than the disc's, which the port plays
-  ([what is untested](#what-is-untested)).
+| game | folder on the console's hard disk | state |
+|---|---|---|
+| Modern Warfare 3 | `Content\0000000000000000\415608CB\00000002` | **works with real packs**: all 20 multiplayer maps, 13 Survival maps and 8 Special Ops missions of the owner's 26 packages ([Modern Warfare 3](#modern-warfare-3-map-packs-survival-maps-and-special-ops-missions)) |
+| Advanced Warfare | `Content\0000000000000000\41560914` (`00000002` and the title update in `000B0000`) | **works with real packs**, and needs the title update ([Advanced Warfare](#advanced-warfare-map-packs-and-exo-zombies)) |
+| Modern Warfare 2 | `Content\0000000000000000\41560817\00000002` | **untested with a real pack**: a test package made from the disc's own files is listed, mounted and played from ([what is tested](#what-is-tested)) |
+| Call of Duty 4 | `Content\0000000000000000\415607E6\00000002` | **untested with a real pack**: the same, with a test package |
+
+**Online, everybody needs the map.** A pack's map is played in a private
+match, System Link or Local Play, and each player in it needs the pack's
+file on their own device: the game loads the map from it. A player who
+joins without it is told the map's file could not be found and is back at
+the menu.
 
 ## What a player supplies
 
@@ -29,31 +33,82 @@ disk under
 | game | title id | drive the title mounts | marker inside |
 |---|---|---|---|
 | Modern Warfare 2 | `41560817` | `mappack1:` ... | `mappack1.id` to `mappack6.id` |
-| Modern Warfare 3 | `415608CB` | `dlc1:` ... | `dlc1.id` ... |
-| Call of Duty 4 | `415607E6` | `mappack1:` ... | (read by the title) |
+| Modern Warfare 3 | `415608CB` | `dlc1:` to `dlc5:` | `dlc1.id` to `dlc26.id`, one in each package |
+| Call of Duty 4 | `415607E6` | `mappack1:` ..., closed again at once | none |
 | Advanced Warfare | `41560914` | `dlc1:` ... | `dlc1.id` to `dlc5.id`, `dlccompat1.id` to `dlccompat6.id`, `seasonpass.id` |
 
-Copy the package off your own console's disk (a USB stick formatted by the
-console and a tool that reads its `Content` folder, or the disk in a PC), and
-put it, or the whole `Content` tree as it is, in one of:
+Copy the package off your own console's disk
+([below](#copying-your-packs-off-an-xbox-360-hard-drive)), and give it to
+the game in one of these ways:
 
-- `Android/data/<the app>/files/dlc/` (for the published apps
-  `com.mw2.recomp`, `com.mw3.recomp`, `com.cod4.recomp`, `com.aw.recomp`),
-  beside the app's `game` folder; Advanced Warfare's app copies them there
-  itself (**Add DLC**);
-- a `dlc` folder beside the disc image the game is played from, for instance
-  `Download/dlc/` when the image is `Download/mw2.iso`;
-- on a PC or in a development run, the folders `MW2_DLC_DIR` names (one, or
+- **In the app: Add DLC** (in the launcher of all four games, once the game
+  files are installed), then **Choose a folder** and pick the folder you
+  copied (the game's `415608CB` or the like, its `00000002`, or any folder
+  above them: wherever it is, on the phone, an SD card or a USB drive), or
+  **Choose files** and pick the packages in the Files app. The app copies
+  those that are this game's into `Android/data/<the app>/files/dlc/`,
+  beside its `game` folder, and lists them with their names and sizes; hold
+  an entry to remove it. Nothing is built and no PC is needed, except for
+  Advanced Warfare's title update, which the app builds on the phone by
+  itself.
+- **With setup, from a PC with the phone on USB:**
+  `setup\setup.cmd -Game mw3 -Dlc <the folder>` on Windows (`-Game mw2`,
+  `cod4`, `aw`), `bash setup/setup.sh --game mw3 --dlc <the folder>` on
+  Linux. It reads the folder, copies the packages to the app's `dlc` folder
+  and, for the Windows game, names the folder in `.env` (`MW2_DLC_DIR`).
+- **By hand:** into `Android/data/<the app>/files/dlc/` (the published apps
+  are `com.mw2.recomp`, `com.mw3.recomp`, `com.cod4.recomp`,
+  `com.aw.recomp`); or a `dlc` folder beside the disc image the game is
+  played from, for instance `Download/dlc/` when the image is
+  `Download/mw2.iso`; on a PC, the folders `MW2_DLC_DIR` names (one, or
   several with semicolons between), or `dlc` beside the game folder.
 
 Folders are searched six levels deep, so the console's tree can be copied
 whole. A file that is not a package for this game's title id, or not
 downloadable content (type `00000002`), is named in the log and not used. As
-many packages are listed as the title asks for: six by the three older
-games, every one there by Advanced Warfare (thirteen with the owner's).
+many packages are listed as the title asks for: six by Modern Warfare 2 and
+Call of Duty 4, every one there by Advanced Warfare (thirteen with the
+owner's); Modern Warfare 3's table holds five, and the runtime joins the
+rest onto the first one's drive (26 with the owner's).
 
 Never share a package, and none belongs in an issue or a pull request: it is
 content you bought.
+
+## Copying your packs off an Xbox 360 hard drive
+
+Either way the files are only read, and they stay yours. The owner's
+packages were read from copies of his own console's `Content` folder; the
+steps below are the console's own menus and the tools' own descriptions,
+and were not walked through for this port.
+
+- **With the disk in a PC.** Take the hard disk out of the console (it
+  slides out of an Xbox 360 S or E; on an older console it is the grey
+  block on the side), connect it with a SATA-to-USB adapter, and open it
+  with a tool that reads the console's FATX format (FATXplorer, Xplorer360
+  and others). The games' content is in the data partition, under
+  `Content\0000000000000000\<the game's number>`. Windows offers to format
+  the disk when it is connected: do not. This gets everything, Advanced
+  Warfare's title update included.
+- **With a USB drive.** On the console: Settings, Storage, the hard drive,
+  Games and Apps, the game; copy its items (each map pack is one) to a USB
+  drive the console formatted. On a PC that drive looks empty: the console
+  keeps its files inside hidden container files, which the same kind of
+  tool opens (Horizon, USB XTAF Explorer and others). Copy out
+  `Content\0000000000000000\<the game's number>`.
+
+What to copy, for each game (the whole folder is fine, and so is anything
+above it):
+
+| game | folder | what is in it |
+|---|---|---|
+| Modern Warfare 3 | `Content\0000000000000000\415608CB\00000002` | one file for each Collection, Elite drop or free map: 7 MB to 190 MB each, 2.6 GB for all 26 |
+| Modern Warfare 2 | `Content\0000000000000000\41560817\00000002` | the Stimulus and Resurgence packages |
+| Call of Duty 4 | `Content\0000000000000000\415607E6\00000002` | the Variety Map Pack |
+| Advanced Warfare | `Content\0000000000000000\41560914` | `00000002` (the packs and the Compatibility Packs) **and** `000B0000` (the title update), 5.4 GB with all of the owner's |
+
+The files have no extension and names of letters and digits. A package
+bought on another account or console is the same file; the port does not
+ask whose it is, and it is for you to copy only what you bought.
 
 ## What the runtime does
 
@@ -80,6 +135,13 @@ ones do none of them (Modern Warfare 3's campaign has the code as well):
    menus and the playlists read them, and the fastfiles of the pack's maps are
    opened from the pack's drive.
 
+Call of Duty 4's disc executable stops after the second: it mounts the
+package, closes it again at once and asks for every fastfile on the disc,
+so the runtime looks in the player's packages for a file the disc has not
+(`kernel/files.cpp`, [what is tested](#what-is-tested)). Modern Warfare 3's
+packs past the five its table holds are handled
+[below](#what-the-discs-executables-lacked-and-what-the-runtime-does).
+
 **No extraction, and no STFS writing.** A package is read where it lies
 (`kernel/volume.h`, `ReadVolume::OpenPackage`): its file table is read once,
 each file's chain of 4 KB blocks is kept as runs, and a read is a `pread` at
@@ -97,6 +159,101 @@ first match each entry against the profile and the console the pack was bought
 on; neither exists here, and the package is the player's own. A package with
 no licence bits reports none. Modern Warfare 2's disc executable stores the
 mask beside the pack and was not seen to test it in the functions above.
+
+## Modern Warfare 3: map packs, Survival maps and Special Ops missions
+
+**What a player needs:** the packages in
+`Content\0000000000000000\415608CB\00000002` on their console's hard disk,
+and nothing else. The disc's two executables play them: no title update is
+needed and nothing is built.
+
+**In the app.** **Add DLC**, **Choose a folder**, pick the folder. Then:
+
+- **Multiplayer:** the packs' maps are under **BONUS MAPS**, the first row
+  of the map list, in a private match, Local Play or System Link, with bots
+  or other players. Everybody in the match needs the map's pack.
+- **Special Ops:** the launcher has **SPEC OPS MAP PACKS**, which lists the
+  Survival maps and missions your packages hold by name; choose one and the
+  game starts in it, for one player. The disc's own Special Ops menu lists
+  the disc's sixteen missions and sixteen Survival maps, written out one by
+  one, and has no rows for the packs': those came with title updates.
+  **Return to Special Ops** afterwards goes to the game's own menu.
+
+On Windows, `setup\setup.cmd -Dlc <the folder>` names the folder in `.env`;
+a level of the packs is started with `MW2_CONTENT_LEVEL=<level>` there
+(`so_survival_mp_italy`, `so_escape_hamburg`: the name of its `so_*.ff`).
+
+### The owner's Modern Warfare 3 packages (read only, never copied into the repository)
+
+26 `LIVE` packages of title `415608CB`, type 2, 2.6 GB together:
+
+| what | packages | levels |
+|---|---|---|
+| Multiplayer maps with a Survival map each | Piazza, Liberation, Overwatch, Black Box, Sanctuary, Foundation, Oasis, Terminal (free), Decommission, Offshore, Gulch, Boardwalk, Parish | `mp_italy`, `mp_park`, `mp_overwatch`, `mp_morningwood`, `mp_meteora`, `mp_cement`, `mp_qadeem`, `mp_terminal_cls`, `mp_shipbreaker`, `mp_roughneck`, `mp_moab`, `mp_boardwalk`, `mp_nola`, and `so_survival_<map>` for each |
+| Face Off maps | Getaway and Lookout, Erosion and Aground (free), U-Turn and Vortex, Intersection | `mp_hillside_ss`, `mp_restrepo_ss`, `mp_courtyard_ss`, `mp_aground_ss`, `mp_burn_ss`, `mp_six_ss`, `mp_crosswalk_ss` |
+| Special Ops missions | Black Ice, Negotiator, Kill Switch, Iron Clad, Arctic Recon, Vertigo, Light 'Em Up, Special Delivery | `so_escape_rescue_2_so`, `so_infiltrate_intro`, `so_coop_vlad_ep01`, `so_escape_hamburg`, `so_demolition_slava_hunt`, `so_rooftop_dubai_specops`, `so_spotlight_castle`, `so_support_dam_specops` |
+| Survival Chaos | one package of 57 KB | the marker alone: Chaos mode is code of a title update, which the disc's game has not got |
+
+Each has its marker (`dlc1.id` to `dlc26.id`), the levels' fastfiles and
+their loading pictures, and the files its textures and sounds stream from
+(`imagefile6.pak` to `imagefile30.pak`, `packfile2.pak` to
+`packfile101.pak`). A mission's package also has its text in nine languages
+(`english_so_escape_hamburg.ff` and the like).
+
+### What the disc's executables lacked, and what the runtime does
+
+The packs' fastfiles are of the disc's version and the disc's executables
+load them. Everything else the packs needed came with title updates, which
+are code and not in a player's packages:
+
+- **More than five packs.** The title tells a pack by its marker, knows
+  `dlc1.id` to `dlc6.id`, and keeps the packs in a table of five; a sixth's
+  name is written past its end. The packages past what the table holds are
+  joined onto the first one's drive, where the title looks for a map's
+  fastfile (`kernel/content.cpp`).
+- **The maps' names.** The menus are ready for packs (the BONUS MAPS row),
+  but the disc's arena file names the disc's sixteen maps. For each
+  `mp_*.ff` in the player's packages an arena is added: the map, the name
+  the game gave it, the pack it is in. The list's cursor and height, wrong
+  on the disc where no map could show it, are put right
+  (`mw3_dlc_maps.cpp`).
+- **Animated props.** Ten of the twenty maps stopped with "animation ... not
+  defined in anim tree": the update's animation trees name them. The names
+  a level's scripts use are added to the tree as it is parsed
+  (`mw3_pack_anims.cpp`).
+- **Teams.** A map's fastfile holds the soldiers of its own two teams; the
+  update's arena said which. They are found by what the fastfile holds, and
+  the map's arena is given them (`mw3_dlc_maps.cpp`).
+- **Streamed files.** The disc's tables of open files hold 21 image files
+  and 10 sound files by number, unchecked; a later pack's `imagefile21` or
+  `packfile10` wrote past them ("Read error of file"). A pack's file is
+  given a free place in the table the executable has (`mw3_pack_files.cpp`).
+- **Special Ops.** The campaign's executable loads a pack's Survival map
+  or mission, with the same two fixes above, but its menus cannot name one:
+  the launcher does, and the level is loaded with the console's `map` once
+  the title has mounted the packages (`MW2_CONTENT_LEVEL`,
+  `kernel/content.cpp`).
+- **A mission's text.** The disc is of one language and its levels hold
+  their own text; a pack's mission has it in a fastfile beside the level's
+  for each language, which the updates load. The English one is loaded with
+  the level (`mw3_pack_text.cpp`); without it the objectives and hints were
+  their keys.
+
+Nothing is listed that the player's packages do not hold, and a map's own
+fastfile is what loads, checked as the disc's are.
+
+### Known gaps
+
+- The lobby's preview of a pack's map is a placeholder (a checker): the
+  previews came with the title updates.
+- A Special Ops level of the packs is started from the launcher, for one
+  player: the disc's lobby cannot be told a level it has no row for, so
+  there is no two-player start.
+- Decommission's Survival map logs an unknown animation tree (`chicken`)
+  and plays.
+- Chaos mode and the Face Off playlists are the updates' code and are not
+  there. The Face Off maps are played as ordinary maps.
+- Find Match: as [below](#playlists-find-match-and-other-players).
 
 ## Advanced Warfare: map packs and Exo Zombies
 
@@ -334,20 +491,104 @@ In [AW-BRINGUP.md](AW-BRINGUP.md#map-packs-and-exo-zombies-25-november-2026).
     at the title's own signature check ("dirty disc"): the disc's fastfiles
     are signed under their names (`runtime/unsigned_fastfiles.cpp`). So a package's files
     go through the same check as the disc's; nothing here loosens it.
+- **The same two games again on Windows, 26 November 2026**, with the
+  packages made anew from each disc's own files:
+  - *Modern Warfare 2* (`mappack1.id`, `mp_rust.ff`, `mp_rust_load.ff`,
+    33 MB): listed, mounted as `mappack1:`, `mappack1.arena` asked for, and
+    `map mp_rust` played at 58 frames a second.
+  - *Call of Duty 4* (`mp_shipment.ff` and `mp_shipment_load.ff`, 52 MB,
+    both taken out of the game folder): the disc's executable lists the
+    package, mounts it as `mappack1:` and closes it again in the same
+    millisecond. It only notes that the player has a pack: it asks for
+    every fastfile as `D:\<name>.ff`, the disc, and the pack's drive in
+    that name came with the title update the Variety Map Pack was sold
+    after. So `map mp_shipment` ended in "Could not find zone". The runtime
+    now looks in the player's packages for a file the disc has not
+    (`kernel/files.cpp`), and Shipment loaded from the package and played
+    at 60 frames a second. The disc's menus have no rows for the Variety
+    Map Pack's four maps; with a real pack they would be started from the
+    console (`map mp_killhouse`).
+- **Modern Warfare 3 with the owner's 26 packages on an AYN Thor,
+  26 November 2026**, in two rounds.
+  - *The app's own way in* (a test app that, as found afterwards, ran on
+    Qualcomm's driver: its picture does not count, what the app did does):
+    **Add DLC → Choose a folder** copied the packages (2.6 GB) in 6 s and
+    nothing was built; the launcher listed them under **SPEC OPS MAP
+    PACKS**, and Iron Clad chosen there started the mission, its text in
+    English.
+  - *The picture and the frame rate*, on the bundled Turnip driver (the
+    log's driver line read before the picture was judged), the packages
+    pushed into `files/dlc` over USB, the maps started from the console
+    (`set ui_mapname` in a private match's lobby) and the Special Ops levels
+    by `MW2_CONTENT_LEVEL`, each run recorded, a frame every three seconds
+    looked at and the recording put through `tools/visualqa`
+    (`analyse --mask touch`):
+
+    | what | frames a second | picture | visualqa |
+    |---|---|---|---|
+    | multiplayer, Piazza (`mp_italy`), six bots | 118.9 | clean | pass |
+    | multiplayer, Parish (`mp_nola`), six bots | 117.1 | clean in the sampled frames | **fail**, `local-flicker` three times |
+    | Survival on Parish (`so_survival_mp_nola`) | 118.7 | clean; a player who stands still dies after 25 s, on Windows too | pass |
+    | Special Ops mission Iron Clad (`so_escape_hamburg`) | 118.3 | clean | pass, one remark |
+
+    Parish's three are all between the player's death and respawn: the
+    blur of the death, the killcam, and the respawn. The first two are
+    what the tool's own scenarios leave out as a fight. The third is a
+    fault, and not a cut of the killcam: for 0.4 s after the respawn, in
+    the player's own view, the buildings on the right are missing in some
+    frames (the sky shows) and there in the next, a seventh of the picture.
+    A killcam and respawn recorded the same way on a disc map (Seatown,
+    the same build and phone) show nothing like it, in one run of each. It
+    is open, with the single frames of missing geometry seen on disc maps
+    of the other games.
+
+    The first round showed a grid of 32-pixel blocks and missing ground at
+    54 to 82 frames a second on these maps. That was the test app and not
+    the packs: built without the bundled driver, it showed the same on a
+    disc map ([android.md](android.md#6-custom-vulkan-drivers-turnip--libadrenotools)).
+  - *Between two phones through the public relay*, 26 November 2026
+    (`mw3.yassin.app`, the phones on different networks, both on the
+    bundled Turnip, the packages in `files/dlc` on both): the Retroid
+    Pocket Flip 2 hosted a System Link game on Piazza (`set ui_mapname
+    mp_italy` in the lobby), the Thor's list showed it as "Piazza" and
+    joined. Both walked the map for three minutes at 119.6 and 60.6 frames
+    a second with the same two players on both scoreboards and the clocks
+    a second apart, and neither log has a `Com_Error` or a time-out. Before
+    the Thor had the packages its list showed the same game as `mp_italy`.
+    The lobby's picture of the map is a checked placeholder. The Thor's
+    recording passes `tools/visualqa`; the Flip's fails `blocks` on the
+    bars of a gate behind the scoreboard, which is the map's own grid.
+- **Add DLC pressed in the Modern Warfare 2 and Call of Duty 4 apps, on a
+  Retroid Pocket Flip 2, 26 November 2026**, each with a package made from
+  the phone's own disc image (Rust with a `mappack1.id`, 35 MB; Shipment,
+  55 MB) in a folder beside Download: **Add DLC → Choose a folder** copied
+  it into `files/dlc`, the screen listed it, and the multiplayer's log
+  mounted it as `mappack1:` (Call of Duty 4 closing it again at once, as
+  on Windows). The first press found a fault: both apps said six
+  Compatibility Packs of Advanced Warfare were missing; only Advanced
+  Warfare's app looks for them now (`Dlc.kt`).
 
 ## What is untested
 
-- **A real map pack of Modern Warfare 2, Modern Warfare 3 or Call of Duty
-  4.** The owner has none.
-- **Modern Warfare 2 and 3 with their retail packs on the disc's game
-  version.** Both games' packs came out after title updates, and the port
-  plays the disc's executables (Modern Warfare 2 1.0.557). The disc
-  executables have the whole mechanism above, but the packs' fastfiles and
-  their menu zones (`dlc1_ui_mp.ff` and `dlc2_ui_mp.ff` came with title
-  updates, not with the packs) were built for the updated game: maps may be
-  missing from the menus, or refuse to load.
-- **Call of Duty 4's Variety Map Pack**: the same mechanism, read from the
-  code alone.
+- **A real map pack of Modern Warfare 2 or Call of Duty 4.** The owner has
+  none.
+- **A map of a pack played from the package on a phone** in Modern Warfare
+  2 or Call of Duty 4: the phones play from the disc image, which has the
+  test packages' maps itself, so the title had no need of the package
+  there. On Windows it was played from one (above).
+- **Modern Warfare 2 with its retail packs on the disc's game version.**
+  They came out after title updates, and the port plays the disc's
+  executable (1.0.557). It has the whole mechanism above, but the packs'
+  fastfiles and their menu zones (`dlc1_ui_mp.ff` and `dlc2_ui_mp.ff` came
+  with title updates, not with the packs) were built for the updated game:
+  maps may be missing from the menus, or refuse to load. Modern Warfare 3's
+  packs needed five such repairs
+  ([above](#what-the-discs-executables-lacked-and-what-the-runtime-does)).
+- **Call of Duty 4's Variety Map Pack**: whether the disc's executable
+  loads its fastfiles, which were built for the updated game.
+- **Modern Warfare 3:** the Collections as single packages (the owner's are
+  the Elite drops, one level or two each), a two-player Special Ops level
+  of the packs, and a language other than English.
 - **The licence bits of a real package** of those three games, and whether
   any of them refuses a mask the runtime reports. Advanced Warfare takes
   the mask of the owner's packages as it is.

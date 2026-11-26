@@ -45,11 +45,15 @@ Advanced Warfare's second disc, the install disc, whose two content packages
 the game mounts as a console does after installing them to its hard disk.
 Asked for when they are not yet in aw\install.
 .PARAMETER Dlc
-Advanced Warfare: the folder with your own downloadable content, copied off
-your console's hard disk (Content\0000000000000000\41560914, which holds the
-map packs in 00000002 and the title update in 000B0000; docs/dlc.md). The
-multiplayer is then built a second time, as the title update makes it, which
-is the one the map packs and Exo Zombies are for. The folder is only read.
+The folder with your own downloadable content, copied off your console's
+hard disk: Content\0000000000000000\<the game's number> (415608CB for Modern
+Warfare 3, 41560817 for Modern Warfare 2, 415607E6 for Call of Duty 4,
+41560914 for Advanced Warfare), which holds the map packs in 00000002;
+docs/dlc.md. The packages are copied to the phone's app, and the Windows game
+is told where they are. Advanced Warfare's packs need its title update too
+(000B0000 in that folder): its multiplayer is then built a second time, as
+the update makes it, which is the one the map packs and Exo Zombies are for.
+The folder is only read.
 .PARAMETER Title
 both (default), sp (campaign and Special Ops) or mp (multiplayer): which
 Windows executables to build. The Android app always holds both.
@@ -684,8 +688,8 @@ $PcKeys = if ($Title -eq 'both') { @('sp', 'mp') } else { @($Title) }
 $Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
 # With the player's map packs, the multiplayer the title update makes as well.
 # (@(): one key alone is a string, and += would append to its text.)
-if ($Dlc -and 'mp' -in $Keys) { $Keys = @($Keys) + 'mp17' }
-if ($Dlc -and 'mp' -in $PcKeys) { $PcKeys = @($PcKeys) + 'mp17' }
+if ($Dlc -and $Aw -and 'mp' -in $Keys) { $Keys = @($Keys) + 'mp17' }
+if ($Dlc -and $Aw -and 'mp' -in $PcKeys) { $PcKeys = @($PcKeys) + 'mp17' }
 
 # Call of Duty 4's Windows game has a folder of its own beside Modern Warfare 3's.
 $PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } elseif ($Aw) { 'pc-aw' } else { 'pc' })
@@ -717,7 +721,7 @@ if ($InstallIso) { $InstallIso = (Resolve-Path -LiteralPath $InstallIso).Path }
 # them), $DlcUpdate the title update's.
 $DlcRoot = $null; $DlcFiles = @(); $DlcUpdate = $null
 if ($Dlc) {
-    if (-not $Aw) { throw '-Dlc is for Advanced Warfare (-Game aw).' }
+    if ($Mw2 -and $Version -ne 'tu0') { throw '-Dlc is for the disc''s version of Modern Warfare 2 (-Version tu0), which is the one the app plays.' }
     if ($TestCopy) { throw '-Dlc is not for -Instance.' }
     if (-not (Test-Path -LiteralPath $Dlc -PathType Container)) { throw "-Dlc: no folder at $Dlc" }
     $Dlc = (Resolve-Path -LiteralPath $Dlc).Path
@@ -817,18 +821,27 @@ if ('mp' -notin $Keys) { $Keys = @($Keys | Where-Object { $_ -ne 'mp17' }) }
 $PcKeys = @($PcKeys | Where-Object { $_ -in $Keys })
 if ($Dlc) {
     Step 'look at the downloadable content (read-only)'
-    foreach ($line in @(Exec $Python @('tools/aw_dlc.py', $Dlc) -Cwd $Repo)) {
+    $dlcTitle = if ($Aw) { '41560914' } elseif ($Cod4) { '415607E6' } elseif ($Mw2) { '41560817' } else { '415608CB' }
+    foreach ($line in @(Exec $Python @('tools/aw_dlc.py', $Dlc, '--title', $dlcTitle) -Cwd $Repo)) {
         if ("$line" -match '^root (.+)$') { $DlcRoot = $Matches[1] }
         elseif ("$line" -match '^update (.+)$') { if (-not $DlcUpdate) { $DlcUpdate = $Matches[1] } }
         elseif ("$line" -match '^pack ([^\t]+)\t(.*)$') {
             if ((Split-Path -Leaf $Matches[1]) -notin $InstallPackages) { $DlcFiles += $Matches[1]; Note "$($Matches[2])" }
         }
     }
-    if (-not $DlcUpdate) {
-        throw "No title update is in $Dlc. The map packs are for the updated game: copy Content\0000000000000000\41560914\000B0000 off the console as well (docs\dlc.md)."
+    if ($Aw) {
+        if (-not $DlcUpdate) {
+            throw "No title update is in $Dlc. The map packs are for the updated game: copy Content\0000000000000000\41560914\000B0000 off the console as well (docs\dlc.md)."
+        }
+        Note "title update: $(Split-Path -Leaf $DlcUpdate)"
+        $DlcFiles += $DlcUpdate
+    } else {
+        # The other three games play the disc's executables, which read the
+        # packs themselves; a title update's files are for the executable
+        # it makes.
+        if (-not $DlcFiles.Count) { throw "No map pack of $GameName is in ${Dlc}: its packages are in Content\0000000000000000\$dlcTitle\00000002 on the console's hard disk (docs\dlc.md)." }
+        if ($DlcUpdate) { Note "title update $(Split-Path -Leaf $DlcUpdate): not used, the game is played as the disc has it" }
     }
-    Note "title update: $(Split-Path -Leaf $DlcUpdate)"
-    $DlcFiles += $DlcUpdate
 }
 if ($ForAndroid -and -not $TestCopy -and $Keys.Count -lt 2) {
     throw 'The Android app holds the campaign and the multiplayer, and needs both executables to be disc builds this port supports.'
@@ -1218,7 +1231,8 @@ if ($ForPc) {
     # after the install disc's (runtime/kernel/content.cpp takes several).
     if ($DlcRoot) {
         $lines = @([IO.File]::ReadAllLines($envFile) | Where-Object { $_ -notmatch '^MW2_DLC_DIR=' })
-        [IO.File]::WriteAllText($envFile, (($lines + "MW2_DLC_DIR=$InstallFolder;$DlcRoot") -join "`n") + "`n")
+        $folders = if ($Aw) { "$InstallFolder;$DlcRoot" } else { $DlcRoot }
+        [IO.File]::WriteAllText($envFile, (($lines + "MW2_DLC_DIR=$folders") -join "`n") + "`n")
     }
 }
 
@@ -1286,15 +1300,19 @@ if ($ForAndroid -and $Apks.Count -and $NoInstall) {
                     } catch { Warn "could not look for the old $($old.Label) app's saves: $($_.Exception.Message)" }
                 }
             }
-            # Advanced Warfare's install disc: its packages go beside the game
-            # folder, where the runtime looks for a title's installed content
+            # Advanced Warfare's install disc, and a player's own map packs
+            # (-Dlc): the packages go beside the game folder, where the
+            # runtime looks for a title's installed content
             # (runtime/kernel/content.cpp). Files of the same size are skipped.
-            if ($Aw -and -not $GameOnly) {
-                Step 'adb push the install disc''s packages (4 GB) to the app''s dlc folder'
+            if (($Aw -and -not $GameOnly) -or $DlcFiles.Count) {
                 $dlc = "/sdcard/Android/data/$AppPackage/files/dlc"
                 Exec $Adb @('-s', $serial, 'shell', "mkdir -p $dlc") | Out-Null
-                $packages = @(Get-ChildItem -Recurse -File $InstallFolder) + @($DlcFiles | ForEach-Object { Get-Item -LiteralPath $_ })
-                if ($DlcFiles.Count) { Step ("adb push your map packs and the title update ({0:N1} GB)" -f ((($DlcFiles | ForEach-Object { (Get-Item -LiteralPath $_).Length }) | Measure-Object -Sum).Sum / 1GB)) }
+                $packages = @($DlcFiles | ForEach-Object { Get-Item -LiteralPath $_ })
+                if ($Aw -and -not $GameOnly) {
+                    Step 'adb push the install disc''s packages (4 GB) to the app''s dlc folder'
+                    $packages = @(Get-ChildItem -Recurse -File $InstallFolder) + $packages
+                }
+                if ($DlcFiles.Count) { Step ("adb push your map packs{0} ({1:N1} GB) to the app's dlc folder" -f $(if ($DlcUpdate -and $Aw) { ' and the title update' } else { '' }), ((($DlcFiles | ForEach-Object { (Get-Item -LiteralPath $_).Length }) | Measure-Object -Sum).Sum / 1GB)) }
                 foreach ($package in $packages) {
                     $there = "$(Exec $Adb @('-s', $serial, 'shell', "stat -c %s $dlc/$($package.Name) 2>/dev/null || echo 0"))".Trim()
                     if ($there -ne "$($package.Length)") { Exec $Adb @('-s', $serial, 'push', $package.FullName, "$dlc/$($package.Name)") | Out-Null }
@@ -1314,6 +1332,7 @@ foreach ($item in $Apks) { Note "APK: $($item.Apk)" }
 if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
     if ('mp17' -in $PcKeys) { Note 'With your map packs: "Multiplayer with map packs.cmd" and "Exo Zombies.cmd" (docs\dlc.md).' }
+    elseif ($DlcRoot) { Note 'Your map packs are read from where they are (MW2_DLC_DIR in .env; docs\dlc.md).' }
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
 else {

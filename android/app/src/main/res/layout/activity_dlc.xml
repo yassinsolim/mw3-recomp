@@ -24,11 +24,12 @@
         android:textColor="#C8D0D8"
         android:textSize="13sp" />
 
+    <!-- Which folder of the console's, for this game (DlcActivity). -->
     <TextView
+        android:id="@+id/dlc_hint"
         style="@style/SettingHint"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/dlc_hint" />
+        android:layout_height="wrap_content" />
 
     <LinearLayout
         android:layout_width="match_parent"

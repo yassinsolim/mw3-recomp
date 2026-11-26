@@ -111,11 +111,12 @@ Sources and methods: [docs/android.md](docs/android.md),
 - **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
   in Android, or the refresh-rate tile in the quick settings. The dual-screen
   assistant can turn it off again after a restart.
-- **Map packs (DLC), experimental.** Copy a package from your own console into
-  `Android/data/com.mw2.recomp/files/dlc/` or a `dlc` folder beside the `.iso`.
-  Only a test package has been tried (it played Rust), never a real map pack,
-  and packs made for later game versions may not load:
-  [docs/dlc.md](docs/dlc.md).
+- **Your own map packs (DLC), untested with a real pack.** Copy
+  `Content\0000000000000000\41560817\00000002` off your Xbox 360's hard
+  disk, then **Add DLC → Choose a folder** in the app. Only a test package
+  made from the disc has been tried (it played Rust), never a real map pack,
+  and packs made for later game versions may not load. Online, every player
+  needs the map's pack: [docs/dlc.md](docs/dlc.md).
 - **Bots.** Tap **Bots** under Multiplayer, then **System Link → Create Game →
   Start Game**; bots only join matches your device hosts. They have no
   routes on the maps, so they feel their way round walls.

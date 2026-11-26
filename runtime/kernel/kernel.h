@@ -113,6 +113,14 @@ namespace kernel
     // player's packs have some of what it would have brought.
     void MountVolume(const std::string& name, std::shared_ptr<class ReadVolume> volume,
                      const std::string& alsoAtRoot = {}, std::vector<std::shared_ptr<class ReadVolume>> english = {});
+    // A package of downloadable content as a drive, for a title whose table
+    // holds fewer packages than the player has (content.cpp): the files of
+    // `joined`, other packages of the player's, are found on the drive as
+    // well, and the root file `marker`, which says to the title which pack
+    // this is, is answered with the volume's own `markerIs`.
+    void MountContent(const std::string& name, std::shared_ptr<class ReadVolume> volume,
+                      std::vector<std::shared_ptr<class ReadVolume>> joined, const std::string& marker = {},
+                      const std::string& markerIs = {});
     void UnmountDevice(const std::string& name);
     const std::filesystem::path& SaveRoot();
     // Downloadable content: the player's own packages for this title, found in
@@ -120,6 +128,16 @@ namespace kernel
     // those from `next` on that fit in the buffer, moves `next` past them and
     // returns how many.
     uint32_t ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next);
+    // A map or mission file of the player's packages, the package's name as
+    // the console shows it, and which of its packs the title takes the
+    // file's drive for (0 where that is not known).
+    struct ContentFile { std::string name, package; uint32_t pack = 0; };
+    // The files at the root of every package the title was given, for what
+    // lists the maps in them (mw3_dlc_maps.cpp).
+    std::vector<ContentFile> DownloadedContentFiles();
+    // The packages themselves, for a title that reads none of their files
+    // through a drive of their own (Call of Duty 4: files.cpp).
+    std::vector<std::shared_ptr<class ReadVolume>> DownloadedContentVolumes();
     // The title update's package among them, as the drive `update:`, for a
     // build of the executable the update makes (content.cpp).
     void MountTitleUpdate();

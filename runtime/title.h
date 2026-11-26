@@ -1144,6 +1144,64 @@
 #define T_UI_GAMETYPES             0x528u
 #define T_UI_GAMETYPE_SIZE         0x6Cu
 #define T_UI_GAMETYPE_LABEL         0xCu
+// UI_LoadArenas reads mp/basemaps.arena into a LargeLocal buffer and parses it
+// with UI_ParseInfos(text, room, infos) into 64 info strings, counted 256
+// bytes after the first, which sub_822E23A0 above makes the maps of. The
+// maps of a player's own packages are parsed after it (mw3_dlc_maps.cpp).
+#define T_UI_LoadArenas        822E21A8
+#define T_UI_ParseInfos        822E1F90
+#define T_LargeLocal_Begin     82312B80   // (handle, size)
+#define T_LargeLocal_GetBuf    82312C68   // (handle) -> the buffer
+#define T_LargeLocal_End       82312C50   // (handle)
+#define T_DATA_UI_ArenaInfos   0x836815C8u
+// The map list's row of a map's name (the row the menu's cursor is put on,
+// each frame, when the map under it is not ui_mapname's), and the reverse,
+// the table's index of a row. The list is the disc's maps or, while the
+// dvar below is set (settings_bonus_map), the packs' (mw3_dlc_maps.cpp).
+#define T_UI_MapRowOfName      82301160   // (name) -> row
+#define T_UI_MapOfRow          82300F40   // (row) -> index in T_UI_MAPS
+#define T_UI_BonusMapCount     82300EB8   // () -> rows of the packs' list
+#define T_DATA_UI_BonusMapsDvar 0x8368976Cu  // -> the dvar; its value is the byte at +8
+// The level's name is the dvar "mapname", which the script loader gets as
+// sub_8225C2E8 does: by registering it, with the title's own strings. A
+// string dvar's text is the pointer at +8.
+#define T_Dvar_RegisterString  82325828   // (name, default, flags, description) -> the dvar
+#define T_DATA_MapNameDvarName 0x820070C8u   // "mapname"
+#define T_DATA_MapNameDvarText 0x8201FE1Cu   // "The current map name"
+#define T_MAPNAME_DVAR_FLAGS   0x2400u
+// Scr_AnimTreeParse reads an animation tree's text (animtrees/<name>.atr, a
+// raw file) into the script variable `parent`; `names` is the script
+// variable whose children are the animations the level's scripts use of
+// that tree, each named by a string. Scr_LoadAnimTreeAtIndex (822AAAB0)
+// calls it, and ends the level's load with "animation '%s' not defined in
+// anim tree '%s'" (822AA740) for any of them the text does not have
+// (mw3_pack_anims.cpp). The script variables as 822AA740 walks them: a
+// parent's first child is a halfword in one table, and a child's entry of
+// sixteen bytes in another has the next child and the name's string.
+#define T_Scr_AnimTreeParse     822AA2A0   // (text, parent, names)
+#define T_DATA_ScrFirstChild    0x831FCC00u   // + parent * 4: the first child
+#define T_DATA_ScrChildren      0x83240C00u   // + (instance + child) * 16; +0xC the next child, +0xA and +7 the name
+#define T_SCR_INSTANCE          0xC800u       // a variable's instance: this, times its lowest bit
+#define T_DATA_ScrStrings       0x83174A80u   // -> the strings, the text from +4
+#define T_SCR_STRING_SIZE       12u
+// The streamed files: imagefile<n>.pak holds textures' larger levels and
+// packfile<n>.pak sounds. A fastfile's header lists the files it streams
+// from as records of twelve bytes {the file's number, from, to}, which the
+// loader keeps in an array and hands out one after another (821A7880, four
+// to a streamed image, which the byte at image + 0x47 says it is). An image
+// file's handle is kept by its number in a table of 21 and a second table
+// of 21 entries of 0x4C bytes has what was opened {handle, ..., name at
+// 0xC}; a sound file's handle is in a table of 10. A number past a table
+// is written past it (mw3_pack_files.cpp).
+#define T_DB_SetImageStreams    821F2748   // (image)
+#define T_SND_OpenStream        823305F0   // (out {handle, from, to}, record)
+#define T_Stream_OpenFile       82330410   // (folder, name) -> handle, -1 when it is nowhere
+#define T_DATA_StreamRecords    0x827A8760u
+#define T_DATA_StreamRecordNext 0x827DAB60u   // how many were handed out
+#define T_DATA_ImageFileHandles 0x82CA1988u
+#define T_DATA_ImageFiles       0x82D41618u
+#define T_DATA_SoundFileHandles 0x8389AA18u
+#define T_DATA_EmptyString      0x8206EA30u
 // The usercmds a client has sent (SV_UserMove, sub_822C1AF0): the newest one
 // run, which SV_ClientThink stores, and a ring of eight waiting to be. A
 // usercmd is 0x2C bytes: its server time, then its buttons.
@@ -1304,6 +1362,30 @@
 #define T_AIMASSIST_FOV_SCALE     288u
 #define T_CL_ControllerOf       82135AA0
 #define T_Gamepad_Settings      8212E3C8
+// A map pack's animation trees and streamed files, as the multiplayer's
+// (mw3_pack_anims.cpp, mw3_pack_files.cpp): the same functions and tables of
+// the same sizes, at this executable's addresses. Scr_LoadAnimTreeAtIndex's
+// check is 822AA9C8, and the stream records are handed out by 8213B368.
+#define T_Scr_AnimTreeParse     822AA528   // (text, parent, names)
+#define T_DATA_ScrFirstChild    0x839A3F80u
+#define T_DATA_ScrChildren      0x839E7F80u
+#define T_SCR_INSTANCE          0xC800u
+#define T_DATA_ScrStrings       0x8391BE00u
+#define T_SCR_STRING_SIZE       16u
+#define T_DB_SetImageStreams    82185E68   // (image)
+#define T_SND_OpenStream        8230A9E0   // (out {handle, from, to}, record)
+#define T_Stream_OpenFile       8230A800   // (folder, name) -> handle, -1 when it is nowhere
+#define T_DATA_StreamRecords    0x8281BCE0u
+#define T_DATA_StreamRecordNext 0x8284E0E4u
+#define T_DATA_ImageFileHandles 0x82CF5708u
+#define T_DATA_ImageFiles       0x82D95218u
+#define T_DATA_SoundFileHandles 0x83CCB0E8u
+#define T_DATA_EmptyString      0x8205C9E0u
+// A mission's text in a map pack (mw3_pack_text.cpp). DB_LoadXAssets(zones,
+// count, sync) loads fastfiles, each an XZoneInfo { name, allocFlags,
+// freeFlags } of twelve bytes; the list is used up before it returns (the
+// level's loader, sub_82181CA0, hands it lists on its stack).
+#define T_DB_LoadXAssets        82181968
 
 #elif defined(MW2_TITLE_MP) && !defined(MW2_VERSION_TU0)
 

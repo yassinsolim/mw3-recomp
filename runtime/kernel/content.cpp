@@ -28,15 +28,18 @@
 #include "../guest.h"
 #include "../log.h"
 #include "../env.h"
+#include "../console.h"
 #include "../../launcher/disc.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace kernel;
@@ -282,6 +285,157 @@ namespace
     }
 
     const std::vector<Downloaded>& DownloadedContent() { return InstalledPackages().content; }
+
+    // What the title is given of them: a package it lists and mounts, the
+    // packages whose files are found on its drive as well, and the marker it
+    // is answered there when that is not the package's own.
+    struct Listed
+    {
+        const Downloaded* package = nullptr;
+        std::vector<std::shared_ptr<ReadVolume>> joined;
+        std::string marker, markerIs;
+        // Which of its packs the title takes the drive for: the marker's
+        // number, 0 where this file does not read markers.
+        uint32_t pack = 0;
+    };
+
+// Modern Warfare 3 itself: Call of Duty 4 and Advanced Warfare are built with
+// MW3_TITLE as well, and take their packages as they are.
+#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE)
+    // Modern Warfare 3's disc executables tell a pack by the marker in it,
+    // dlc1.id to dlc6.id (a package with none of the six is closed again),
+    // and keep the packs in a table of six with the disc's own maps as its
+    // first: five packs. A sixth's name is written past the table's end,
+    // onto the flag that restarts the game "to load map packs", at every
+    // start. The game's packs go on to dlc26.id; those past the first few
+    // came out after title updates that made the table larger. Their
+    // fastfiles are of the disc's version and the disc's executables load
+    // them, so the player's packages past what the table holds are joined to
+    // one it does hold: their files are found on that drive, where the title
+    // looks for a map's fastfile and its picture packs. With none of the
+    // packs the title knows, the first of the others takes a place and is
+    // answered a marker of the six with its own.
+    constexpr uint32_t kTitlePacks = 5, kTitleMarkers = 6;
+    constexpr char kMarkerStem[] = "dlc";
+
+    // "dlc<n>.id" at a package's root: n and the file's name, or 0.
+    uint32_t MarkerOf(const ReadVolume& volume, std::string& file)
+    {
+        for (const std::string& name : volume.RootFiles())
+        {
+            std::string lower = name;
+            for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+            const size_t stem = sizeof kMarkerStem - 1;
+            if (lower.size() < stem + 4 || lower.compare(0, stem, kMarkerStem) != 0 ||
+                lower.compare(lower.size() - 3, 3, ".id") != 0)
+                continue;
+            const std::string digits = lower.substr(stem, lower.size() - stem - 3);
+            if (digits.size() > 3 || !std::all_of(digits.begin(), digits.end(), [](char c) { return std::isdigit(uint8_t(c)); }))
+                continue;
+            file = name;
+            return uint32_t(std::atoi(digits.c_str()));
+        }
+        return 0;
+    }
+
+    const std::vector<Listed>& ListedContent()
+    {
+        static const std::vector<Listed> listed = []
+        {
+            struct Found { const Downloaded* package; uint32_t number; std::string marker; };
+            std::vector<Found> found;
+            for (const Downloaded& package : DownloadedContent())
+            {
+                std::string file;
+                if (const uint32_t number = MarkerOf(*package.volume, file)) found.push_back({ &package, number, file });
+                else
+                    LOGW("content: %s has no %s<n>.id, which tells the title which pack it is; it is not used",
+                         package.volume->Name().c_str(), kMarkerStem);
+            }
+            std::stable_sort(found.begin(), found.end(), [](const Found& a, const Found& b) { return a.number < b.number; });
+
+            std::vector<Listed> places;
+            std::vector<const Found*> others;
+            bool taken[kTitleMarkers + 1] = {};
+            for (const Found& one : found)
+                if (one.number <= kTitleMarkers && !taken[one.number] && places.size() < kTitlePacks)
+                {
+                    taken[one.number] = true;
+                    places.push_back({ one.package, {}, {}, {}, one.number });
+                }
+                else others.push_back(&one);
+            if (others.empty()) return places;
+
+            size_t first = 0;
+            if (places.empty())
+            {
+                places.push_back({ others[0]->package, {}, std::string(kMarkerStem) + "1.id", others[0]->marker, 1 });
+                first = 1;
+            }
+            for (size_t i = first; i < others.size(); i++) places[0].joined.push_back(others[i]->package->volume);
+            if (!places[0].joined.empty())
+                LOGI("content: %zu packages are past what the title's table holds; their files are read with %s's",
+                     places[0].joined.size(), places[0].package->volume->Name().c_str());
+            return places;
+        }();
+        return listed;
+    }
+#else
+    const std::vector<Listed>& ListedContent()
+    {
+        static const std::vector<Listed> listed = []
+        {
+            std::vector<Listed> all;
+            for (const Downloaded& package : DownloadedContent()) all.push_back({ &package });
+            return all;
+        }();
+        return listed;
+    }
+#endif
+
+#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(MW3_TITLE_MP)
+    // MW2_CONTENT_LEVEL=<level>: a Special Ops mission or Survival map of
+    // the player's packages, started as the game starts. The disc's campaign
+    // executable loads one (so_survival_mp_italy and the pack's map with it)
+    // but its menus list the disc's sixteen missions and sixteen Survival
+    // maps, written out one by one, and its table of levels is those: the
+    // packs' places in both came with title updates. So the launcher names
+    // the level and it is loaded by the console's `map`, once the title has
+    // mounted every package and has had three seconds to read their markers
+    // (it closes a drive it has not identified). A level no package holds is
+    // not asked for.
+    void ContentMounted()
+    {
+        static size_t mounted = 0;
+        if (++mounted != ListedContent().size()) return;
+        const char* level = env::Text("MW2_CONTENT_LEVEL");
+        if (!level || !*level) return;
+        std::string name = level;
+        for (char& c : name) c = char(std::tolower(uint8_t(c)));
+        const bool plain = std::all_of(name.begin(), name.end(), [](char c) { return std::isalnum(uint8_t(c)) || c == '_'; });
+        bool held = false;
+        for (const kernel::ContentFile& file : kernel::DownloadedContentFiles())
+        {
+            std::string lower = file.name;
+            for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+            held = held || lower == name + ".ff";
+        }
+        if (!plain || !held)
+        {
+            LOGW("content: MW2_CONTENT_LEVEL names %s, which no package here holds; the game starts at its menu", level);
+            return;
+        }
+        LOGI("content: MW2_CONTENT_LEVEL: %s is loaded once the title has read the packages", name.c_str());
+        std::thread([name]
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            console::RunNow("set specialops 1");
+            console::RunNow(("map " + name).c_str());
+        }).detach();
+    }
+#else
+    void ContentMounted() {}
+#endif
 }
 
 #if defined(AW_TITLE_TU17)
@@ -367,7 +521,7 @@ void kernel::MountTitleUpdate()
 
 uint32_t kernel::ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, size_t& next)
 {
-    const auto& content = DownloadedContent();
+    const auto& content = ListedContent();
     uint32_t written = 0;
     for (; next < content.size() && (written + 1) * kContentDataSize <= bufferSize; next++, written++)
     {
@@ -375,12 +529,39 @@ uint32_t kernel::ListDownloadedContent(uint32_t buffer, uint32_t bufferSize, siz
         std::memset(GuestPtr<uint8_t>(at), 0, kContentDataSize);
         *GuestPtr<be32>(at + kContentDeviceId) = kSaveDeviceId;
         *GuestPtr<be32>(at + kContentType) = kMarketplaceContent;
-        const std::u16string& display = content[next].volume->Header().displayName;
+        const Downloaded& package = *content[next].package;
+        const std::u16string& display = package.volume->Header().displayName;
         auto* wide = GuestPtr<be16>(at + kContentDisplayName);
         for (size_t i = 0; i < display.size() && i + 1 < kContentDisplayMax; i++) wide[i] = uint16_t(display[i]);
-        std::memcpy(GuestPtr<char>(at + kContentFileName), content[next].name.data(), content[next].name.size());
+        std::memcpy(GuestPtr<char>(at + kContentFileName), package.name.data(), package.name.size());
     }
     return written;
+}
+
+std::vector<std::shared_ptr<ReadVolume>> kernel::DownloadedContentVolumes()
+{
+    std::vector<std::shared_ptr<ReadVolume>> volumes;
+    for (const Downloaded& package : DownloadedContent()) volumes.push_back(package.volume);
+    return volumes;
+}
+
+std::vector<kernel::ContentFile> kernel::DownloadedContentFiles()
+{
+    std::vector<ContentFile> files;
+    const auto add = [&files](const ReadVolume& volume, uint32_t pack)
+    {
+        // The console's names are of its own alphabet; anything else in one is left out.
+        std::string package;
+        for (const char16_t c : volume.Header().displayName)
+            if (c >= 0x20 && c < 0x7F) package += char(c);
+        for (const std::string& name : volume.RootFiles()) files.push_back({ name, package, pack });
+    };
+    for (const Listed& listed : ListedContent())
+    {
+        add(*listed.package->volume, listed.pack);
+        for (const auto& joined : listed.joined) add(*joined, listed.pack);
+    }
+    return files;
 }
 
 const fs::path& kernel::SaveRoot()
@@ -471,14 +652,20 @@ PPC_FUNC(__imp__XamContentCreateEx)
         // The licence it reports is the package's own, every bit its header
         // grants: the console would match them against the profile and the
         // console the package was bought on, and neither is here.
-        std::shared_ptr<ReadVolume> volume;
-        for (const auto& [name, found] : DownloadedContent())
-            if (name == file) volume = found;
+        const Listed* listed = nullptr;
+        for (const Listed& one : ListedContent())
+            if (one.package->name == file) listed = &one;
+        const std::shared_ptr<ReadVolume> volume = listed ? listed->package->volume : nullptr;
         const uint32_t result = volume ? X_ERROR_SUCCESS : X_ERROR_PATH_NOT_FOUND;
         if (volume)
         {
-            MountVolume(drive, volume);
+            MountContent(drive, volume, listed->joined, listed->marker, listed->markerIs);
             LOGK("content: mounted %s: on %s (downloadable content, read-only)", drive.c_str(), volume->Name().c_str());
+            if (!listed->joined.empty())
+                LOGK("content: %s: has the files of %zu more packages", drive.c_str(), listed->joined.size());
+            if (!listed->marker.empty())
+                LOGK("content: %s:\\%s is the package's %s", drive.c_str(), listed->marker.c_str(), listed->markerIs.c_str());
+            ContentMounted();
         }
         else LOGK("content: there is no downloadable content named %s (%s: asked to open it)", file.c_str(), drive.c_str());
         if (auto* d = GuestPtr<be32>(dispositionOut)) *d = 2u;      // XCONTENT_EXISTING
@@ -540,7 +727,11 @@ PPC_FUNC(__imp__XamContentCreateEx)
 PPC_FUNC(__imp__XamContentClose)
 {
     const std::string drive = GuestString(ctx.r3.u32, 32);
-    if (!drive.empty()) UnmountDevice(drive);
+    if (!drive.empty())
+    {
+        UnmountDevice(drive);
+        LOGK("content: closed %s:", drive.c_str());
+    }
     CompleteOverlapped(ctx.r4.u32, X_ERROR_SUCCESS);
     ctx.r3.u64 = X_ERROR_SUCCESS;
 }

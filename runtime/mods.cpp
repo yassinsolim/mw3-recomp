@@ -29,6 +29,7 @@
 #include "guest.h"
 #include "log.h"
 #include "kernel/kernel.h"
+#include "mw3_dlc_maps.h"
 
 #include <zlib.h>
 
@@ -625,6 +626,9 @@ GUEST_HOOK(T_DB_IsXAssetDefault)
 GUEST_HOOK(T_G_LoadScripts)
 {
     BeginLoad();
+#ifdef T_UI_MapRowOfName
+    mw3maps::LevelLoading(ctx, base);
+#endif
     GUEST_ORIG(T_G_LoadScripts)(ctx, base);
 }
 

@@ -114,10 +114,12 @@ checked and what is open: [docs/COD4-BRINGUP.md](docs/COD4-BRINGUP.md).
 - **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
   in Android, or the refresh-rate tile in the quick settings. The dual-screen
   assistant can turn it off again after a restart.
-- **Map packs (DLC), experimental.** Copy a package from your own console into
-  `Android/data/com.cod4.recomp/files/dlc/` or a `dlc` folder beside the
-  `.iso`. Never tried with a real map pack, not even the Variety Map Pack:
-  [docs/dlc.md](docs/dlc.md).
+- **Your own map packs (DLC), untested with a real pack.** Copy
+  `Content\0000000000000000\415607E6\00000002` off your Xbox 360's hard
+  disk, then **Add DLC → Choose a folder** in the app. Only a test package
+  made from the disc has been tried (it played Shipment), never the Variety
+  Map Pack, whose maps the disc's menus do not list. Online, every player
+  needs the map's pack: [docs/dlc.md](docs/dlc.md).
 - **Bots.** Tap **Bots** under Multiplayer, then host a **System Link** game;
   bots only join matches your device hosts.
 - **Settings** are on the app's start screen: network, multiplayer, files,

@@ -85,6 +85,11 @@
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
                     android:text="@string/entry_zombies"
                     android:visibility="gone" />
+                <!-- Modern Warfare 3 with the player's own map packs that hold Special Ops levels (MainActivity shows it). -->
+                <Button android:id="@+id/entry_pack_levels" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_pack_levels"
+                    android:visibility="gone" />
                 <!-- Modern Warfare 3's multiplayer only (MainActivity shows it). -->
                 <Button android:id="@+id/entry_bots" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
