@@ -239,16 +239,35 @@ namespace
         // Other volumes whose files of the language the game runs in answer
         // where this one has none (MountVolume).
         std::vector<std::shared_ptr<ReadVolume>> english;
+        // Other packages whose files are found on this drive as well, and a
+        // name the title asks for at its root that is answered with another
+        // file of the volume (MountContent).
+        std::vector<std::shared_ptr<ReadVolume>> joined;
+        std::string marker, markerIs;
     };
     std::mutex g_mountLock;
     std::map<std::string, Mount> g_mounts;
 
     Mount DeviceOf(const std::string& device)
     {
+#ifdef COD4_TITLE
+        // Call of Duty 4's disc executable lists a map pack, mounts it and
+        // closes it again at once: it only notes that the player has one.
+        // It asks for every fastfile on the disc alone ("D:\%s.ff"); the
+        // pack's drive in that name came with the title update the pack was
+        // sold after. So a file the disc has not is looked for in the
+        // player's packages. (Found before the lock: looking for them reads
+        // folders, and may mount.)
+        static const std::vector<std::shared_ptr<ReadVolume>> packs = DownloadedContentVolumes();
+#endif
         std::lock_guard g(g_mountLock);
         auto it = g_mounts.find(device);
-        if (it == g_mounts.end()) return { GameRoot(), Disc(), false };
-        return it->second;
+        if (it != g_mounts.end()) return it->second;
+        Mount disc{ GameRoot(), Disc(), false };
+#ifdef COD4_TITLE
+        disc.joined = packs;
+#endif
+        return disc;
     }
 
     // A file or folder of the device's volume, where its folder has none of
@@ -261,10 +280,19 @@ namespace
     };
     InVolumeFile InVolume(const Mount& at, const std::string& relative)
     {
-        if (!at.volume || relative.empty()) return {};
-        if (const ReadVolume::Entry* entry = at.volume->Find(relative)) return { at.volume, entry };
-        if (!at.alsoAtRoot.empty() && relative.find_first_of("\\/") == std::string::npos)
-            if (const ReadVolume::Entry* entry = at.volume->Find(at.alsoAtRoot + "\\" + relative)) return { at.volume, entry };
+        if (relative.empty()) return {};
+        // A game played from a folder has no volume of its own, and may
+        // still have packs' files joined to it (DeviceOf).
+        if (at.volume)
+        {
+            if (const ReadVolume::Entry* entry = at.volume->Find(relative)) return { at.volume, entry };
+            if (!at.alsoAtRoot.empty() && relative.find_first_of("\\/") == std::string::npos)
+                if (const ReadVolume::Entry* entry = at.volume->Find(at.alsoAtRoot + "\\" + relative)) return { at.volume, entry };
+            if (!at.marker.empty() && Lower(relative) == at.marker)
+                if (const ReadVolume::Entry* entry = at.volume->Find(at.markerIs)) return { at.volume, entry };
+        }
+        for (const auto& other : at.joined)
+            if (const ReadVolume::Entry* entry = other->Find(relative)) return { other, entry };
         if (Lower(relative).rfind("english\\", 0) == 0)
             for (const auto& other : at.english)
                 if (const ReadVolume::Entry* entry = other->Find(relative)) return { other, entry };
@@ -492,6 +520,18 @@ void kernel::MountVolume(const std::string& name, std::shared_ptr<ReadVolume> vo
 {
     std::lock_guard g(g_mountLock);
     g_mounts[Lower(name)] = Mount{ {}, std::move(volume), false, alsoAtRoot, std::move(english) };
+}
+
+void kernel::MountContent(const std::string& name, std::shared_ptr<ReadVolume> volume,
+                          std::vector<std::shared_ptr<ReadVolume>> joined, const std::string& marker,
+                          const std::string& markerIs)
+{
+    std::lock_guard g(g_mountLock);
+    Mount mount{ {}, std::move(volume), false };
+    mount.joined = std::move(joined);
+    mount.marker = Lower(marker);
+    mount.markerIs = markerIs;
+    g_mounts[Lower(name)] = std::move(mount);
 }
 
 void kernel::UnmountDevice(const std::string& name)

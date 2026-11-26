@@ -42,13 +42,17 @@ usage: bash setup/setup.sh [options]
                         of it (4 GB) and copied to the phone with the app.
                         Without it the app's own installer asks for that
                         image on the phone
-  --dlc <folder>        Advanced Warfare: your own map packs, Compatibility
-                        Packs and title update, copied off your console's
-                        hard disk (Content/0000000000000000/41560914). The
-                        multiplayer is built a second time, as the update
-                        makes it, for the map packs and Exo Zombies, and
-                        the packages go to the phone with the app
-                        (docs/dlc.md). The folder is only read
+  --dlc <folder>        your own map packs, copied off your console's hard
+                        disk: Content/0000000000000000/<the game's number>
+                        (415608CB for Modern Warfare 3, 41560817 for Modern
+                        Warfare 2, 415607E6 for Call of Duty 4, 41560914
+                        for Advanced Warfare), which holds them in
+                        00000002. The packages go to the phone with the
+                        app. Advanced Warfare's need its title update too
+                        (000B0000 in that folder): its multiplayer is then
+                        built a second time, as the update makes it, for
+                        the map packs and Exo Zombies (docs/dlc.md). The
+                        folder is only read
   --xex-dir <folder>    take default.xex and default_mp.xex from this folder
                         instead of a disc image (also as <game>-default.xex,
                         the names the app's "Prepare files for building
@@ -154,7 +158,9 @@ case "$GAME" in mw3|mw2|cod4|aw) ;; *) die "--game must be mw3, mw2, cod4 or aw,
 [ "$NO_INSTALL" = 1 ] && { [ "$INSTALL" = 1 ] || [ "$PUSH_ISO" = 1 ]; } && die '--no-install installs and copies nothing; --install and --push-iso do. Choose one.'
 [ -n "$INSTALL_ISO" ] && [ "$GAME" != aw ] && die '--install-iso is for --game aw: the other games have the one disc.'
 [ -n "$INSTALL_ISO" ] && [ ! -f "$INSTALL_ISO" ] && die "--install-iso: no file at $INSTALL_ISO"
-[ -n "$DLC" ] && [ "$GAME" != aw ] && die '--dlc is for Advanced Warfare (--game aw).'
+# Advanced Warfare's packs are for the game its title update makes, which is
+# built as well; the other games' disc executables read their packs themselves.
+UPDATE_BUILD=; [ -n "$DLC" ] && [ "$GAME" = aw ] && UPDATE_BUILD=1
 [ -n "$DLC" ] && [ ! -d "$DLC" ] && die "--dlc: no folder at $DLC"
 [[ "$SUFFIX" =~ ^(\.[a-z][a-z0-9]*)?$ ]] || die "--suffix must look like .dev"
 [ "$GAME_ONLY" = 1 ] && [ "$DEV" = 1 ] && die '--game-only leaves the app alone; --dev builds it. Choose one.'
@@ -228,10 +234,10 @@ title() {   # title sp|mp|mp17: the row above, as T_NAME T_LIB T_LABEL T_XEX T_P
     # The folder its executable is in: the disc's, unless the row names another.
     T_DIR=${row[10]:-$DISC}
 }
-# The titles recompiled and built: with a player's map packs, the multiplayer
-# the title update makes as well.
+# The titles recompiled and built: with Advanced Warfare's map packs, the
+# multiplayer the title update makes as well.
 KEYS=(sp mp)
-[ -n "$DLC" ] && KEYS+=(mp17)
+[ -n "$UPDATE_BUILD" ] && KEYS+=(mp17)
 
 # What a tree recompiled now is made with, as setup.ps1 notes it in the tree
 # and as cmake/game_abi.cmake builds the game library's statement from it.
@@ -442,14 +448,15 @@ missing_install_packages() {
 mkdir -p "$TC" "$DL" "$OUT" "$LOGS"
 
 # A player's own downloadable content (docs/dlc.md), looked at before the
-# long steps so that a folder without the title update stops here and not an
-# hour in. The packages are read where they lie. DLC_FILES is what goes to
-# the phone: the packs (the install disc's two among them are left out,
-# aw/install has them) and the title update's package.
+# long steps so that a folder without what the game needs stops here and not
+# an hour in. The packages are read where they lie. DLC_FILES is what goes to
+# the phone: the packs (Advanced Warfare's install disc's two among them are
+# left out, aw/install has them) and Advanced Warfare's title update's package.
 DLC_ROOT=; DLC_UPDATE=; DLC_FILES=()
+case "$GAME" in aw) DLC_TITLE=41560914 ;; cod4) DLC_TITLE=415607E6 ;; mw2) DLC_TITLE=41560817 ;; *) DLC_TITLE=415608CB ;; esac
 if [ -n "$DLC" ]; then
     step 'look at the downloadable content (read-only)'
-    listing=$(cd "$REPO" && PYTHONUTF8=1 python3 tools/aw_dlc.py "$DLC") || die "could not read $DLC"
+    listing=$(cd "$REPO" && PYTHONUTF8=1 python3 tools/aw_dlc.py "$DLC" --title "$DLC_TITLE") || die "could not read $DLC"
     while IFS= read -r line; do
         case "$line" in
             'root '*) DLC_ROOT=${line#root } ;;
@@ -459,9 +466,14 @@ if [ -n "$DLC" ]; then
                 [[ " ${INSTALL_PACKAGES[*]} " == *" $(basename "$path") "* ]] || { DLC_FILES+=("$path"); note "$name"; } ;;
         esac
     done <<< "$listing"
-    [ -n "$DLC_UPDATE" ] || die "No title update is in $DLC. The map packs are for the updated game: copy Content/0000000000000000/41560914/000B0000 off the console as well, beside the packs' 00000002 (docs/dlc.md), then run setup again."
-    note "title update: $(basename "$DLC_UPDATE")"
-    DLC_FILES+=("$DLC_UPDATE")
+    if [ -n "$UPDATE_BUILD" ]; then
+        [ -n "$DLC_UPDATE" ] || die "No title update is in $DLC. The map packs are for the updated game: copy Content/0000000000000000/41560914/000B0000 off the console as well, beside the packs' 00000002 (docs/dlc.md), then run setup again."
+        note "title update: $(basename "$DLC_UPDATE")"
+        DLC_FILES+=("$DLC_UPDATE")
+    else
+        [ ${#DLC_FILES[@]} -gt 0 ] || die "No map pack of $GAME_NAME is in $DLC: its packages are in Content/0000000000000000/$DLC_TITLE/00000002 on the console's hard disk (docs/dlc.md)."
+        [ -z "$DLC_UPDATE" ] || note "title update $(basename "$DLC_UPDATE"): not used, the game is played as the disc has it"
+    fi
 fi
 
 # The most memory in use at once while this runs, for the last line: what a
@@ -573,7 +585,7 @@ done
 # The recompiler's folder also builds the patcher that makes the updated
 # executable (below), so it is needed while that executable is not there.
 need_xenon=${#to_recompile[@]}
-[ -n "$DLC" ] && [ ! -f "$REPO/aw/tu17/default_mp.xex" ] && need_xenon=1
+[ -n "$UPDATE_BUILD" ] && [ ! -f "$REPO/aw/tu17/default_mp.xex" ] && need_xenon=1
 # The recompiler itself, when this checkout names another commit of it or
 # patches it differently than the one built here: made again from nothing.
 if [ "$need_xenon" -gt 0 ] && [ -f "$XENON/CMakeLists.txt" ]; then
@@ -604,7 +616,7 @@ fi
 # update's own patch applied to it by XenonRecomp's patcher, as a console
 # does when it starts an updated game. Kept in the git-ignored aw/tu17 for
 # the recompiler; the game itself makes it again at every start.
-if [ -n "$DLC" ]; then
+if [ -n "$UPDATE_BUILD" ]; then
     title mp17
     updated=$REPO/$T_DIR/$T_XEX.xex
     if [ ! -f "$updated" ]; then
@@ -890,15 +902,16 @@ else
         done
         # Advanced Warfare's install disc: its packages go beside the game
         # folder, where the runtime looks for a title's installed content
-        # (runtime/kernel/content.cpp). Files of the same size are skipped.
-        if [ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ]; then
+        # (runtime/kernel/content.cpp), and so do a player's own map packs
+        # (--dlc). Files of the same size are skipped.
+        if { [ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ]; } || [ ${#DLC_FILES[@]} -gt 0 ]; then
             packages=()
-            if [ -z "$(missing_install_packages)" ]; then
+            if [ "$GAME" = aw ] && [ "$GAME_ONLY" = 0 ] && [ -z "$(missing_install_packages)" ]; then
                 step "adb push the install disc's packages (4 GB) to the app's dlc folder"
                 mapfile -t packages < <(find "$INSTALL_FOLDER" -type f)
             fi
             if [ ${#DLC_FILES[@]} -gt 0 ]; then
-                step "adb push your map packs and the title update ($(stat -c %s "${DLC_FILES[@]}" | awk '{ sum += $1 } END { printf "%.1f", sum / 1073741824 }') GB)"
+                step "adb push your map packs$([ -z "$UPDATE_BUILD" ] || echo ' and the title update') ($(stat -c %s "${DLC_FILES[@]}" | awk '{ sum += $1 } END { printf "%.1f", sum / 1073741824 }') GB) to the app's dlc folder"
                 packages+=("${DLC_FILES[@]}")
                 DLC_PUSHED=1
             fi
@@ -937,7 +950,7 @@ else
         note "On the phone: open the app, \"Install the game files\", choose the disc image. See $GUIDE."
     fi
 fi
-if [ -n "$DLC" ]; then
+if [ -n "$UPDATE_BUILD" ]; then
     if [ -n "${DLC_PUSHED:-}" ]; then
         note 'Your map packs and the title update are on the phone: Multiplayer now starts as the updated game, with the packs'"'"' maps under Bonus Maps (private match or System Link), and Exo Zombies is in the launcher.'
     else
@@ -946,4 +959,11 @@ if [ -n "$DLC" ]; then
         note 'Or connect the phone with USB debugging on and run the same command again, naming it with --device <serial>: what is built is skipped and everything is copied.'
     fi
     note 'More: docs/dlc.md (Advanced Warfare: map packs and Exo Zombies).'
+elif [ -n "$DLC" ]; then
+    # The disc's game code reads the packs: nothing was built for them.
+    if [ -n "${DLC_PUSHED:-}" ]; then
+        note 'Your map packs are on the phone, in the app'"'"'s dlc folder (docs/dlc.md).'
+    else
+        note "Your map packs were NOT copied to a phone. Copy $DLC_ROOT to the phone, or to its SD card; then in the app: Add DLC, Choose a folder, pick that folder (docs/dlc.md)."
+    fi
 fi

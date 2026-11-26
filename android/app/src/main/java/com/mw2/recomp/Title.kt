@@ -159,9 +159,10 @@ object OldMultiplayerApp {
 }
 
 /**
- * What the next run is to start: which title, and the launch data the other
+ * What the next run is to start: which title, the launch data the other
  * title left for it (the console's XamLoaderSetLaunchData, as hexadecimal),
- * empty for a start from the launcher.
+ * empty for a start from the launcher, and the Special Ops level of a map
+ * pack to start in (Dlc.levels), empty for the game's menu.
  *
  * It is a file rather than a preference or an intent extra because it crosses
  * processes at the moment one of them is dying. SharedPreferences are read
@@ -169,12 +170,12 @@ object OldMultiplayerApp {
  * see the title it was started with; and Android restores a GameActivity
  * whose process died with the intent it first had, not the newest one.
  */
-class RunRequest(val title: Title, val launchData: String) {
+class RunRequest(val title: Title, val launchData: String, val level: String = "") {
 
     /** Written whole or not at all: through a temporary name. */
     fun write(context: Context) {
         val partial = File(context.filesDir, "$FILE.part")
-        partial.writeText("${title.name}\n$launchData\n")
+        partial.writeText("${title.name}\n$launchData\n$level\n")
         partial.renameTo(file(context))
     }
 
@@ -191,7 +192,7 @@ class RunRequest(val title: Title, val launchData: String) {
                 emptyList()
             }
             val title = Title.carried.firstOrNull { it.name == lines.getOrNull(0) } ?: Title.carried.first()
-            return RunRequest(title, lines.getOrNull(1).orEmpty())
+            return RunRequest(title, lines.getOrNull(1).orEmpty(), lines.getOrNull(2).orEmpty())
         }
     }
 }

@@ -90,14 +90,21 @@
     <string name="folder_nothing">%1$s holds neither a disc image (.iso) of this game nor a disc\'s extracted files. Open the folder the image is in and tap the .iso file itself, or use “Choose with the Files app”.</string>
     <string name="installing">%1$s  (%2$d%%)</string>
     <string name="install_done">The game files are installed.</string>
-    <!-- Advanced Warfare: the player's own map packs (DlcActivity, docs/dlc.md). -->
+    <!-- The player's own map packs (DlcActivity, docs/dlc.md). -->
     <string name="entry_dlc">ADD DLC</string>
     <string name="entry_dlc_missing">ADD DLC · %1$d MISSING</string>
     <string name="entry_zombies">EXO ZOMBIES</string>
     <string name="dlc_title">Add DLC</string>
-    <string name="dlc_detail">Your own map packs and the game\'s title update, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
+    <string name="dlc_detail">Your own map packs, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
+    <string name="dlc_detail_update">Your own map packs and the game\'s title update, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
     <string name="zombies_detail">Exo Zombies, from your own map packs: the multiplayer with the title update, started in its zombies mode. Xbox Live, Local Play or System Link, as in multiplayer.</string>
-    <string name="dlc_hint">Copy the folder Content\\0000000000000000\\41560914 off your console\'s hard disk (an Xbox 360 USB drive, or the disk in a PC) and choose it here, or choose the files in it: the map packs are in 00000002 and the title update, which they need, in 000B0000. The files stay yours and are only read. Hold an entry to remove it.</string>
+    <string name="dlc_hint">Copy the folder Content\\0000000000000000\\%1$s off your console\'s hard disk (a USB drive set up as Xbox 360 storage, or the disk in a PC) and choose it here, or choose the files in it: the map packs are in 00000002. The files stay yours and are only read. Hold an entry to remove it.</string>
+    <string name="dlc_hint_update">Copy the folder Content\\0000000000000000\\%1$s off your console\'s hard disk (a USB drive set up as Xbox 360 storage, or the disk in a PC) and choose it here, or choose the files in it: the map packs are in 00000002 and the title update, which they need, in 000B0000. The files stay yours and are only read. Hold an entry to remove it.</string>
+    <string name="dlc_packs_ready">%1$d packages are here. Their maps are under BONUS MAPS at the top of the map list, in a private match or System Link; everybody in a match needs the map\'s pack.</string>
+    <string name="dlc_packs_ready_levels">%1$d packages are here. Their multiplayer maps are under BONUS MAPS at the top of the map list, in a private match or System Link; everybody in a match needs the map\'s pack. Their Special Ops missions and Survival maps are under SPEC OPS MAP PACKS in the launcher.</string>
+    <string name="dlc_packs_untested">%1$d packages are here. The multiplayer lists and mounts them as the console does, and their maps are chosen where the game\'s own menus offer them; everybody in a match needs the map\'s pack. This game\'s packs were never tried with a real one, so tell us how it goes.</string>
+    <string name="entry_pack_levels">SPEC OPS MAP PACKS</string>
+    <string name="pack_levels_detail">The Special Ops missions and Survival maps of your own map packs. The disc\'s menus do not list them, so one is chosen here and the game starts in it, for one player; Return to Special Ops goes to the game\'s own menu.</string>
     <string name="dlc_add_folder">Choose a folder</string>
     <string name="dlc_add_files">Choose files</string>
     <string name="dlc_none">No map packs here yet.</string>
@@ -115,7 +122,8 @@
     <string name="dlc_copying">Copying…</string>
     <string name="dlc_added">Added: %1$s.</string>
     <string name="dlc_already">Those are here already.</string>
-    <string name="dlc_nothing_found">None of those files is an Advanced Warfare map pack or title update. They are files without an extension, with names of letters and digits, in Content\\0000000000000000\\41560914 on the console\'s hard disk.</string>
+    <string name="dlc_nothing_found">None of those files is a map pack of this game. They are files without an extension, with names of letters and digits, in Content\\0000000000000000\\%1$s\\00000002 on the console\'s hard disk.</string>
+    <string name="dlc_nothing_found_update">None of those files is a map pack or title update of this game. They are files without an extension, with names of letters and digits, in Content\\0000000000000000\\%1$s on the console\'s hard disk.</string>
     <string name="dlc_no_room">Not enough room: the packages are %1$.1f GB and %2$.1f GB is free.</string>
     <string name="dlc_cancelled">Stopped before it was finished.</string>
     <string name="dlc_remove">Remove</string>

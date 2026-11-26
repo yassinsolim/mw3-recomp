@@ -201,7 +201,10 @@ def block_lattice(picture, keep):
     They are found as small patches darker or lighter than their surround,
     kept when filled rectangles of one size, and counted when they stand in
     at least three columns and three rows. A picture's own windows and
-    letters are neither one size nor in rows and columns both.
+    letters are neither one size nor in rows and columns both; a wall of
+    honeycomb and the slots of a grille are, and are not square as the
+    renderer's blocks are (Solar: 23 by 21 and 13 by 9 at this size, where
+    the lattices recorded are 15 to 18 a side and within 1 of square).
     """
     grey = cv2.cvtColor(cv2.resize(picture, BLOCK_PICTURE, interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
     best = (0, 0.0, 0.0)
@@ -219,6 +222,8 @@ def block_lattice(picture, keep):
         if blocks.sum() < 6:
             continue
         side_across, side_down = np.median(wide[blocks]), np.median(high[blocks])
+        if abs(side_across - side_down) > 1.5:
+            continue
         alike = blocks & (np.abs(wide - side_across) <= 2) & (np.abs(high - side_down) <= 2)
         number = int(alike.sum())
         if number <= best[0] or number < 6:

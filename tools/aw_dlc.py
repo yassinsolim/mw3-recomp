@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""A player's own Advanced Warfare downloadable content, as copied off the
-console's hard disk: what is in a folder, and the update's patch out of it.
+"""A player's own downloadable content, as copied off the console's hard
+disk: what is in a folder, and Advanced Warfare's update's patch out of it.
 
     tools/aw_dlc.py <folder>                 # the packages there, one a line
+    tools/aw_dlc.py <folder> --title <id>    # another game's: 415608CB, 41560817, 415607E6
     tools/aw_dlc.py <folder> --patch <file>  # and the title update's default_mp.xexp, written to <file>
 
-The folder is the console's Content\\0000000000000000\\41560914, or its
-00000002 (the map packs; the title update is then looked for in 000B0000
-beside it), or any folder the packages were put in. Only the first bytes of
-each file are read, and the update's package: nothing is written but <file>.
+The folder is the console's Content\\0000000000000000\\<title id> (41560914,
+Advanced Warfare's, unless --title names another), or its 00000002 (the map
+packs; the title update is then looked for in 000B0000 beside it), or any
+folder the packages were put in. Only the first bytes of each file are read,
+and the update's package: nothing is written but <file>.
 
 Lines: "root <folder>" (what holds them all), "update <path>" (a title
 update: content type 000B0000), "pack <path>\\t<name>" (downloadable
@@ -17,7 +19,7 @@ content: type 00000002).
 import os, struct, sys
 import stfs
 
-TITLE = 0x41560914
+AW_TITLE = 0x41560914
 UPDATE, CONTENT = 0x000B0000, 0x00000002
 
 
@@ -36,9 +38,18 @@ def header(path):
 
 
 def main():
-    if len(sys.argv) not in (2, 4) or (len(sys.argv) == 4 and sys.argv[2] != "--patch"):
+    arguments = sys.argv[1:]
+    options = {"--title": f"{AW_TITLE:08X}", "--patch": None}
+    while len(arguments) >= 3 and arguments[-2] in options:
+        options[arguments[-2]] = arguments[-1]
+        del arguments[-2:]
+    if len(arguments) != 1:
         raise SystemExit(__doc__)
-    folder = os.path.abspath(sys.argv[1])
+    try:
+        wanted = int(options["--title"], 16)
+    except ValueError:
+        raise SystemExit(f"--title {options['--title']} is not a title id (eight hexadecimal digits)")
+    folder = os.path.abspath(arguments[0])
     if not os.path.isdir(folder):
         raise SystemExit(f"{folder} is not a folder")
     root = folder
@@ -50,21 +61,21 @@ def main():
         for name in sorted(names):
             path = os.path.join(at, name)
             found = header(path)
-            if not found or found[1] != TITLE:
+            if not found or found[1] != wanted:
                 continue
             if found[0] == UPDATE:
                 updates.append(path)
                 print(f"update {path}")
             elif found[0] == CONTENT:
                 print(f"pack {path}\t{found[2]}")
-    if len(sys.argv) == 4:
+    if options["--patch"]:
         if not updates:
-            raise SystemExit("no title update's package is there (the console keeps it in Content\\0000000000000000\\41560914\\000B0000)")
+            raise SystemExit(f"no title update's package is there (the console keeps it in Content\\0000000000000000\\{wanted:08X}\\000B0000)")
         package = stfs.Package(updates[0])
         patch = next((entry for entry in package.entries if package.path(entry).lower() == "default_mp.xexp"), None)
         if patch is None:
             raise SystemExit(f"{updates[0]} has no default_mp.xexp")
-        with open(sys.argv[3], "wb") as out:
+        with open(options["--patch"], "wb") as out:
             out.write(package.read(patch))
 
 

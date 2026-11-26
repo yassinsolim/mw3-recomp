@@ -45,6 +45,44 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
     reads both as a volume and along two axes; it is a volume now. The
     shader translator gains `getWeights`, so every game's shaders are
     compiled again once.
+- **Modern Warfare 3: your own map packs, Survival maps and Special Ops
+  missions.** Copy `Content\0000000000000000\415608CB\00000002` off your
+  Xbox 360's hard disk and pick it with **Add DLC → Choose a folder**:
+  nothing is built, and no title update is needed. The packs' maps are under
+  **BONUS MAPS** in a private match, Local Play and System Link, with bots
+  or other players (everybody needs the map's pack); the launcher's new
+  **SPEC OPS MAP PACKS** lists the Survival maps and missions your packages
+  hold and starts the one you choose. The disc's executables were made
+  before any pack and lacked five things the title updates brought, which
+  the runtime now supplies: the maps' rows in the menus (and the packs'
+  list's cursor and height), the animations of a map's swaying props, the
+  soldiers a map's fastfile holds, places for the packs' streamed image and
+  sound files, and a mission's English text
+  ([docs/dlc.md](docs/dlc.md#modern-warfare-3-map-packs-survival-maps-and-special-ops-missions)).
+  On an AYN Thor with the owner's 26 packages: Piazza and Parish with six
+  bots at 118.9 and 117.1 frames a second, Survival on Parish at 118.7, the
+  mission Iron Clad at 118.3, each recorded and checked by `tools/visualqa`.
+  Three pass; on Parish the buildings to one side are missing in some
+  frames for 0.4 s after a respawn, which a respawn on a disc map does not
+  show: an open fault ([docs/dlc.md](docs/dlc.md#what-is-tested)). A System
+  Link game on Piazza between the Thor and a Retroid Pocket Flip 2 through
+  the public relay played for three minutes with the same scoreboard on
+  both. Nobody is given a map: only what your own packages hold is listed
+  or loaded.
+- **Add DLC in Modern Warfare 2's and Call of Duty 4's apps, and
+  `setup.sh --dlc` / `setup.cmd -Dlc` for both and for Modern Warfare 3.**
+  The same copy-the-packages design as Advanced Warfare's. Tested on Windows
+  with packages made from each disc's own files, never with a real pack
+  (the owner has none): Rust loaded from a package in Modern Warfare 2;
+  Call of Duty 4's disc executable mounts a pack and closes it at once and
+  then asks the disc alone, so the runtime now looks in the player's
+  packages for a fastfile the disc has not, and Shipment loaded from one.
+  Add DLC was pressed in both apps on a Retroid Pocket Flip 2 with those
+  packages: copied, listed and mounted by the multiplayer (and the notice
+  of Advanced Warfare's Compatibility Packs it showed there is gone).
+  Setup's `--dlc` for the three older games has been read and
+  syntax-checked, not run end to end
+  ([docs/dlc.md](docs/dlc.md#what-is-untested)).
 - **`tools/release/release.py`: a release is made by one script, behind
   gates.** It filters the branch into the four public mirrors (refusing a
   game file, a blob over 20 MB, a path of a game that is not released, or a
@@ -68,7 +106,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   on the recordings of the faults players and testers found, and
   `visualqa.py calibrate` measures them again. `--suite` runs a campaign
   level and a match against bots of each title on both phones and is run
-  before a release; a run that was not on the bundled Turnip driver fails
+  before a release; a run that was not on the bundled Turnip driver fails.
+  A post, a shadow's band or a ribbed wall passing in a fast turn is no
+  longer taken for a patch that flashed (it is looked for in the frames
+  either side), and with that one such frame in calm play fails a run: the
+  faults the suite found were single frames. Advanced Warfare is played
+  from its Game Disc's image with test files of its own, on both phones,
+  and Survival is judged up to the results screen its first wave ends on
   ([docs/visualqa.md](docs/visualqa.md)).
 - **Advanced Warfare: the app says which Compatibility Packs are missing.**
   The updated game needs all six, whichever map packs you bought, and with

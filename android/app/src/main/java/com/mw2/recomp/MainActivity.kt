@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var botsButton: Button
     private lateinit var zombiesButton: Button
     private lateinit var dlcButton: Button
+    private lateinit var packLevelsButton: Button
     private lateinit var buildButton: Button
     private lateinit var modsButton: Button
     private lateinit var tu6Button: Button
@@ -136,6 +137,7 @@ class MainActivity : AppCompatActivity() {
         botsButton = findViewById(R.id.entry_bots)
         zombiesButton = findViewById(R.id.entry_zombies)
         dlcButton = findViewById(R.id.entry_dlc)
+        packLevelsButton = findViewById(R.id.entry_pack_levels)
         buildButton = findViewById(R.id.entry_build)
         modsButton = findViewById(R.id.entry_mods)
         tu6Button = findViewById(R.id.entry_tu6)
@@ -210,8 +212,18 @@ class MainActivity : AppCompatActivity() {
         }
         dlcButton.setOnClickListener {
             select(dlcButton)
-            showDetail(getString(R.string.dlc_title), getString(R.string.dlc_detail))
+            showDetail(getString(R.string.dlc_title), getString(if (Dlc.takesUpdate) R.string.dlc_detail_update else R.string.dlc_detail))
             startActivity(Intent(this, DlcActivity::class.java))
+        }
+        packLevelsButton.setOnClickListener {
+            select(packLevelsButton)
+            showDetail(getString(R.string.entry_pack_levels), getString(R.string.pack_levels_detail))
+            val levels = Dlc.levels(this)
+            AlertDialog.Builder(this)
+                .setTitle(R.string.entry_pack_levels)
+                .setItems(levels.map { it.name }.toTypedArray()) { _, which -> startGame(Title.CAMPAIGN, level = levels[which].level) }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
         }
         botsButton.setOnClickListener {
             select(botsButton)
@@ -519,6 +531,10 @@ class MainActivity : AppCompatActivity() {
             if (missing == 0) getString(R.string.entry_dlc) else getString(R.string.entry_dlc_missing, missing)
         }
         zombiesButton.visibility = if (TitleUpdate.inUse && installed) android.view.View.VISIBLE else android.view.View.GONE
+        // Modern Warfare 3's Special Ops levels of the packs, which the
+        // disc's menus have no entries for (docs/dlc.md).
+        val packLevels = installed && Title.CAMPAIGN.carried && Title.CAMPAIGN.installed(gameDirectory) && Dlc.levels(this).isNotEmpty()
+        packLevelsButton.visibility = if (packLevels) android.view.View.VISIBLE else android.view.View.GONE
         // The app is published without the game's code: the files alone do
         // not make it ready (GameLibrary.kt). Which of the two a player still
         // has to do is said before either is started.
@@ -819,7 +835,7 @@ class MainActivity : AppCompatActivity() {
         return File(directory).name
     }
 
-    private fun startGame(title: Title, launchData: String = "") {
+    private fun startGame(title: Title, launchData: String = "", level: String = "") {
         if (!nativeReady) return
         // Every way into a run comes through here: without the title's game
         // code (GameLibrary.kt) one only ends in "The game could not start",
@@ -845,11 +861,12 @@ class MainActivity : AppCompatActivity() {
         // A second controller means a second player can join (split-screen
         // Spec Ops / multiplayer); the touch controls and the first controller
         // are both player one. Warn once: two viewports cost frames and heat.
-        if (!prefs.seenPadWarning && physicalPadCount() >= 2) {
+        // A level of a map pack is started for one player (Dlc.levels).
+        if (level.isEmpty() && !prefs.seenPadWarning && physicalPadCount() >= 2) {
             showSplitscreenWarning(title, launchData)
             return
         }
-        GameActivity.start(this, title, launchData)
+        GameActivity.start(this, title, launchData, level)
     }
 
     private fun showDetail(title: String, text: String) {

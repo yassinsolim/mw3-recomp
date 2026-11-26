@@ -48,7 +48,9 @@
 #include <string>
 #include <vector>
 
-#ifdef T_UI_LoadArenas
+// Modern Warfare 2's title update alone: Modern Warfare 3 has the arena table
+// too, and lists a player's map packs in it (mw3_dlc_maps.cpp).
+#if defined(T_UI_LoadArenas) && defined(T_Com_LoadUiFastFile)
 
 namespace
 {

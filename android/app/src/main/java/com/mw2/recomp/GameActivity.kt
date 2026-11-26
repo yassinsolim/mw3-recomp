@@ -93,6 +93,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
     /** What the other title left for this run (RunRequest), as hexadecimal. */
     private var launchData = ""
 
+    /** The Special Ops level of a map pack this run starts in (RunRequest), empty for the game's menu. */
+    private var contentLevel = ""
+
     /**
      * Voice chat, for Modern Warfare 3's multiplayer: the player turned it
      * on in Settings and the microphone permission asked for there is still
@@ -403,10 +406,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
         Trail.note(this, "game: starting")
         TitleUpdate.refresh(this)
         val request = RunRequest.read(this)
-        // Launch data is for the run it was left for, not for whichever run
-        // comes after it.
-        if (request.launchData.isNotEmpty()) RunRequest(request.title, "").write(this)
+        // Launch data, and a level to start in, are for the run they were
+        // left for, not for whichever run comes after it.
+        if (request.launchData.isNotEmpty() || request.level.isNotEmpty()) RunRequest(request.title, "").write(this)
         launchData = request.launchData
+        contentLevel = request.level
         // The last run's process, not gone yet, holds the other title's
         // library and cannot take this one: start again once it has ended.
         if (NativeBridge.title().let { it != null && it != request.title }) {
@@ -933,6 +937,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // What the other title left for this one to read at its start
         // (XamLoaderGetLaunchData), across the restart between the two.
         if (launchData.isNotEmpty()) NativeBridge.nativeSetOption("MW2_LAUNCH_DATA", launchData)
+        // Set when empty as well: a process that outlived a run started in a
+        // level would start the next one there.
+        NativeBridge.nativeSetOption("MW2_CONTENT_LEVEL", contentLevel)
         NativeBridge.nativeSetOption("MW2_SHADER_CACHE", shaderCacheFile.absolutePath)
 
         // Identity on the network and lobby behaviour. The name is the
@@ -1716,9 +1723,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
          * for the player's name before it, with the device's own filled in:
          * the other players see it, and few look for it in Settings.
          */
-        fun start(activity: Activity, title: Title, launchData: String = "", then: () -> Unit = {}) {
+        fun start(activity: Activity, title: Title, launchData: String = "", level: String = "", then: () -> Unit = {}) {
             val go = {
-                RunRequest(title, launchData).write(activity)
+                RunRequest(title, launchData, level).write(activity)
                 activity.startActivity(Intent(activity, GameActivity::class.java))
                 then()
             }

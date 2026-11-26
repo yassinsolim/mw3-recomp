@@ -78,6 +78,8 @@ class DlcActivity : AppCompatActivity() {
             GameBuildService.start(this, automatic = false)
             refresh()
         }
+        findViewById<TextView>(R.id.dlc_hint).text =
+            getString(if (Dlc.takesUpdate) R.string.dlc_hint_update else R.string.dlc_hint, Dlc.consoleFolder)
 
         addFolder.setOnClickListener { pickFolder.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)) }
         addFiles.setOnClickListener {
@@ -131,6 +133,16 @@ class DlcActivity : AppCompatActivity() {
         // resumed, and a resume looks again: a copy under way keeps its word.
         status.text = if (progress.visibility == View.VISIBLE) getString(R.string.dlc_copying) else when {
             packages.isEmpty() -> getString(R.string.dlc_none)
+            // The disc's executables read the packs themselves. Modern Warfare 3's
+            // were played from real ones; the other two games' never were (docs/dlc.md).
+            !Dlc.takesUpdate -> getString(
+                when {
+                    !Title.isMw3 -> R.string.dlc_packs_untested
+                    Dlc.levels(this).isNotEmpty() -> R.string.dlc_packs_ready_levels
+                    else -> R.string.dlc_packs_ready
+                },
+                packs,
+            )
             TitleUpdate.ready -> getString(R.string.dlc_ready, packs)
             building -> getString(
                 R.string.dlc_building, packs,
@@ -195,7 +207,9 @@ class DlcActivity : AppCompatActivity() {
                     added.copied.isNotEmpty() ->
                         getString(R.string.dlc_added, added.copied.joinToString(", ")) + packsMissing(Dlc.installed(this))
                     added.already > 0 -> getString(R.string.dlc_already)
-                    else -> getString(R.string.dlc_nothing_found)
+                    else -> getString(
+                        if (Dlc.takesUpdate) R.string.dlc_nothing_found_update else R.string.dlc_nothing_found, Dlc.consoleFolder,
+                    )
                 }
             } catch (error: IOException) {
                 error.message ?: error.toString()

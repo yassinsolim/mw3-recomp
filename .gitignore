@@ -158,3 +158,5 @@ android/game/build/
 # ---- the build tools' package and its probe (docs/ondevice-build.md) ----
 android/toolchain/build/
 android/toolchain-probe/build/
+# The releases' notes are text and are sources (tools/release/release.py reads them).
+!docs/releases/*.txt

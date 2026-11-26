@@ -63,6 +63,7 @@
 // (gpu::replace::Effect).
 #include <ppc_recomp_shared.h>
 #include "mw3_custom_camos.h"
+#include "mw3_dlc_maps.h"
 #include "title.h"
 #include "camo_packs.h"
 #include "env.h"
@@ -1032,14 +1033,15 @@ GUEST_HOOK(T_UI_AddMenuList)
 {
     const uint32_t context = ctx.r3.u32;
     GUEST_ORIG(T_UI_AddMenuList)(ctx, base);
-    if (!Started(base)) return;
+    const bool camos = Started(base);
     const uint32_t count = std::min(Load(base, context + kContextMenuCount), kMostMenus);
     for (uint32_t i = 0; i < count; i++)
     {
         const uint32_t menu = Load(base, context + kContextMenus + i * 4);
         if (!menu) continue;
         const char* name = Text(base, Load(base, menu + kMenuName));
-        for (size_t which = 0; which < std::size(kMenus); which++)
+        mw3maps::MenuAdded(base, menu, name);
+        for (size_t which = 0; camos && which < std::size(kMenus); which++)
             if (!std::strcmp(name, kMenus[which])) Extend(base, menu, which);
     }
 }

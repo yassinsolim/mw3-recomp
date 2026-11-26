@@ -108,10 +108,14 @@ Sources and methods: [docs/android.md](docs/android.md),
 - **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
   in Android, or the refresh-rate tile in the quick settings. The dual-screen
   assistant can turn it off again after a restart.
-- **Map packs (DLC), experimental.** Copy a package from your own console into
-  `Android/data/com.mw3.recomp/files/dlc/` or a `dlc` folder beside the `.iso`.
-  Only tried with test packages, never a real map pack:
-  [docs/dlc.md](docs/dlc.md).
+- **Your own map packs (DLC).** Copy
+  `Content\0000000000000000\415608CB\00000002` off your Xbox 360's hard
+  disk, then **Add DLC → Choose a folder** in the app: nothing is built and
+  no PC is needed. The packs' multiplayer maps are under **BONUS MAPS** at
+  the top of the map list, and their Survival maps and Special Ops missions
+  under **SPEC OPS MAP PACKS** in the launcher. Online, every player needs
+  the map's pack. The app has no packs and fetches none:
+  [docs/dlc.md](docs/dlc.md#modern-warfare-3-map-packs-survival-maps-and-special-ops-missions).
 - **Custom camos.** **Settings → Multiplayer → Camo packs** adds a pack from a
   file or fetches the project's: [docs/textures.md](docs/textures.md#camouflage-packs).
 - **Bots.** Tap **Bots** under Multiplayer, then **System Link → Create Game →

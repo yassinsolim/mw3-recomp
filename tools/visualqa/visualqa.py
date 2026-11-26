@@ -90,13 +90,16 @@ def measured(source, mask, cache, times=None):
 
 
 def examine(recordings, out, log=None, dumps=None, mask="hud", assume_play=True, combat_from=None, play_from=0.0,
-            expect_driver=None, thresholds=None, by_hand=False):
+            expect_driver=None, thresholds=None, by_hand=False, over_at=None):
     """Checks a run's recordings (file, seconds of the run at its start), frames and log; returns the report."""
     thresholds = thresholds or detectors.Thresholds()
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    # Everything before the scenario's play is a menu or a loading screen by its own account.
+    # Everything before the scenario's play is a menu or a loading screen by its own account,
+    # and everything after its level is over a results screen.
     exempt = ((0.0, play_from),) if play_from else ()
+    if over_at is not None:
+        exempt += ((over_at, float("inf")),)
     findings = []
     pictures = {}
     covered = -1.0
@@ -180,8 +183,10 @@ def record_on_device(scenario, name, serial, arguments):
     out.mkdir(parents=True, exist_ok=True)
     target = phone.Device(serial, arguments.suffix)
     image = target.disc_image(scenario.game, scenarios.DISC_IMAGES[scenario.game])
-    if image is None or not target.has(f"{target.owner_game(scenario.game)}/default.xex"):
-        say(f"SKIP  {name}/{scenario.name}: the game or its disc image is not on this phone")
+    test_files = scenarios.TEST_FILES.get(scenario.game)
+    files = test_files or target.owner_game(scenario.game)
+    if image is None or not target.has(f"{files}/default.xex"):
+        say(f"SKIP  {name}/{scenario.name}: the game ({files}) or its disc image is not on this phone")
         return {"verdict": "SKIP", "findings": [], "reason": "the game is not on this phone"}
     level, heat = target.battery()
     if level < arguments.battery_floor:
@@ -189,11 +194,11 @@ def record_on_device(scenario, name, serial, arguments):
     say(f"{name}/{scenario.name}: {scenario.what} ({scenario.seconds} s; battery {level}%, {heat:.0f} C)")
     try:
         target.install(scenario.game, arguments.apks)
-        target.provision(scenario.game, image, scenario.whole_game)
+        target.provision(scenario.game, image, files)
         switches = scenario.switches(f"{target.external(scenario.game)}/vqframes", arguments.dump_every)
-        if scenario.whole_game:
-            # The install disc's packages are read where the owner's app keeps them.
-            switches.setdefault("MW2_DLC_DIR", f"/sdcard/Android/data/com.{scenario.game}.recomp/files/dlc")
+        if test_files:
+            # Advanced Warfare's install disc's packages lie beside its executables.
+            switches.setdefault("MW2_DLC_DIR", test_files)
         clock = target.start(scenario.game, scenario.title, switches)
         try:
             # The menus before play are not recorded: three minutes of a segment are better spent on the level.
@@ -216,9 +221,10 @@ def record_on_device(scenario, name, serial, arguments):
         raise RuntimeError("no line of the phone's log named a second of the run: the recording cannot be placed in it")
 
     def check():
-        report = examine([(path, began - nought) for path, began in segments], out, log=gamelog.read(log_file),
+        log = gamelog.read(log_file)
+        report = examine([(path, began - nought) for path, began in segments], out, log=log,
                          dumps=dumps, mask="hud", combat_from=scenario.combat_from, play_from=scenario.play_from,
-                         expect_driver=arguments.driver)
+                         expect_driver=arguments.driver, over_at=scenario.over_at(log))
         write_report(report, out, f"{name}/{scenario.name}")
         return report
 
@@ -226,7 +232,8 @@ def record_on_device(scenario, name, serial, arguments):
 
 
 def command_suite(arguments, chosen=None):
-    chosen = chosen or scenarios.SUITE
+    # A part of the suite, for a slot that has no room for all of it.
+    chosen = chosen or [scenarios.named(name) for name in arguments.scenarios] or scenarios.SUITE
     devices = arguments.device or list(scenarios.DEVICES)
     reports = {}
     # A recording is checked while the next scenario plays: the phone's slot
@@ -238,8 +245,6 @@ def command_suite(arguments, chosen=None):
             lock = phone.DeviceLock(arguments.lock_dir, name, arguments.owner, "visualqa suite")
             with lock.held(say):
                 for scenario in chosen:
-                    if name not in scenario.devices and not arguments.any_device:
-                        continue
                     # Install, the run, the pull and the removal, before the slot is over.
                     lock.room_for(scenario.seconds + 150, say=say)
                     try:
@@ -248,6 +253,8 @@ def command_suite(arguments, chosen=None):
                         say(f"FAIL  {name}/{scenario.name}: {error}")
                         recorded = {"verdict": "FAIL", "findings": [], "reason": str(error)}
                     reports[f"{name}/{scenario.name}"] = checking.submit(recorded) if callable(recorded) else recorded
+        # Whoever holds the phones for this run can let them go: what is left needs none.
+        say("the phones are done with; checking the recordings")
         reports = {name: report if isinstance(report, dict) else report.result() for name, report in reports.items()}
     summary = Path(arguments.out) / f"suite_{'_'.join(devices)}.json"
     summary.write_text(json.dumps(reports, indent=1), encoding="utf-8")
@@ -290,7 +297,7 @@ def command_windows(arguments):
     # flash of one frame is seen one time in six and a patch only in a view
     # that stands, but what is seen is exact.
     report = examine([(dumped, 0.0)], out, log=log, mask="hud", play_from=scenario.play_from,
-                     combat_from=scenario.combat_from)
+                     combat_from=scenario.combat_from, over_at=scenario.over_at(log))
     write_report(report, out, f"windows/{scenario.name}")
     # A thousand frames are gigabytes; the pictures of the faults are kept.
     shutil.rmtree(dumped)
@@ -363,7 +370,7 @@ def command_calibrate(arguments):
 
 def command_list(arguments):
     for scenario in scenarios.SUITE:
-        say(f"{scenario.name:14s} {scenario.seconds:4d} s  {', '.join(scenario.devices):10s}  {scenario.what}")
+        say(f"{scenario.name:14s} {scenario.seconds:4d} s  {scenario.what}")
     return 0
 
 
@@ -391,9 +398,9 @@ def main():
         command.add_argument("--lead", type=float, default=12.0, help="seconds recorded before play")
         command.add_argument("--battery-floor", type=int, default=20)
         command.add_argument("--keep", action="store_true", help="leave the test app on the phone after the run")
-        command.add_argument("--any-device", action="store_true", help="also on a device the scenario is not listed for")
 
-    suite = commands.add_parser("suite", help="every standard scenario")
+    suite = commands.add_parser("suite", help="every standard scenario, or the ones named")
+    suite.add_argument("scenarios", nargs="*", help="a part of the suite; all of it when none is named")
     device_options(suite)
     run = commands.add_parser("run", help="one scenario")
     run.add_argument("scenario")
