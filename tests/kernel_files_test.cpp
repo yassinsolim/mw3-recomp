@@ -7,6 +7,7 @@
 #include "tests/fake_crash.h"
 #include "runtime/kernel/objects.h"
 #include "runtime/kernel/volume.h"
+#include "runtime/movie_trace.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -39,6 +40,13 @@ void kernel::QueueUserApc(uint32_t, uint32_t, uint32_t, std::function<void()> wo
 {
     if (work) work();   // not delivered later here: run it where it was queued
 }
+// The trace of a movie's reads (MW2_TRACE_MOVIES) is off here: its own
+// source hooks the title's functions, which this test has none of.
+#if MW2_DIAGNOSTICS
+bool movies::On() { return false; }
+double movies::Clock() { return 0.0; }
+void movies::Read(const char*, uint32_t, long long, double) {}
+#endif
 
 using namespace kernel;
 
