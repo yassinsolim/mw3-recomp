@@ -184,6 +184,12 @@ object NativeBridge {
      * Returns null when it worked, or a sentence to show when it did not. */
     external fun nativeApplyTu6(packagePath: String, gameDir: String): String?
 
+    /** Blocking. Writes the multiplayer's executable as the title update in
+     * [packagePath] makes it of [discExecutable], to [target], for the build
+     * of its game code here (GameBuild.kt; Advanced Warfare only). Returns
+     * null when it worked, or a sentence to show when it did not. */
+    external fun nativeMakeUpdatedExecutable(packagePath: String, discExecutable: String, target: String): String?
+
     // ---- what the overlay shows --------------------------------------------
 
     /** Fills [out] with { frames per second, texture MB, width, height, frame time ms, presented frames }. */

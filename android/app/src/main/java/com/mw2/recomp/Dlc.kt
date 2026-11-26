@@ -76,7 +76,10 @@ object Dlc {
             .sortedWith(compareBy({ !it.header.update }, { it.header.name }))
 
     /** Whether a title update's package is there: the map packs are for the game it makes. */
-    fun hasUpdate(context: Context): Boolean = installed(context).any { it.header.update }
+    fun hasUpdate(context: Context): Boolean = update(context) != null
+
+    /** The title update's package, the first by name as the runtime takes them (runtime/kernel/content.cpp). */
+    fun update(context: Context): File? = installed(context).firstOrNull { it.header.update }?.file
 
     /** One document the player chose: where it is, its name and its size. */
     class Source(val uri: Uri, val name: String, val size: Long)

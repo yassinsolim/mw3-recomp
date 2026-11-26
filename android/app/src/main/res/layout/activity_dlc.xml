@@ -57,6 +57,16 @@
             android:text="@string/dlc_add_files" />
     </LinearLayout>
 
+    <Button
+        android:id="@+id/dlc_build"
+        android:background="@drawable/bg_button_action"
+        android:textColor="#E8EAED"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/dlc_build_now"
+        android:visibility="gone" />
+
     <ProgressBar
         android:id="@+id/dlc_progress"
         style="?android:attr/progressBarStyleHorizontal"

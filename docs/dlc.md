@@ -146,14 +146,25 @@ your packages to the phone's `Android/data/com.aw.recomp/files/dlc` (5.4 GB
 with all of the owner's). The app must be one built from this version or
 later; `-Dev` builds it here until a release has it.
 
-**In the app**, without a PC for the files: **Add DLC** (shown once the game
-is installed), then **Choose a folder** and pick the `41560914` folder
-(wherever you put it: the phone's storage, an SD card, a USB drive), or
-**Choose files** and pick them in the Files app. The app copies those that
-are this game's packages into its `dlc` folder, lists them with their names
-and sizes, and says what is still missing: the title update, or the game
-code of the updated multiplayer, which only `setup -Dlc` makes. Hold an
-entry to remove it.
+**In the app, with no PC at all.** **Add DLC** (shown once the game is
+installed), then **Choose a folder** and pick the `41560914` folder (wherever
+you put it: the phone's storage, an SD card, a USB drive), or **Choose
+files** and pick them in the Files app. The app copies those that are this
+game's packages into its `dlc` folder, the title update in `000B0000`
+included, and lists them with their names and sizes. Hold an entry to remove
+it.
+
+The packs themselves are read as the files they are. What has to be made is
+the game code of the multiplayer as the update makes it, and the app makes
+it on the phone, by itself, as soon as the update's package has been copied:
+in the background, with the notification and the screen of the first build
+(**Build the game code**), and with the same toolchain package, which the
+app fetches if it is not there
+([ondevice-build.md](ondevice-build.md#the-multiplayer-a-title-update-makes)).
+The Add DLC screen says how far it is, and the campaign and the disc's
+multiplayer can be played meanwhile. When it is done, Multiplayer is the
+updated game and **Exo Zombies** is in the launcher. If the build was
+stopped or failed, the screen says why and has **Build it now**.
 
 **What changes.** While the title update's package is in the `dlc` folder
 and its game code is on the phone, **Multiplayer** starts the updated game

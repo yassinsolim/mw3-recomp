@@ -546,6 +546,15 @@ tasks.configureEach {
 class KitTitle(
     val library: String, val executable: String, val sha256: List<String>, val toml: String,
     val tables: String, val tree: String, val defines: List<String>,
+    /**
+     * For a title a player's own title update makes of the one before it
+     * (Advanced Warfare's multiplayer for the map packs, docs/dlc.md): the
+     * folder its executable is made in on the device, from that title's
+     * executable and the update's patch. It has no SHA-256 here: the update's
+     * header differs with the disc's pressing, and the runtime checks the
+     * image (runtime/install/install.cpp).
+     */
+    val updateFolder: String? = null,
 )
 class KitGame(
     val folder: String, val titles: List<KitTitle>, val extraSources: List<String> = emptyList(),
@@ -595,6 +604,9 @@ val kitGames = mapOf(
                 "AW.toml", "aw_switch_tables.toml", "ppc_aw", listOf("AW_TITLE=1", "MW3_TITLE=1")),
             KitTitle("awmp", "default_mp.xex", listOf("3ef96359f96ee7994e43de70f56a9c2a019d5b841f11318ca2dffdb717b265f8"),
                 "AWMP.toml", "awmp_switch_tables.toml", "ppc_aw_mp", listOf("AW_TITLE=1", "AW_TITLE_MP=1", "MW3_TITLE=1")),
+            KitTitle("awmp17", "default_mp.xex", emptyList(),
+                "AWMP.tu17.toml", "awmp_switch_tables.tu17.toml", "ppc_aw_mp_tu17",
+                listOf("AW_TITLE=1", "AW_TITLE_MP=1", "AW_TITLE_TU17=1", "MW3_TITLE=1"), updateFolder = "aw/tu17"),
         ),
         // The instructions the configuration replaces by calls (CMakeLists.txt).
         listOf("runtime/recomp/ppc_extra_instructions.cpp"),
@@ -659,6 +671,7 @@ kitGames.forEach { (game, kit) ->
                     .map { it.substringAfter('\n') }
                 mapOf(
                     "library" to title.library, "executable" to title.executable, "sha256" to title.sha256,
+                    "folder" to (title.updateFolder ?: kit.folder), "fromUpdate" to (title.updateFolder != null),
                     "toml" to title.toml, "tables" to title.tables, "tree" to title.tree,
                     "defines" to listOf("MW2_TRACE_INDIRECT=1") + title.defines,
                     "expectedAbi" to "title ${title.library}\ngenerated-code $code\n" + shares,

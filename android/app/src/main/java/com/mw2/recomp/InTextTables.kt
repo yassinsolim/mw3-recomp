@@ -20,9 +20,11 @@ import javax.crypto.spec.SecretKeySpec
  *     .long  case, case, ...  the table, in the code, right after the bctr
  *
  * and without an entry for it the recompiler takes the bctr for a call
- * through a pointer. What is appended has to be the script's output to the
- * byte: the file's hash is part of what the game library states
- * (cmake/game_abi.cmake), and the build compares it with the app's.
+ * through a pointer. Title update 17 of Advanced Warfare's multiplayer also
+ * has a table of halfwords with no guard before it, which the analyser
+ * passes over for want of a length. What is appended has to be the script's
+ * output to the byte: the file's hash is part of what the game library
+ * states (cmake/game_abi.cmake), and the build compares it with the app's.
  */
 internal object InTextTables {
     /** Where every title's image is loaded (tools/title.py, BASE). */
@@ -92,19 +94,36 @@ internal object InTextTables {
         val sections = little.getShort(pe + 6).toInt() and 0xFFFF
         val optional = little.getShort(pe + 20).toInt() and 0xFFFF
         val code = ArrayList<Pair<Long, Long>>()
+        // Every function .pdata describes, by its start: its end (tools/title.py, functions).
+        val functions = java.util.TreeMap<Long, Long>()
         for (index in 0 until sections) {
             val at = pe + 24 + optional + index * 40
             if (little.getInt(at + 36) and 0x20 != 0) {     // IMAGE_SCN_CNT_CODE
                 val start = BASE + (little.getInt(at + 12).toLong() and 0xFFFFFFFFL)
                 code.add(start to start + (little.getInt(at + 8).toLong() and 0xFFFFFFFFL))
             }
+            if (String(image, at, 8, Charsets.ISO_8859_1).trimEnd('\u0000') == ".pdata") {
+                val table = little.getInt(at + 12)
+                for (entry in 0 until little.getInt(at + 8) / 8) {
+                    val start = big.getInt(table + entry * 8).toLong() and 0xFFFFFFFFL
+                    if (start == 0L) break
+                    functions[start] = start + ((big.getInt(table + entry * 8 + 4) ushr 8) and 0x3FFFFF) * 4L
+                }
+            }
         }
         if (code.isEmpty()) throw IOException("${executable.name} has no code section")
 
         val text = tables.readText(Charsets.ISO_8859_1)
         val known = Regex("^    0x([0-9A-F]+),\r?$", RegexOption.MULTILINE).findAll(text).map { it.groupValues[1].toLong(16) }.toHashSet()
+        val bases = Regex("^base = 0x([0-9A-F]+)\r?$", RegexOption.MULTILINE).findAll(text).map { it.groupValues[1].toLong(16) }.toHashSet()
         val added = StringBuilder()
         var count = 0
+        fun entry(base: Long, register: Long, labels: List<Long>) {
+            added.append("\n").append(MARK).append("[[switch]]\nbase = 0x%08X\nr = %d\ndefault = 0x%08X\nlabels = [\n".format(base, register, labels[0]))
+            labels.forEach { added.append("    0x%08X,\n".format(it)) }
+            added.append("]\n")
+            count++
+        }
         for ((start, end) in code) {
             var bctr = start + 12
             while (bctr < end - 8) {
@@ -133,11 +152,46 @@ internal object InTextTables {
                         }
                         // The cases follow the table.
                         if (labels.min() < at) throw IOException("the table at %08X runs into its own cases".format(bctr + 4))
-                        added.append("\n").append(MARK).append("[[switch]]\nbase = 0x%08X\nr = %d\ndefault = 0x%08X\nlabels = [\n".format(base, (index shr 21) and 31, labels[0]))
-                        labels.forEach { added.append("    0x%08X,\n".format(it)) }
-                        added.append("]\n")
-                        count++
+                        entry(base, (index shr 21) and 31, labels)
                     }
+                }
+                bctr += 4
+            }
+        }
+        // A table of halfwords with no guard before it (826B46E8 there: the
+        // caller's index is trusted):
+        //     lis r12 / slwi r0,rN,1 / addi r12,r12,lo / lhzx r0,r12,r0    the case's distance, from the table
+        //     lis r12 / addi r12,r12,lo / nop / add r12,r12,r0 / mtctr r12 / bctr
+        // The cases are taken while they are instructions of the function
+        // after the dispatch.
+        for ((first, end) in code) {
+            var bctr = first + 36
+            while (bctr < end - 8) {
+                val start = bctr - 36
+                val high = word(start)
+                val index = word(start + 4)
+                val low = word(start + 8)
+                val high2 = word(start + 16)
+                val low2 = word(start + 20)
+                if (word(bctr) == 0x4E800420L && word(bctr - 4) == 0x7D8903A6L && word(bctr - 8) == 0x7D8C0214L &&
+                    word(bctr - 12) == 0x60000000L && (high and 0xFFFF0000L) == 0x3D800000L &&
+                    (index and 0xFC1FFFFFL) == 0x5400083CL && (low and 0xFFFF0000L) == 0x398C0000L &&
+                    word(start + 12) == 0x7C0C022EL && (high2 and 0xFFFF0000L) == 0x3D800000L &&
+                    (low2 and 0xFFFF0000L) == 0x398C0000L && start !in bases
+                ) {
+                    fun address(upper: Long, lower: Long) = ((upper and 0xFFFF) shl 16) + (lower and 0xFFFF).toShort()
+                    val table = address(high, low)
+                    val origin = address(high2, low2)
+                    val within = functions.floorEntry(bctr)?.value?.takeIf { bctr < it }
+                        ?: throw IOException("the unguarded table's dispatch at %08X is in no function .pdata describes".format(start))
+                    val labels = ArrayList<Long>()
+                    while (true) {
+                        val label = origin + (big.getShort((table + 2 * labels.size - BASE).toInt()).toLong() and 0xFFFF)
+                        if (label % 4 != 0L || label <= bctr || label >= within) break
+                        labels.add(label)
+                    }
+                    if (labels.size < 2) throw IOException("the unguarded table at %08X has no cases in its function".format(table))
+                    entry(start, (index shr 21) and 31, labels)
                 }
                 bctr += 4
             }

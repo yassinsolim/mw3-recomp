@@ -22,6 +22,11 @@ import kotlin.concurrent.thread
  * Content\0000000000000000\41560914, or wherever the files were put) or as
  * files, and copied into the dlc folder (Dlc.kt). Lists what is there; a long
  * press removes one.
+ *
+ * The map packs are for the game the title update makes, whose game code is
+ * built from the player's disc and that update: once the update's package is
+ * here the build starts by itself, on this device and in the background
+ * (GameBuild.kt, GameBuildService.kt), and this screen says how far it is.
  */
 class DlcActivity : AppCompatActivity() {
 
@@ -30,10 +35,19 @@ class DlcActivity : AppCompatActivity() {
     private lateinit var progress: ProgressBar
     private lateinit var addFolder: Button
     private lateinit var addFiles: Button
+    private lateinit var build: Button
     private var packages: List<Dlc.Package> = emptyList()
 
     @Volatile
     private var cancelled = false
+
+    /** While the game code is being built: its progress, said again every two seconds. */
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            refresh()
+        }
+    }
 
     private val pickFolder = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
@@ -59,6 +73,11 @@ class DlcActivity : AppCompatActivity() {
         progress = findViewById(R.id.dlc_progress)
         addFolder = findViewById(R.id.dlc_add_folder)
         addFiles = findViewById(R.id.dlc_add_files)
+        build = findViewById(R.id.dlc_build)
+        build.setOnClickListener {
+            GameBuildService.start(this, automatic = false)
+            refresh()
+        }
 
         addFolder.setOnClickListener { pickFolder.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)) }
         addFiles.setOnClickListener {
@@ -84,6 +103,18 @@ class DlcActivity : AppCompatActivity() {
         refresh()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // A build that waited for the player's answer about the toolchain package, or that the system ended.
+        GameBuildService.resumeIfInterrupted(this)
+        refresh()
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(tick)
+        super.onPause()
+    }
+
     override fun onDestroy() {
         cancelled = true
         super.onDestroy()
@@ -93,12 +124,24 @@ class DlcActivity : AppCompatActivity() {
         TitleUpdate.refresh(this)
         packages = Dlc.installed(this)
         val packs = packages.count { !it.header.update }
+        val buildable = TitleUpdate.codeMissing && GameBuild.offered(this)
+        val state = GameBuildService.State(this)
+        val building = buildable && (state.wanted || GameBuild.progress.running)
         status.text = when {
             packages.isEmpty() -> getString(R.string.dlc_none)
             TitleUpdate.inUse -> getString(R.string.dlc_ready, packs)
+            building -> getString(
+                R.string.dlc_building, packs,
+                if (ToolchainInstall.confirmation != null) getString(R.string.update_code_confirm)
+                else GameBuildService.describe(this, GameBuild.progress),
+            )
+            buildable && state.error.isNotEmpty() -> getString(R.string.dlc_build_failed, packs, state.error)
             TitleUpdate.codeMissing -> getString(R.string.dlc_code_missing, packs, getString(R.string.setup_command))
             else -> getString(R.string.dlc_update_missing, packs)
         }
+        build.visibility = if (buildable && !building) View.VISIBLE else View.GONE
+        handler.removeCallbacks(tick)
+        if (building) handler.postDelayed(tick, 2000)
         list.adapter = ArrayAdapter(
             this, android.R.layout.simple_list_item_1,
             packages.map { item ->
@@ -125,6 +168,11 @@ class DlcActivity : AppCompatActivity() {
                     { done, total -> runOnUiThread { progress.progress = if (total > 0) (done * 1000 / total).toInt() else 0 } },
                     { cancelled },
                 )
+                // The update's package is new here and its game code is not:
+                // the player asked for the map packs, so it is built now.
+                if (TitleUpdate.codeMissing && GameBuild.offered(this) && !GameBuildService.State(this).wanted) {
+                    runOnUiThread { if (!isFinishing && !isDestroyed) GameBuildService.start(this, automatic = false) }
+                }
                 when {
                     added.copied.isNotEmpty() -> getString(R.string.dlc_added, added.copied.joinToString(", "))
                     added.already > 0 -> getString(R.string.dlc_already)

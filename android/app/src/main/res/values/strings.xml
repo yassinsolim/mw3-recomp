@@ -100,7 +100,10 @@
     <string name="dlc_add_files">Choose files</string>
     <string name="dlc_none">No map packs here yet.</string>
     <string name="dlc_ready">%1$d packages and the title update are here. Multiplayer now starts as the updated game, with the map packs under Bonus Maps, and Exo Zombies is in the launcher. The updated multiplayer plays with others who have the update; remove the title update here to play the disc\'s version again.</string>
-    <string name="dlc_code_missing">%1$d packages and the title update are here, but not the game code of the updated multiplayer, which is built on a PC from your disc and your update: run %2$s with -Dlc and the folder. Until then multiplayer is the disc\'s version, without the map packs.</string>
+    <string name="dlc_code_missing">%1$d packages and the title update are here, but not yet the game code of the updated multiplayer, which is built from your disc and your update: on this device with \"Build it now\" below (some minutes, in the background), or on a PC with %2$s -Dlc and the folder. Until then multiplayer is the disc\'s version, without the map packs.</string>
+    <string name="dlc_building">%1$d packages and the title update are here, and the game code of the updated multiplayer is being built on this device: %2$s. You can leave this screen, and play the campaign or the disc\'s multiplayer meanwhile; the map packs and Exo Zombies are in the launcher once it is done.</string>
+    <string name="dlc_build_failed">%1$d packages and the title update are here, but the game code of the updated multiplayer could not be built: %2$s</string>
+    <string name="dlc_build_now">Build it now</string>
     <string name="dlc_update_missing">%1$d packages are here, but not the game\'s title update, which the map packs need: it is the file in Content\\0000000000000000\\41560914\\000B0000 on the console\'s hard disk. Until it is added multiplayer is the disc\'s version, without the map packs.</string>
     <string name="dlc_item_pack">%1$s  ·  %2$.2f GB</string>
     <string name="dlc_item_update">%1$s  ·  title update  ·  %2$.2f GB</string>
@@ -436,6 +439,8 @@
     <string name="build_starting">Starting…</string>
     <string name="build_name_campaign">campaign</string>
     <string name="build_name_multiplayer">multiplayer</string>
+    <string name="build_name_update">multiplayer with your title update</string>
+    <string name="build_update_missing">The title update is no longer in the DLC folder: add it again in Add DLC.</string>
     <string name="build_step_prepare">Unpacking the toolchain: %1$d of %2$d files</string>
     <string name="build_step_toolchain">Downloading the toolchain package: %1$d of %2$d MB</string>
     <string name="build_step_recompile">Recompiling the %1$s</string>

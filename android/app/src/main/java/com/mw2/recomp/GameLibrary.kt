@@ -28,13 +28,14 @@ object GameLibrary {
     val separate: Boolean = BuildConfig.GAME_PACKAGE.isNotEmpty()
 
     /**
-     * Where a build on this device leaves [title]'s library: the app's
-     * private storage, which only the app can write, and from which Android
-     * lets an app load code it wrote (seen on Android 13 with targetSdk 35:
-     * it is running a program from there that is refused, not mapping a
-     * library).
+     * Where a build on this device leaves a library: the app's private
+     * storage, which only the app can write, and from which Android lets an
+     * app load code it wrote (seen on Android 13 with targetSdk 35: it is
+     * running a program from there that is refused, not mapping a library).
      */
-    fun built(context: Context, title: Title): File = File(File(context.filesDir, "game-code"), "lib${title.library}game.so")
+    fun built(context: Context, library: String): File = File(File(context.filesDir, "game-code"), "lib${library}game.so")
+
+    fun built(context: Context, title: Title): File = built(context, title.library)
 
     /** Beside a library built here: its statement, to tell without opening it whether this app takes it. */
     fun statementOf(library: File): File = File(library.path + ".abi")
@@ -54,19 +55,22 @@ object GameLibrary {
 
     /**
      * Whether the game code of the multiplayer as its title update makes it
-     * is here (TitleUpdate): in the game package, from a PC's setup with
-     * -Dlc. It is not built on the device.
+     * is here (TitleUpdate): built on this device once the update's package
+     * was added (GameBuild.kt), or in the game package from a PC's setup
+     * with -Dlc.
      */
-    fun updateReady(context: Context): Boolean = !separate || packaged(context, TitleUpdate.LIBRARY) != null
+    fun updateReady(context: Context): Boolean = !separate || files(context, TitleUpdate.LIBRARY).isNotEmpty()
 
     /**
-     * The title's libraries on this device, the one built here first: it is
+     * A library's files on this device, the one built here first: it is
      * what the player did last in this app, and a package from a PC that is
      * newer than it is still reached when the runtime refuses this one.
      */
-    private fun files(context: Context, title: Title): List<File> =
-        if (title.runLibrary != title.library) listOfNotNull(packaged(context, title.runLibrary))
-        else listOfNotNull(built(context, title).takeIf { it.isFile }, packaged(context, title))
+    private fun files(context: Context, library: String): List<File> =
+        listOfNotNull(built(context, library).takeIf { it.isFile }, packaged(context, library))
+
+    /** The libraries a run of [title] loads. */
+    private fun files(context: Context, title: Title): List<File> = files(context, title.runLibrary)
 
     /** Whether there is game code on this device at all: what the launcher says before a run. */
     fun installed(context: Context): Boolean =
@@ -123,9 +127,9 @@ object GameLibrary {
         }
     }
 
-    /** What [file], one of [title]'s libraries, states; null when it cannot be told. */
-    private fun statement(context: Context, title: Title, file: File): String? {
-        if (file == built(context, title)) {
+    /** What [file], one of [library]'s files, states; null when it cannot be told. */
+    private fun statement(context: Context, library: String, file: File): String? {
+        if (file == built(context, library)) {
             return try {
                 statementOf(file).readText()
             } catch (_: IOException) {
@@ -136,11 +140,11 @@ object GameLibrary {
         // package installed. The statement is kept in front of the file's
         // stamp, since it ends in a new line, and a text that does comes
         // back from Android's preferences with spaces behind it.
-        val key = "statement:${title.runLibrary}"
+        val key = "statement:$library"
         val kept = store(context).getString(key, null)
         val stamp = stamp(file)
         if (kept != null && kept.substringAfterLast('\n') == stamp) return kept.substringBeforeLast('\n').ifEmpty { null }?.plus("\n")
-        val read = statementIn(file, title.runLibrary)
+        val read = statementIn(file, library)
         store(context).edit().putString(key, read?.trimEnd('\n').orEmpty() + "\n" + stamp).apply()
         return read
     }
@@ -155,26 +159,30 @@ object GameLibrary {
     }
 
     /**
-     * Whether this version of the app takes [file], one of [title]'s
-     * libraries, by what it states. An app with no build kit cannot tell,
-     * and neither can any app of the multiplayer as its title update makes
-     * it, which no kit lists: the runtime says it when the library is loaded.
+     * Whether this version of the app takes [file], one of [library]'s
+     * files, by what it states. An app with no build kit cannot tell: the
+     * runtime says it when the library is loaded.
      */
-    private fun taken(context: Context, title: Title, file: File): Boolean {
-        val expected = GameBuild.kit(context)?.titles?.firstOrNull { it.library == title.runLibrary } ?: return true
-        return expected.takes(statement(context, title, file))
+    private fun taken(context: Context, library: String, file: File): Boolean {
+        val expected = GameBuild.kit(context)?.titles?.firstOrNull { it.library == library } ?: return true
+        return expected.takes(statement(context, library, file))
     }
 
-    /** Whether [title] has a library on this device that this version of the app runs. */
-    fun current(context: Context, title: Title): Boolean =
-        !separate || files(context, title).any { taken(context, title, it) && !refused(context, it) }
+    private fun taken(context: Context, title: Title, file: File): Boolean = taken(context, title.runLibrary, file)
+
+    /** Whether [library] has a file on this device that this version of the app runs. */
+    fun current(context: Context, library: String): Boolean =
+        !separate || files(context, library).any { taken(context, library, it) && !refused(context, it) }
+
+    /** Whether a run of [title] has a library this version of the app runs. */
+    fun current(context: Context, title: Title): Boolean = current(context, title.runLibrary)
 
     /**
-     * Whether [title]'s game code is here and was made for another version
-     * of the app: every library of it states code this one does not take.
+     * Whether [library]'s game code is here and was made for another version
+     * of the app: every file of it states code this one does not take.
      */
-    fun outdated(context: Context, title: Title): Boolean =
-        separate && files(context, title).let { files -> files.isNotEmpty() && files.none { taken(context, title, it) } }
+    fun outdated(context: Context, library: String): Boolean =
+        separate && files(context, library).let { files -> files.isNotEmpty() && files.none { taken(context, library, it) } }
 
     /** Where each title's library is, for a log (DeviceInfo). */
     fun describe(context: Context): String {

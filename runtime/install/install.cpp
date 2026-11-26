@@ -29,6 +29,7 @@
 #endif
 #ifdef MW2_ANDROID
 #include "../android/android.h"
+#include "../kernel/volume.h"
 #include "../../launcher/disc.h"
 #include "../../launcher/package.h"
 // A TU6 build configured without the update's hashes (no mw2/update/ and no
@@ -138,16 +139,19 @@ namespace
 
     enum class Installed { Yes, No, Unreadable };
 
-#if defined(AW_TITLE_TU17)
-    // Advanced Warfare's multiplayer as title update 17 makes it. The game
-    // folder has the disc's default_mp.xex and the dlc folder the player's
-    // own update package; the update's executable is the first with the
-    // second's default_mp.xexp applied, made here at every start and kept
-    // nowhere. Its image is the one this build was recompiled from, by its
-    // SHA-256: updates of two pressings (base versions 0x10 and 0x15) make
-    // the same image and differ in the header.
+#if defined(AW_TITLE)
+    // The image of Advanced Warfare's multiplayer as title update 17 makes
+    // it, the one awmp17 is recompiled from, by its SHA-256: updates of two
+    // pressings (base versions 0x10 and 0x15) make the same image and differ
+    // in the header.
     constexpr const char* kUpdateImageSha256 = "9112629a870d860e17f4f30abe3c1c60ae2919d9697e58ddf12552ab74efaf55";
+#endif
 
+#if defined(AW_TITLE_TU17)
+    // The game folder has the disc's default_mp.xex and the dlc folder the
+    // player's own update package; the update's executable is the first with
+    // the second's default_mp.xexp applied, made here at every start and
+    // kept nowhere.
     bool ApplyTitleUpdate(std::vector<uint8_t>& file, const fs::path& gameRoot, std::string& error)
     {
         std::vector<uint8_t> patch, updated;
@@ -693,6 +697,45 @@ namespace install
 #endif
 #endif
     }
+
+#if defined(AW_TITLE) && defined(MW2_HAVE_XEX_PATCHER)
+    // The file the recompiler needs to build the updated multiplayer's game
+    // code on the device: what the runtime makes in memory at every start
+    // (ApplyTitleUpdate), written out once.
+    bool MakeUpdatedExecutable(const fs::path& package, const fs::path& disc, const fs::path& to, std::string& error)
+    {
+        std::vector<uint8_t> base, patch, updated, image;
+        {
+            std::ifstream in(disc, std::ios::binary);
+            base.assign(std::istreambuf_iterator<char>(in), {});
+        }
+        if (base.empty()) { error = "The disc's default_mp.xex is not here yet."; return false; }
+        std::string why;
+        const auto volume = kernel::ReadVolume::OpenPackage(package, why);
+        const kernel::ReadVolume::Entry* entry = volume ? volume->Find("default_mp.xexp") : nullptr;
+        if (!entry || entry->directory)
+        {
+            error = "The title update's package has no default_mp.xexp" + (why.empty() ? std::string(".") : ": " + why + ".");
+            return false;
+        }
+        patch.resize(size_t(entry->size));
+        const int descriptor = volume->Acquire();
+        const size_t read = volume->Read(descriptor, *entry, 0, patch.data(), patch.size());
+        volume->Release(descriptor);
+        if (read != patch.size()) { error = "The title update's package could not be read to its end."; return false; }
+        if (XexPatcher::apply(base.data(), base.size(), patch.data(), patch.size(), updated, false) != XexPatcher::Result::Success)
+        {
+            error = "This title update does not apply to this disc's default_mp.xex.";
+            return false;
+        }
+        if (!install::xex::Image(updated, image, why) || TuSha256(image) != kUpdateImageSha256)
+        {
+            error = "This title update makes another executable than the one this app is for (title update 17's).";
+            return false;
+        }
+        return TuWriteWhole(to, updated, error);
+    }
+#endif
 }
 #endif
 

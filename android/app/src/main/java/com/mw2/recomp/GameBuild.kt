@@ -61,6 +61,18 @@ object GameBuild {
         val library: String = json.getString("library")
         val executable: String = json.getString("executable")
         val sha256: List<String> = strings(json, "sha256")
+
+        /** The folder its executable is in, under [root]. */
+        val folder: String = json.getString("folder")
+
+        /**
+         * Made by the player's own title update of the disc's executable of
+         * the same name (Advanced Warfare's multiplayer for the map packs,
+         * docs/dlc.md): its executable is made here, from that one and the
+         * update's package in the dlc folder, and it is built only while
+         * that package is there.
+         */
+        val fromUpdate: Boolean = json.getBoolean("fromUpdate")
         val toml: String = json.getString("toml")
         val tables: String = json.getString("tables")
         val tree: String = json.getString("tree")
@@ -182,7 +194,13 @@ object GameBuild {
     /** What the build writes for a bug report: each step's time, the memory and the heat. */
     fun report(context: Context): File = File(context.getExternalFilesDir(null) ?: context.filesDir, "game-build-report.txt")
 
-    private fun executable(context: Context, kit: Kit, title: KitTitle): File = File(File(root(context), kit.folder), title.executable)
+    private fun executable(context: Context, title: KitTitle): File = File(File(root(context), title.folder), title.executable)
+
+    /** The titles whose executables are the disc's own. */
+    private fun discTitles(kit: Kit): List<KitTitle> = kit.titles.filterNot { it.fromUpdate }
+
+    /** Whether this device has a use for [title]'s game code: the app carries it, or the player's title update is here. */
+    private fun needed(context: Context, title: KitTitle): Boolean = if (title.fromUpdate) Dlc.hasUpdate(context) else title.title != null
 
     /**
      * The titles whose game code a build here would make: those with no
@@ -190,14 +208,14 @@ object GameBuild {
      * or on a PC.
      */
     fun wanted(context: Context): List<KitTitle> =
-        kit(context)?.titles.orEmpty().filter { title -> title.title?.let { !GameLibrary.current(context, it) } == true }
+        kit(context)?.titles.orEmpty().filter { needed(context, it) && !GameLibrary.current(context, it.library) }
 
     /**
      * Whether there is game code here that this version of the app no longer
      * takes: the app was updated since, and expects other code.
      */
     fun outdated(context: Context): Boolean =
-        kit(context)?.titles.orEmpty().any { title -> title.title?.let { GameLibrary.outdated(context, it) } == true }
+        kit(context)?.titles.orEmpty().any { needed(context, it) && GameLibrary.outdated(context, it.library) }
 
     // ---- the executables ------------------------------------------------------
 
@@ -227,7 +245,7 @@ object GameBuild {
     /** Whether the player's executables are here already, each a build this app supports. */
     fun haveExecutables(context: Context): Boolean {
         val kit = kit(context) ?: return false
-        return kit.titles.all { title -> executable(context, kit, title).let { it.isFile && sha256(it) in title.sha256 } }
+        return discTitles(kit).all { title -> executable(context, title).let { it.isFile && sha256(it) in title.sha256 } }
     }
 
     /**
@@ -235,8 +253,8 @@ object GameBuild {
      * keeps it if it is a build this app supports. Throws an [IOException]
      * that says what is wrong with it.
      */
-    private fun take(context: Context, kit: Kit, title: KitTitle, source: FileChannel, offset: Long, size: Long) {
-        val target = executable(context, kit, title)
+    private fun take(context: Context, title: KitTitle, source: FileChannel, offset: Long, size: Long) {
+        val target = executable(context, title)
         target.parentFile?.mkdirs()
         val partial = File(target.path + ".part")
         try {
@@ -264,24 +282,24 @@ object GameBuild {
     fun takeFromDiscImage(context: Context, image: FileChannel) {
         val kit = kit(context) ?: throw IOException("this app has no build kit")
         val disc = DiscImage(image)
-        for (title in kit.titles) {
+        for (title in discTitles(kit)) {
             val (offset, size) = disc.find(title.executable) ?: throw IOException("${title.executable} is not on that disc image")
-            take(context, kit, title, image, offset, size)
+            take(context, title, image, offset, size)
         }
     }
 
     /** The executables from the installed game files. Throws an [IOException] that says what went wrong. */
     fun takeFromGameFolder(context: Context, gameDirectory: String) {
         val kit = kit(context) ?: throw IOException("this app has no build kit")
-        for (title in kit.titles) {
+        for (title in discTitles(kit)) {
             val file = File(gameDirectory, title.executable)
-            file.inputStream().channel.use { take(context, kit, title, it, 0, file.length()) }
+            file.inputStream().channel.use { take(context, title, it, 0, file.length()) }
         }
     }
 
     /** Whether [folder] holds a disc's files extracted: each of the executables is in it. */
     fun inGameFolder(context: Context, folder: File): Boolean =
-        kit(context)?.titles.orEmpty().let { titles -> titles.isNotEmpty() && titles.all { File(folder, it.executable).isFile } }
+        kit(context)?.let { discTitles(it) }.orEmpty().let { titles -> titles.isNotEmpty() && titles.all { File(folder, it.executable).isFile } }
 
     /**
      * The executables out of the disc image named [image] as Prefs names
@@ -327,6 +345,34 @@ object GameBuild {
         return DiscImage.search(context).games.any { image ->
             takeFromImage(context, image.path).also { if (it) prefs.chosenImage = image.path }
         }
+    }
+
+    /**
+     * The executable the player's title update makes of the disc's, for a
+     * title that is [KitTitle.fromUpdate]: the runtime's own patcher writes
+     * it (runtime/install/install.cpp) and checks that it is the one this
+     * app's game code is for. Made once for each update package: beside it
+     * is a note of the package it came from.
+     */
+    private fun makeFromUpdate(context: Context, kit: Kit, title: KitTitle) {
+        val update = Dlc.update(context) ?: throw Failure(context.getString(R.string.build_update_missing))
+        val target = executable(context, title)
+        val note = File(target.path + ".from")
+        val from = "${update.name}|${update.length()}|${update.lastModified()}"
+        val made = try {
+            target.isFile && note.readText() == from
+        } catch (_: IOException) {
+            false
+        }
+        if (made) return
+        val disc = executable(context, discTitles(kit).first { it.executable == title.executable })
+        // The launcher has loaded the runtime by now, but a build the system
+        // started again by itself runs before any screen of the app.
+        if (!NativeBridge.load(Title.carried.first())) throw Failure(NativeBridge.loadError().orEmpty())
+        target.parentFile?.mkdirs()
+        note.delete()
+        NativeBridge.nativeMakeUpdatedExecutable(update.path, disc.path, target.path)?.let { throw Failure(it) }
+        note.writeText(from)
     }
 
     // ---- the build -------------------------------------------------------------
@@ -491,7 +537,7 @@ object GameBuild {
         val root = root(context)
         val tree = File(root, title.tree)
         val logs = File(root, "logs")
-        val program = "${kit.folder}/${title.executable}"
+        val program = "${title.folder}/${title.executable}"
         var log = File(logs, "${title.library}_analyse.log")
         if (execute(context, listOf(toolchain.analyser.path, program, "config/${title.tables}"), root, log) != 0) {
             throw Failure(context.getString(R.string.build_tool_failed, "XenonAnalyse", tail(log)))
@@ -713,7 +759,7 @@ object GameBuild {
         }
         // In place under its own name only when whole, and the statement after
         // it: a library without one counts as not built.
-        val library = GameLibrary.built(context, title.title!!)
+        val library = GameLibrary.built(context, title.library)
         library.parentFile?.mkdirs()
         GameLibrary.statementOf(library).delete()
         if (!output.renameTo(library)) throw Failure(context.getString(R.string.build_tool_failed, name, "it could not be put in place"))
@@ -743,7 +789,15 @@ object GameBuild {
         }
         waitsFor = null
         val outcome = try {
-            build(context, automatic, mayRun, measures, ::lap)
+            // Again for what came to be wanted while it worked: the title
+            // update's package added during the first build (Add DLC).
+            val built = HashSet<String>()
+            while (true) {
+                val libraries = wanted(context).map { it.library }
+                if (built.containsAll(libraries)) break
+                build(context, automatic, mayRun, measures, ::lap)
+                built.addAll(libraries)
+            }
             Outcome.Done
         } catch (_: Stopped) {
             waitsFor?.let { Outcome.Waiting(it) } ?: Outcome.Paused
@@ -811,6 +865,7 @@ object GameBuild {
 
         progress = Progress(running = true, step = Step.PREPARE)
         if (!findExecutables(context)) throw Failure(context.getString(R.string.build_executables_missing))
+        titles.filter { it.fromUpdate }.forEach { makeFromUpdate(context, kit, it) }
         lap("executables")
         val toolchain = toolchain(context, kit, automatic)
         lap("toolchain")

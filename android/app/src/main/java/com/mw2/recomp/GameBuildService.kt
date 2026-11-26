@@ -280,8 +280,14 @@ class GameBuildService : Service() {
 
         /** [progress] in a line, for the notification and the screen. */
         fun describe(context: Context, progress: GameBuild.Progress): String {
-            val title = GameBuild.kit(context)?.titles?.firstOrNull { it.library == progress.library }?.title
-            val name = context.getString(if (title == Title.MULTIPLAYER) R.string.build_name_multiplayer else R.string.build_name_campaign)
+            val title = GameBuild.kit(context)?.titles?.firstOrNull { it.library == progress.library }
+            val name = context.getString(
+                when {
+                    title?.fromUpdate == true -> R.string.build_name_update
+                    title?.title == Title.MULTIPLAYER -> R.string.build_name_multiplayer
+                    else -> R.string.build_name_campaign
+                },
+            )
             return when (progress.step) {
                 GameBuild.Step.IDLE -> context.getString(R.string.build_starting)
                 GameBuild.Step.PREPARE ->

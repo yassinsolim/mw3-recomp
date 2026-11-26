@@ -652,6 +652,21 @@ MW2_NATIVE(jstring, nativeApplyTu6)(JNIEnv* env, jobject, jstring packagePath, j
     return FromString(env, error);
 }
 
+// Blocking: writes Advanced Warfare's updated multiplayer executable for the
+// build of its game code on the device. Returns null when it worked, else the
+// sentence to show; other games' apps have no such executable.
+MW2_NATIVE(jstring, nativeMakeUpdatedExecutable)(JNIEnv* env, jobject, jstring packagePath, jstring discExecutable, jstring target)
+{
+    std::string error = "This game has no title update to build.";
+#if defined(AW_TITLE) && defined(MW2_HAVE_XEX_PATCHER)
+    if (install::MakeUpdatedExecutable(ToString(env, packagePath), ToString(env, discExecutable), ToString(env, target), error))
+        return nullptr;
+#else
+    (void)packagePath; (void)discExecutable; (void)target;
+#endif
+    return FromString(env, error);
+}
+
 // ---- what the overlay shows -------------------------------------------------
 
 MW2_NATIVE(void, nativeStats)(JNIEnv* env, jobject, jfloatArray out)

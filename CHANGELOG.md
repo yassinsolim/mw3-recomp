@@ -4,6 +4,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Advanced Warfare: your map packs and Exo Zombies with the phone alone.**
+  **Add DLC → Choose a folder**, pick your console's
+  `Content\0000000000000000\41560914` folder (the packs in `00000002` and
+  the title update in `000B0000`, which they need), and that is all: the
+  app copies the packages and then builds the game code of the updated
+  multiplayer itself, in the background with the build's notification, from
+  your disc and your title update. No PC and no terminal. On a Retroid
+  Pocket Flip 2 the copy of 3.5 GB took under a minute and the build
+  5 minutes 58 seconds; the campaign and the disc's multiplayer can be
+  played meanwhile, and afterwards Multiplayer is the updated game (1.20)
+  and Exo Zombies is in the launcher
+  ([docs/dlc.md](docs/dlc.md#advanced-warfare-map-packs-and-exo-zombies),
+  [docs/ondevice-build.md](docs/ondevice-build.md#the-multiplayer-a-title-update-makes)).
+  `setup -Dlc` on a PC still works and is no longer needed. Not played in
+  this run: a match on a pack's map from the library built on the phone.
+
 ### Changed
 - **An update of the app no longer asks you to build the game code again
   unless the code really changed, and then does it for you.** Nothing has

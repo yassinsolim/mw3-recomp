@@ -234,6 +234,56 @@ file works with no SELinux denial, so no package is assembled and signed on
 the device and the game package's rules are unchanged. The runtime checks
 the statement exactly as it does for a package.
 
+### The multiplayer a title update makes
+
+Advanced Warfare's map packs are for the multiplayer as the game's title
+update makes it, which is another executable and so another library,
+`awmp17` ([dlc.md](dlc.md#advanced-warfare-map-packs-and-exo-zombies)). The
+kit lists it as a third title, marked as made from an update
+(`fromUpdate`, with a folder of its own, `aw/tu17`), and the build takes it
+up only while a title update's package is in the app's `dlc` folder
+(`GameBuild.needed`): an app without the player's update builds two
+libraries as before.
+
+- **Its executable** is not on the disc. The runtime's own patcher, the one
+  that makes it in memory at every start of the updated game, writes it once
+  (`NativeBridge.nativeMakeUpdatedExecutable`,
+  `install::MakeUpdatedExecutable`): the disc's `default_mp.xex`, kept from
+  the first build, with the `default_mp.xexp` of the update's package
+  applied, and kept only when its image is title update 17's by its
+  SHA-256. An update of another version says so there and nothing is
+  compiled. A note beside the executable names the package it came from.
+- **Its jump tables.** Besides the kind Call of Duty 4 has, this executable
+  has one table of halfwords with no bound before it, which the analyser
+  passes over; `InTextTables.kt` adds it as `tools/intext_switch_tables.py`
+  does, from the function's extent in `.pdata`.
+- **When.** Add DLC starts the build when it has copied an update's package
+  whose game code is not here (`DlcActivity`), as the player's own start:
+  the toolchain package may be downloaded for it. A build already under way
+  takes the new title up when it has finished the others (`GameBuild.run`
+  looks again at what is wanted). After an update of the app that expects
+  other code, the third library is rebuilt with the other two.
+- **Where it is used.** `GameLibrary` knows a library by its name, so the one
+  built here is found for the updated multiplayer as the others are, before
+  a game package's from `setup -Dlc`.
+
+**Measured on the Retroid Pocket Flip 2** (25 November 2026, a newly
+installed app, no game package, the disc images and the `41560914` folder on
+the memory card; nothing came from a PC but those files and, so as to leave
+the device's own toolchain package alone, a toolchain package under another
+name installed beforehand). The first build, campaign and multiplayer, took
+13 minutes with the app replaced once on the way. Add DLC then copied eleven
+packages (3.5 GB: the title updates, the six Compatibility Packs, Havoc,
+Atlas Gorge, the Season Pass) in under a minute and started the third build
+by itself: the executable 0.8 s, analyse and recompile 34.5 s (the statement
+check passed, so the tree is the PC's), 212 files compiled in 322 s with
+eight compilers, the link 0.3 s; **5 minutes 58 seconds** in all, 3.8 GB
+free at least, battery 34.7 °C, no thermal status. The Add DLC screen then
+read "Multiplayer now starts as the updated game", the launcher had **Exo
+Zombies**, and Multiplayer came up as version 1.20 with its Store entry at
+60 frames a second from `libawmp17game.so`. A match on a pack's map was
+**not** played in this run. Evidence: `private-captures\aw\flip-dlc-ondevice-*`.
+
 ### Pausing, interruptions, memory and heat
 
 - Every step leaves its result under its final name only when it is whole
