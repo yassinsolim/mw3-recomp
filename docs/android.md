@@ -155,21 +155,23 @@ A limit the player sets, in Settings or the game's menu, stays whatever the devi
 
 The log says which: `adaptive: held to 60 frames a second, not 120: ...; the display follows the rate`, `...; the display is kept at 120 Hz because the processor is late`, `adaptive: the display is kept at 120 Hz because the sound broke up in a slower mode (its 60 Hz mode: 5 underruns in the last 2 s)`; the performance report has a `display mode:` line. What keeping the mode costs, measured on the Thor with Seoul held to 60 and nothing beside it: the frames are not as even, since the guest's 60 Hz clock is not the panel's 119.1 Hz halved -- 87 to 89 of 97 frames were on screen for 16.7 ms and the rest in pairs of 8.3 and 25.0, where the 60 Hz mode had 97 of 97 -- and the phone drew 872 mA from USB where it drew 751 in the 60 Hz mode (25 samples each, of 340 to 1,750 mA, and the 60 Hz run had the sun's shadows on): about a sixth more, which is within what the samples spread.
 
-**Measured on the two devices, 26 November 2026** (`.dev` debug builds, the bundled Turnip, 150 s runs of the visual suite's scenarios; the suite's own figures on `821d28f` beside them). The Thor's rows but the loads were run with the shadows tried after ten seconds, before that became thirty, and have not been run again; the whole visual suite has not been run on this change.
+**Measured on the two devices, 26 November 2026** (`.dev` debug builds, the bundled Turnip). The first four rows are the visual suite's own figures, on `821d28f` before and on this change after; the loads are 150 s runs of the suite's Seoul.
 
 | | before | now |
 |---|---|---|
-| Thor, Advanced Warfare's Seoul | 118.3 | 118.4; the scene whole in 87% of the frames, at 92 to 76% in the rest; the shadows on from ten seconds in until the chip was first late |
-| Thor, Modern Warfare 2's S.S.D.D. | 118.7 | 118.3, 93.6% of frames on time; the scene whole throughout; the shadows as above |
-| Flip 2, Seoul | 60.4 | 60.0, 97.3% on time; the scene whole in 84% of the frames, down to 70% in the rest, never under; no shadows |
-| Flip 2, S.S.D.D. | 60.1 | 59.9, 95.3% on time; the scene whole; no shadows (the chip at 9 to 10 of 16.7 ms) |
+| Thor, Advanced Warfare's Seoul | 118.3 | 118.3; the shadows not on: no thirty seconds in a row had the room for them |
+| Thor, Modern Warfare 2's S.S.D.D. | 118.7 | 118.6 |
+| Flip 2, Seoul | 60.4 | 60.4 |
+| Flip 2, S.S.D.D. | 60.1 | 60.1 |
 | Thor, Seoul at three times its size (the chip 19 to 38 ms a frame) | 38.5 under a limit of 120 | held to 60 after ten seconds at 52, to 30 after ten at 27; the display follows the rate into its 60 Hz mode; no underrun |
 | Thor, Seoul with eight busy shells (the processor 98% busy) | 45.6 under 120; 152 underruns in 82 s of play | held to 60 after ten seconds at 65, to 30 after ten at 26; the display kept at 120 Hz because the processor is late; 1 underrun in 106 s of play |
 | Thor, the same, the shells stopped 110 s into the run | | held to 60 at 66 s and back to 120 at 155 s: thirty seconds with room for it, once the minute after the step down had passed; 3 underruns in 256 s of play |
 | Thor, the same shells, an FPS limit of 30 chosen (the display in its 60 Hz mode) | 2,427 underruns a minute of play | the display back at 120 Hz 16 s into the run because the sound broke up; 7 underruns in 67 s of play |
 | Flip 2, Seoul at twice its size (the chip 33 to 38 ms) | 28.2 under 60 | held to 30 after ten seconds at 28 |
 
-**The performance report.** The game's menu has **Share performance report**: the app, the phone, the chip and its memory (`DeviceInfo`), the screen's modes, the settings and which of them were chosen (`Prefs.graphicsSummary`), and from the run the driver, the device line of the log, what the run is held to, the play so far (frames a second, the slowest two seconds, the share of the time under the rate, the chip's and the renderer's thread's time a frame), the last minute ten seconds a line, the last changes, the sound's underruns and what its sink holds, and the heat (`nativePerformance`, `adaptive::Report`). Text, through Android's share sheet.
+The visual suite on this change (rebased on `0120f88`, both phones, the ten scenarios each): the Thor passed all ten at 117.4 to 119.1 frames a second (117.2 to 119.2 on `821d28f`); the Flip 2 ran 59.7 to 60.4 with two failures that are not the picture's. `mw2-bots`, `local-flicker` at 101.2 s: a near pillar leaving the left edge of the picture in a turn, there the frame before and gone the frame after. `mw3-campaign`, `black` at 149.0 s: the walk took the player into an unlit doorway in Black Tuesday for nine seconds, the weapon, the sight and the HUD drawn over the dark, which the check takes for a black picture; on `821d28f` the walk did not end there.
+
+**The performance report.** The game's menu has **Share performance report**: the app, the phone, the chip and its memory (`DeviceInfo`), the screen's modes, the settings and which of them were chosen (`Prefs.graphicsSummary`), and from the run the driver, the device line of the log, what the run is held to and whether the display follows it, the play so far (frames a second, the slowest two seconds, the share of the time under the rate, the chip's and the renderer's thread's time a frame), the last minute ten seconds a line, the last changes, the sound's underruns and what its sink holds, and the heat (`nativePerformance`, `adaptive::Report`). It goes as the launcher's log does (`LogShare`): a text file through Android's share list, or its end copied; and it is written into the run's log as well.
 
 ### Dynamic Memory Management & Texture Budget
 - **Device-Aware Defaults** (`ApplyMemoryDefaults`, `runtime/android/perf.cpp`): on Unified Memory Architecture the CPU and GPU share one pool, and the desktop defaults are sized for a machine with a separate one. Each default is taken from the memory this phone has, and each is set with overwrite off, so the launcher's own setting or a variable already in the environment wins:
@@ -722,14 +724,25 @@ trouble) and the driver in use, says what to try, and has two more buttons:
 where the app carries one; chosen as Settings' Graphics driver chooses it,
 and the run starts again through `HandOffActivity`, since a process opens
 its driver once -- and **Share log**, which sends what the launcher's Log
-screen shares and leaves the message up. (The two buttons have not been
-pressed on a device yet, nor has the menu's Share performance report.)
+screen shares, as a file (`LogShare`), and leaves the message up.
+
+Pressed on the Retroid Pocket Flip 2, 26 November 2026 (Modern Warfare 2, a
+`.dev` build with the two switches below). **Share log** on either message
+and the menu's **Share performance report** each opened the system's share
+list with `mw2-log-0.1.7-<date>.txt` written for it (34 KB, 65 KB and 3 KB),
+and the message was still up behind it. **Use the phone's driver** saved
+the choice (`driverDirectory` empty, `driverChoiceMade` true), the run
+started again in another process on `the system's libvulkan.so`, and so did
+the next start with nothing forced.
 
 Seen on the AYN Thor with the two switches that stand in for such a device
 in a build with diagnostics: `MW2_TEST_REFUSE_DEVICE=1` (the device refused
 as one without descriptor indexing: the message was up 20 seconds into the
 run, the first time looked) and `MW2_TEST_NO_FRAMES=1` (every frame of the
-title's withheld from the window: the message at 30 seconds).
+title's withheld from the window: the message at 30 seconds). On the Flip 2
+the message over no picture came 32 seconds after the start; its **Use
+Turnip** is the one button not pressed on a device (the tap meant for it
+landed on Keep waiting).
 
 ### What the log share holds
 

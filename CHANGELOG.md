@@ -176,10 +176,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   seconds did not come near the screen's rate, and goes up again when there
   is room. A limit or shadows you choose stay. On the AYN Thor with Advanced
   Warfare drawn at three times its size: held to 60 after ten seconds at 52
-  frames a second, to 30 after ten at 27; unloaded, the Thor and the Retroid
-  Pocket Flip 2 run as before (118.4 and 60.0 in Seoul, 118.3 and 59.9 in
-  S.S.D.D.). Not yet done: the visual suite on this change, the step back up
-  on a device, and a device of the kind it is for.
+  frames a second, to 30 after ten at 27; with the processor kept busy by
+  other programs: held to 60 and back at 120 forty-five seconds after they
+  stopped; unloaded, the Thor and the Retroid Pocket Flip 2 run as before
+  (118.3 and 60.4 in Seoul, 118.6 and 60.1 in S.S.D.D., by the visual suite:
+  ten of ten on the Thor, and on the Flip 2 eight with two failures that are
+  the check's own, said in docs/android.md). Not yet done: a device of the
+  kind it is for.
   `MW2_ADAPTIVE=0` turns it off; `MW2_FPS_AUTO`, `MW2_FPS_STEPS`
   ([docs/android.md](docs/android.md#what-a-device-is-given-and-what-it-is-measured-for)).
 - **A black screen says why.** When the renderer cannot start (no driver, a
