@@ -272,6 +272,34 @@ look at each frame it named).
   folder stopped at 111 files of 380 (`copy response: EOF`), and a
   multiplayer run on it ended in `Could not load default asset`.
 
+**The chequerboard moves (26 November, evening; Windows only).** The image
+pool's move function takes flags, and with bits 3 to 8 set the block is
+every other 128 bytes of a 4 KB or 8 KB piece, the other 128s in the next
+piece: two blocks lie in each other's gaps, and a second vertex shader
+copies them a piece a draw (`image_move.cpp`). Taken for plain moves, they
+matched no draw and were made whole at the end of the frame after, late and
+over the other block's half: 4,517 of 22,309 moves in a hundred seconds of
+Shadows of Evil, none since (`image pool:` in the log, 0 at the end of
+their frame). Not yet run on a device, so whether this is the Flip's flat
+far street is not shown.
+
+What it is not: the one flat frame in several thousand on Windows. That is
+still there at the same rate with the moves right (2 in 12,100 frames of
+one copy alone; `MW2_FLASH_LONE=6` marks them), and is not the shadow of
+guest memory (seen with `MW2_NO_SHADOW=1 MW2_KEEP_VERTICES=0`), the scene's
+size (seen with `MW2_SCENE_DYNAMIC=0`), a slow ring consumer or a vertex
+constant that is not a number. In the marked frames looked at (about a
+dozen) a thin streak or a wide flat band, the colour of the zombies' eyes
+or of the fog, starts at a zombie's head, and the streak is there some
+frames either side: it looks like the eyes' trail drawn from a point that
+is not the zombie's. Its vertices were not caught, so that is a guess.
+
+That a draw's vertices past its declared piece write nothing is read from
+the layout (the pool's sources come in pairs 4 KB apart, each as long as
+the other, which only fits if each has half), not from a console: with all
+of them written the far street was flat rectangles in dozens of frames a
+run, with the piece alone in none beyond the streaks above.
+
 Open on Android:
 
 - Shadows of Evil: for a second as the first zombies arrive, the far end of

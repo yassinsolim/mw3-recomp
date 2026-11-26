@@ -432,6 +432,37 @@ namespace vk::renderer::detail
         std::snprintf(kept.stamp, sizeof kept.stamp, "%s", mw2log::Stamp());
     }
 
+    // MW2_FLASH_LONE=<percent>: a mark nobody pressed, at a frame unlike both
+    // the one before it and the one after it over that share of the picture
+    // (and those two alike there). A single wrong frame in several thousand
+    // is found by no one watching, and its draws are gone a frame later.
+    // Every eighth pixel of every eighth row is looked at.
+    bool LoneFrameKept()
+    {
+        static const double share = diag::Real("MW2_FLASH_LONE", 0.0) / 100.0;
+        const FlashRecorder& f = g_flashes;
+        const size_t kept = f.ring.size();
+        if (share <= 0.0 || kept < 3) return false;
+        const uint8_t* after = f.ring[(f.next + kept - 1) % kept].pixels.data();
+        const uint8_t* lone = f.ring[(f.next + kept - 2) % kept].pixels.data();
+        const uint8_t* before = f.ring[(f.next + kept - 3) % kept].pixels.data();
+        size_t looked = 0, unlike = 0;
+        for (uint32_t y = 0; y < f.height; y += 8)
+            for (uint32_t x = 0; x < f.width; x += 8, looked++)
+            {
+                const size_t at = (size_t(y) * f.width + x) * 4;
+                int odd = 0, still = 0;
+                for (int c = 0; c < 3; c++)
+                {
+                    odd = std::max(odd, std::min(std::abs(lone[at + c] - before[at + c]),
+                                                 std::abs(lone[at + c] - after[at + c])));
+                    still = std::max(still, std::abs(after[at + c] - before[at + c]));
+                }
+                unlike += odd > 24 && odd > 3 * still + 8;
+            }
+        return looked && double(unlike) / double(looked) >= share;
+    }
+
 
     // The draw list kept beside the flash frames (see DrawRecord). Only while a
     // flash hunt keeps frames: every draw costs a record and a few hashes.
@@ -753,7 +784,10 @@ namespace vk::renderer::detail
             if (targetsToo) DumpTargets();
         }
         if (plan.keep && !frame.empty())
+        {
             KeepFlashFrame(std::move(frame), g.presentWidth, g.presentHeight, g.frames);
+            if (LoneFrameKept()) vk::renderer::FlashSeen("MW2_FLASH_LONE");
+        }
         // MW2_FLASH_MARK_AT=<seconds>: a mark nobody pressed, to test the
         // recorder in a run with no one watching.
         static const double markAt = diag::Real("MW2_FLASH_MARK_AT", 0.0);
