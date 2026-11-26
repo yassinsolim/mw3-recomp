@@ -40,14 +40,16 @@ DEVICES = {
 }
 
 
-def walk(start, end, fire_from=None):
+def walk(start, end, fire_from=None, rest=0.0):
     """A pad script that walks and turns from `start` to `end` seconds, and fires from `fire_from`.
 
     Forward for 2.4 s of every 3, a turn between (left and right by turns of
     unequal length, so the path does not close on itself), a sidestep and a
     jump now and then, and in a fight a burst of fire every twelve seconds:
     enough to load new parts of a level, cross lit and shadowed ground and
-    draw the weapon's effects.
+    draw the weapon's effects. With `rest` the player stands that long after
+    every twelve seconds of it: a shadow that flickers is seen best in a
+    view that does not move.
     """
     turns = ("rx+:0.25", "rx-:0.5", "rx-:0.35", "rx-:0.35", "rx-:0.5", "rx-:0.25", "rx+:0.5", "rx+:0.25",
              "rx-:0.35", "rx+:0.5", "rx+:0.5", "rx+:0.25")
@@ -65,6 +67,8 @@ def walk(start, end, fire_from=None):
             entries.append(f"{at + 0.2:.1f}:a")
         at += 3.0
         step += 1
+        if rest and step % 4 == 0:
+            at += rest
     return ",".join(entries)
 
 
@@ -84,6 +88,8 @@ class Scenario:
     # Seconds of play (from the log's "in play at") after which the level is over by its own design
     # and what the screen shows is no longer judged; None for a level that lasts the run.
     over_after: float = None
+    # Seconds the player stands still after every twelve of walking.
+    rest: float = 0.0
 
     def over_at(self, log):
         """The second of the run from which nothing is judged, or None."""
@@ -92,7 +98,7 @@ class Scenario:
         return log.in_play_at + self.over_after
 
     def input_script(self):
-        steps = walk(self.play_from, self.seconds - 2, self.combat_from)
+        steps = walk(self.play_from, self.seconds - 2, self.combat_from, self.rest)
         return f"{self.inputs},{steps}" if self.inputs else steps
 
     def switches(self, dump_folder=None, dump_every=0):
@@ -146,7 +152,13 @@ SUITE = [
              "Advanced Warfare, Induction (Seoul): the drop and the street", combat_from=65),
     Scenario("aw-match", "aw", "MULTIPLAYER", 200, "45:set ui_mapname mp_prison",
              "20:down:0.07,22:down:0.07,24:a,38:down:0.07,40:a,54:a,100:a,106:a,112:a", 125,
-             "Advanced Warfare, Riot in a private match, empty: its sun shadows"),
+             "Advanced Warfare, Riot in a private match, empty"),
+    # The sun's shadows are off where a phone would not hold its rate with them (MW2_SHADOWS); here
+    # they are on, on the map a tester saw them flicker on, and the player stands half the time.
+    Scenario("aw-shadows", "aw", "MULTIPLAYER", 230, "45:set ui_mapname mp_solar",
+             "20:down:0.07,22:down:0.07,24:a,38:down:0.07,40:a,54:a,100:a,106:a,112:a", 125,
+             "Advanced Warfare, Solar in a private match, empty, the sun's shadows on", options={"MW2_SHADOWS": "1"},
+             rest=12.0),
 ]
 
 

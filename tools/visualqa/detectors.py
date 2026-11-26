@@ -86,6 +86,10 @@ class Thresholds:
     textured: float = 6.0
     flat: float = 0.8
     missing_regions: int = 3
+    # A region that went flat is the flat surface beside it slid in when a
+    # region next to it was flat the frame before and within this many levels
+    # of its colour (Solar's bare walls in a turn: 1 to 4 levels apart).
+    flat_slid_levels: float = 8.0
     missing_elsewhere: float = 0.2
     missing_events: int = 2
     # Frozen: no new picture for this long while the log says frames were made.
@@ -279,10 +283,23 @@ def missing_geometry(m, context, t):
     went_flat[1:] = (texture[:-1] >= t.textured) & (texture[1:] < t.flat)
     rows = []
     sizes = {}
+    colour = np.nan_to_num(m.colour, nan=0.0)
     for row in np.flatnonzero(went_flat.sum(axis=1) >= t.missing_regions):
         if not context.in_play(m.seconds[row]):
             continue
+        # A flat wall sliding into a region in a turn, as the edge that was
+        # in it slides out, is flat there too: the region beside it was that
+        # flat colour the frame before. Geometry that goes missing leaves a
+        # colour its neighbours did not have.
+        was_flat = (texture[row - 1] < t.flat).reshape(down, across)
+        before = colour[row - 1].reshape(down, across, 3)
+        now = colour[row].reshape(down, across, 3)
         grid = went_flat[row].reshape(down, across).astype(np.uint8)
+        for at_down, at_across in zip(*np.nonzero(grid)):
+            beside = (slice(max(0, at_down - 1), at_down + 2), slice(max(0, at_across - 1), at_across + 2))
+            alike = np.abs(before[beside] - now[at_down, at_across]).max(axis=2) <= t.flat_slid_levels
+            if (alike & was_flat[beside]).any():
+                grid[at_down, at_across] = 0
         count, _, boxes, _ = cv2.connectedComponentsWithStats(grid, connectivity=4)
         largest = int(boxes[1:, cv2.CC_STAT_AREA].max()) if count > 1 else 0
         # A view turning towards a dark wall or the sky goes flat there too,

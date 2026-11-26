@@ -180,6 +180,7 @@ burst of fire every twelve seconds).
 | `cod4-bots` | Call of Duty 4, Crash: empty for 40 s, then six bots | the empty part |
 | `aw-campaign` | Advanced Warfare, Induction | nothing |
 | `aw-match` | Advanced Warfare, Riot in a private match, empty | the whole run |
+| `aw-shadows` | Advanced Warfare, Solar in a private match, empty, with the sun's shadows on (`MW2_SHADOWS=1`; they are off by default where a phone runs above 60 frames a second or has an Adreno 6xx) and the player standing still twelve seconds in every twenty-four | the whole run |
 
 Every other check (`flicker`, `blocks`, black and white frames, `frozen`,
 stalls, pacing, the driver) judges every scenario from its start of play to
