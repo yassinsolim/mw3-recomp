@@ -3,12 +3,15 @@ Modern Warfare 3 for Android v0.1.9
 Nothing to rebuild: the game code you built for v0.1.8 is used as it is, and your saves and settings are kept.
 
 New
-- Updates are simpler from now on. The app checks the game code itself, so an update asks for a rebuild only when the code really changed, and then builds it by itself in the background.
+- Your own map packs: Add DLC, Choose a folder, pick the folder copied from your own console. The maps then appear under Bonus Maps in Multiplayer and in the Spec Ops map packs list. No DLC is included or downloaded.
+- Updates are simpler: the app checks the game code itself, asks for a rebuild only when the code really changed, and then builds it by itself in the background.
 - Multiplayer: an invitation goes only to the player you pick, and a private match on a server is no longer announced to everyone. When System Link finds nobody, the app asks whether both devices are on the same Wi-Fi.
 - Fixed: the sound slowly fell behind the picture the longer you played.
+- Fixed: a piece of the scene could be missing for a single frame.
 
 Known issues
-- Rarely, a shadow or a piece of the scene is missing for a single frame; being fixed.
+- Rarely, a sun shadow is missing for a single frame; being fixed.
+- Map packs are experimental. On Parish, buildings to one side can be missing for a moment after a respawn.
 - The first minutes on a fresh install stutter while shaders compile.
 - Multiplayer over the internet needs a relay server; see the README.
 
