@@ -241,16 +241,48 @@ match; not looked into. One multiplayer run in five on the Flip ended in a
 lost device after a five second stall (before the dispatcher changes; not
 seen since, in four runs).
 
+**The round of 26 November, afternoon** (the build with `android` merged to
+`821d28f`; Turnip in every log; `tools/visualqa` over every recording and a
+look at each frame it named).
+
+| | in play | |
+|---|---|---|
+| Flip, multiplayer on Combine, first run and second | 56.4, 56.1 | muzzle flashes only; no flat wash on the first run |
+| Flip, The Giant | 57.5 | muzzle flashes and snow only, with the lighting table read at its bind (below) |
+| Flip, Shadows of Evil | 57.8 | the far end of the street drawn as flat rectangles for a second as the zombies arrive: open |
+| Thor, multiplayer on Combine, first run | 56.5 | the scene whole in every frame, the chip at work 33% of the time |
+
+- **The Thor's scene keeps its size.** The rule that draws it smaller held a
+  frame against the display's 8.3 ms; the title makes 60 a second at most
+  (`renderer_scene.cpp`).
+- **Models lit wrongly for one frame** (the teleporter's door and pad, the
+  held weapon, a zombie's arm; the "panel's texture" above). The model
+  lighting table, a 512x256x4 volume as Modern Warfare 2's, was read again at
+  the end of each segment that binds it and found half written: four or five
+  such frames in 46 s of standing still in The Giant on the Flip, none in
+  three runs with the table read once, where the frame first binds it
+  (`MW2_TABLE_AT_BIND`, on for this title alone). Not seen on Windows
+  either way.
+- **The zombies' launch.** The launcher starts them with launch data
+  (`TitleUpdate.zombiesLaunchData`); without it the zombies' executable
+  shows the main menu, where A is Multiplayer. A test that writes
+  `run_request.txt` itself must write that line too; the player's name is
+  asked before the zombies' first start as before any multiplayer's.
+- The Thor's zombies of this round are not counted: `adb push` of the game
+  folder stopped at 111 files of 380 (`copy response: EOF`), and a
+  multiplayer run on it ended in `Could not load default asset`.
+
 Open on Android:
 
-- Shadows of Evil and The Giant on the Flip, and The Giant on the Thor,
-  measured and their frames checked with the build as it is.
-- The other four games against this branch on a device (`visualqa.py run
-  <scenario> --suffix .bo3`); the apps are built.
-- The scene drawn smaller on the Thor with the chip idle.
-- The teleporter panel's one-frame texture in The Giant; the lost device.
-- The zombies' first start from the launcher asks for the player's name,
-  and PLAY there started the multiplayer.
+- Shadows of Evil: for a second as the first zombies arrive, the far end of
+  the street is one flat rectangle, black, red or the sky's colour by turns
+  (Flip, 100 frames of 4,271); one such frame in 3,500 on Windows, with a
+  thin spike through it, which looks like a draw with vertices that are not its
+  own (not shown). Not
+  found: the consumer was not compiling in those seconds.
+- The Thor's zombies and second multiplayer run with the build as it is,
+  and Advanced Warfare's three scenarios on the Flip (its test files were
+  not on the phone) before the merge into `android`.
 - The copied install was not run on a device.
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
 
