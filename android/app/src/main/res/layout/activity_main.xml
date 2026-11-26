@@ -47,6 +47,14 @@
             android:fontFamily="sans-serif-medium"
             android:visibility="gone" />
 
+        <!-- Two columns (MainActivity.refresh). Left: the one large button,
+             which is Play once the game is set up and the guided setup until
+             then, a line of status under it, and what there is to play and
+             to add. Right: the chosen entry's card, then help and settings.
+             The groups a game is needed for are hidden until there is one.
+             The left column's weights are MainActivity.sizeLeftColumn's:
+             its entries are as tall as the right column's however many
+             of them this game shows. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -65,94 +73,101 @@
                     android:id="@+id/play"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
-                    android:layout_weight="1.6"
-                    android:layout_marginBottom="4dp"
+                    android:layout_weight="2.4"
                     android:minHeight="0dp"
                     android:background="@drawable/bg_play_orange"
                     android:gravity="center"
                     android:text="@string/play"
+                    android:textAllCaps="false"
                     android:textColor="#FFFFFF"
-                    android:textSize="16sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:fontFamily="sans-serif-condensed"
-                    android:letterSpacing="0.14"
+                    android:letterSpacing="0.1"
+                    android:lineSpacingExtra="2dp"
                     android:stateListAnimator="@null" />
 
-                <Button android:id="@+id/other_app" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
-                <!-- Advanced Warfare with the player's own title update (MainActivity shows it). -->
-                <Button android:id="@+id/entry_zombies" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/entry_zombies"
-                    android:visibility="gone" />
-                <!-- Modern Warfare 3 with the player's own map packs that hold Special Ops levels (MainActivity shows it). -->
-                <Button android:id="@+id/entry_pack_levels" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/entry_pack_levels"
-                    android:visibility="gone" />
-                <!-- Modern Warfare 3's multiplayer only (MainActivity shows it). -->
-                <Button android:id="@+id/entry_bots" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:visibility="gone" />
-                <Button android:id="@+id/install" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/install_game" />
-                <Button android:id="@+id/entry_build" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/build_entry"
-                    android:visibility="gone" />
-                <!-- Advanced Warfare, once the game files are there (MainActivity shows it). -->
-                <Button android:id="@+id/entry_dlc" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/entry_dlc"
-                    android:visibility="gone" />
-                <Button android:id="@+id/entry_mods" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/entry_mods" />
-                <Button android:id="@+id/entry_tu6" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/entry_tu6" />
+                <!-- One line: ready, or what is in the way. -->
+                <TextView
+                    android:id="@+id/status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="2dp"
+                    android:paddingStart="4dp"
+                    android:maxLines="3"
+                    android:ellipsize="end"
+                    android:textColor="#C9D1D9"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif" />
+
+                <LinearLayout
+                    android:id="@+id/group_play"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="2"
+                    android:orientation="vertical">
+
+                    <TextView style="@style/MenuHeading"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="@string/group_play" />
+                    <Button android:id="@+id/other_app" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+                    <!-- Modern Warfare 3's multiplayer only (MainActivity shows it). -->
+                    <Button android:id="@+id/entry_bots" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                        android:visibility="gone" />
+                    <!-- Advanced Warfare with the player's own title update (MainActivity shows it). -->
+                    <Button android:id="@+id/entry_zombies" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                        android:text="@string/entry_zombies"
+                        android:visibility="gone" />
+                    <!-- Modern Warfare 3 with the player's own map packs that hold Special Ops levels (MainActivity shows it). -->
+                    <Button android:id="@+id/entry_pack_levels" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                        android:text="@string/entry_pack_levels"
+                        android:visibility="gone" />
+                </LinearLayout>
 
                 <View
+                    android:id="@+id/gap_groups"
                     android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="2dp"
-                    android:background="#26324D" />
+                    android:layout_height="0dp" />
 
-                <Button android:id="@+id/driver" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/graphics_driver" />
-                <Button android:id="@+id/settings" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/entry_settings" />
-                <Button android:id="@+id/log" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/view_log" />
+                <LinearLayout
+                    android:id="@+id/group_extras"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="2"
+                    android:orientation="vertical">
+
+                    <TextView style="@style/MenuHeading"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="@string/group_extras" />
+                    <Button android:id="@+id/entry_dlc" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                        android:text="@string/entry_dlc" />
+                    <Button android:id="@+id/entry_mods" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                        android:text="@string/entry_mods" />
+                    <Button android:id="@+id/entry_tu6" style="@style/MenuEntry"
+                        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                        android:text="@string/entry_tu6" />
+                </LinearLayout>
 
                 <View
+                    android:id="@+id/gap_switch"
                     android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="2dp"
-                    android:background="#26324D" />
-
-                <Button android:id="@+id/entry_updates" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/check_updates" />
-                <Button android:id="@+id/entry_quit" style="@style/MenuEntry"
-                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                    android:text="@string/quit_launcher" />
+                    android:layout_height="0dp" />
 
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/direct_launch_switch"
                     style="@style/SettingSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
                     android:paddingTop="2dp"
                     android:paddingStart="12dp"
-                    android:text="Direct launch on app start"
+                    android:text="@string/direct_launch"
                     android:textColor="#8B949E"
                     android:textSize="10sp"
                     android:fontFamily="sans-serif-medium" />
@@ -169,7 +184,7 @@
                     android:id="@+id/detail_card"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
-                    android:layout_weight="1.4"
+                    android:layout_weight="3"
                     android:background="@drawable/bg_card"
                     android:orientation="vertical"
                     android:padding="12dp">
@@ -178,7 +193,7 @@
                         android:id="@+id/detail_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/detail_default_title"
+                        android:text="@string/wordmark"
                         android:textColor="#F0F6FC"
                         android:textSize="16sp"
                         android:fontFamily="sans-serif-condensed"
@@ -204,37 +219,33 @@
                         android:fontFamily="sans-serif" />
                 </LinearLayout>
 
-                <LinearLayout
-                    android:id="@+id/status_card"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:layout_marginTop="8dp"
-                    android:background="@drawable/bg_card"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="STATUS"
-                        android:textColor="#FF7A1A"
-                        android:textSize="9sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.15" />
-
-                    <TextView
-                        android:id="@+id/status"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:maxLines="4"
-                        android:ellipsize="end"
-                        android:textColor="#C9D1D9"
-                        android:textSize="11sp"
-                        android:lineSpacingExtra="2dp"
-                        android:fontFamily="sans-serif" />
-                </LinearLayout>
+                <TextView style="@style/MenuHeading"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/group_help" />
+                <Button android:id="@+id/driver" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/graphics_driver" />
+                <Button android:id="@+id/settings" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_settings" />
+                <Button android:id="@+id/log" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/view_log" />
+                <Button android:id="@+id/entry_report" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_report" />
+                <Button android:id="@+id/entry_updates" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/check_updates" />
+                <!-- The screens the guided setup runs for the player: another
+                     disc image, the files copied in, the game built again. -->
+                <Button android:id="@+id/entry_repair" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_repair" />
+                <Button android:id="@+id/entry_quit" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/quit_launcher" />
             </LinearLayout>
         </LinearLayout>
 

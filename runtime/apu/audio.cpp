@@ -245,6 +245,12 @@ namespace
         GuestCaller caller;
         if (!caller.Prepare()) { LOGE("audio: could not set up the worker's guest state"); return; }
         OpenOutput();
+#ifdef MW2_ANDROID
+        // Late, this thread is a click: it runs ahead of everything of the
+        // title's that is only slow when late.
+        android::perf::RaiseAudioPriority();
+        Clock::time_point due{};
+#endif
 
 #ifndef MW2_ANDROID
         Clock::time_point lastPump = Clock::now();
@@ -288,13 +294,22 @@ namespace
                 // half a hundredth slower while the sink holds more than it
                 // does when both are on time, as much faster while it is
                 // empty when a frame is due.
+                // And it follows itself: where frames are mixed late time
+                // and again (a processor with more to do than it has cores
+                // for), the sink is given that much to play meanwhile
+                // (CushionFrames grows by it), and filled a fiftieth faster
+                // while it holds less.
                 auto interval = kFrameInterval;
                 if (g_outputOpen)
                 {
                     const uint32_t held = android::audio::QueuedFrames();
-                    if (held > android::audio::CushionFrames()) interval += kFrameInterval / 200;
+                    const uint32_t cushion = android::audio::CushionFrames();
+                    if (held > cushion) interval += kFrameInterval / 200;
+                    else if (held + 2 <= cushion && cushion > android::audio::DeviceFrames())
+                        interval -= kFrameInterval / 50;
                     else if (held == 0) interval -= kFrameInterval / 200;
                 }
+                due = pick->next;
                 pick->next += interval;
 #else
                 Clock::time_point due = pick->next;
@@ -320,6 +335,10 @@ namespace
             g_callbacks++;
             // The callback takes the context it registered: the title's own object.
             caller.Call(callback, context);
+#ifdef MW2_ANDROID
+            android::audio::MixedLate(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - due).count());
+#endif
         }
     }
 

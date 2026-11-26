@@ -29,4 +29,8 @@ namespace install::crypto
         size_t buffered_ = 0;
         uint64_t length_ = 0;
     };
+
+    // SHA-1, which a console's content package keeps of its own header and of
+    // each of its blocks (kernel/volume.cpp).
+    std::array<uint8_t, 20> Sha1(const void* data, size_t size);
 }

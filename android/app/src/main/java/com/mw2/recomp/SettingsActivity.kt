@@ -151,18 +151,23 @@ class SettingsActivity : AppCompatActivity() {
                 }
             })
         }
+        // The first stop is Auto: the screen's rate, and under it the
+        // fastest the device keeps (Prefs.fpsFollowsDevice).
         val fpsLabel: TextView = findViewById(R.id.fps_limit_label)
-val fpsSlider: SeekBar = findViewById(R.id.fps_limit)
-fpsSlider.max = Prefs.FPS_LIMITS.size - 1
-fpsSlider.progress = Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit).coerceAtLeast(0)
-fpsLabel.text = getString(R.string.fps_limit, Prefs.FPS_LIMITS[fpsSlider.progress])
-fpsSlider.setOnSeekBarChangeListener(object : Simple() {
-    override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-        val fps = Prefs.FPS_LIMITS[value]
-        fpsLabel.text = getString(R.string.fps_limit, fps)
-        if (fromUser) prefs.fpsLimit = fps
-    }
-})
+        val fpsSlider: SeekBar = findViewById(R.id.fps_limit)
+        fun fpsText(stop: Int) =
+            if (stop == 0) getString(R.string.fps_limit_auto, prefs.fpsSteps.first())
+            else getString(R.string.fps_limit, Prefs.FPS_LIMITS[stop - 1])
+        fpsSlider.max = Prefs.FPS_LIMITS.size
+        fpsSlider.progress = if (prefs.fpsFollowsDevice) 0 else Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit) + 1
+        fpsLabel.text = fpsText(fpsSlider.progress)
+        fpsSlider.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                fpsLabel.text = fpsText(value)
+                if (!fromUser) return
+                if (value == 0) prefs.followDeviceFps() else prefs.fpsLimit = Prefs.FPS_LIMITS[value - 1]
+            }
+        })
         val shadowChoices = resources.getStringArray(R.array.sun_shadows_choices)
         val shadowLabel: TextView = findViewById(R.id.sun_shadows_label)
         val shadows: SeekBar = findViewById(R.id.sun_shadows)

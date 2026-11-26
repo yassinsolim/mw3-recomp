@@ -367,6 +367,91 @@ On Windows setup writes `Multiplayer with map packs.cmd` and
 `Exo Zombies.cmd` beside `Multiplayer.cmd`, and names the folder in `.env`
 (`MW2_DLC_DIR`) rather than copying it.
 
+### What each executable is given, and what is checked first
+
+The game is three executables here (the disc's campaign, the disc's
+multiplayer, the multiplayer as the update makes it), and a package goes
+only to those that can use it. A tester with seventeen packages and two
+title updates in the `dlc` folder chose Campaign and got the game's own
+"An installed Content Pack is corrupt. It must be deleted to continue."
+with nothing but Exit; taking the Compatibility Packs out again was the
+only cure. Nothing of his was corrupt, and two things had to meet:
+
+- The disc's executables list the console's downloads, mount each package
+  and look for the marker of a pack in their own table (`dlcinstall1`,
+  `dlcinstall2`, `dlc1` to `dlc5`, `seasonpass`, `mdlc0` to `mdlc5`: the
+  table at `8281FC08` of the campaign, `8288D2A0` of the multiplayer). A
+  package with none of them, which every Compatibility Pack is, is closed
+  again and noted as a corrupt one (`8249AD90`: the marker search `8249A250`
+  answers 1, and the byte at `843A3B61` is set). That alone shows nothing:
+  the menu asked for the byte (`AnyContentDamaged`, `821A41B0`) in no run
+  that had both of the install disc's packages on the list, and on choosing
+  Campaign in the run that had one of them left off.
+- Their list holds twelve packages (`843A7D28`, 308 bytes each), and the
+  app found the player's packs in the `dlc` folder before the install
+  disc's two in its image. Eleven packs or more therefore left the second
+  install package, or both, off the list.
+
+Reproduced on the AYN Thor with the app as released (v0.1.2) and the
+owner's eleven packs listed ahead of the install disc's: the notice, on
+choosing Campaign. With ten packs, or with the install disc's two listed
+first, there is none; fifteen and nineteen packages listed after the two
+showed none on Windows either. The list is also read to the first empty
+entry, so the entry after the twelfth is read out of what lies behind the
+list (a table of file-name hashes, empty until a pack has been mounted). A
+console never gets there: it starts the updated executables once the
+update is on it.
+
+| a package with | is | the disc's campaign and multiplayer | the updated multiplayer |
+|---|---|---|---|
+| `dlcinstall1.id`, `dlcinstall2.id` | the install disc's two | given | given |
+| `mdlc0.id` to `mdlc5.id` | a bonus item (an entitlement, no files of a game version) | given | given |
+| `dlc1.id` to `dlc5.id` | a map pack, built for the updated game | not given: the disc's multiplayer would list its maps and fail to load them | given |
+| `seasonpass.id` | the entitlement to the map packs | not given | given |
+| `dlccompat1.id` to `dlccompat6.id` | a Compatibility Pack | not given: the disc's executables do not know the marker | given |
+| no such marker | nobody's | not given | not given |
+
+The install disc's packages are listed first, for every executable, in
+whatever folder or image they were found. Of two packages that are the
+same pack (a folder put together from two
+consoles, or an older and a newer version) the one with the higher version
+in its header is given and the other is not. Of several title updates each
+is tried until one makes this build's executable: an update is made for one
+pressing of the disc, and one for another pressing or of another version
+does not fit. The rules are `runtime/kernel/content_route.h`; the log has a
+line for every package: what its header says (title, content type, version,
+licence bits), which pack it is, and whether this executable was given it.
+
+**Before any of that, each package is checked against what it says of
+itself**, so that a copy gone wrong is said in a sentence that names the
+file and not by the game:
+
+| what is wrong | how it is told | where | what is said |
+|---|---|---|---|
+| not a package at all, or a console-signed one (a save, a profile) | no `LIVE` or `PIRS`, or two hash tables a group | everywhere | skipped; in the app's list "… is not a package from a console's hard disk." |
+| another game's | the title id in the header | Add DLC, setup, the game's start | "… is for another game (415608CB), not this one." |
+| another kind of content (an avatar item, a theme) | the content type | Add DLC, the game's start | "… is not a map pack or title update of this game." |
+| a damaged header | the package's SHA-1 of its header (`0x32C`, over everything from the content type on) | Add DLC, setup, the game's start | "… is damaged: copy it again from your console." |
+| a damaged block | the SHA-1 of every 4 KB block, kept in the hash table before each group of 170 | Add DLC as it copies, setup as it lists (18 s for the owner's 10 GB) | the same; the copy is not kept |
+| a copy that stopped part-way | the block count in the header (`0x395`) against the file's length | Add DLC, setup, the game's start | "… is incomplete: copy it again from your console." |
+| the same pack twice | two packages with one marker | Add DLC's list, the game's start | "… is here twice; the newer copy is used." |
+| no title update | no package of type `000B0000` | Add DLC, setup | the map packs are listed and the multiplayer stays the disc's; Add DLC and setup say which folder to copy |
+| a title update that does not fit the disc | the executable it makes, by its SHA-256 | the game's start, the build on the phone | the next update is tried; with none that fits, "No title update in the dlc folder fits this disc …" |
+| a Compatibility Pack missing | the markers present | Add DLC, the launcher | "Still missing: Compatibility Pack 3" (as before) |
+
+The blocks are hashed where the file is read whole anyway and not at every
+start (ten gigabytes). The signature over the header is the console
+maker's and is not checked: the app has no key of theirs. A package whose
+header was edited without its hash being made again (a licence patched by
+hand) is therefore refused as damaged, though a modified console would
+take it; the project is for packages as the console wrote them.
+
+Tested with packages made by the tests, never a game's:
+`tests/content_route_test.cpp` (the table above, duplicates, versions),
+`tests/kernel_files_test.cpp` (a damaged header, two kinds of cut-short
+file, the version), `PackageCheckTest.kt` (every row of the second table
+that Add DLC tells).
+
 ### The owner's packages (read only, never copied into the repository)
 
 `LIVE` packages of title `41560914`, type 2, with one licence entry each;
@@ -411,9 +496,15 @@ too. So the packs are served to the game the update makes:
   copy overlapping bytes in order: on the AYN Thor the update came out as
   another executable (27,793 bytes of it) and the game refused it. The
   runtime compiles the patcher with its copies as moves
-  (`runtime/install/xex_patcher_moves.cpp`). The campaign's patch (`default.xexp`) is
-  refused by the patcher for this disc's `default.xex` and was not followed
-  up: the campaign stays the disc's.
+  (`runtime/install/xex_patcher_moves.cpp`). The campaign's patch
+  (`default.xexp`) is for this disc's `default.xex` (its key matches) and the
+  patcher still refuses it (`XexFileInvalid`): it sizes its buffer for the
+  updated image, and the disc campaign's image is the larger one. That was
+  not followed up, so the campaign stays the disc's, and with it the main
+  menu: the update's campaign is where a console has its Exo Zombies entry
+  (the updated multiplayer's own menus have none, in Multiplayer or in Exo
+  Survival, and the update's patch fastfiles loaded into the disc's
+  campaign leave its menus black).
 - **A build of its own**, `awmp17` (`config/AWMP.tu17.toml`, the block
   `AW_TITLE_TU17` of `runtime/title.h` with every address derived again,
   `config/abi/awmp17`): 22,969 functions, 137 jump tables, the same 415

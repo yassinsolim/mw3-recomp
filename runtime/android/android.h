@@ -93,6 +93,11 @@ namespace android
     // frame ("no Vulkan device", "the game files are missing", ...).
     void SetStatus(const char* text);
     std::string Status();
+    // The renderer cannot show the game -- no driver opened, the device
+    // lacks something the renderer needs, no swapchain: the status above,
+    // and the app is told at once (GameActivity.onRendererFailed), which
+    // says so over the black screen with what to try and the log to share.
+    void RendererFailed(const std::string& what);
 
     // ---- logging ----------------------------------------------------------
     // Called by log.h. `level` is 'i', 'w', 'E' or 'k'.
@@ -179,8 +184,13 @@ namespace android::audio
     // How much the sink still holds, in 256-sample frames, so the mixer can
     // pace itself the way it does against SDL.
     uint32_t QueuedFrames();
-    // What the sink holds when the mixer is on time, in the same frames.
+    // What the sink holds when the mixer is on time, in the same frames:
+    // what the device takes at once and a frame more (DeviceFrames), and
+    // as much again as the mixer has been late lately (MixedLate).
     uint32_t CushionFrames();
+    uint32_t DeviceFrames();
+    // The mixer finished a frame this long after it was due (its thread).
+    void MixedLate(int64_t nanoseconds);
     bool IsOpen();
     void SetMuted(bool muted);
     // How long a sample written now waits before the speaker has it, from
@@ -235,9 +245,11 @@ namespace android::perf
     // renderer do not land on the little cluster mid-firefight.
     void PinToBigCores();
     void PinToAllCores();
-    // A thread that must not be late: the guest's main thread, the ring
-    // consumer, the audio mixer.
+    // A thread that must not be late: the guest's main thread.
     void RaiseThreadPriority();
+    // The audio mixer's thread and the title's threads that drive the
+    // decoder, above that one: what they do is short, and late it is heard.
+    void RaiseAudioPriority();
     // How much RAM the device has, in MB, and how much is free right now.
     uint32_t TotalMemoryMB();
     uint32_t AvailableMemoryMB();
@@ -261,9 +273,10 @@ namespace android::perf
     // there is none. Known before Vulkan is, which is when the driver's own
     // settings have to be made.
     const char* AdrenoModel();
-    // Whether it is of the 6xx class: a Snapdragon 865's 650 is GPU-bound at
-    // half the display's rate in a level, and what follows from that
-    // (docs/android.md) is decided by this.
+    // Whether it is of the 6xx class: Turnip's image compression resets
+    // that class (driver.cpp), and its scene starts smaller in the two
+    // titles that take another size (render_size.cpp). Everything else a
+    // device is given follows what it is measured to sustain (adaptive.h).
     bool Adreno6xx();
     // The Adreno's clock now as a share of its fastest (587 of 670 MHz is
     // 0.88): its governor lowers the clock while the chip has time in hand,

@@ -7,6 +7,7 @@
 #include "tests/fake_crash.h"
 #include "runtime/kernel/objects.h"
 #include "runtime/kernel/volume.h"
+#include "runtime/install/crypto.h"
 #include "runtime/movie_trace.h"
 
 #ifdef NDEBUG
@@ -449,6 +450,15 @@ int main()
         std::memcpy(&package[size_t(blockAt(kOddB))], odd.data() + kBlock, odd.size() - kBlock);
         next(kOddA, kOddB);
         std::memcpy(&package[size_t(blockAt(kEven))], even.data(), kBlock);
+        // What the console writes last: how many blocks there are, and the
+        // SHA-1 of the header from the content type on.
+        const auto seal = [&](std::string& bytes)
+        {
+            for (int i = 0; i < 4; i++) bytes[0x395 + i] = char(kBlocks >> (24 - 8 * i));
+            const auto hash = install::crypto::Sha1(bytes.data() + 0x344, 0xB000 - 0x344);
+            std::memcpy(&bytes[0x32C], hash.data(), hash.size());
+        };
+        seal(package);
         const fs::path packageFile = base / "0123456789ABCDEF0123456789ABCDEF01234567";
         { std::ofstream(packageFile, std::ios::binary) << package; }
 
@@ -525,9 +535,28 @@ int main()
         // What is not such a package is refused, with the reason.
         { std::ofstream(base / "not-a-package", std::ios::binary) << Pattern(0x2000); }
         assert(!ReadVolume::OpenPackage(base / "not-a-package", error) && !error.empty());
+        // A copy that stopped part-way says how much of it is there, by the
+        // block count in its header and not by whichever file ends first.
         std::string cut = package.substr(0, size_t(blockAt(0x40)));
         { std::ofstream(base / "cut-short", std::ios::binary) << cut; }
-        assert(!ReadVolume::OpenPackage(base / "cut-short", error));
+        assert(!ReadVolume::OpenPackage(base / "cut-short", error) && error.find("is incomplete") == 0);
+        { std::ofstream(base / "cut-in-header", std::ios::binary) << package.substr(0, 0x4000); }
+        assert(!ReadVolume::OpenPackage(base / "cut-in-header", error) && error.find("is incomplete") == 0);
+        // One whose header is not what it was hashed as is damaged: a byte of
+        // its name, and a title id changed to pass for this game's.
+        for (const size_t at : { size_t(0x420), size_t(0x363) })
+        {
+            std::string damaged = package;
+            damaged[at] ^= 0x10;
+            { std::ofstream(base / "damaged", std::ios::binary) << damaged; }
+            assert(!ReadVolume::OpenPackage(base / "damaged", error) && error.find("is damaged") == 0);
+        }
+        // The newer of two copies of a pack is told by the version in the header.
+        std::string newer = package;
+        newer[0x35B] = 3;
+        seal(newer);
+        { std::ofstream(base / "newer", std::ios::binary) << newer; }
+        assert(ReadVolume::OpenPackage(base / "newer", error)->Header().version == 3 && volume->Header().version == 0);
 
         // The same package lying inside another file, as Advanced Warfare's
         // lie in its install disc's image: read from its place there, by a

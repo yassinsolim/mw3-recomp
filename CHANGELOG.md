@@ -4,6 +4,50 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Changed
+- **Setting the game up is one button (all four games on Android).** A new
+  player asked which came first, "Build the game code" or "Install the game
+  files", and whether the multiplayer was installed by itself: the launcher
+  had both as entries of equal weight, in the reverse of the order they are
+  done in, beside a Play button that could start nothing yet. Now the large
+  button is **SET UP THE GAME** until the game can be played, and opens by
+  itself the first time. It leads through numbered screens, each with one
+  sentence and one button:
+  1. **Pick your disc image**: the `.iso` is found on the device, chosen in
+     the Files app, or tapped in a folder. It is checked before anything is
+     built, and what is wrong is said in a sentence ("This is Modern Warfare
+     3. This app is for Modern Warfare 2.", a disc with the multiplayer cut
+     out, a version the app does not support, a cloud file that is not on
+     the device). Advanced Warfare asks for its second disc in the same step.
+  2. **Build the game**: one button builds the campaign and the multiplayer
+     together, with one progress bar and the minutes left. It carries on in
+     the background with a notification, and after a restart or a failure
+     from where it stopped; a failure is one sentence, **Retry**, and
+     **Share log** under it.
+  3. **Optional: add your DLC**, skipped with one button.
+
+  Then **PLAY**. The game plays from the `.iso` where it lies, so nothing is
+  copied. An app updated over an older version with the game already set up
+  opens on the main screen as before, with nothing to do again.
+- **The main screen is Play, one line of status and three small groups.**
+  "Ready - campaign and multiplayer installed" under **PLAY**; *Play options*
+  (Multiplayer, Bots), *Extras* (Add DLC, Mods) and *Help and settings*
+  (Graphics driver, Settings, Log, Report a problem, Check for updates,
+  Repair / rebuild, Quit). The separate build and install screens are under
+  **Repair / rebuild**, for another disc image, copying the files into the
+  app or building again. The "TWO STEPS TO PLAY" text with its PC commands
+  is gone from the app; PC setup is in each README's advanced section.
+- **The first run shows how to open the menu.** One screen over the game:
+  Menu at the top right (Select and Start together on a controller), where
+  the settings are, how to quit. **OK** closes it, **Don't show again**
+  closes it for good.
+- **Log → Share sends a file.** `<game>-log-<version>-<date>.txt`, through
+  the share list, which a bug report's form takes as an attachment; it went
+  as up to 200,000 characters of text, more than an issue can hold. "Copy
+  the end of the log" is there for chat apps. **Report a problem** on the
+  main screen opens the report form with the game, the app's version and the
+  device filled in.
+
 ### Docs
 - Issues on the four public repositories are now filed with a form: a bug report (game, app version, device, what happened, steps, the log, an optional screenshot or video) and a performance report (device, game, map or mode, the FPS seen, settings, the log). The log is required, and the form says how to get it (LOG, then SHARE, in the app; after a crash, open the app again first, the last run's log is kept). Blank issues are off, and the issue page links each game's README FAQ. The old text that sent players to the PC launcher's REPORT A BUG is gone (`.github/ISSUE_TEMPLATE/`).
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
@@ -18,6 +62,61 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   GitHub requires it; the launcher's message says which file to drag into it
   and where it was saved, and names the right issues page when no browser
   opens (`launcher/report.cpp`, `launcher/main.cpp`).
+- **Advanced Warfare: the campaign no longer calls your map packs corrupt,
+  and a package that is damaged is named.** With eleven or more packs
+  added, choosing Campaign ended in the game's own "An installed Content
+  Pack is corrupt. It must be deleted to continue." Nothing was corrupt.
+  The disc's campaign and multiplayer keep a list of twelve packages, and
+  the app listed the player's packs ahead of the install disc's two: with
+  eleven packs the second install package fell off the list, the campaign
+  missed its files and asked whether a pack was damaged, and a
+  Compatibility Pack, whose marker the disc's executables do not know, had
+  been noted as one. Each executable is now given only the packages it can
+  use (the install disc's and the bonus items go to all three; the map
+  packs, the Season Pass and the Compatibility Packs to the updated
+  multiplayer), the install disc's are listed first, the newer of two
+  copies of one pack is taken, and every title update in the folder is
+  tried until one fits the disc. Before that every package is checked
+  against the hashes it keeps of itself (its header at each start; every
+  block when Add DLC copies it and when setup lists it), and one that is
+  damaged, incomplete, another game's or no map pack is left out with a
+  sentence that names it, in Add DLC and in the log, which also has a line
+  for each package and which executable was given it
+  ([docs/dlc.md](docs/dlc.md#what-each-executable-is-given-and-what-is-checked-first)).
+  Nothing is built again: the game code built for v0.1.2 is taken as it is.
+  The notice was reproduced with the app as it was before the change, on
+  Windows, the AYN Thor and the Retroid Pocket Flip 2, with the owner's
+  eleven packs (ten do not bring it up), and is gone with the change on
+  all three. Exo Zombies stays an entry of the launcher:
+  on a console it is in the updated campaign's main menu, and the campaign
+  here is the disc's
+  ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-corrupt-content-pack-notice-26-november-2026)).
+- **Sound that breaks up when the processor is busy (all four games on
+  Android).** With every core kept busy the mixer ran tens of milliseconds
+  late several times a second, and what it then mixed in a burst was mostly
+  dropped: 152 underruns in 82 seconds of play on the AYN Thor under such a
+  load. The output now holds as much more sound as the mixer has been late
+  lately (up to 160 ms, gone again within half a minute of the lateness),
+  and the mixer's and the decoder's threads run at Android's audio priority.
+  Under that load now: 1 underrun in 106 seconds on the Thor, and 12 for 38
+  on the Retroid Pocket Flip 2 ([docs/audio.md](docs/audio.md)). A low frame
+  rate from the graphics chip alone never broke the sound up.
+- **An FPS limit of 30 or 60 no longer costs the sound on a 120 Hz screen
+  when the processor is busy (all four games on Android).** For a limit of
+  30 or 60 the app puts the display in its 60 Hz mode, which shows them
+  evenly and saves power. In that mode an AYN Thor's system gives the game
+  about half the share of a busy processor it has at 120 Hz, and the sound
+  broke up: 2,427 underruns in a minute of play with a limit of 30 chosen
+  and eight busy programs beside the game. Now, once the sound has broken
+  up for six seconds in a slower mode, the display is asked for its fastest
+  mode again for the rest of the run and the limit stays as you chose it,
+  each frame shown for two of the screen's refreshes or four: 7 underruns
+  in 67 seconds of play under the same load. The log says so (`adaptive:
+  the display is kept at 120 Hz because the sound broke up in a slower
+  mode`). The rate the app holds a run to by itself (the FPS limit's Auto,
+  below) keeps the fastest mode from the start where the processor is what
+  is late
+  ([docs/android.md](docs/android.md#what-a-device-is-given-and-what-it-is-measured-for)).
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose
@@ -62,6 +161,37 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   how it was found.
 
 ### Added
+- **The app measures what a device keeps instead of going by its chip's
+  name (all four games on Android).** The defaults were the ones the two
+  devices the project owns were measured to want, an Adreno 740 and an
+  Adreno 650, handed out by name: an Adreno 730 or 735 got the 740's whole
+  scene and its limit of 120 with nothing ever given up, and players
+  reported 20 to 50 frames a second there. Now, from two-second windows of
+  play (frames a second, the graphics chip's time, the renderer's thread's):
+  the sun's shadows, left on *Chosen for this device*, come on after thirty
+  seconds with room for them and go when frames come late; the scene is
+  drawn smaller while the chip is late on every chip (down to 58% of its
+  width, where an Adreno 6xx alone had it, down to 70%); and with the FPS
+  limit on its new **Auto** the run is held to an even 60 or 30 when ten
+  seconds did not come near the screen's rate, and goes up again when there
+  is room. A limit or shadows you choose stay. On the AYN Thor with Advanced
+  Warfare drawn at three times its size: held to 60 after ten seconds at 52
+  frames a second, to 30 after ten at 27; with the processor kept busy by
+  other programs: held to 60 and back at 120 forty-five seconds after they
+  stopped; unloaded, the Thor and the Retroid Pocket Flip 2 run as before
+  (118.3 and 60.4 in Seoul, 118.6 and 60.1 in S.S.D.D., by the visual suite:
+  ten of ten on the Thor, and on the Flip 2 eight with two failures that are
+  the check's own, said in docs/android.md). Not yet done: a device of the
+  kind it is for.
+  `MW2_ADAPTIVE=0` turns it off; `MW2_FPS_AUTO`, `MW2_FPS_STEPS`
+  ([docs/android.md](docs/android.md#what-a-device-is-given-and-what-it-is-measured-for)).
+- **A black screen says why.** When the renderer cannot start (no driver, a
+  chip that lacks something it needs, named) or no picture has come in 30
+  seconds, the app says so over the black screen with the chip, the driver,
+  a button for the other driver and **Share log**; before, the game ran on
+  without a picture and without a word. And the game's menu has **Share
+  performance report**: frame rate, the chip's time a frame, device and
+  settings as text.
 - **Black Ops III (Xbox 360), started: Windows, and a first boot on
   Android; not for players yet** ([docs/BO3-BRINGUP.md](docs/BO3-BRINGUP.md)).
   - Android, with no PC: Install & Play from the disc image, Add DLC for

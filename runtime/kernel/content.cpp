@@ -25,6 +25,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "volume.h"
+#include "content_route.h"
 #include "../guest.h"
 #include "../log.h"
 #include "../env.h"
@@ -150,8 +151,27 @@ namespace
     struct Packages
     {
         std::vector<Downloaded> content;
-        std::shared_ptr<ReadVolume> update;     // the title update's, for a build of its executable
+        // The title update's packages, for a build of its executable, and
+        // which of them is in use: a console has one, a copied folder may
+        // have several (one a pressing of the disc), and the one that fits
+        // this disc is found by trying (NextTitleUpdate).
+        std::vector<std::shared_ptr<ReadVolume>> updates;
+        size_t inUse = 0;
+        const std::shared_ptr<ReadVolume>& Update() const
+        {
+            static const std::shared_ptr<ReadVolume> none;
+            return inUse < updates.size() ? updates[inUse] : none;
+        }
     };
+
+    // A package as the log names it: the name the console shows, and the file.
+    std::string Described(const ReadVolume& volume, const std::string& where)
+    {
+        std::string shown;
+        for (const char16_t c : volume.Header().displayName)
+            if (c >= 0x20 && c < 0x7F) shown += char(c);
+        return shown.empty() ? where : shown + " (" + where + ")";
+    }
 
     // Takes `volume`, the package `where` opened under the name `host`: this
     // title's downloadable content when it is not listed already, or its
@@ -161,31 +181,39 @@ namespace
     {
         if (!volume)
         {
-            LOGW("content: %s %s; it is not used", where.c_str(), error.c_str());
+            // A package that a copy spoiled is the player's to copy again;
+            // any other file in the folder is only passed over.
+            const bool spoiled = error.compare(0, 10, "is damaged") == 0 || error.compare(0, 13, "is incomplete") == 0;
+            LOGW("content: %s %s; it is not used%s", where.c_str(), error.c_str(),
+                 spoiled ? ". Copy it again from your console." : "");
             return;
         }
         const ReadVolume::Package& header = volume->Header();
-        if (header.titleId == T_TITLE_ID && header.contentType == kTitleUpdate)
+        // Everything the title would be told of it, once, for a log somebody
+        // shares: what the package says it is, before what is made of it.
+        LOGI("content: %s: title %08X, content type %08X, version %08X, licence bits %08X, %zu files at its root",
+             Described(*volume, where).c_str(), header.titleId, header.contentType, header.version, header.licenceBits,
+             volume->RootFiles().size());
+        if (header.titleId != T_TITLE_ID)
+        {
+            LOGW("content: %s is for another game (title %08X), not this one (%08X); it is not used",
+                 Described(*volume, where).c_str(), header.titleId, unsigned(T_TITLE_ID));
+            return;
+        }
+        if (header.contentType == kTitleUpdate)
         {
 #if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
-            // A console has one. Of several (updates of two pressings of
-            // the disc make the same executable and differ in a language's
-            // folder) the first found serves.
-            if (!packages.update)
-            {
-                LOGI("content: title update %s (%zu files)", where.c_str(), volume->RootFiles().size());
-                packages.update = volume;
-            }
+            packages.updates.push_back(volume);
 #else
             LOGI("content: %s is a title update, whose files are for the executable it makes; this is the disc's",
                  where.c_str());
 #endif
             return;
         }
-        if (header.titleId != T_TITLE_ID || header.contentType != kMarketplaceContent)
+        if (header.contentType != kMarketplaceContent)
         {
-            LOGW("content: %s is for title %08X, content type %08X, not this title's downloadable content",
-                 where.c_str(), header.titleId, header.contentType);
+            LOGW("content: %s is neither downloadable content nor a title update (content type %08X); it is not used",
+                 Described(*volume, where).c_str(), header.contentType);
             return;
         }
         std::vector<Downloaded>& found = packages.content;
@@ -193,8 +221,6 @@ namespace
         bool listed = false;
         for (const Downloaded& other : found) listed = listed || other.name == name;
         if (listed || name.empty()) return;
-        LOGI("content: downloadable content %s (%zu files, licence bits %08X)", where.c_str(),
-             volume->RootFiles().size(), header.licenceBits);
         found.push_back({ name, volume });
     }
 
@@ -258,9 +284,9 @@ namespace
     // first: a player who has them need not have the image in. `gameRoot` is
     // for the one that asks before the kernel is told the game folder
     // (ReadTitleUpdateFile).
-    const Packages& InstalledPackages(const fs::path* gameRoot = nullptr)
+    Packages& InstalledPackages(const fs::path* gameRoot = nullptr)
     {
-        static const Packages packages = [gameRoot]
+        static Packages packages = [gameRoot]
         {
             Packages found;
             // One folder or several, with semicolons between: the install
@@ -382,6 +408,62 @@ namespace
         }();
         return listed;
     }
+#elif defined(AW_TITLE)
+    // Advanced Warfare: each executable is listed the packages it can use
+    // (content_route.h has which and why).
+    const std::vector<Listed>& ListedContent()
+    {
+        static const std::vector<Listed> listed = []
+        {
+#if defined(AW_TITLE_TU17)
+            constexpr bool kUpdate = true;
+            constexpr char kOther[] = "the game as the disc has it";
+#else
+            constexpr bool kUpdate = false;
+            constexpr char kOther[] = "the multiplayer with the title update";
+#endif
+            const std::vector<Downloaded>& found = DownloadedContent();
+            std::vector<content::Candidate> candidates;
+            for (const Downloaded& package : found)
+                candidates.push_back({ content::PackOf(package.volume->RootFiles()), package.volume->Header().version });
+            const std::vector<content::Verdict> verdicts = content::Route(candidates, kUpdate);
+            // Which of them the list has room for, in the order it has them.
+            const std::vector<size_t> order = content::ListOrder(candidates, verdicts);
+            const size_t holds = kUpdate ? order.size() : std::min(order.size(), content::kDiscListHolds);
+            std::vector<bool> listed(found.size(), false);
+            std::vector<Listed> given;
+            for (size_t at = 0; at < holds; at++)
+            {
+                listed[order[at]] = true;
+                given.push_back({ &found[order[at]] });
+            }
+            for (size_t i = 0; i < found.size(); i++)
+            {
+                const std::string what = Described(*found[i].volume, found[i].name);
+                const std::string pack = content::NameOf(candidates[i].pack);
+                switch (verdicts[i])
+                {
+                case content::Verdict::Given:
+                    if (listed[i]) LOGI("content: %s is %s: given to " MW2_TITLE_NAME, what.c_str(), pack.c_str());
+                    else LOGW("content: %s is %s, one more than this executable lists; it is not used", what.c_str(), pack.c_str());
+                    break;
+                case content::Verdict::OtherExecutable:
+                    LOGI("content: %s is %s, which is for %s: not given to " MW2_TITLE_NAME, what.c_str(), pack.c_str(), kOther);
+                    break;
+                case content::Verdict::NoMarker:
+                    LOGW("content: %s has no marker of a pack this game knows (dlc<n>.id and the like); it is not used",
+                         what.c_str());
+                    break;
+                case content::Verdict::OlderCopy:
+                    LOGW("content: %s is %s, which is here twice; the newer copy is used and this one is not",
+                         what.c_str(), pack.c_str());
+                    break;
+                }
+            }
+            return given;
+        }();
+        return listed;
+    }
 #else
     const std::vector<Listed>& ListedContent()
     {
@@ -447,7 +529,7 @@ namespace
 // played from one.
 bool kernel::ReadTitleUpdateFile(const fs::path& gameRoot, const std::string& name, std::vector<uint8_t>& bytes)
 {
-    const auto& update = InstalledPackages(&gameRoot).update;
+    const auto& update = InstalledPackages(&gameRoot).Update();
     const ReadVolume::Entry* entry = update ? update->Find(name) : nullptr;
     if (!entry || entry->directory) return false;
     bytes.resize(size_t(entry->size));
@@ -455,6 +537,19 @@ bool kernel::ReadTitleUpdateFile(const fs::path& gameRoot, const std::string& na
     const size_t read = update->Read(descriptor, *entry, 0, bytes.data(), bytes.size());
     update->Release(descriptor);
     return read == bytes.size();
+}
+
+bool kernel::NextTitleUpdate(const fs::path& gameRoot)
+{
+    Packages& packages = InstalledPackages(&gameRoot);
+    if (packages.inUse < packages.updates.size())
+    {
+        LOGW("content: the title update %s does not fit this disc's executable (it is for another pressing of the"
+             " disc, or is not the update this build is for); it is not used",
+             packages.updates[packages.inUse]->Name().c_str());
+        packages.inUse++;
+    }
+    return packages.inUse < packages.updates.size();
 }
 
 #endif
@@ -467,7 +562,7 @@ bool kernel::ReadTitleUpdateFile(const fs::path& gameRoot, const std::string& na
 // own file, read where it lies, as the downloadable content is.
 void kernel::MountTitleUpdate()
 {
-    const auto& update = InstalledPackages().update;
+    const auto& update = InstalledPackages().Update();
     if (!update)
     {
         LOGW("content: no title update package for %08X in the dlc folder: the title has no menus without it", T_TITLE_ID);
@@ -498,7 +593,7 @@ namespace
                 { "taiwanese", "tai" }, { "japanese", "jpn" }, { "chinese", "chi" }, { "thai", "tha" },
                 { "czech", "cze" }, { "spanishna", "sna" }, { "portuguese", "por" }, { "arabic", "ara" },
             };
-            const auto& update = InstalledPackages().update;
+            const auto& update = InstalledPackages().Update();
             if (!update || update->Find("english")) return {};
             for (const auto& language : kLanguages)
                 if (update->Find(language[0])) return { language[0], language[1] };
@@ -512,7 +607,7 @@ const std::string& kernel::UpdateLanguage() { return ForeignFolder().letters; }
 
 bool kernel::UpdateHasZone(const std::string& zone)
 {
-    const auto& update = InstalledPackages().update;
+    const auto& update = InstalledPackages().Update();
     return update && !ForeignFolder().folder.empty() && update->Find(ForeignFolder().folder + "\\" + zone + ".ff");
 }
 
@@ -522,7 +617,7 @@ bool kernel::UpdateHasZone(const std::string& zone)
 // on its way to the menu: without them its menus do not start.
 void kernel::MountTitleUpdate()
 {
-    if (const auto& update = InstalledPackages().update)
+    if (const auto& update = InstalledPackages().Update())
     {
         // English the update would have brought and a pack has: the zombies'
         // text, which the title asks for before it mounts a pack

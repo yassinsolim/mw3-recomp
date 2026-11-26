@@ -162,6 +162,14 @@ internal class DiscImage(private val channel: FileChannel) {
         else -> Kind.OTHER
     }
 
+    /**
+     * The number of the game this disc is, from its campaign's executable
+     * (every one of these games has one at the root), or null: what the
+     * guided setup names when the player picked another game's disc
+     * (SetupActivity).
+     */
+    fun game(): Long? = titleOf(Title.CAMPAIGN.executable)
+
     companion object {
         const val SECTOR = 2048L
         val MAGIC = "MICROSOFT*XBOX*MEDIA".toByteArray()
@@ -242,23 +250,29 @@ internal class DiscImage(private val channel: FileChannel) {
             }
         }
 
-        /**
-         * What [image], a path or a document's address, is to this app; null
-         * when it is not an Xbox 360 disc image or cannot be read.
-         */
-        fun kindOf(context: Context, image: String): Kind? = try {
+        /** [what] of [image], a path or a document's address, read as a disc image; null when it is none or cannot be read. */
+        private fun <T> opened(context: Context, image: String, what: (DiscImage) -> T): T? = try {
             val channel = if (isDocument(image)) {
                 context.contentResolver.openFileDescriptor(Uri.parse(image), "r")
                     ?.let { ParcelFileDescriptor.AutoCloseInputStream(it).channel }
             } else {
                 FileInputStream(image).channel
             }
-            channel?.use { DiscImage(it).kind() }
+            channel?.use { what(DiscImage(it)) }
         } catch (_: Throwable) {
             // Not readable, not an image, or a provider that took the
             // permission back: all the same to the one asking.
             null
         }
+
+        /**
+         * What [image], a path or a document's address, is to this app; null
+         * when it is not an Xbox 360 disc image or cannot be read.
+         */
+        fun kindOf(context: Context, image: String): Kind? = opened(context, image) { it.kind() }
+
+        /** What [image] is to this app and the number of the game it is a disc of; null as [kindOf] is. */
+        fun inspect(context: Context, image: String): Pair<Kind, Long?>? = opened(context, image) { Pair(it.kind(), it.game()) }
 
         private fun isImageFile(file: File): Boolean =
             file.name.endsWith(".iso", ignoreCase = true) && file.isFile && file.length() > SMALLEST

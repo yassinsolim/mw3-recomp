@@ -149,7 +149,8 @@ class Prefs(context: Context) {
 
     /**
      * Frame-rate cap, one of FPS_LIMITS (MW2_FPS_LIMIT). Until the player
-     * chooses, the screen's own fastest rate (displayLimit).
+     * chooses, the screen's own fastest rate (displayLimit), and the run may
+     * go under it by itself ([fpsFollowsDevice]).
      */
     var fpsLimit: Int
         get() {
@@ -163,10 +164,43 @@ class Prefs(context: Context) {
         }
 
     /**
+     * Whether the cap is the runtime's to lower (MW2_FPS_AUTO): the player
+     * has chosen none. The run then starts at the screen's fastest rate and
+     * is held to a slower one of [fpsSteps] when it has not kept up for ten
+     * seconds (runtime/adaptive.h): a phone that draws 62 frames a second
+     * under a cap of 120 shows them at uneven steps, and 60 evenly.
+     */
+    val fpsFollowsDevice: Boolean
+        get() {
+            forgetOldDefault()
+            return store.getInt(KEY_FPS_LIMIT, 0) !in FPS_LIMITS
+        }
+
+    /** The cap is the runtime's again: the player chose Auto. */
+    fun followDeviceFps() {
+        store.edit().remove(KEY_FPS_LIMIT).putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
+    }
+
+    /**
+     * The rates a run that follows the device may be held to, fastest first
+     * (MW2_FPS_STEPS): the cap it starts at, and under it every rate the
+     * screen has a mode for and the half of each, down to 30. Each is one
+     * the screen shows evenly, a frame for one of its blanks or for two.
+     */
+    val fpsSteps: List<Int> by lazy {
+        val display = app.getSystemService(android.hardware.display.DisplayManager::class.java)
+            ?.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+        val modes = display?.supportedModes?.map { Math.round(it.refreshRate) }.orEmpty()
+        (modes + modes.map { it / 2 } + displayLimit)
+            .filter { it in 30..displayLimit }.distinct().sortedDescending()
+    }
+
+    /**
      * The sun's shadows (MW2_SHADOWS): 0 leaves the choice to the runtime,
-     * which knows the chip and the title (runtime/gpu/d3d_hooks.cpp), 1 is
-     * on and 2 off. The runtime's choice takes them away on an AYN Thor at
-     * its 120, and the player must be able to have them back.
+     * which measures whether the frames have room for them
+     * (runtime/adaptive.h), 1 is on and 2 off. The runtime's choice takes
+     * them away on an AYN Thor at its 120, and the player must be able to
+     * have them back.
      */
     var sunShadows: Int
         get() = store.getInt(KEY_SUN_SHADOWS, 0).coerceIn(0, 2)
@@ -180,6 +214,26 @@ class Prefs(context: Context) {
     var fov: Int
         get() = store.getInt(KEY_FOV, 85).coerceIn(60, 110)
         set(value) = store.edit().putInt(KEY_FOV, value.coerceIn(60, 110)).apply()
+
+    /**
+     * The settings a performance report names, a line each, in English as
+     * the log is: what the player chose, or that the choice was left to the
+     * app (GameActivity.sharePerformance).
+     */
+    fun graphicsSummary(): List<String> = listOf(
+        "resolution ${(resolutionScale * 100).toInt()}%, internal multiplier ${renderScale}x, sharpening $sharpening%" +
+            ", multisampling ${if (multisampling) "on" else "off"}, fill ${if (fillScreen) "on" else "off"}",
+        "FPS limit " + (if (fpsFollowsDevice) "auto (starts at $fpsLimit, may go to one of ${fpsSteps.joinToString("/")})"
+        else "$fpsLimit (chosen)") +
+            ", sun shadows " + arrayOf("auto (measured)", "on (chosen)", "off (chosen)")[sunShadows] +
+            ", field of view $fov",
+        "texture memory " + (if (textureBudgetMB > 0) "$textureBudgetMB MB (chosen)" else "auto") +
+            ", shaders " + (if (prewarmAllShaders) "all compiled at the start" else "compiled as play goes") +
+            (if (asyncPipelines) ", in the background" else ", at the draw") +
+            (if (Title.hasDetailBias) ", detail at distance $detailBias" else ""),
+        "driver " + (if (driverDirectory.isEmpty()) "the system's" else java.io.File(driverDirectory).name) +
+            (if (driverChoiceMade) " (chosen)" else " (the app's default)"),
+    )
 
     // ---- sound ------------------------------------------------------------
 
@@ -360,6 +414,26 @@ class Prefs(context: Context) {
     var seenPadWarning: Boolean
         get() = store.getBoolean(KEY_PAD_WARNING, false)
         set(value) = store.edit().putBoolean(KEY_PAD_WARNING, value).apply()
+
+    /**
+     * The player asked not to be shown the help over the game again
+     * (GameHelp.kt): how to open the menu, change settings and quit. Until
+     * then it is shown at the start of each run: a player who closed it in
+     * a hurry still finds the menu the next time.
+     */
+    var seenGameHelp: Boolean
+        get() = store.getBoolean(KEY_GAME_HELP, false)
+        set(value) = store.edit().putBoolean(KEY_GAME_HELP, value).apply()
+
+    /**
+     * The guided setup has been through to its end on this device, or the
+     * launcher found the game set up already (an update over an older
+     * version): its optional DLC step is for a first setup only, and is not
+     * put again when a later update has the game built anew (Setup.kt).
+     */
+    var setupFinished: Boolean
+        get() = store.getBoolean(KEY_SETUP_FINISHED, false)
+        set(value) = store.edit().putBoolean(KEY_SETUP_FINISHED, value).apply()
 
     /**
      * Compile every recorded pipeline synchronously at boot instead of the
@@ -620,6 +694,8 @@ class Prefs(context: Context) {
         private const val KEY_AUTO_LAUNCH = "autoLaunch"
         private const val KEY_UPDATE_TAG = "seenUpdateTag"
         private const val KEY_PAD_WARNING = "seenPadWarning"
+        private const val KEY_GAME_HELP = "seenGameHelp"
+        private const val KEY_SETUP_FINISHED = "setupFinished"
         private const val KEY_PREWARM_ALL = "prewarmAllShaders"
         private const val KEY_ASYNC_PIPELINES = "asyncPipelines"
         private const val KEY_UNLOCK_ALL_ITEMS = "unlockAllItems"

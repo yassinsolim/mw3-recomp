@@ -156,7 +156,7 @@ class DlcActivity : AppCompatActivity() {
             // Everything but a Compatibility Pack: the note below is the whole of it.
             TitleUpdate.missingPacks.isNotEmpty() -> getString(R.string.dlc_update_here, packs)
             else -> getString(R.string.dlc_update_missing, packs)
-        } + packsMissing(packages)
+        } + packsMissing(packages) + paragraph(Dlc.refused(this))
         build.visibility = if (buildable && !building) View.VISIBLE else View.GONE
         handler.removeCallbacks(tick)
         if (building) handler.postDelayed(tick, 2000)
@@ -183,6 +183,9 @@ class DlcActivity : AppCompatActivity() {
         return "\n\n" + getString(R.string.dlc_packs_missing, Dlc.compatibilityPackNames(this, missing))
     }
 
+    /** [sentences] as a paragraph after what else is said: one a line, or nothing. */
+    private fun paragraph(sentences: List<String>): String = if (sentences.isEmpty()) "" else "\n\n" + sentences.joinToString("\n")
+
     /** Copies what [find] names, off the main thread: a pack is a gigabyte and more. */
     private fun add(find: () -> List<Dlc.Source>) {
         cancelled = false
@@ -206,11 +209,12 @@ class DlcActivity : AppCompatActivity() {
                 when {
                     added.copied.isNotEmpty() ->
                         getString(R.string.dlc_added, added.copied.joinToString(", ")) + packsMissing(Dlc.installed(this))
+                    added.refused.isNotEmpty() -> ""
                     added.already > 0 -> getString(R.string.dlc_already)
                     else -> getString(
                         if (Dlc.takesUpdate) R.string.dlc_nothing_found_update else R.string.dlc_nothing_found, Dlc.consoleFolder,
                     )
-                }
+                } + paragraph(added.refused).let { if (added.copied.isEmpty()) it.trimStart() else it }
             } catch (error: IOException) {
                 error.message ?: error.toString()
             } catch (error: SecurityException) {

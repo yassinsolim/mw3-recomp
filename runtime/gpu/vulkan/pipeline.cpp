@@ -38,6 +38,8 @@ void     vk::pipeline::ArenaHasShadow(bool) {}
 bool     vk::pipeline::MirrorClampToEdge() { return false; }
 void     vk::pipeline::NoteFallback(const char*) {}
 void     vk::pipeline::LogDeviceSummary() {}
+std::string vk::pipeline::DeviceSummary() { return "no device"; }
+const char* vk::pipeline::Refusal() { return ""; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t) { return nullptr; }
 void*    vk::pipeline::Layout() { return nullptr; }
@@ -151,6 +153,8 @@ namespace
         // (LogDeviceSummary), which is what a tester of a device nobody here
         // has sends back.
         std::string deviceClass = "no device";
+        // What the device was refused for (Refusal), a literal.
+        const char* refusal = "";
         std::vector<std::string> fallbacks;
         std::string name = "none";
 
@@ -563,8 +567,13 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
               properties.limits.maxFragmentInputComponents < 4 * (bindings::kRecordLocation + 1)
                 ? "seventeen interpolators"
             : nullptr;
+        // MW2_TEST_REFUSE_DEVICE=1, in a build with diagnostics: the device
+        // is refused as one that lacks descriptor indexing is, to see what
+        // the player of such a device sees on one that has everything.
+        if (!missing && diag::Flag("MW2_TEST_REFUSE_DEVICE")) missing = "descriptor indexing (MW2_TEST_REFUSE_DEVICE)";
         if (missing)
         {
+            g.refusal = missing;
             LOGW("vulkan: the device lacks %s, which the renderer needs", missing);
             LOGW("device: %s; refused: it lacks %s", g.deviceClass.c_str(), missing);
             return false;
@@ -1775,7 +1784,7 @@ void     vk::pipeline::NoteFallback(const char* what)
     if (std::find(g.fallbacks.begin(), g.fallbacks.end(), what) == g.fallbacks.end())
         g.fallbacks.emplace_back(what);
 }
-void     vk::pipeline::LogDeviceSummary()
+std::string vk::pipeline::DeviceSummary()
 {
     std::string list;
     for (const std::string& fallback : g.fallbacks)
@@ -1783,8 +1792,10 @@ void     vk::pipeline::LogDeviceSummary()
         if (!list.empty()) list += "; ";
         list += fallback;
     }
-    LOGI("device: %s; fallbacks: %s", g.deviceClass.c_str(), list.empty() ? "none" : list.c_str());
+    return g.deviceClass + "; fallbacks: " + (list.empty() ? "none" : list);
 }
+void     vk::pipeline::LogDeviceSummary() { LOGI("device: %s", DeviceSummary().c_str()); }
+const char* vk::pipeline::Refusal() { return g.refusal; }
 std::mutex& vk::pipeline::QueueMutex() { static std::mutex m; return m; }
 void*    vk::pipeline::SetLayout(uint32_t set) { return set < 3 ? g.sets[set] : nullptr; }
 void*    vk::pipeline::Layout() { return g.layout; }

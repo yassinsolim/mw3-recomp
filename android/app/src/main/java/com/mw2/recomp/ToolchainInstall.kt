@@ -64,6 +64,15 @@ object ToolchainInstall {
     /** The question was put to the player; it is not put twice. */
     private var asked = false
 
+    /**
+     * The last run stopped at the download, not at Android's question: the
+     * setup then says to look at the connection, and not at a setting the
+     * player was never asked about (SetupActivity.buildProblem).
+     */
+    @Volatile
+    var downloadFailed = false
+        private set
+
     /** Shows Android's question, once, from a screen of this app that is in front. */
     fun ask(activity: Activity) {
         val intent = synchronized(lock) {
@@ -77,6 +86,19 @@ object ToolchainInstall {
             // No installer screen on this device: the session ends unanswered
             // and the build says the package is not installed.
         }
+    }
+
+    /**
+     * Shows Android's question again, when the player asks for it. Where
+     * the app is not yet allowed to install packages the question sends
+     * the player to Settings and closes; on the way back it does not come
+     * up again by itself, and the session waits for an answer nobody can
+     * give (seen on the AYN Thor, Android 13: "Waiting for your answer"
+     * with nothing to answer).
+     */
+    fun askAgain(activity: Activity) {
+        synchronized(lock) { asked = false }
+        ask(activity)
     }
 
     private fun sha256(file: File): String {
@@ -201,10 +223,12 @@ object ToolchainInstall {
         if (synchronized(lock) { session != -1 }) return await()
         if (automatic && (!Toolchain.present(context) || metered(context))) return Result.Left
         val file = File(context.cacheDir, kit.toolchainAsset)
+        downloadFailed = false
         try {
             // Kept from a download whose install the player was asked about
             // and this process did not live to hear the answer to.
             if (!(file.isFile && sha256(file) == kit.toolchainHash)) {
+                downloadFailed = true
                 download(kit, file, progress)
                 // Anything else, a page of a proxy or a package of another
                 // release, is deleted and never shown to the installer.
@@ -212,6 +236,7 @@ object ToolchainInstall {
                     file.delete()
                     return Result.Failed(context.getString(R.string.build_toolchain_not_whole))
                 }
+                downloadFailed = false
             }
             commit(context, file)
         } catch (error: Exception) {

@@ -130,9 +130,9 @@ browser, and a [GitHub account](https://github.com/signup) (free).
    done, tap **Open** (or open it from the notification). Android asks once
    whether your browser may install apps: tap **Settings**, switch **Allow
    from this source** on, go back, tap **Install**.
-3. Open the app and tap **INSTALL & PLAY** (or **Install the game files**),
-   then choose your disc image. It copies the game files once (about 7 GB).
-   When it is done the app says the game code is not on this device: that is
+3. Open the app. It opens on **Set up the game**: pick your disc image
+   (step 1 of the setup), then go back to the main screen instead of
+   building on the device. The app says the game is not built yet: that is
    the part you build next.
 
 ### 2. Prepare the two files

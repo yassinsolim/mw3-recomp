@@ -17,12 +17,66 @@ Other games: [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
 [Call of Duty 4](https://github.com/yassinsolim/cod4-recomp) ·
 [Advanced Warfare](https://github.com/yassinsolim/aw-recomp)
 
+## Quick start
+
+No PC is needed. You need your own *Modern Warfare 3* disc as an `.iso` file,
+on the device (the Downloads folder is fine) or on its SD card.
+
+1. **Install the app** from [Releases](https://github.com/yassinsolim/mw3-recomp/releases/latest)
+   and open it. It opens on **Set up the game**.
+2. **Pick your disc image.** An `.iso` in Downloads is usually found by
+   itself: tap **USE THIS FILE**. Otherwise tap **CHOOSE THE .ISO FILE** and
+   tap it. The app checks that it is the right game, and only reads it.
+3. **Build the game.** Tap **BUILD THE GAME** and wait: about 5 minutes on
+   the AYN Thor, 8 on the Retroid Pocket Flip 2. The campaign and the
+   multiplayer are built together. The first time, Android asks to allow
+   notifications and to install the app's build tools: the screen says what
+   to tap. Keep the charger in; you can leave the app, and a notification
+   shows how far it is.
+4. **Play.** Skip **Add your DLC** unless you have map packs, then tap
+   **PLAY**.
+
+| 2. Pick your disc image | 3. Build the game | 4. Play |
+|---|---|---|
+| ![Step 1 of the setup: Pick your disc image, with the .iso found on the device and the button Use this file](docs/images/readme/mw3-setup-1.png) | ![Step 2 of the setup: Build the game, with one progress bar](docs/images/readme/mw3-setup-2.png) | ![The setup's last screen: Ready to play, with the button Play](docs/images/readme/mw3-setup-3.png) |
+
+The app updates itself. If an update needs the game built again, the app
+does it by itself in the background, or the large button says **UPDATE THE
+GAME**; no disc image is asked for again.
+
 ## Official downloads
 
 - The only official APKs are on this project's [GitHub releases page](https://github.com/yassinsolim/mw3-recomp/releases).
 - APKs re-uploaded elsewhere (file hosts, Reddit, Discord mirrors) are not ours. They may be modified or out of date, so we can't help with problems they cause.
 - The game is never provided. Build it from your own disc image, dumped from a disc you own. We don't link to download sites, and we can't help with downloaded copies.
-- Report problems through [GitHub issues](https://github.com/yassinsolim/mw3-recomp/issues), with Log -> Share attached.
+- Reporting a problem: [open an issue](https://github.com/yassinsolim/mw3-recomp/issues/new/choose) and attach the log (LOG -> SHARE in the app).
+
+## FAQ
+
+**Build or install?** Neither is a choice any more: tap the one large button
+(**SET UP THE GAME**, later **CONTINUE SETUP**). It asks for your `.iso`,
+then builds the game. Nothing is copied: the game plays from the `.iso`
+where it is. The separate build and install screens of older versions are
+under **Repair / rebuild**, and you only need them to change something.
+
+**Is multiplayer included?** Yes. One build makes the campaign (with Special
+Ops) and the multiplayer, and the main screen then says "Ready - campaign
+and multiplayer installed". **PLAY** starts the campaign; **MULTIPLAYER** is
+under *Play options*.
+
+**Where's my .iso?** The app contains no game and downloads none. The `.iso`
+is the copy you made of your own Xbox 360 disc. Put it on the device, in
+Downloads or on the SD card, and keep it there: the game reads it every time
+you play. If the app does not find it by itself, tap **CHOOSE THE .ISO
+FILE**, or **Look in a folder** and open the folder it is in. If the app
+says the file is another game or a version it does not support, it is not
+the disc this app is for (see [What you need](#what-you-need)).
+
+**It's slow, or the screen is black.** Open the app, tap **LOG**, then
+**SHARE**, and choose **Share the log file**. Then tap **REPORT A PROBLEM**
+(or [open an issue](https://github.com/yassinsolim/mw3-recomp/issues/new/choose))
+and attach that file. The first visit to a level may stutter while its
+graphics are compiled; see [Tips](#tips) and [Troubleshooting](#troubleshooting).
 
 ## What you need
 
@@ -34,58 +88,53 @@ Other games: [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
   RAM recommended. Tested: AYN Thor and Retroid Pocket Flip 2. Mali GPUs from
   the G57 up are untested; Mali G52 and G76 (and older) are not supported.
 - **About 8 GB free** for the disc image, on the device or an SD card, plus
-  about 1 GB while the game code is built.
+  about 1 GB while the game is built.
 
-## Quick start (no PC)
+## Supported devices and what to expect
 
-1. Install the APK from [Releases](https://github.com/yassinsolim/mw3-recomp/releases/latest)
-   and open it.
-2. Tap **Build on this device**. An `.iso` on the device or its SD card is
-   found by itself where Android lets the app look; otherwise pick it with the Files app, or browse
-   to it and tap it (or **Use this folder** in the folder it is in). It is
-   only read. The app downloads its build tools once (43 MB); Android asks
-   twice to allow installing them.
-3. Tap **Build** and wait about **5 to 8 minutes** (4 min 40 s on the AYN
-   Thor, 8 min on the Flip 2). You can leave the app or lock the screen; it carries
-   on. Keep the device charging: the build uses every core.
-4. Tap **Install & Play**. The game plays straight from the same `.iso`;
-   nothing is copied.
-5. Play: **Campaign · Special Ops** or **Multiplayer**, with the touch overlay
-   or a Bluetooth/USB controller.
+Two devices are tested by the project, on every release. Nothing else is:
+what is said of other devices below is what their players reported, and no
+more.
 
-The app updates itself. When an update needs the game code made again it
-says so; tap **Build the game code** (no disc image is asked for).
+| Device | Tested? | What to expect in Modern Warfare 3 |
+|---|---|---|
+| AYN Thor (Snapdragon 8 Gen 2, Adreno 740, 120 Hz) | **yes, every release** | 118 to 119 FPS |
+| Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650, 60 Hz; the Retroid Pocket 5 has the same chip) | **yes, every release** | 60 FPS |
+| Snapdragon 6 Gen 1 (Adreno 710) | no | a player's video of it running exists; nothing measured |
+| An unnamed device | no | one player reported only a black screen (before the app said why) |
+| Any other Snapdragon (Adreno 6xx, 7xx, 8xx) | no | Unknown. Expect less than a tested device of the same class, and tell us ([below](#on-a-device-we-have-not-tested)) |
+| Mali, Xclipse, PowerVR | no | Unknown; see What you need above |
 
-<details>
-<summary><b>Other ways to install</b></summary>
+### On a device we have not tested
 
-- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`,
-  a short path without spaces), double-click `setup\setup.cmd` and answer its
-  questions (Android and/or PC, where your `.iso` is). It downloads what it
-  needs into `.toolchain\`, builds `out\mw3-game.apk` and installs it with the
-  app on a phone connected over USB with USB debugging on. For the Windows game
-  too, choose PC: start `out\pc\Campaign.cmd` or `out\pc\Multiplayer.cmd`
-  (settings in `out\pc\.env`, all of them in [docs/switches.md](docs/switches.md)).
-  Microsoft's C++ Build Tools are needed; setup offers to install them.
-  After an app update that needs new game code: `git pull`, then
-  `setup\setup.cmd -GameOnly`. `-Check` lists what it would do and changes
-  nothing.
-- **Linux PC** (tested on Ubuntu 24.04, WSL2 included):
+The app does not go by the chip's name. It measures the play in front of you
+and gives up, in this order, what the device has no time for:
 
-  ```sh
-  git clone https://github.com/yassinsolim/mw3-recomp.git && cd mw3-recomp
-  bash setup/setup.sh --iso ~/Downloads/MW3.iso
-  ```
+1. **Sun shadows** (Settings → Graphics → Sun shadows, *Chosen for this
+   device*): on only once half a minute of play has held its frame rate
+   with room to spare, off again when frames come late with them.
+2. **The 3D scene's pixels**: drawn at 92% down to 58% of its size while the
+   graphics chip is late with a frame, and whole again when it is not. The
+   HUD and the menus keep theirs.
+3. **The frame rate** (Settings → Graphics → FPS limit, *Auto*): from the
+   screen's fastest rate down to an even 60 or 30 when ten seconds in a row
+   did not come near it, and up again when there is room. A limit you choose
+   yourself is kept whatever happens, and so are shadows you turn on or off.
 
-  Android only. `--game-only` rebuilds the game code after an update.
-- **GitHub builds it for you** (no PC, a private repository of your own): not
-  available yet.
+The sound keeps its own time: where the processor is too busy to mix it on
+time, it is buffered further ahead rather than left to crackle. An FPS limit
+of 30 or 60 puts a faster screen in its 60 Hz mode, which saves power; if
+the sound breaks up there (on the AYN Thor it does when other programs keep
+the processor busy), the screen goes back to its fastest mode for the rest
+of the run and your limit stays.
 
-Every way, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
-How the on-device build works and what was measured:
-[docs/ondevice-build.md](docs/ondevice-build.md).
+If the screen stays black, the app says so within half a minute, names the
+graphics chip and the driver, and offers the other driver (the Turnip driver
+the app carries, or the phone's own) and **Share log**. If it runs badly,
+open the game's **Menu → Share performance report** after a minute or two of
+play: it sends the frame rate, the graphics chip's time a frame, the device
+and your settings as text, which is what we need to do anything about it.
 
-</details>
 
 ## What works
 
@@ -139,18 +188,21 @@ Sources and methods: [docs/android.md](docs/android.md),
 
 | Problem | What to do |
 |---|---|
-| "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
-| "The game code does not match this version" | After an update: tap **Build the game code** again |
-| "…is not a version of the game this app supports" | The `.iso` is another game or a disc build this port was not made for ([accepted builds](tools/check_mw3_xex.py)) |
-| The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
+| "The game is not built yet" or "The game has to be built first" | Tap the large button on the main screen: it builds the game |
+| "This is Modern Warfare 3, but not a version of the disc this app supports" | The `.iso` is a disc build this port was not made for ([accepted builds](tools/check_mw3_xex.py)) |
+| The build stopped or failed | What was done is kept: tap **Retry**. If it fails again, tap **Share log** under it and attach the file to an issue |
+| Android did not ask to install the build tools, or you tapped Cancel | Tap **Retry**. If Android says the app isn't allowed to install unknown apps: **Settings**, turn on **Allow from this source**, go back once, then **Install** |
 | Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
-| "The disc image is not there any more" | Put the `.iso` back (SD card, moved file) or choose it again with **Install & Play** |
-| Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
+| "Your .iso file is not where it was" | Put the `.iso` back (SD card, moved file), or tap the large button and pick it again |
+| Black screen | Within half a minute the app says why, or that no picture has come, with the graphics chip and driver: try the other driver it offers (or **Settings → Graphics driver**) and send **Share log** |
+| Low frame rate or choppy sound | **Menu → Share performance report** in the game after a minute of play, and send it; see [Supported devices](#supported-devices-and-what-to-expect) |
+| Crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\mw3`; accept the USB debugging prompt on the phone |
 
-Bug reports are welcome with the log (the app's **Log** screen).
+Bug reports are welcome with the log file (**LOG**, then **SHARE**, or
+**REPORT A PROBLEM** on the main screen).
 
 <details>
 <summary><b>For developers</b></summary>
@@ -175,6 +227,42 @@ The port: [docs/ANDROID-ARCHITECTURE.md](docs/ANDROID-ARCHITECTURE.md),
 - `tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
   refuses commits that carry game data. Never commit or publish anything from
   `mw3/`, `ppc_*/`, `out/` or a build folder.
+
+</details>
+
+## PC setup and other ways (advanced)
+
+The app builds the game by itself; you need none of this to play. It is for
+building on a PC instead, and for the Windows game.
+
+<details>
+<summary><b>Other ways to install</b></summary>
+
+- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`,
+  a short path without spaces), double-click `setup\setup.cmd` and answer its
+  questions (Android and/or PC, where your `.iso` is). It downloads what it
+  needs into `.toolchain\`, builds `out\mw3-game.apk` and installs it with the
+  app on a phone connected over USB with USB debugging on. For the Windows game
+  too, choose PC: start `out\pc\Campaign.cmd` or `out\pc\Multiplayer.cmd`
+  (settings in `out\pc\.env`, all of them in [docs/switches.md](docs/switches.md)).
+  Microsoft's C++ Build Tools are needed; setup offers to install them.
+  After an app update that needs new game code: `git pull`, then
+  `setup\setup.cmd -GameOnly`. `-Check` lists what it would do and changes
+  nothing.
+- **Linux PC** (tested on Ubuntu 24.04, WSL2 included):
+
+  ```sh
+  git clone https://github.com/yassinsolim/mw3-recomp.git && cd mw3-recomp
+  bash setup/setup.sh --iso ~/Downloads/MW3.iso
+  ```
+
+  Android only. `--game-only` rebuilds the game code after an update.
+- **GitHub builds it for you** (no PC, a private repository of your own): not
+  available yet.
+
+Every way, step by step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
+How the on-device build works and what was measured:
+[docs/ondevice-build.md](docs/ondevice-build.md).
 
 </details>
 

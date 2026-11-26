@@ -1,0 +1,19 @@
+Modern Warfare 2 for Android v0.1.10
+
+Nothing to rebuild: the game code you built for v0.1.9 is used as it is, and your saves and settings are kept. A game already set up opens on PLAY as before.
+
+New
+- Set up with one button: SET UP THE GAME leads through the disc image, the build and optional DLC, then becomes PLAY.
+- The main screen is PLAY, a line of status and three small groups. The first run shows how to open the menu.
+- Log, Share sends a file you can attach. Report a problem opens the report form with game, version and device filled in.
+- Settings follow what your device is measured to keep, not its chip's name: sun shadows, the scene's size and the FPS limit's new Auto. What you chose stays.
+- Fixed: the sound broke up when the processor was busy.
+- A black screen says why and offers the other graphics driver and Share log. The menu has Share performance report.
+
+Known issues
+- The automatic settings were measured on two devices only; if yours runs worse, send a performance report.
+- Map packs are experimental.
+- The first minutes on a fresh install stutter while shaders compile.
+- Multiplayer over the internet needs a relay server; see the README.
+
+Official downloads are only on GitHub Releases. Never share the game code you build: it contains the game. Unofficial fan project, not affiliated with Activision or Microsoft.

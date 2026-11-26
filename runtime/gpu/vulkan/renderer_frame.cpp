@@ -529,6 +529,7 @@ namespace vk::renderer::detail
         LogFrame(worldDrawn);
         NoteFrame(worldDrawn);
         SceneFrame(worldDrawn);
+        adaptive::Frame(worldDrawn, SceneNow());
         SetCutsceneActive(!worldDrawn);
         if (worldDrawn)
         {

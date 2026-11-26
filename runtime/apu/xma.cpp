@@ -12,6 +12,9 @@
 #include "../guest.h"
 #include "../diagnostics.h"
 #include "../log.h"
+#ifdef MW2_ANDROID
+#include "../android/android.h"
+#endif
 #include "../kernel/kernel.h"
 
 extern "C" {
@@ -952,6 +955,14 @@ void apu::xma::RegisterStore(uint32_t address, uint32_t value)
         // Decoded here and now, so the title sees the results when the store
         // returns.
         g_kicks++;
+#ifdef MW2_ANDROID
+        // A thread that drives the decoder is one of the title's audio
+        // threads (XAudio2's own), which the mixer's callback waits for: on
+        // a processor with more to do than it has cores for it was run tens
+        // of milliseconds late with everything else, and the mixer with it.
+        thread_local const bool raised = (android::perf::RaiseAudioPriority(), true);
+        (void)raised;
+#endif
         ForEachContext((r - kRegKick0) * 32, value, [](Context& c) { c.Work(); });
     }
     else if (r >= kRegLock0 && r < kRegLock0 + 10)

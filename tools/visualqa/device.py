@@ -30,6 +30,9 @@ SEGMENT_OVERLAP = 3
 # (measured: a flash of 13.4 levels reads 13.4 at 4 Mbit/s and at 20).
 BIT_RATE = 12_000_000
 ACTIVITY = "com.mw2.recomp.MainActivity"
+# In a test app's `dlc` folder while it has the packages of a folder of test
+# files: the folder they go back to (Device.provision, Device.remove).
+LENT = "lent-from.txt"
 
 
 def find_adb():
@@ -203,18 +206,29 @@ class Device:
             if "Success" not in said:
                 raise RuntimeError(f"installing {name}: {said[-300:]}")
 
-    def provision(self, game, image, files, more_prefs=None):
-        """The executables out of `files` (which is only read) and the preferences of a set-up app."""
+    def provision(self, game, image, files, packages=False, more_prefs=None):
+        """The executables out of `files` and the preferences of a set-up app.
+
+        `files` is only read, but for its content packages when `packages` says it has some (Advanced Warfare's
+        install disc's two): they are lent to the app, moved into the `dlc` folder beside its game folder,
+        where the launcher counts the game as set up, and `remove` moves them back. A copy would be four
+        gigabytes a run.
+        """
         package, external = self.package(game), self.external(game)
         if not self.has(f"{files}/default.xex"):
             raise RuntimeError(f"{files} has no game")
         self.shell(f"mkdir -p {external}/game")
         self.shell(f"cd {files} && for f in default.xex default_mp.xex nxeart; do "
                    f"[ -e $f ] && cp -r $f {external}/game/; done")
+        if packages:
+            self.shell(f"mkdir -p {external}/dlc && echo {files} > {external}/dlc/{LENT} && "
+                       f"for f in {files}/*; do case ${{f##*/}} in default*|nxeart) ;; *) mv $f {external}/dlc/;; esac; done")
         # The app reads the image where it lies, which needs all-files access.
         self.shell(f"appops set {package} MANAGE_EXTERNAL_STORAGE allow")
         values = {"gameDirectory": f"{external}/game", "discImage": image or "", "seenWelcome": True,
                   "fpsCapFollowsScreen": True, "seenPadWarning": True, "playerNameAsked": True,
+                  # The help over the game at a run's start dims the picture until it is closed.
+                  "seenGameHelp": True,
                   # Left false, the driver the build carries becomes the default, as on a player's phone.
                   "driverChoiceMade": False,
                   # The touch controls and the statistics line cover the picture and are not the game's.
@@ -271,6 +285,9 @@ class Device:
         """Takes the test app, its game code and everything they wrote off the phone."""
         package = self.package(game)
         self.shell(f"am force-stop {package}")
+        # Before the app goes, and its folder with it: the packages it was lent (provision).
+        lent = f"/sdcard/Android/data/{package}/files/dlc"
+        self.shell(f"[ -f {lent}/{LENT} ] && home=$(cat {lent}/{LENT}) && rm {lent}/{LENT} && mv {lent}/* $home/")
         for name in (package, f"{package}.game"):
             self.adb("uninstall", name)
         self.shell(f"rm -rf /sdcard/Android/data/{package} /sdcard/vq_*.mp4")

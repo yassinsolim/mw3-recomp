@@ -123,8 +123,24 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var vibrator: Vibrator? = null
     private var lastRumble = 0
 
-    private val statsValues = FloatArray(9)
+    private val statsValues = FloatArray(14)
     private var started = false
+
+    /**
+     * The watch for a black screen (statsTick): when the run started or was
+     * last come back to, until a frame of the title's has been shown; and
+     * whether the player has been told.
+     */
+    private var watchingSince = 0L
+    private var frameSeen = false
+    private var failureShown = false
+
+    /**
+     * The rate the runtime holds the run to, as the player was last told, and
+     * the rate the display was last asked for a mode of (statsTick).
+     */
+    private var heldTo = 0
+    private var displayAsked = 0
 
     // The system changes the display's mode under a running game: it grants
     // the rate asked for a moment after the surface is made, and takes it
@@ -291,8 +307,12 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     private val statsTick = object : Runnable {
         override fun run() {
-            if (prefs.showStats && NativeBridge.isLoaded()) {
+            if (NativeBridge.isLoaded()) {
                 NativeBridge.nativeStats(statsValues)
+                watchForBlackScreen()
+                followHeldRate()
+            }
+            if (prefs.showStats && NativeBridge.isLoaded()) {
                 if (cachedRendererInfo.isEmpty()) {
                     try {
                         cachedRendererInfo = NativeBridge.nativeRendererInfo()
@@ -388,6 +408,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
                         append("MEMORY & VIEWPORT\n")
                         append("  App / System Total RAM: $ramStr\n")
                         append("  Internal Render: ${resW}×${resH}  •  Refresh: ${refreshHz().roundToInt()} Hz\n")
+                        val gpuMs = statsValues[10]
+                        append("  Held to: ${statsValues[9].roundToInt()} FPS")
+                        if (statsValues[12] > 0f) append(" (auto)")
+                        if (gpuMs >= 0f) append(String.format(Locale.US, "  •  GPU: %.1f ms", gpuMs))
+                        append("  •  Scene: ${statsValues[11].roundToInt()}%\n")
                         if (isMultiplayer) {
                             append("\nNETWORK\n")
                             append("  Players heard on LAN: $lanPeers\n")
@@ -397,6 +422,164 @@ class GameActivity : AppCompatActivity(), NativeListener {
             }
             handler.postDelayed(this, 500)
         }
+    }
+
+    /**
+     * A run that shows nothing says so. Two ways there: the runtime knows
+     * the renderer did not come up (no driver opened, the chip lacks what
+     * the renderer needs: nativeRendererFailure), or nothing says anything
+     * and no frame of the title's reaches the screen. The first present is
+     * the window's own colour, so the title's first is the second counted.
+     * A player on a device nobody here has was left looking at a black
+     * screen, and had nothing to send.
+     */
+    private fun watchForBlackScreen() {
+        if (failureShown || frameSeen || isFinishing) return
+        val failure = NativeBridge.nativeRendererFailure()
+        if (failure.isNotEmpty()) {
+            showRendererFailure(failure, mayWait = false)
+            return
+        }
+        if (statsValues[5] >= 2f) {
+            frameSeen = true
+            return
+        }
+        // Compiling every shader before the first frame is minutes of a
+        // black screen the player asked for.
+        val patience = if (prefs.prewarmAllShaders) NO_FRAME_PREWARM_MS else NO_FRAME_MS
+        if (SystemClock.elapsedRealtime() - watchingSince >= patience) {
+            val line = "no frame of the game's reached the screen in ${patience / 1000} s"
+            NativeBridge.nativeLog(true, line)
+            showRendererFailure(getString(R.string.no_frame, (patience / 1000).toInt()), mayWait = true)
+        }
+    }
+
+    /**
+     * The message over a black screen: what is wrong, on which chip and
+     * driver, what to try -- the other driver, one tap, where there is one --
+     * and the log to share. [mayWait]: nothing has said the renderer failed,
+     * so the player may also go on waiting.
+     */
+    private fun showRendererFailure(reason: String, mayWait: Boolean) {
+        failureShown = true
+        val bundled = prefs.bundledDriverDirectory.takeIf { it.isNotEmpty() }
+            ?.let { path -> DriverStore(this).list().firstOrNull { it.directory.absolutePath == path } }
+        val onSystem = prefs.driverDirectory.isEmpty()
+        val driver = try {
+            NativeBridge.nativeDriverDescription()
+        } catch (_: Throwable) {
+            ""
+        }
+        val advice = when {
+            !onSystem -> getString(R.string.renderer_try_system)
+            bundled != null -> getString(R.string.renderer_try_bundled)
+            else -> getString(R.string.renderer_try_import)
+        }
+        val message = getString(
+            R.string.renderer_failed_message, reason, DeviceInfo.gpu(this),
+            driver.ifEmpty { getString(R.string.driver_system) }, advice,
+        )
+        val builder = AlertDialog.Builder(this)
+            .setTitle(if (mayWait) R.string.no_picture_yet else R.string.renderer_failed)
+            .setMessage(message)
+            .setCancelable(false)
+            .setNeutralButton(R.string.share_log, null)
+        if (!onSystem) {
+            builder.setPositiveButton(R.string.renderer_use_system) { _, _ -> restartWithDriver(null) }
+        } else if (bundled != null) {
+            builder.setPositiveButton(R.string.renderer_use_bundled) { _, _ -> restartWithDriver(bundled) }
+        }
+        if (mayWait) {
+            builder.setNegativeButton(R.string.keep_waiting) { _, _ -> goFullscreen() }
+        } else {
+            builder.setNegativeButton(R.string.quit) { _, _ -> quit() }
+        }
+        val dialog = builder.show()
+        // Sharing leaves the message up: the player comes back to it from
+        // the other app with the choice still to make. As the launcher's
+        // Log screen shares: a file, or the end of it copied (LogShare).
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            LogShare.share(this, LogSummary.whole(this, NativeBridge.nativeLogTail()))
+        }
+    }
+
+    /**
+     * The other driver, chosen as Settings' Graphics driver chooses it
+     * ([driver] null for the phone's own), and the run started again: the
+     * driver is opened once in a process's life.
+     */
+    private fun restartWithDriver(driver: DriverStore.Driver?) {
+        prefs.driverChoiceMade = true
+        prefs.driverDirectory = driver?.directory?.absolutePath ?: ""
+        prefs.driverLibrary = driver?.library ?: ""
+        prefs.flush()
+        NativeBridge.nativeLog(false, "the player switched to ${driver?.name ?: "the system's driver"} and the run starts again")
+        HandOffActivity.start(this, RunRequest(title, launchData, contentLevel))
+        finish()
+        handler.postDelayed({ Process.killProcess(Process.myPid()) }, 80)
+    }
+
+    /**
+     * The performance report (the menu's Share performance report): the
+     * phone, the settings, and from the run what it is held to and how the
+     * play so far went -- frames a second, the graphics chip's time, the
+     * scene's size, the sound's underruns (nativePerformance). What a player
+     * on a phone nobody here has can send instead of "it lags".
+     */
+    private fun sharePerformance() {
+        val (appMb, totalMb) = getMemoryStats()
+        val (batteryTemp, charging, battery) = getBatteryStats()
+        val shown = shownDisplay()
+        val text = buildString {
+            append("===== performance report =====\n")
+            DeviceInfo.lines(this@GameActivity).forEach { append(it).append('\n') }
+            append("title: ").append(title.name).append('\n')
+            if (shown != null) {
+                append("screen: ${shown.mode.physicalWidth}x${shown.mode.physicalHeight} at ${shown.mode.refreshRate} Hz; modes ")
+                append(shown.supportedModes.joinToString { "${it.refreshRate} Hz" }).append('\n')
+            }
+            append("surface: ${statsValues[2].roundToInt()}x${statsValues[3].roundToInt()}\n")
+            append("\n===== settings =====\n")
+            prefs.graphicsSummary().forEach { append(it).append('\n') }
+            append("\n===== this run =====\n")
+            append(NativeBridge.nativePerformance())
+            append(String.format(Locale.US, "now: %.0f FPS shown; app memory %d MB of %d MB\n", statsValues[0], appMb, totalMb))
+            append(String.format(
+                Locale.US, "heat: chip %.0f C, battery %.1f C at %d%%%s\n",
+                getDeviceTemp(), batteryTemp, battery, if (charging) " (charging)" else "",
+            ))
+        }
+        // In the run's log too, so that a log shared later carries it.
+        text.lineSequence().filter { it.isNotBlank() }.forEach { NativeBridge.nativeLog(false, it) }
+        LogShare.share(this, text)
+    }
+
+    /**
+     * What the runtime has decided, read twice a second (runtime/adaptive.h):
+     * the rate a run that follows the device is held to, which the player is
+     * told, and the rate the display is asked for a mode of. That is the
+     * rate the run is held to or the player chose, which the slowest mode
+     * that shows it evenly costs the least for -- or the display's fastest,
+     * where the slower mode costs the sound: an AYN Thor's system gives a
+     * game half the share of a busy processor in its 60 Hz mode.
+     */
+    private fun followHeldRate() {
+        val target = statsValues[9].roundToInt()
+        if (statsValues[12] > 0f && target > 0 && target != heldTo) {
+            // The first reading is the limit the run started with.
+            if (heldTo != 0) {
+                android.widget.Toast.makeText(this, getString(R.string.held_to, target), android.widget.Toast.LENGTH_SHORT).show()
+            }
+            heldTo = target
+        }
+        val display = statsValues[13].roundToInt()
+        if (display <= 0 || display == displayAsked) return
+        // The first reading is the limit the run started with, asked for in onCreate.
+        if (displayAsked != 0) {
+            DisplayRate.request(window, shownDisplay(), display)
+            logDisplayMode()
+        }
+        displayAsked = display
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -463,7 +646,12 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (overlay.editing) endEditing(save = true) else if (menu.isOpen) menu.back() else showMenu()
+                when {
+                    overlay.editing -> endEditing(save = true)
+                    help.isOpen -> help.close()
+                    menu.isOpen -> menu.back()
+                    else -> showMenu()
+                }
             }
         })
 
@@ -506,6 +694,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
             return
         }
         started = true
+        // How to open the menu, change settings and quit, until the player
+        // has asked not to be told again.
+        help.openUnlessSeen()
         // The run is up, so ask the system to treat its process as one still
         // wanted: stepping out to a message then costs a pause, not the whole
         // load again (GameService.kt).
@@ -514,6 +705,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         pads.setEnabled(prefs.gamepadEnabled)
         pads.refreshDevices()
         startHardwareMonitor()
+        watchingSince = SystemClock.elapsedRealtime()
         handler.post(statsTick)
         // Modern Warfare 3's multiplayer takes the field of view as MW2_FOV
         // (applyOptions): its scripts put cg_fov back at every spawn.
@@ -862,6 +1054,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // Modern Warfare 2 alone has the hook (runtime/model_detail.cpp).
         if (!Title.isMw3) NativeBridge.nativeSetOption("MW2_LOD_BIAS", prefs.detailBias.toString())
         NativeBridge.nativeSetOption("MW2_FPS_LIMIT", prefs.fpsLimit.toString())
+        // A limit nobody chose is where the run starts, and it may be held
+        // to a slower one of the rates this screen shows evenly.
+        NativeBridge.nativeSetOption("MW2_FPS_AUTO", if (prefs.fpsFollowsDevice) "1" else "")
+        NativeBridge.nativeSetOption("MW2_FPS_STEPS", prefs.fpsSteps.joinToString(","))
         NativeBridge.nativeSetOption("MW2_SHARPEN", prefs.sharpening.toString())
         // Unset leaves the sun's shadows to the runtime's choice for the
         // chip and the title.
@@ -1045,6 +1241,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     private val menu: GameMenu by lazy { GameMenu(this, root) { goFullscreen() } }
 
+    private val help: GameHelp by lazy { GameHelp(this, root, prefs) { goFullscreen() } }
+
     private fun onOff(): List<String> = listOf(getString(R.string.state_off), getString(R.string.state_on))
 
     /**
@@ -1085,6 +1283,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             val counts = List(Prefs.MAX_BOTS + 1) { if (it == 0) getString(R.string.menu_bots_none) else it.toString() }
             rows.add(GameMenu.Choice(getString(R.string.menu_bots), counts, prefs.botCount.coerceIn(0, Prefs.MAX_BOTS)) { setBotCount(it) })
         }
+        rows.add(GameMenu.Entry(getString(R.string.share_performance)) { menu.close(); sharePerformance() })
         rows.add(GameMenu.Entry(getString(R.string.quit)) { menu.push(quitPage()) })
         menu.open(GameMenu.Page(getString(R.string.menu), rows, getString(R.string.menu_hint)))
     }
@@ -1120,10 +1319,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
             resizeSurface()
         })
 
+        // Auto first: the screen's rate, and under it what the device keeps.
         rows.add(GameMenu.Choice(
-            getString(R.string.menu_fps_limit), Prefs.FPS_LIMITS.map { it.toString() },
-            Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit).coerceAtLeast(0),
-        ) { setFpsLimit(Prefs.FPS_LIMITS[it]) })
+            getString(R.string.menu_fps_limit), listOf(getString(R.string.menu_auto)) + Prefs.FPS_LIMITS.map { it.toString() },
+            if (prefs.fpsFollowsDevice) 0 else Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit) + 1,
+        ) { if (it == 0) followDeviceFps() else setFpsLimit(Prefs.FPS_LIMITS[it - 1]) })
 
         rows.add(GameMenu.Choice(
             getString(R.string.menu_sun_shadows), resources.getStringArray(R.array.menu_sun_shadows_choices).toList(),
@@ -1195,14 +1395,18 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     /**
      * The cap, changed under the running title: the runtime paces by it from
-     * the next frame (frame_rate.h), and the display is asked for the mode
-     * that goes with it, as at the start of a run.
+     * the next frame (frame_rate.h), and says which rate the display is to
+     * be asked for (followHeldRate).
      */
     private fun setFpsLimit(limit: Int) {
         prefs.fpsLimit = limit
         NativeBridge.nativeApplyOption("MW2_FPS_LIMIT", limit.toString())
-        DisplayRate.request(window, shownDisplay(), limit)
-        logDisplayMode()
+    }
+
+    /** The cap left to the runtime again: from the screen's rate, as a fresh install starts. */
+    private fun followDeviceFps() {
+        prefs.followDeviceFps()
+        NativeBridge.nativeApplyOption("MW2_FPS_AUTO", "1")
     }
 
     /**
@@ -1572,6 +1776,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // The menu, the dialogs and the editor come first; a pad should not
         // fire a gun through a menu.
         if (started && !overlay.editing) {
+            // The help of a first run is closed by the pad, and passes nothing on.
+            if (help.isOpen && help.onKey(event)) return true
             if (menu.isOpen) return menu.onKey(event) || super.dispatchKeyEvent(event)
             if (opensMenu(event)) {
                 showMenu()
@@ -1603,6 +1809,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
         NativeBridge.nativeRestoreMemory()
         pads.setEnabled(prefs.gamepadEnabled)
         pads.refreshDevices()
+        // Time away is not time without a frame.
+        watchingSince = SystemClock.elapsedRealtime()
+        // onCreate posted it too, before the first onResume: one chain.
+        handler.removeCallbacks(statsTick)
         handler.post(statsTick)
     }
 
@@ -1701,22 +1911,22 @@ class GameActivity : AppCompatActivity(), NativeListener {
     override fun onStatus(text: String) {
         handler.post {
             if (isFinishing) return@post
-            if (text.startsWith("GPU lacks") || text.startsWith("Failed to") || text.startsWith("No Vulkan")) {
-                AlertDialog.Builder(this)
-                    .setTitle("Renderer Notice")
-                    .setMessage("$text\n\nYour device GPU does not provide Vulkan 1.3 or VK_KHR_dynamic_rendering. The game will run in headless mode without video output. Check the log for details.")
-                    .setPositiveButton("View Log") { _, _ ->
-                        finish()
-                    }
-                    .setNegativeButton("Continue Headless", null)
-                    .show()
-            } else if (text.isNotEmpty() && prefs.showStats) {
-                statsText.text = text
-            }
+            // A renderer that did not come up is not said here: the runtime
+            // keeps why, and the watch for a black screen shows it (statsTick).
+            if (text.isNotEmpty() && prefs.showStats) statsText.text = text
         }
     }
 
     companion object {
+        /**
+         * How long a run may show nothing before the player is told: every
+         * title's first picture is up within ten seconds on the slower of the
+         * two devices measured. And with every shader compiled before the
+         * first frame, which a cold cache makes minutes.
+         */
+        private const val NO_FRAME_MS = 30_000L
+        private const val NO_FRAME_PREWARM_MS = 600_000L
+
         /**
          * Started by the launcher once the files are in place; `then` runs
          * once the run has been started. The multiplayer's first start asks

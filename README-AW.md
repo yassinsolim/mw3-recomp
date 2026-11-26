@@ -18,12 +18,73 @@ Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
 (also builds for Windows) · [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
 [Call of Duty 4](https://github.com/yassinsolim/cod4-recomp)
 
+## Quick start
+
+No PC is needed. You need both of your own *Advanced Warfare* discs as
+`.iso` files, the game disc and the install disc, on the device (the
+Downloads folder is fine) or on its SD card.
+
+1. **Install the app** from [Releases](https://github.com/yassinsolim/aw-recomp/releases/latest)
+   and open it. It opens on **Set up the game**.
+2. **Pick your two disc images.** An `.iso` in Downloads is usually found
+   by itself: tap **USE THIS FILE**. Otherwise tap **CHOOSE THE .ISO FILE**
+   and tap it (you can select both at once). With both in one folder the
+   second is taken along; if not, the app asks for it next. The app checks
+   that they are the right game, and only reads them.
+3. **Build the game.** Tap **BUILD THE GAME** and wait: about 13 minutes on
+   the Retroid Pocket Flip 2 (this game is the largest of the four). The
+   campaign and the multiplayer are built together. The first time, Android
+   asks to allow notifications and to install the app's build tools: the
+   screen says what to tap. Keep the charger in; you can leave the app, and
+   a notification shows how far it is.
+4. **Play.** Skip **Add your DLC** unless you have map packs, then tap
+   **PLAY**. The game's first start asks you to move the brightness slider
+   and then the screen margins before it takes **A**: that is the game, not
+   a fault.
+
+| 2. Pick your disc images | 3. Build the game | 4. Play |
+|---|---|---|
+| ![Step 1 of the setup: Pick your two disc images](docs/images/readme/aw-setup-1.png) | ![Step 2 of the setup: Build the game, with one progress bar](docs/images/readme/aw-setup-2.png) | ![The setup's last screen: Ready to play, with the button Play](docs/images/readme/aw-setup-3.png) |
+
+The app updates itself. If an update needs the game built again, the app
+does it by itself in the background, or the large button says **UPDATE THE
+GAME**; no disc image is asked for again.
+
 ## Official downloads
 
 - The only official APKs are on this project's [GitHub releases page](https://github.com/yassinsolim/aw-recomp/releases).
 - APKs re-uploaded elsewhere (file hosts, Reddit, Discord mirrors) are not ours. They may be modified or out of date, so we can't help with problems they cause.
 - The game is never provided. Build it from your own disc image, dumped from a disc you own. We don't link to download sites, and we can't help with downloaded copies.
-- Report problems through [GitHub issues](https://github.com/yassinsolim/aw-recomp/issues), with Log -> Share attached.
+- Reporting a problem: [open an issue](https://github.com/yassinsolim/aw-recomp/issues/new/choose) and attach the log (LOG -> SHARE in the app).
+
+## FAQ
+
+**Build or install?** Neither is a choice any more: tap the one large button
+(**SET UP THE GAME**, later **CONTINUE SETUP**). It asks for your two
+`.iso` files, then builds the game. Nothing is copied: the game plays from
+the `.iso` files where they are. The separate build and install screens of
+older versions are under **Repair / rebuild**, and you only need them to
+change something, such as copying the game into the app instead.
+
+**Is multiplayer included?** Yes. One build makes the campaign and the
+multiplayer, and the main screen then says "Ready - campaign and multiplayer
+installed". **PLAY** starts the campaign; **MULTIPLAYER** is under *Play
+options*, and Exo Survival is in the game's own menu.
+
+**Where's my .iso?** The app contains no game and downloads none. The two
+`.iso` files are the copies you made of your own Xbox 360 discs. Put them on
+the device, in Downloads or on the SD card, and keep them there: the game
+reads them every time you play. If the app does not find them by itself,
+tap **CHOOSE THE .ISO FILE**, or **Look in a folder** and open the folder
+they are in. If the app says a file is another game or a version it does
+not support, it is not the disc this app is for (see
+[What you need](#what-you-need)).
+
+**It's slow, or the screen is black.** Open the app, tap **LOG**, then
+**SHARE**, and choose **Share the log file**. Then tap **REPORT A PROBLEM**
+(or [open an issue](https://github.com/yassinsolim/aw-recomp/issues/new/choose))
+and attach that file. See [Known limits](#known-limits), [Tips](#tips) and
+[Troubleshooting](#troubleshooting).
 
 ## What you need
 
@@ -42,79 +103,58 @@ Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
 - **Both `.iso` files stay on the device or its SD card** (17.5 GB): by
   default the game plays straight from them and copies nothing but its two
   executables, so the device's own storage needs only about 1 GB while the
-  game code is built. Or the app can copy the game out of the two images
+  game is built. Or the app can copy the game out of the two images
   (7.3 GB from the game disc, 4 GB from the install disc, about 12 GB on the
-  device's own storage), after which the images are no longer needed.
+  device's own storage), after which the images are no longer needed:
+  **Repair / rebuild**, **Disc image and game files**.
 
-## Quick start (no PC)
+## Supported devices and what to expect
 
-1. Install the APK from [Releases](https://github.com/yassinsolim/aw-recomp/releases/latest)
-   and open it.
-2. Tap **Build on this device**. With storage access allowed, the app finds
-   your **game disc's** `.iso` by itself wherever it lies on the device or
-   the SD card; otherwise pick it with the Files app, or browse to it and
-   tap the `.iso` (or **Use this folder** in the folder it is in). The image
-   is only read, and you never have to extract anything from it. The app
-   downloads its build tools once (43 MB); Android asks twice to allow
-   installing them.
-3. Tap **Build** and wait about **13 minutes** (measured on the Retroid
-   Pocket Flip 2; this game is the largest of the four). You can leave the
-   app or lock the screen; it carries on. Keep the device charging: the build
-   uses every core.
-4. Tap **Install & Play**. With both images in one folder the app takes the
-   install disc along with the game disc and the game starts within seconds,
-   **playing from the two images where they are**. If it asks for the second
-   disc, choose the install disc's `.iso` (in the Files app you can select
-   both at once) and tap **Install**. To copy the game into the app instead,
-   open **Install the game files**, choose **Copy the game files into the
-   app** and tap **Install**; the app remembers which of the two you chose.
-5. Play: **Campaign**, **Multiplayer**, or **Exo Survival** from the game's
-   own main menu, with the touch overlay or a Bluetooth/USB controller. The
-   first start asks you to move the brightness slider and then the screen
-   margins before it takes **A**: that is the game, not a fault.
+Two devices are tested by the project, on every release. Nothing else is:
+what is said of other devices below is what their players reported, and no
+more.
 
-The app updates itself. When an update needs the game code made again it
-says so; tap **Build the game code** (no disc image is asked for).
+| Device | Tested? | What to expect in Advanced Warfare |
+|---|---|---|
+| AYN Thor (Snapdragon 8 Gen 2, Adreno 740, 120 Hz) | **yes, every release** | 115 to 119 FPS |
+| Retroid Pocket Flip 2 (Snapdragon 865, Adreno 650, 60 Hz; the Retroid Pocket 5 has the same chip) | **yes, every release** | 60 FPS |
+| Snapdragon 870 (Adreno 650) | no | "runs smoothly" by one player's report |
+| Snapdragon 8 Gen 1 (Adreno 730) | no | about 50 FPS by one player's report |
+| POCO F6 (Snapdragon 8s Gen 3, Adreno 735) | no | 20 to 30 FPS with choppy sound by one player's report, on the version before the app measured anything |
+| An unnamed device | no | "not optimised" by one player's report |
+| Any other Snapdragon (Adreno 6xx, 7xx, 8xx) | no | Unknown. Expect less than a tested device of the same class, and tell us ([below](#on-a-device-we-have-not-tested)) |
+| Mali, Xclipse, PowerVR | no | Unknown; see What you need above |
 
-<details>
-<summary><b>Other ways to install</b></summary>
+### On a device we have not tested
 
-- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/aw-recomp.git C:\aw`,
-  a short path without spaces), connect the phone over USB with USB debugging
-  on, and run
+The app does not go by the chip's name. It measures the play in front of you
+and gives up, in this order, what the device has no time for:
 
-  ```
-  setup\setup.cmd -Game aw -Iso "D:\Games\AW-game-disc.iso" -InstallIso "D:\Games\AW-install-disc.iso" -Install -PushIso
-  ```
+1. **Sun shadows** (Settings → Graphics → Sun shadows, *Chosen for this
+   device*): on only once half a minute of play has held its frame rate
+   with room to spare, off again when frames come late with them.
+2. **The 3D scene's pixels**: drawn at 92% down to 58% of its size while the
+   graphics chip is late with a frame, and whole again when it is not. The
+   HUD and the menus keep theirs.
+3. **The frame rate** (Settings → Graphics → FPS limit, *Auto*): from the
+   screen's fastest rate down to an even 60 or 30 when ten seconds in a row
+   did not come near it, and up again when there is room. A limit you choose
+   yourself is kept whatever happens, and so are shadows you turn on or off.
 
-  It downloads what it needs into `.toolchain\` (only Microsoft's C++ Build
-  Tools are installed system-wide, with your leave), builds `out\aw-game.apk`,
-  installs it with the published app, copies the install disc's content to
-  the phone and the game disc's image to its Download folder. `-Build pc` or
-  `-Build both` makes the Windows game as well, in `out\pc-aw`. After an app
-  update that needs new game code: `git pull`, then
-  `setup\setup.cmd -Game aw -GameOnly`. `-Check` lists what it would do and
-  changes nothing.
-- **Linux PC** (tested on Ubuntu 24.04, WSL2 included; Linux Mint 22 is the
-  same underneath), with the phone connected over USB:
+The sound keeps its own time: where the processor is too busy to mix it on
+time, it is buffered further ahead rather than left to crackle. An FPS limit
+of 30 or 60 puts a faster screen in its 60 Hz mode, which saves power; if
+the sound breaks up there (on the AYN Thor it does when other programs keep
+the processor busy), the screen goes back to its fastest mode for the rest
+of the run and your limit stays.
 
-  ```sh
-  git clone https://github.com/yassinsolim/aw-recomp.git && cd aw-recomp
-  bash setup/setup.sh --game aw --iso ~/Downloads/AW-game-disc.iso --install-iso ~/Downloads/AW-install-disc.iso --install --push-iso
-  ```
+If the screen stays black, the app says so within half a minute, names the
+graphics chip and the driver, and offers the other driver (the Turnip driver
+the app carries, or the phone's own) and **Share log**. If it runs badly,
+open the game's **Menu → Share performance report** after a minute or two of
+play: it sends the frame rate, the graphics chip's time a frame, the device
+and your settings as text, which is what we need to do anything about it.
 
-  It first names the system programs it lacks, with the one command that
-  installs them (`sudo apt install git curl unzip python3 openssl clang`),
-  and needs no `sudo` itself. The two images given the wrong way round are
-  taken the right way round. `--game-only` rebuilds the game code after an
-  update; `--no-install` builds without a phone and says what to copy to it.
-- **GitHub builds it for you**: not available for this game.
-
-How the on-device build works and what was measured:
-[docs/ondevice-build.md](docs/ondevice-build.md). The other ways, step by
-step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
-
-</details>
 
 ## What works
 
@@ -132,7 +172,7 @@ defaults. Other hardware is untested.
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Thor and Flip 2 met in Team Deathmatch, 119 and 60 FPS |
 | Exo Survival | ⚠️ | starts from the campaign's menu and plays, alone or two together; see Known limits |
 | Setting up with no PC, from a fresh install of v0.1.0 | ✅ | Flip 2: the game code built in 13 min 8 s, each disc copied in about 40 s, 18 minutes from opening the app to the game's title screen. Not run on the Thor |
-| Playing from both images on an SD card, nothing copied | ✅ | Flip 2: found on the card by itself, the game starts 2 s after **Install & Play**; Seoul loads in 14 s and a match on Retreat in under 8 s, the same as from copied files |
+| Playing from both images on an SD card, nothing copied | ✅ | Flip 2: found on the card by itself, the game is set up 2 s after the images are chosen; Seoul loads in 14 s and a match on Retreat in under 8 s, the same as from copied files |
 | Your own map packs (**Add DLC**, or `setup -Dlc` / `setup.sh --dlc`) | ⚠️ | Thor: Kremlin with 6 bots and Atlas Gorge against a PC through the project's server, 119 FPS. Flip 2: Atlas Gorge against a PC, 60 FPS |
 | Exo Zombies (with your map packs) | ⚠️ | Thor: Outbreak starts and plays at 119 FPS; rounds 2 to 7 only with a test build that kept the player alive. Flip 2, with the game code `setup.sh --dlc` built on Linux: its menu (version 1.20) and Outbreak load and run at 60 FPS; the match was left unattended and ended in round 1 after 30 s, nobody played it by hand |
 | Split screen (Local Play) | ⚠️ | on Windows, with two controllers: a Team Deathmatch on Retreat plays. Flip 2, the second controller simulated (none was at hand): the same at 60 FPS |
@@ -156,7 +196,8 @@ This is a first release. What has **not** been shown:
 - **The frame rate is not locked.** The Flip 2 holds 60 in what was measured;
   the Thor holds 115 to 119, with Fusion at 115. The first visit to a level
   stutters while its graphics are compiled; later visits reuse what was.
-- **Sun shadows are off above 60 FPS** (a setting turns them on, at a cost).
+- **Sun shadows are measured, not assumed**: on while the frames have room
+  for them, which at 120 FPS is seldom (a setting keeps them on, at a cost).
 - **Map packs and Exo Zombies need your own files** off your console: see
   [Map packs and Exo Zombies](#map-packs-and-exo-zombies). Exo Zombies was
   seen on the AYN Thor only, its later rounds only with test tools; the
@@ -251,20 +292,21 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
 
 | Problem | What to do |
 |---|---|
-| "The game code is not on this device" | Tap **Build on this device** (step 2 above) |
-| The build screen already says "found" | With storage access allowed, a game disc image anywhere on the device or its SD card is found by itself; nothing to pick |
-| "…holds neither a disc image (.iso) of this game nor a disc's extracted files" | The folder you chose has no image of this game in it: open the folder the `.iso` is in and tap the `.iso` itself, or use **Choose with the Files app** |
-| "Play from the disc image" is greyed out | What is chosen is a folder of extracted game files, which can only be copied; the screen says so. Choose the `.iso` itself to play without copying |
-| "The disc image the game is played from is not there any more" | The SD card is out, or an `.iso` was moved or deleted: put it back, or choose it again with **Install the game files** |
-| "The game code does not match this version" | After an update: tap **Build the game code** again |
-| "…is not a version of the game this app supports" | The `.iso` is another game, the install disc where the game disc is wanted, or not the USA/Europe disc this port was made for |
-| The app keeps asking for the second disc | The game needs both: choose the other disc's `.iso` (the install disc after the game disc) |
+| "The game is not built yet" or "The game has to be built first" | Tap the large button on the main screen: it builds the game |
+| "There is no .iso file of Advanced Warfare in that folder" | Open the folder the `.iso` is in and tap the `.iso` itself, or use **CHOOSE THE .ISO FILE** |
+| "Play from the disc image" is greyed out (**Repair / rebuild**) | What is chosen is a folder of extracted game files, which can only be copied; the screen says so. Choose the `.iso` itself to play without copying |
+| "Your .iso file is not where it was" | The SD card is out, or an `.iso` was moved or deleted: put it back, or tap the large button and pick it again |
+| "This is Advanced Warfare, but not a version of the disc this app supports" | The `.iso` is not the USA/Europe disc this port was made for |
+| The app asks for a second disc | The game needs both: pick the other disc's `.iso` (the install disc after the game disc) |
 | Nothing happens on the Brightness screen | Move the slider left or right first, then press **A**; the same on the next screen |
+| Android did not ask to install the build tools, or you tapped Cancel | Tap **Retry**. If Android says the app isn't allowed to install unknown apps: **Settings**, turn on **Allow from this source**, go back once, then **Install** |
 | Not enough space | Play from the images (the default), which copies nothing; copying needs about 12 GB on the device's own storage |
-| The build stopped or failed | What was done is kept: tap **Build** again. If it fails again, the screen says where its report is; share it in an issue, after reading it (it can name files and folders) |
+| The build stopped or failed | What was done is kept: tap **Retry**. If it fails again, tap **Share log** under it and attach the file to an issue |
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
-| Black screen or crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
+| Black screen | Within half a minute the app says why, or that no picture has come, with the graphics chip and driver: try the other driver it offers (or **Settings → Graphics driver**) and send **Share log** |
+| Low frame rate or choppy sound | **Menu → Share performance report** in the game after a minute of play, and send it; see [Supported devices](#supported-devices-and-what-to-expect) |
+| Crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\aw`; accept the USB debugging prompt on the phone |
 | `setup.sh` says `unknown option: --dlc` | The folder is older than the option: `git pull` (or download the repository again), then run the same command |
 | `setup.sh` says programs are needed | Run the one `sudo apt install …` line it prints, then the same command again; it carries on where it stopped. Its logs are in `out/logs/` |
@@ -272,6 +314,8 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
 | **Add DLC** lists your packs but says the game code of the updated multiplayer is missing | The packs are in place; the updated multiplayer has not been built. A newer app builds it on the device by itself; otherwise run one of the two PC commands under [Map packs and Exo Zombies](#map-packs-and-exo-zombies) |
 | The start screen reads **ADD DLC · 2 MISSING**, or (app v0.1.7 and older) Multiplayer only shows a notice that required content was added to your downloads | The updated game needs all six free Compatibility Packs and you added fewer. **Add DLC** names the missing ones: they are in `Content\0000000000000000\41560914\00000002` on the console's hard disk beside the map packs. Copy them and add them the same way; until then Multiplayer is the disc's version |
 | The app refuses the game code after you built the updated multiplayer by hand | A game library built outside setup does not carry the statement the app checks. Run `setup.sh --dlc` (or `setup.cmd -Dlc`): it builds all three libraries the way the app expects and says whether they fit the published app |
+| Choosing Campaign shows "An installed Content Pack is corrupt. It must be deleted to continue." (app v0.1.2) | Nothing of yours is corrupt and nothing needs deleting: with eleven or more packs added, the campaign was shown your packs ahead of its own install files. Update the app; your packs, saves and game code stay as they are |
+| **Add DLC** says a pack "is damaged" or "is incomplete: copy it again from your console" | The copy of that one file went wrong (a cable pulled, a full card). Copy the named file again from the console's hard disk and add it again; the other packs are not affected |
 
 Bug reports are welcome with the log (the app's **Log** screen), the device
 and the level.
@@ -296,6 +340,51 @@ the repositories differ only in which app their releases carry.
 - `tools/check_no_game_files.py` (also `--staged`, as a pre-commit check)
   refuses commits that carry game data. Never commit or publish anything from
   `aw/`, `ppc_*/`, `out/` or a build folder.
+
+</details>
+
+## PC setup and other ways (advanced)
+
+The app builds the game by itself; you need none of this to play. It is for
+building on a PC instead, and for the Windows game.
+
+<details>
+<summary><b>Other ways to install</b></summary>
+
+- **Windows PC**: get the code (`git clone https://github.com/yassinsolim/aw-recomp.git C:\aw`,
+  a short path without spaces), connect the phone over USB with USB debugging
+  on, and run
+
+  ```
+  setup\setup.cmd -Game aw -Iso "D:\Games\AW-game-disc.iso" -InstallIso "D:\Games\AW-install-disc.iso" -Install -PushIso
+  ```
+
+  It downloads what it needs into `.toolchain\` (only Microsoft's C++ Build
+  Tools are installed system-wide, with your leave), builds `out\aw-game.apk`,
+  installs it with the published app, copies the install disc's content to
+  the phone and the game disc's image to its Download folder. `-Build pc` or
+  `-Build both` makes the Windows game as well, in `out\pc-aw`. After an app
+  update that needs new game code: `git pull`, then
+  `setup\setup.cmd -Game aw -GameOnly`. `-Check` lists what it would do and
+  changes nothing.
+- **Linux PC** (tested on Ubuntu 24.04, WSL2 included; Linux Mint 22 is the
+  same underneath), with the phone connected over USB:
+
+  ```sh
+  git clone https://github.com/yassinsolim/aw-recomp.git && cd aw-recomp
+  bash setup/setup.sh --game aw --iso ~/Downloads/AW-game-disc.iso --install-iso ~/Downloads/AW-install-disc.iso --install --push-iso
+  ```
+
+  It first names the system programs it lacks, with the one command that
+  installs them (`sudo apt install git curl unzip python3 openssl clang`),
+  and needs no `sudo` itself. The two images given the wrong way round are
+  taken the right way round. `--game-only` rebuilds the game code after an
+  update; `--no-install` builds without a phone and says what to copy to it.
+- **GitHub builds it for you**: not available for this game.
+
+How the on-device build works and what was measured:
+[docs/ondevice-build.md](docs/ondevice-build.md). The other ways, step by
+step: [docs/BUILD-WITHOUT-PC.md](docs/BUILD-WITHOUT-PC.md).
 
 </details>
 

@@ -45,6 +45,13 @@ namespace report
     // display paces the title (frame_rate.h): time in hand, not work.
     enum Time { kExecuting, kRecorderWait, kGpuWait, kTextures, kCompiling, kGpuBusy, kDisplayWait, kTimeCount };
     void Spent(Time time, uint64_t nanoseconds);
+    // All of one time so far, in nanoseconds, and the asking that it be
+    // kept in a run without the report: what a device sustains is read from
+    // the renderer's thread's and the chip's times (adaptive.h), and they
+    // cost a reading of the clock around a batch and a wait.
+    uint64_t SpentSoFar(Time time);
+    void KeepTimes();
+    bool TimesKept();
     // A shader the renderer built, and whether the driver found it in the
     // pipeline cache the launcher compiled every shader of the game into:
     // 1 it did, 0 it compiled it, -1 it does not say. Any thread.
@@ -66,7 +73,7 @@ namespace report
     struct Timed
     {
         const Time time;
-        const bool on = On();
+        const bool on = On() || TimesKept();
         std::chrono::steady_clock::time_point began;
         explicit Timed(Time what);
         ~Timed();

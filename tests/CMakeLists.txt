@@ -96,6 +96,17 @@ add_executable(version-test
 target_include_directories(version-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../launcher")
 add_test(NAME version COMMAND version-test)
 
+# ---- what a device sustains ------------------------------------------------
+# The rule that holds a run to the frame rate its device keeps and gives it
+# the sun's shadows when its frames have room for them (runtime/adaptive.h):
+# checked on windows of play as a phone would measure them, since the phones
+# it is for -- every chip but the two the project owns -- are not here.
+add_executable(adaptive-test
+    "${CMAKE_CURRENT_SOURCE_DIR}/adaptive_test.cpp"
+    "${MW2_RUNTIME}/adaptive_governor.cpp")
+target_include_directories(adaptive-test PRIVATE "${MW2_RUNTIME}")
+add_test(NAME adaptive COMMAND adaptive-test)
+
 # ---- the DemonWare lobby stand-in ------------------------------------------
 # What MW3's multiplayer logs on to instead of its publisher's servers
 # (runtime/online/demonware.cpp): the stream's framing, the player's files read

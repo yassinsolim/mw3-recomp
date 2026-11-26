@@ -143,6 +143,13 @@ namespace vk::pipeline
     // one line of the log that says what kind of device this is and what it
     // is doing without (docs/TESTING-MALI.md).
     void     LogDeviceSummary();
+    // The same without "device: ", for the performance report a player
+    // shares (adaptive.h); "no device" before there is one.
+    std::string DeviceSummary();
+    // What CreateDevice refused the device for ("descriptor indexing"), for
+    // the message the app shows instead of a black screen; "" when it did
+    // not refuse it.
+    const char* Refusal();
 
     // The device has one queue, and the window thread and the GPU thread both
     // submit to it; Vulkan requires a queue to be externally synchronised.

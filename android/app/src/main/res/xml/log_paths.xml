@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one folder another app may be handed a file of: the log the player
+     shares (LogShare.kt), in the app's cache. -->
+<paths>
+    <cache-path name="logs" path="shared-logs/" />
+</paths>

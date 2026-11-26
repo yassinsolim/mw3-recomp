@@ -15,10 +15,15 @@
 // with room to spare. A Retroid Pocket Flip 2 (Adreno 650) in Modern Warfare
 // 2's flight to the Gulag draws the 832x480 scene in 17 to 22 ms where the
 // display gives 16.7 (46 to 58 frames a second), and a 640x368 one in 15 to
-// 18 (55 to 60): the scene's pixels are what is left to give there, and only
-// there (docs/android.md).
+// 18 (55 to 60): the scene's pixels are what is left to give there
+// (docs/android.md). It was on for that class of chip alone; under Android it
+// is on for every chip now, since what decides it is the chip's time and not
+// its name, and a chip with time in hand never leaves the first step. Where
+// the sun's shadows are the runtime's to choose they go before the first
+// pixel does (adaptive.h).
 #include "renderer_state.h"
 #include "gpu_time.h"
+#include "../../adaptive.h"
 #include "../../frame_rate.h"
 #include "../../log.h"
 #include "../../render_size.h"
@@ -97,18 +102,8 @@ namespace vk::renderer::detail
         State::Scene& scene = g.scene;
         const char* const asked = env::Text("MW2_SCENE_DYNAMIC");
         bool on = asked ? env::Flag("MW2_SCENE_DYNAMIC") : false;
-#ifdef MW2_ANDROID
-        // The class whose frame the scene's pixels decide (docs/android.md).
-        if (!asked) on = android::perf::Adreno6xx();
-#if defined(BO3_TITLE)
-        // And every chip in Black Ops III, whose 880x720 scene is two thirds
-        // of the frame on an Adreno 740 too: 10.7 of the 16.1 ms a frame of a
-        // match on Combine (AYN Thor, 52 frames a second). That was measured
-        // under Qualcomm's own driver, not the bundled Turnip the players'
-        // apps use: to be measured again there (docs/BO3-BRINGUP.md).
-        if (!asked) on = true;
-#endif
-#endif
+        // Wherever the run follows what the device sustains: under Android.
+        if (!asked) on = adaptive::On();
         // Diagnostic, MW2_SCENE_SHARE=<percent>[,<frames>]: that share for the
         // whole run, or it and the whole scene in turn, so many frames each
         // -- two pictures of one view, to compare.
@@ -192,6 +187,15 @@ namespace vk::renderer::detail
         const uint32_t last = State::Scene::kLevels - 1;
         if ((taken > 0.97 * given || atFull > 0.90 * given) && scene.level < last)
         {
+            // The sun's shadows before the scene's pixels, where they are the
+            // runtime's choice and on: the title takes a few frames to stop
+            // drawing them, and the windows after that say what is left.
+            if (adaptive::GiveUpShadows())
+            {
+                scene.settle = 3 * kSettle;
+                scene.calm = 0;
+                return;
+            }
             // Two steps where one would still leave it late.
             Draw(std::min(last, scene.level + (atFull > 1.12 * given ? 2u : 1u)));
             scene.settle = kSettle;
@@ -212,13 +216,25 @@ namespace vk::renderer::detail
         }
     }
 
+    adaptive::Scene SceneNow()
+    {
+        const State::Scene& scene = g.scene;
+        adaptive::Scene now;
+        // A fixed share (MW2_SCENE_SHARE) follows nothing.
+        now.dynamic = scene.on && scene.stepping;
+        now.level = scene.level;
+        now.levels = State::Scene::kLevels;
+        now.percent = scene.on ? uint32_t(std::lround(State::Scene::kShares[scene.level] * 100.0f)) : 100;
+        return now;
+    }
+
     void SceneReport()
     {
         const State::Scene& scene = g.scene;
         uint64_t frames = 0;
         for (const uint64_t at : scene.framesAt) frames += at;
         if (!scene.on || !frames) return;
-        char line[160];
+        char line[State::Scene::kLevels * 32];
         int length = 0;
         for (uint32_t level = 0; level < State::Scene::kLevels; level++)
             length += std::snprintf(line + length, sizeof line - size_t(length), "%s%.0f%% of its width in %.1f%%",

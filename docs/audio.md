@@ -55,6 +55,78 @@ as much faster while it is empty when a frame is due (6.7 ms held after ten
 minutes on the Thor, as at the start). `MW2_TRACE_MOVIES=1` logs both clocks
 and the sink ([switches.md](switches.md)).
 
+The mixer does not wait for the picture: its thread has its own cadence, and
+the decoder is driven from it and from XAudio2's own threads, none of them
+the title's frame loop. So a frame rate that is low because the graphics chip
+is slow leaves the sound alone -- an AYN Thor drawing Advanced
+Warfare's Seoul at three times its size ran at 20 to 49 frames a second with
+no underrun in play but at the level's start, and no frame dropped -- and what makes it choppy
+is a processor with more to do than it has cores for, which runs the mixer's
+thread and the title's audio threads it waits for tens of milliseconds late,
+several times a second. The mixer then mixes the frames it owes in a burst;
+the sink took of them what it holds when the mixer is on time (what the
+device takes at once and a frame more) and the rest were dropped as owed to
+nobody, and the device played silence until the next burst. On the Thor with eight busy
+shells beside the game (25 to 50 frames a second, the processor 97% busy,
+80% of it with other programs): 152 underruns in 82 s of play and 224 frames
+dropped.
+Three things answer it, all under Android (`runtime/android/audio.cpp`,
+`MixedLate`; `android::perf::RaiseAudioPriority`):
+
+- **The sink holds as much more as the mixer has been late.** Every frame's
+  lateness is taken when its callback returns; frames late one after another
+  are a spell, and the sink's cushion grows by the third longest spell of
+  this quarter-minute or of the one before, up to 160 ms (the ring is 256 ms
+  now, where it was 170). The third, because one or two long spells are a
+  level starting, and holding the sound back by them for the half minute
+  after would cover a pause that is over: the cutscene that follows is then
+  as near its picture as before. A burst now fits the sink, and the mixer
+  runs a fiftieth fast while the sink holds two frames less than the cushion.
+  When the lateness stops the cushion goes within half a minute, and the
+  mixer's half a hundredth slow takes the sound back to where it was.
+- **The mixer's thread runs at Android's audio priority** (nice -16; it had
+  the default), and so does any thread that drives the decoder
+  (`apu/xma.cpp`, at its first kick), which is how XAudio2's own threads are
+  told from the title's.
+- **The log says so** (`audio: the mixer is finishing its frames late (the
+  processor is busy); the sink holds 80 ms when it is on time`, and `on time
+  again`), and the performance report has the underruns and the cushion.
+
+Measured on 26 November 2026, `.dev` builds, Advanced Warfare's Seoul with
+eight busy shells beside the game. On the Retroid Pocket Flip 2, which holds
+59 frames a second under that load: 12 underruns in 110 s of play where the
+build before had 38, 3 frames dropped for 9. On the Thor, where the run is
+held to 60 and then to 30 under it with the display kept at 120 Hz (below):
+1 underrun in 106 s of play and 134 frames dropped, where the release build
+had 152 in 82 s and 224; and 3 underruns in 256 s of play in a run whose
+load ended after 110 s. With the graphics chip as what is slow (the internal
+render multiplier at 2x and 3x, 15 to 49 frames a second) the Flip 2 had 11
+underruns in play and the Thor 2, a frame dropped at most, before and after
+alike; the Thor at 3x on the final build had none.
+
+**The display's slower mode was most of it on the Thor.** The first runs of
+the cushion there were far worse than the build before: 2,167 underruns in
+108 s of play, the mixer making 60 to 75% of the sound in time and stopping
+for 300 to 500 ms at a time. (A first form of the cushion also dropped 2,801
+frames, which was its own: it left out every lateness over 200 ms as a
+stall. The rule above counts every lateness.) It began ten seconds after the
+rule that follows the device had held the run to 60 and the display had gone
+to its 60 Hz mode, in three runs of three, and the release build does the
+same with an FPS limit of 30 chosen: 2,427 underruns a minute of play. In
+its 60 Hz mode the Thor's system gives the game 8 to 9% of the processor
+under that load, where it has 16 to 17% at 120 Hz. The busy shells are in
+the root control group and the game in `top-app`, each with the same weight
+on a processor thread, so the mixer's priority counts among the game's own
+threads and no further; what the display's mode changes there was not found
+(the processors' clocks are at their fastest and the same cores are active
+in both). So the display's mode is chosen with the sound in mind
+([android.md](android.md#what-a-device-is-given-and-what-it-is-measured-for)):
+it keeps its fastest where the processor is what is late, and is put back
+there, a limit the player chose or not, once the sound has broken up in a
+slower one. With a limit of 30 chosen under that load the display was back
+at 120 Hz sixteen seconds into the run, during the loading and 61 underruns
+after they began, and the play had 7 in 67 s.
+
 What the device adds is its own: 22 ms on the Retroid Pocket Flip 2's low-latency
 output, 46 ms on the AYN Thor's, and 133 ms on the Thor's ordinary output, which
 the system gives a stream while an effect on everything played (an equaliser

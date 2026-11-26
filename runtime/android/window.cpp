@@ -14,7 +14,7 @@
 #ifdef MW2_ANDROID
 
 #include "android.h"
-#include "../frame_rate.h"
+#include "../adaptive.h"
 #include "../log.h"
 #include "../gpu/vulkan/renderer.h"
 
@@ -41,8 +41,10 @@ namespace
     std::atomic<bool> g_paused{ false };
     std::atomic<bool> g_running{ true };
 
-    // The surface's vote for the display's rate: MW2_FPS_LIMIT, so a 120 Hz
-    // panel runs at 120 for a limit of 120 and may drop to 60 for one of 60.
+    // The surface's vote for the display's rate: the one that goes with
+    // MW2_FPS_LIMIT, so a 120 Hz panel runs at 120 for a limit of 120 and may
+    // drop to 60 for one of 60 -- or stays at 120 for it, where the slower
+    // mode has cost the sound or would (adaptive::DisplayRate).
     // The system weighs it with the user's setting, the battery and the heat,
     // and may not grant it; what the display then runs at reaches us through
     // SetRefreshHz. ANativeWindow_setFrameRate came with Android 11 and the
@@ -60,7 +62,7 @@ namespace
         // which may be shown at a multiple of the rate; FIXED_SOURCE is for video.
         constexpr int8_t kCompatibilityDefault = 0;
         // A limit of 0 is no limit, and 0 here is no preference.
-        const float rate = float(frame_rate::Limit());
+        const float rate = float(adaptive::DisplayRate());
         const int32_t result = setFrameRate(window, rate, kCompatibilityDefault);
         if (result) LOGW("android: the surface's frame rate vote of %.0f was refused (%d)", rate, result);
         else LOGI("android: the surface votes for a display rate of %.0f", rate);

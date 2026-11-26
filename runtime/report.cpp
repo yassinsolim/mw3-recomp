@@ -329,6 +329,12 @@ void report::Spent(Time time, uint64_t nanoseconds)
     g_spent[time].fetch_add(nanoseconds, std::memory_order_relaxed);
 }
 
+uint64_t report::SpentSoFar(Time time) { return g_spent[time].load(std::memory_order_relaxed); }
+
+namespace { std::atomic<bool> g_timesKept{ false }; }
+void report::KeepTimes() { g_timesKept.store(true, std::memory_order_relaxed); }
+bool report::TimesKept() { return g_timesKept.load(std::memory_order_relaxed); }
+
 void report::Add(Cost cost, uint64_t microseconds)
 {
     if (!On()) return;
