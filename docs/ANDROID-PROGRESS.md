@@ -855,6 +855,81 @@ and logs: `C:\Users\solim\mw3-android-work\out\gamemenu\`.
   frame rate here is a measurement: the numbers are the app's own
   frame-rate line, read off screenshots.
 
+## Every mode of every game (25 and 26 November 2026)
+
+One round over the four games' modes at `58b0f6b`: first on Windows (RTX
+5080, the nine executables built from that commit, a scripted pad and a
+second one for split screen: `MW2_INPUT_LIVE`, `a@2`), then on the AYN Thor
+(120 Hz) and the Retroid Pocket Flip 2 (60 Hz) with debug `.am` apps of the
+same commit, the game code of toolchain 2, each game read from the disc
+image already on the device. A device run is 170 to 230 s with the pad
+walking, turning and firing from the moment the level is up; the frame rate
+is the log's presents per second over that time. The devices were shared
+by lock with six other rounds, so the device half is not complete: what was
+not run is said, and nothing below is carried over from an earlier day
+unless it says so.
+
+| Game | Mode | Windows | Thor | Flip 2 |
+|---|---|---|---|---|
+| Modern Warfare 2 | Campaign | New Game from the menu: the intro and S.S.D.D.'s load | S.S.D.D. (`devmap`) 115.4 FPS | S.S.D.D. 60.0 |
+| | Special Ops, alone | The Pit from the menus, played | not run | not run this round (played there on 20 November) |
+| | Special Ops, split screen | The Pit with two pads, both views in play | not run | not run |
+| | Multiplayer with bots | not run | Rust with 6 bots by `map`: 115.6, the bots joined; the player was left at the class menu | the same, 60.0 |
+| | Multiplayer, split screen | Team Deathmatch on Afghan, two pads, both in play | not run | not run |
+| | Find Match through the relay | **failed**, two copies on one PC, twice: one lobby, the match starts, the copy that does not host ends in `EXE_ERR_SERVER_TIMEOUT` | not run this round (passed on 23 November) | the same |
+| Modern Warfare 3 | Campaign | not run | Black Tuesday 118.9 | 60, by touch on the release-signed app |
+| | Survival | Resistance from the menus, wave 1 | not reached (the run's presses went to the campaign's menu) | Resistance, 60, release-signed, by touch |
+| | Special Ops mission | not run | not run | Stay Sharp, 60, release-signed, by touch |
+| | Special Ops, split screen | Survival on Resistance with two pads; the load took 74 s against about 15 alone | not run | not run |
+| | Multiplayer, System Link with bots | host with 4 bots on Seatown, a second copy listed it and joined | Dome with 6 bots by `map`: 119.1 | **from the menus**: Create Game, Seatown, 6 bots, 100 s in play, 60.0 (lowest second 58) |
+| | Multiplayer, split screen | Team Deathmatch on Seatown, two pads, both in play | not run | not run |
+| | Find Match through the relay | two copies, Team Deathmatch on Outpost, opposite teams | not run this round (23 November) | the same |
+| Call of Duty 4 | Campaign | not run | F.N.G. 119.1 | F.N.G. 60.0 |
+| | Multiplayer, System Link with bots | Create Game from the menus, Backlot, 4 bots, played | not run from the menus | not run from the menus |
+| | Multiplayer, split screen | Team Deathmatch on Backlot, two pads, both in play | not run | not run |
+| | Find Match through the relay | two copies, Team Deathmatch on Downpour, both scoreboards list both | not run this round (23 November) | the same |
+| Advanced Warfare | Campaign | New Game from the menu, Induction's drop pod | Seoul 119.0 | Seoul 60.0 |
+| | Exo Survival | not run: the campaign's entry asks for the other executable, which the app starts and a development run does not | not run this round (24 November) | the same |
+| | Multiplayer | System Link, Create Game, Retreat, the loadout menu | not run | not run |
+| | Multiplayer, split screen (Local Play) | Team Deathmatch on Retreat, two pads, both in play | not run | not run |
+| | Exo Zombies, the owner's packages | Outbreak from Local Play, played (title update 17's executable, `MW2_LAUNCH_DATA`) | not run this round (25 November) | the same |
+
+What the round found:
+
+- **Split screen works on Windows in every title that has it**: the
+  multiplayer of all four games and the Special Ops of Modern Warfare 2 and
+  3, the second player joining on the titles' own sign-in screens. It has
+  not been run on a device with two controllers. In Advanced Warfare the
+  guest's pad, not the first player's, answers "Progress won't be saved".
+- **Modern Warfare 2's Find Match between two copies on one PC fails**
+  where Modern Warfare 3's and Call of Duty 4's pass in the same minutes:
+  the lobbies merge, the host loads the map and plays, the other copy
+  waits and ends in `EXE_ERR_SERVER_TIMEOUT` (logs
+  `private-logs\allmodes\mw2_findmatch_*.log`). Whether two devices still
+  meet as on 23 November was not run; until it is, that row is open.
+- **Call of Duty 4's multiplayer started by `map` from the console** with
+  the relay as its service ends in `EXE_LOSTCONNECTION` on both devices as
+  the bots join; from the menus (System Link, Create Game) the same match
+  plays on Windows. A shortcut of the test, not a player's path.
+- **Modern Warfare 3's Special Ops has Find Match and Private Match
+  entries that answer "You must be signed in to Xbox LIVE"**: the campaign
+  app carries no online service. Solo Play and Split Screen are what work.
+- **The first run's Brightness and margin screens take A only once the
+  slider was moved** (the "Press A to continue" line appears then), in
+  Modern Warfare 2, 3 and Advanced Warfare alike; and Modern Warfare 3's
+  main menu takes no press for a few seconds after it appears. Both look
+  like the titles' own; a player tapping A alone sees nothing happen.
+- **A scripted run's exit** (`MW2_RUN_SECONDS`) of Modern Warfare 2's
+  multiplayer on the Thor logs a guest fault after its report: a guest
+  thread still running as the memory goes. Diagnostic builds only.
+- On Windows, starting four copies in the same seconds left one hung and
+  one faulted in the renderer's start-up, and the driver reset the GPU
+  once under a copy of Advanced Warfare; another round's game was on the
+  same GPU. Not seen with two copies.
+
+Screenshots are in `private-captures\allmodes\` (`pc_*` the Windows copies),
+logs in `private-logs\allmodes\`.
+
 ## Build (WSL2 Ubuntu 24.04)
 
 Game files go in the git-ignored `mw3/tu0/` (`tools/xdvdfs.py <iso> mw3/tu0`).

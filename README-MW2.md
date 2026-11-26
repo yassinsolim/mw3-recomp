@@ -96,7 +96,7 @@ untested.
 | Multiplayer: System Link | ✅ | Thor and Flip in one match, 119 and 60 FPS; Rust 119 and 60 |
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | 0 to 17; six on Terminal on the Thor: 119 to 120 FPS |
-| Split screen | ❔ | not tested |
+| Split screen | ⚠️ | on Windows, with two controllers: Special Ops (The Pit) and a Team Deathmatch play; not tried on a device |
 | Title update 6 | ❌ | not in this app |
 
 Sources and methods: [docs/android.md](docs/android.md),

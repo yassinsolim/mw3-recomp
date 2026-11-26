@@ -93,7 +93,8 @@ untested.
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Free-for-all, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | 0 to 17; they join, fight and score |
 | Everything unlocked, and extra camos | ✅ | chosen camos show in matches |
-| Windows PC | ⚠️ | multiplayer joined an Android host; campaign not tested there |
+| Split screen (multiplayer and Special Ops) | ⚠️ | works on Windows with two controllers; not tried on a device |
+| Windows PC | ⚠️ | Survival, split screen, System Link and Find Match between two copies play; campaign not tested there |
 | Voice chat | ❔ | built, not tested |
 
 Sources and methods: [docs/android.md](docs/android.md),

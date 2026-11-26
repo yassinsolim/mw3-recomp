@@ -98,7 +98,8 @@ hardware is untested.
 | Multiplayer: Find Match, through the project's server (not Xbox LIVE) | ✅ | Team Deathmatch and Free-for-all, Thor and Flip, 119 and 60 FPS |
 | Bots in matches your device hosts | ✅ | six on Crash on the Flip for ten minutes, 60 FPS; not run on the Thor |
 | Checkpoints on Android | ❔ | work on Windows; not checked on Android |
-| Split screen, Xbox LIVE invitations | ❔ | not tested |
+| Split screen | ⚠️ | on Windows, with two controllers: a Team Deathmatch on Backlot plays; not tried on a device |
+| Xbox LIVE invitations | ❔ | not tested |
 
 Only three campaign levels and two multiplayer maps have been played for more
 than a few minutes; the rest load from the same code but were not checked one
