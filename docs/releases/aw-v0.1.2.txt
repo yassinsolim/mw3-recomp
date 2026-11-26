@@ -5,16 +5,15 @@ Nothing to rebuild: the game code you built for v0.1.1 is used as it is, and you
 New
 - Map packs and Exo Zombies with the phone alone: Add DLC, Choose a folder, pick the folder copied from your own console; the app copies the packs and builds the updated multiplayer itself (about 6 minutes on a Retroid Pocket Flip 2). No DLC is included or downloaded.
 - Add DLC says which Compatibility Packs are missing; until all six are there, Multiplayer stays the disc's version.
+- Fixed: sun shadows set to On flickered.
 - Fixed: a match at Internal render multiplier 2x or 3x was washed out white.
 - Combat Readiness Program has its bots.
 - Multiplayer: an invitation goes only to the player you pick; a private match stays private.
 - Updates are simpler: a rebuild is asked for only when the code really changed, and then runs by itself.
 - Fixed: the sound slowly fell behind the picture the longer you played.
-- Fixed: a piece of the scene could be missing for a single frame.
+- Fixed: a shadow, a model or the held weapon could go missing for a single frame.
 
 Known issues
-- Rarely, a sun shadow is missing for a single frame; being fixed.
-- Sun shadows set to On flicker in some places; keep them on Auto (the default) or Off.
 - Map packs are experimental.
 - The first minutes on a fresh install stutter while shaders compile.
 
