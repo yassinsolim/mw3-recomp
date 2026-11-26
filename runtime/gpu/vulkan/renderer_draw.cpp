@@ -460,6 +460,58 @@ void vk::renderer::detail::DrawInSlot(const gpu::RegisterFile& r, const DrawCall
     // rectangle's scissor is left at its reset value -- 8192 square -- and
     // letting that decide how tall a surface is makes every depth buffer in the
     // frame the largest one this runtime allows.
+    //
+    // Not every such rectangle empties EDRAM. D3D's Clear of part of a depth
+    // surface is drawn the same way -- the tiles it covers whole as one
+    // rectangle of a surface half as wide at 4x, the columns and rows round
+    // them as strips of the surface itself -- and with the depth it was asked
+    // for. Advanced Warfare writes the nearest depth so into the middle of the
+    // sun's far shadow map, the part the near map is read for, to have the
+    // casters there fail the depth test: once in the pass' command buffer
+    // before the casters, and once more after the buffer has run, before the
+    // casters a worker did not get to record, which the title then draws
+    // itself. Answered by emptying every depth image, the second emptied the
+    // map the buffer's casters had just been drawn into: the far shadows were
+    // those of the casters drawn after it, none in most frames and all of
+    // them in a frame whose buffer was not ready, and they came and went with
+    // the workers' timing. Such a rectangle is left undrawn: a depth other
+    // than the cleared one, in columns short of the row's ends, where a depth
+    // surface is. The casters are then drawn into that part too, which costs
+    // their fill and changes nothing the title reads. Advanced Warfare only:
+    // the other titles' frames have not been looked at for such rectangles
+    // with their sun shadows on, and what one of theirs means is not known.
+    const auto masksDepthSurface = [&] {
+#if defined(AW_TITLE)
+        if (call.indexed || call.indexCount < 3) return false;
+        const uint32_t slot = uint32_t(std::countr_zero(vertex->translation.vertexFetchPairs[0]));
+        const uint32_t stride = slot < 32 ? vertex->translation.vertexFetchStride[slot] : 0;
+        const uint32_t* fetch = &r.values[gpu::kConstantBaseFetch + (slot & 31) * 2];
+        const uint32_t va = stride >= 3 && (fetch[0] & 3) == 3 ? kernel::FromPhysical(fetch[0] & ~3u) : 0;
+        if (!va || ((fetch[1] >> 2) & 0xFFFFFF) < call.indexCount * stride) return false;
+        const bool surfaceThere = std::any_of(g.targets.begin(), g.targets.end(), [&](const auto& entry) {
+            return entry.first.depth && entry.first.baseTile == depthInfo.BaseTile();
+        });
+        if (!surfaceThere) return false;
+        float left = 1e30f, right = -1e30f;
+        bool cleared = true;
+        for (uint32_t corner = 0; corner < call.indexCount; corner++)
+        {
+            uint32_t words[3];
+            std::memcpy(words, guest::Base() + va + corner * stride * 4, sizeof words);
+            const float x = std::bit_cast<float>(__builtin_bswap32(words[0]));
+            cleared &= words[2] == 0;
+            left = std::min(left, x); right = std::max(right, x);
+        }
+        return !cleared && left > 0.0f && right < float(surface.Pitch());
+#else
+        return false;
+#endif
+    };
+    if (clearRectangles && edramMode == gpu::EdramMode::DepthOnly && masksDepthSurface())
+    {
+        Skip("depth written into part of a surface");
+        return;
+    }
     if (clearRectangles && edramMode == gpu::EdramMode::DepthOnly)
     {
         if (!BeginFrame()) { Skip("no command buffer"); return; }

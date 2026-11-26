@@ -61,6 +61,20 @@ dependencies.
   - In depth-only mode, the rectangles are not drawn. `ClearAliasedDepth` zeroes
     every depth target at or above their base tile. This happens before any
     target is sized, because the scissor is at its 8192 reset value.
+  - **Part of a depth surface.** D3D's `Clear` of a rectangle inside a depth
+    surface is the depth-only form too, in two draws: the tiles the rectangle
+    covers whole as one rectangle of a surface half as wide at 4x, and the
+    columns and rows round them as strips of the surface itself. Advanced
+    Warfare writes the nearest depth (z 1) so into the middle of the sun's
+    far shadow map, the part the near map is read for, in the pass' command
+    buffer before its casters and again after the buffer has run. A
+    rectangle with a depth other than zero, in columns short of both ends of
+    the row, where a depth surface is, is left undrawn (`DrawInSlot`,
+    "depth written into part of a surface"): emptying the images for it
+    emptied the map the casters had just been drawn into. The casters are
+    drawn into that part as well, which the title does not read. Advanced
+    Warfare only (`AW_TITLE`): the other titles' frames have not been
+    looked at for such rectangles with their sun shadows on.
   - **A colour surface cleared as depth.** D3D's `Clear` of a colour surface
     is the depth-only form as well: `RB_DEPTH_INFO` names the colour surface's
     own base tile as D24S8, at half its pitch and 4x, and one rectangle covers

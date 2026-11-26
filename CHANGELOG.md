@@ -462,6 +462,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for twenty seconds or more still gives up by itself.
 
 ### Fixed
+- **Advanced Warfare: the sun's far shadows are there in every frame.** With
+  Sun shadows on, shadows a few metres from the player and beyond, a
+  building's on the ground, came and went for single frames while standing
+  still (a tester's "yellow wedge" on Solar; Riot the same). The title
+  writes the nearest depth into the middle of the far shadow map, the part
+  the near map covers, once before the map's casters and once after the
+  command buffer a worker recorded for them has run; the renderer answered
+  either by emptying every depth image, so the map held only the casters
+  drawn after the second: none when the worker had finished in time, some
+  or all when the title had to draw them itself. Such a rectangle is now
+  left undrawn (`runtime/gpu/vulkan/renderer_draw.cpp`,
+  [rendering.md](docs/rendering.md)). The app only; the game code is as it
+  was.
 - **An invitation goes only to the player you choose.** "Invite network
   players" in the pause menu, the lobby's Invite and F6 on Windows invited
   everyone the game could hear, and through the server that is everybody
