@@ -299,9 +299,11 @@ namespace
         uint32_t pack = 0;
     };
 
-// Modern Warfare 3 itself: Call of Duty 4 and Advanced Warfare are built with
-// MW3_TITLE as well, and take their packages as they are.
-#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE)
+// Modern Warfare 3 itself: Call of Duty 4, Advanced Warfare and Black Ops III
+// are built with MW3_TITLE as well, and take their packages as they are
+// (Black Ops III's are told by dlccompat<n>.id and dlc0zm.id: with this
+// rule none of them was used and the multiplayer asked for its content).
+#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(BO3_TITLE)
     // Modern Warfare 3's disc executables tell a pack by the marker in it,
     // dlc1.id to dlc6.id (a package with none of the six is closed again),
     // and keep the packs in a table of six with the disc's own maps as its
@@ -393,7 +395,7 @@ namespace
     }
 #endif
 
-#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(MW3_TITLE_MP)
+#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(BO3_TITLE) && !defined(MW3_TITLE_MP)
     // MW2_CONTENT_LEVEL=<level>: a Special Ops mission or Survival map of
     // the player's packages, started as the game starts. The disc's campaign
     // executable loads one (so_survival_mp_italy and the pack's map with it)

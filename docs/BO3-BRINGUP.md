@@ -192,44 +192,67 @@ error now logs each pool with no free entry and its count
 (`engine_log.cpp`), which tells a list that lost entries from a pool that
 ran out.
 
-**Frames a second** (a match on Combine, the scripted player walking and
-firing; game code built on the device; `MW2_REPORT`). The graphics chip is
-what the frame waits for on both: 85% and 94% busy, the title's threads and
-the ring consumer (15% of one thread) are not.
+**Frames a second on the bundled Turnip driver** (`driver:
+libvulkan_freedreno.so (adrenotools)` in every log; the scripted player
+walking and firing; game code built on a PC, the statement the device's;
+`MW2_REPORT`, every run recorded with `adb screenrecord`). The figures of
+the rounds before were Qualcomm's own driver's: the worktree had neither
+the Turnip package nor libadrenotools (`android/fetch_deps.sh`).
 
-**Every figure and picture of this title on a device so far is under
-Qualcomm's own Vulkan driver**, the first boot's above included: the
-worktree the apps were built from had no bundled Turnip
-(`android/app/src/mw3/assets/drivers/`, fetched by `android/fetch_deps.sh`
-and not in the repository), and the logs say `driver: the system's
-libvulkan.so`. The players' apps run on Turnip, on which nothing here has
-been measured or looked at: the table is that driver's and no more.
-
-| | in play | the chip's frame | of it the 880x720 scene |
+| | in play | the chip's frame | the chip at work |
 |---|---|---|---|
-| Thor, multiplayer, the whole scene | 51.9 | 16.1 ms | 10.7 ms in 5 passes, 771 draws |
-| Flip, multiplayer, the scene at 70% of its width and height | 41.6 | 25.2 ms | 15.3 ms in 14 passes, 577 draws |
-| Flip, multiplayer, another start of the map | 32.2 | 31.3 ms | 20.9 ms in 15 passes, 2,236 draws |
+| Thor, multiplayer on Combine, first run and second | 55.6, 56.5 | 5.5 ms | 31 to 35% |
+| Thor, Shadows of Evil | 56.7 | 6.7 ms | 38% |
+| Flip, multiplayer on Combine | 55.1 to 55.7 | 14.2 to 15.3 ms | 79 to 84% |
+| Flip, The Giant | 58.4 (26.2 before the loops below) | 15.5 ms (37.5) | 91% |
+| Flip, Shadows of Evil, before the crossing jumps below | 23 to 33 | 31 to 44 ms | 98% |
+| Flip, Shadows of Evil, with the 30 dispatcher shaders left out | 58.4 | 13.4 ms | |
 
-The scene drawn smaller while the chip is late (`MW2_SCENE_DYNAMIC`) is on
-for this title on every Android chip; on Windows a 616x504 scene draws a
-right picture (frames). It was not measured on the Thor, and it does not
-bring the Flip to 60: the scene there is three times the passes it is on
-the Thor, which is not explained. The sun's shadows are 2.2 ms on the Thor
-and cannot be switched off: the title's dvars go by hashes and `sm_enable`
-does nothing, so `MW2_SHADOWS` says nothing for it. The zombies were not
-measured on a device in this round (56.5 on the Thor before).
+The Thor is not held by its chip: the title's own 60 a second is what it
+runs at. The Flip's scene is at 70% of its width and height nearly all the
+time (`MW2_SCENE_DYNAMIC`), and the Thor's is drawn smaller too (76 to 92%
+in half its frames) though its chip is idle two thirds of the time: the
+rule that shrinks it measures against the 120 Hz display there, which is
+open.
+
+Two things were the zombies' frame on the Flip, both the shader
+translator's dispatcher ([shaders.md](shaders.md#backward-jumps-as-loops)):
+a glow in the HUD that loops 121 times a pixel (32 ms a frame in The Giant),
+and the lit surfaces' `if`/`else` (26 ms in Shadows of Evil). Both are
+emitted as loops and selections now. Shadows of Evil and The Giant were not
+measured again on either device after the second change and the merge of
+`android` (the Thor's 56.7 is with both).
+
+**Add DLC on the Thor, through the app** (26 November, taps over adb):
+Install & Play found the image in a folder of Download and set the game up
+in six seconds; Add DLC, the folder `4156091D` chosen in the system's
+picker, copied title update 5, Compatibility Packs 1 and 2, The Giant and
+Awakening (4.0 GB) in under five seconds and named each. The merge of
+`android` had Modern Warfare 3's rule for packs (a `dlc<n>.id` marker)
+applied to this title, which then used none of its packs and asked for its
+required content; `kernel/content.cpp` leaves it out.
+
+**The frames** (`tools/visualqa`, every frame of each recording). On the
+Flip: multiplayer, second run, nothing but the player's own muzzle flashes;
+its first run, with the pipelines compiled as they are drawn, one frame of
+a flat wash with the HUD over it. The Giant: a panel of the teleporter drawn
+with another texture for one frame, twice in two seconds, 25 s into the
+match; not looked into. One multiplayer run in five on the Flip ended in a
+lost device after a five second stall (before the dispatcher changes; not
+seen since, in four runs).
 
 Open on Android:
 
-- The Flip's 30 to 42 frames a second, and the Thor with the smaller scene.
-- The copied install and Add DLC's map packs (The Giant, Awakening) were not
-  run through the app on a device; the packs load as files on Windows.
+- Shadows of Evil and The Giant on the Flip, and The Giant on the Thor,
+  measured and their frames checked with the build as it is.
+- The other four games against this branch on a device (`visualqa.py run
+  <scenario> --suffix .bo3`); the apps are built.
+- The scene drawn smaller on the Thor with the chip idle.
+- The teleporter panel's one-frame texture in The Giant; the lost device.
+- The zombies' first start from the launcher asks for the player's name,
+  and PLAY there started the multiplayer.
+- The copied install was not run on a device.
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
-- The device runs were looked at in screenshots; the Flip's two were also
-  recorded (`adb screenrecord`) and their frames were not gone through.
-- All of it again on the bundled Turnip driver: the frame rates, the
-  frame's parts, and the picture.
 
 ## Open
 
