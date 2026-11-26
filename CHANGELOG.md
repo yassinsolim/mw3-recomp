@@ -9,6 +9,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **The PC launcher's REPORT A BUG opens the right repository.** It sent
+  every game's report to `PaulCombal/mw2-recompiled`, the upstream project's
+  tracker. It now opens the bug report form of the game's own repository
+  (`yassinsolim/mw3-recomp`, `mw2-recomp`, `cod4-recomp` or `aw-recomp`, by the
+  build's title), with the game, the version and the machine filled in, and
+  the report file is named for the game (`launcher/report.cpp`).
 - **No shadow, model or held weapon goes missing for a frame while a
   shader compiles (all four games on Android).** With "Compile shaders in
   the background" on, which it is unless you turned it off, a draw whose

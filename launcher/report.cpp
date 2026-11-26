@@ -27,7 +27,31 @@ namespace
 {
     constexpr const char* kFolder = "reports";
     constexpr const char* kLog = "reports/run.log";
-    constexpr const char* kNewIssue = "https://github.com/PaulCombal/mw2-recompiled/issues/new";
+
+    // The game this build is, by the define CMakeLists.txt sets for it, and where its issues go:
+    // each game's public repository, the form .github/ISSUE_TEMPLATE/bug-report.yml. kOption is that
+    // form's Game option as written there, which a link can fill in only word for word.
+#if defined(AW_TITLE)
+    constexpr const char* kName = "Advanced Warfare";
+    constexpr const char* kFile = "aw";
+    constexpr const char* kNewIssue = "https://github.com/yassinsolim/aw-recomp/issues/new";
+    constexpr const char* kOption = "AW (Advanced Warfare)";
+#elif defined(COD4_TITLE)
+    constexpr const char* kName = "Call of Duty 4";
+    constexpr const char* kFile = "cod4";
+    constexpr const char* kNewIssue = "https://github.com/yassinsolim/cod4-recomp/issues/new";
+    constexpr const char* kOption = "CoD4 (Call of Duty 4)";
+#elif defined(MW3_TITLE)
+    constexpr const char* kName = "Modern Warfare 3";
+    constexpr const char* kFile = "mw3";
+    constexpr const char* kNewIssue = "https://github.com/yassinsolim/mw3-recomp/issues/new";
+    constexpr const char* kOption = "MW3 (Modern Warfare 3)";
+#else
+    constexpr const char* kName = "Modern Warfare 2";
+    constexpr const char* kFile = "mw2";
+    constexpr const char* kNewIssue = "https://github.com/yassinsolim/mw2-recomp/issues/new";
+    constexpr const char* kOption = "MW2 (Modern Warfare 2)";
+#endif
 
     void ReplaceAll(std::string& text, const std::string& what, const std::string& with)
     {
@@ -334,24 +358,26 @@ bool report::Make(Made& made, std::string& error)
     char stamp[32];
     const std::time_t now = std::time(nullptr);
     std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", std::localtime(&now));
-    const std::string name = std::string("mw2-report-") + stamp + ".txt";
+    const std::string name = std::string(kFile) + "-report-" + stamp + ".txt";
     std::error_code ec;
     made.file = fs::absolute(fs::path(kFolder) / name, ec);
     {
         std::ofstream file(made.file, std::ios::binary);
-        file << "Modern Warfare 2 recompiled: bug report\n\n" << system << performance << "\n---- log ----\n" << log;
+        file << std::string(kName) + " recompiled: bug report\n\n" << system << performance << "\n---- log ----\n" << log;
         if (!file) { error = "The report could not be written to " + Utf8(made.file) + "."; return false; }
     }
     // The log as the game wrote it says who the player is.
     fs::remove(kLog, ec);
 
-    // The body given here takes the place of the repository's own text for
-    // a new issue (.github/ISSUE_TEMPLATE/issue.md), which sends people to this.
-    const std::string body =
-        "**What happened?**\n\n<!-- Describe the problem here: what you did, what you expected, what you saw. -->\n\n\n"
-        "**The report file**\n\n<!-- Drag " + name + " into this box. The launcher opened the folder it is in. -->\n\n\n"
-        "**System** (filled in by the launcher)\n\n" + system + performance;
-    made.page = std::string(kNewIssue) + "?template=issue.md&title=" + Encoded(std::string(what) + (fault ? ": crash " : ": ")) + "&body=" + Encoded(body);
+    // The form's own fields, by their ids (bug-report.yml), filled in as far as a link can: the game,
+    // the version and the machine. The log's box gets the file's name, since a page cannot be handed
+    // the file; the player drags it in. The rest is theirs to write.
+    const std::string device = System() + "; " + Processor() + "; " + graphics;
+    const std::string drag = "Drag " + name + " into this box. The launcher opened the folder it is in.";
+    made.page = std::string(kNewIssue) + "?template=bug-report.yml&title=" +
+                Encoded(std::string("[Bug]: ") + what + (fault ? ": crash " : ": ")) +
+                "&game=" + Encoded(kOption) + "&version=" + Encoded(version) + "&device=" + Encoded(device) +
+                "&log=" + Encoded(drag);
     return true;
 }
 

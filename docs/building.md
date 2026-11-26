@@ -359,8 +359,10 @@ a laptop is on its battery, graphics and displays, the game's own summary,
 and the log. An issue is public, so the log first loses the player's name, IP
 addresses, the session keys of a `connect` line, account numbers, other
 players' names, and the game's and the home folder's paths; the log as the
-game wrote it is deleted. GitHub's new-issue page is opened with the same
-description filled in, in place of the text an issue starts with, and
+game wrote it is deleted. The new-issue page of this game's own public repository
+(`yassinsolim/<game>-recomp`, by the build's title define) is opened on the
+bug report form (`.github/ISSUE_TEMPLATE/bug-report.yml`) with its game,
+version and device filled in, and
 the folder with the file beside it: the launcher
 has no account to file an issue with and a page cannot be handed a file, so
 the player drags it in.
