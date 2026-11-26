@@ -194,11 +194,9 @@ def record_on_device(scenario, name, serial, arguments):
     say(f"{name}/{scenario.name}: {scenario.what} ({scenario.seconds} s; battery {level}%, {heat:.0f} C)")
     try:
         target.install(scenario.game, arguments.apks)
-        target.provision(scenario.game, image, files)
+        # Advanced Warfare's install disc's packages lie beside its executables.
+        target.provision(scenario.game, image, files, packages=test_files is not None)
         switches = scenario.switches(f"{target.external(scenario.game)}/vqframes", arguments.dump_every)
-        if test_files:
-            # Advanced Warfare's install disc's packages lie beside its executables.
-            switches.setdefault("MW2_DLC_DIR", test_files)
         clock = target.start(scenario.game, scenario.title, switches)
         try:
             # The menus before play are not recorded: three minutes of a segment are better spent on the level.

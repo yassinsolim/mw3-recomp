@@ -57,8 +57,12 @@ folder; `visualqa-out/` is ignored).
    pushed once to `/sdcard/Download/visualqa-aw` (from a set-up checkout:
    `aw/tu0/default.xex`, `default_mp.xex` and the two files under
    `aw/install/content/`), and it is played from the Game Disc's image in
-   Download like the others. A game whose image or files are not on the
-   phone is skipped and said.
+   Download like the others. The two packages are moved into the test
+   app's `dlc` folder for the run and back when the app is removed: the
+   launcher starts a game only when its setup is whole, which for Advanced
+   Warfare means the install disc's packages beside the game folder, and
+   a copy would be four gigabytes a run. A game whose image or files are
+   not on the phone is skipped and said.
 3. Writes the scenario's switches (`MW2_CONSOLE`, `MW2_INPUT_SCRIPT`,
    `MW2_RUN_SECONDS`, `MW2_REPORT`, `MW2_REPORT_SECONDS`, `MW2_STUTTERS`,
    `MW2_DUMP_FRAMES`) and starts the title.
