@@ -40,10 +40,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   for each package and which executable was given it
   ([docs/dlc.md](docs/dlc.md#what-each-executable-is-given-and-what-is-checked-first)).
   Nothing is built again: the game code built for v0.1.2 is taken as it is.
-  The notice was reproduced with the app as released, on Windows and on the
-  AYN Thor, with the owner's eleven packs (ten do not bring it up), and is
-  gone with the change on both; the Retroid Pocket Flip 2 has not run it
-  yet. Exo Zombies stays an entry of the launcher:
+  The notice was reproduced with the app as it was before the change, on
+  Windows, the AYN Thor and the Retroid Pocket Flip 2, with the owner's
+  eleven packs (ten do not bring it up), and is gone with the change on
+  all three. Exo Zombies stays an entry of the launcher:
   on a console it is in the updated campaign's main menu, and the campaign
   here is the disc's
   ([docs/AW-BRINGUP.md](docs/AW-BRINGUP.md#the-corrupt-content-pack-notice-26-november-2026)).

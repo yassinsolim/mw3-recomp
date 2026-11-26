@@ -1748,7 +1748,7 @@ the list and no more.
 |---|---|
 | the install disc's two, then the owner's eleven packs (Windows, Thor) | opens |
 | the same with six more copies, or two Compatibility Packs first (Windows) | opens |
-| the owner's eleven packs, then the install disc's two: the order the app lists them in (Windows, Thor) | **the notice** |
+| the owner's eleven packs, then the install disc's two: the order the app lists them in (Windows, Thor, Flip 2) | **the notice** |
 | ten of the eleven, then the install disc's two (Thor) | opens |
 
 So it is the second install package pushed off a list of twelve by the
@@ -1779,6 +1779,23 @@ the library the released app had built. The game code's statements are
 what they were at the release (`aw 9d6d843d6d64`, `awmp b93934d57d53`,
 `awmp17 ca2d9453cd0e`): nothing they are made of changed.
 
+Retroid Pocket Flip 2 (Adreno 650, Turnip, 60 Hz), the same packs, with
+the game folder and so the `dlc` folder on its SD card (the phone had
+5 GB free). The build before the change showed the notice there too. It
+built `libawmp17game.so` on the phone in 6 minutes, with the same
+statement, and the app with the change, installed over it, took that file
+as it was (the same bytes, no build; the launcher said "Game Ready"):
+
+| | |
+|---|---|
+| Campaign, New Game, then Resume Game | no notice; the opening scene at 60 frames a second; two packages given, eleven left to the updated multiplayer |
+| Multiplayer from the campaign's menu | the updated multiplayer's menu (1.20) |
+| Exo Survival from the campaign's menu | the updated multiplayer's Exo Survival menu |
+| Exo Zombies from the launcher | its opening scene, 60 frames a second |
+| Team Deathmatch on Kremlin (a map pack), six bots | 61 frames a second, the slowest second 60 |
+| without the packs: Campaign and Resume Game; Riot with six bots; Exo Survival from the menu | as before: 60, 61 (the slowest second 59), the disc's multiplayer |
+| Add DLC, a folder with a Compatibility Pack cut short at 40 MB | "Compatibility Pack 5 is incomplete: copy it again from your console."; the whole copy already added is kept |
+
 A game library built on the PC was refused during this work
 (`generated-code fff598…` against the app's `2ed750…`). The recompiled
 tree was at fault and not the app: `XenonRecomp.exe` had been copied in
@@ -1788,5 +1805,21 @@ with every register in the context. Built from this checkout's own
 `XenonRecomp/` the tree is the recorded one. Setup builds the recompiler
 itself; a copied `XenonRecomp/build` is the one way to get this.
 
-**Not done:** the Retroid Pocket Flip 2, and `tools/visualqa`'s three
-Advanced Warfare scenarios on either phone with this change.
+`tools/visualqa`'s three Advanced Warfare scenarios with the change, both
+phones on the bundled Turnip (the frames a second in play, the longest
+frame):
+
+| scenario | AYN Thor | Retroid Pocket Flip 2 |
+|---|---|---|
+| `aw-campaign` | PASS, 118.4, 50 ms | PASS, 60.4, 48 ms |
+| `aw-match` | PASS, 118.5, 76 ms | FAIL in both of two runs, 60.4 and 60.3, 87 and 90 ms: `local-flicker` at 162.4 s in one, `missing` at 184.9 s and 192.6 s in the other |
+| `aw-shadows` | PASS, 118.7, 105 ms | PASS, 60.3, 149 ms |
+
+The Flip 2's two failures were looked at in their frames and are the
+check's mistakes, of the two kinds [visualqa.md](visualqa.md#where-the-suite-stands)
+names: the edge of a container crossing the view in a fast turn, and a
+bare wall sliding past as the player sidesteps. The build before the
+change passed its one run there that afternoon, and other builds without
+the change failed it the same day (`local-flicker` at 160.8 s and at
+162.1 s). The change is in what a package is checked for and which are
+listed when the game starts; nothing it touches draws.
