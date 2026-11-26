@@ -42,9 +42,9 @@ Downloads folder is fine) or on its SD card.
    and then the screen margins before it takes **A**: that is the game, not
    a fault.
 
-| 1. Open the app | 2. Pick your disc images | 3. Build the game | 4. Play |
-|---|---|---|---|
-| ![The main screen before setup: one large button, Set up the game](docs/images/readme/aw-setup-1.png) | ![Step 1: Pick your two disc images, with the .iso found on the device](docs/images/readme/aw-setup-2.png) | ![Step 2: Build the game, with a progress bar and the minutes left](docs/images/readme/aw-setup-3.png) | ![Done: Ready to play](docs/images/readme/aw-setup-4.png) |
+| 2. Pick your disc images | 3. Build the game | 4. Play |
+|---|---|---|
+| ![Step 1 of the setup: Pick your two disc images](docs/images/readme/aw-setup-1.png) | ![Step 2 of the setup: Build the game, with one progress bar](docs/images/readme/aw-setup-2.png) | ![The setup's last screen: Ready to play, with the button Play](docs/images/readme/aw-setup-3.png) |
 
 The app updates itself. If an update needs the game built again, the app
 does it by itself in the background, or the large button says **UPDATE THE
