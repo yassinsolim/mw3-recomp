@@ -64,6 +64,7 @@ published by any step but the last.
     python tools/release/release.py status          what is published, what comes next
     python tools/release/release.py sync --push     filter the branch into the four mirrors, check, push main
     python tools/release/release.py tag             push the next tags: the workflows draft the releases
+    python tools/release/release.py withdraw        take the tags and drafts back (a later commit is to be released; never a published one)
     python tools/release/release.py gates --wait    gates 1 to 4 and 7 on the drafts
     python tools/release/release.py device-template > report.json
     python tools/release/release.py publish --device-report report.json
