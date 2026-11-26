@@ -560,6 +560,7 @@
     <string name="setup_build_failed">The build stopped before it was finished. Tap Retry: it carries on from where it stopped.</string>
     <string name="setup_build_no_space">There is not enough free space: the build needs about 1 GB. Free some space, then tap Retry.</string>
     <string name="setup_build_offline">The build tools could not be downloaded: there is no internet connection. Connect, then tap Retry.</string>
+    <string name="setup_build_download">The build tools could not be downloaded. Check your internet connection, then tap Retry.</string>
     <string name="setup_build_tools_refused">The build tools were not installed. Tap Retry. When Android asks, tap Settings and turn on Allow from this source if it wants that, come back here, then tap Install.</string>
     <string name="setup_retry">RETRY</string>
     <string name="setup_share_log">Share log</string>

@@ -307,6 +307,8 @@ class SetupActivity : AppCompatActivity() {
         when {
             StatFs(filesDir.absolutePath).availableBytes < BUILD_BYTES -> R.string.setup_build_no_space
             !haveTools() && !online() -> R.string.setup_build_offline
+            // Online, and the file still did not come: a network that lets nothing through, or the server.
+            !haveTools() && ToolchainInstall.downloadFailed -> R.string.setup_build_download
             !haveTools() -> R.string.setup_build_tools_refused
             else -> R.string.setup_build_failed
         },

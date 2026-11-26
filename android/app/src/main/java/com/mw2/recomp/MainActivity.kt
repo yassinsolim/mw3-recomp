@@ -39,8 +39,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var footer: TextView
     private lateinit var play: Button
-    private lateinit var groupPlay: android.view.View
-    private lateinit var groupExtras: android.view.View
+    private lateinit var groupPlay: android.view.ViewGroup
+    private lateinit var groupExtras: android.view.ViewGroup
     private lateinit var secondButton: Button
     private lateinit var botsButton: Button
     private lateinit var zombiesButton: Button
@@ -548,6 +548,7 @@ class MainActivity : AppCompatActivity() {
         // disc's menus have no entries for (docs/dlc.md).
         val packLevels = installed && Title.CAMPAIGN.carried && Title.CAMPAIGN.installed(gameDirectory) && Dlc.levels(this).isNotEmpty()
         packLevelsButton.visibility = if (packLevels) android.view.View.VISIBLE else android.view.View.GONE
+        sizeLeftColumn()
 
         val ready = if (Setup.guided) refreshGuided() else refreshOneTitle(installed)
         directLaunchSwitch.visibility = if (ready) android.view.View.VISIBLE else android.view.View.GONE
@@ -601,6 +602,38 @@ class MainActivity : AppCompatActivity() {
             openSetup()
         }
         return false
+    }
+
+    /**
+     * The left column's heights. Its groups show two to five entries by the
+     * game and what the player has added; shared out by fixed weights, two
+     * entries stood as far apart as four. Each entry gets one row, a row
+     * being about the height of an entry of the right column; of the rows
+     * left over the large button takes the first and the rest stand as
+     * space under each group.
+     */
+    private fun sizeLeftColumn() {
+        fun rows(group: android.view.ViewGroup) = (0 until group.childCount).count {
+            val child = group.getChildAt(it)
+            child is Button && child.visibility == android.view.View.VISIBLE
+        }
+        fun weigh(view: android.view.View, rows: Float) {
+            val params = view.layoutParams as android.widget.LinearLayout.LayoutParams
+            if (params.weight == rows) return
+            params.weight = rows
+            view.layoutParams = params
+        }
+        // A group's heading is in its height: under half a row, on both phones.
+        fun group(rows: Int): Float = if (rows == 0) 0f else rows + HEADING_ROWS
+        val playRows = rows(groupPlay)
+        val extraRows = rows(groupExtras)
+        val spare = (ENTRY_ROWS - playRows - extraRows).coerceAtLeast(0).toFloat()
+        val gap = (spare - 1f).coerceAtLeast(0f) / 2f
+        weigh(play, PLAY_ROWS + spare.coerceAtMost(1f))
+        weigh(groupPlay, group(playRows))
+        weigh(findViewById(R.id.gap_groups), gap)
+        weigh(groupExtras, group(extraRows))
+        weigh(findViewById(R.id.gap_switch), gap)
     }
 
     /**
@@ -1208,6 +1241,15 @@ class MainActivity : AppCompatActivity() {
 
         /** How often the launcher looks at a build of the game code that is under way. */
         private const val BUILD_TICK_MS = 2000L
+
+        /** The large button's height, in rows of the left column's entries. */
+        private const val PLAY_ROWS = 2.4f
+
+        /** The entries the left column is laid out for; more than these and its rows are shorter. */
+        private const val ENTRY_ROWS = 6
+
+        /** A group's heading, in rows. */
+        private const val HEADING_ROWS = 0.4f
     }
 }
 
