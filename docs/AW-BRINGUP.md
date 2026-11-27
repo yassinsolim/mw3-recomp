@@ -1832,8 +1832,9 @@ menu: display resolution 100%, sun shadows On, field of view 110, render
 multiplier 1x, FPS limit 60.
 
 - **The field of view was 65 again after every death.** The app sent
-  `cg_fov`, which the scripts put back at each spawn. It is `MW2_FOV` now, in
-  the campaign and both multiplayers ([gameplay.md](gameplay.md#field-of-view)).
+  `cg_fov`, which the scripts put back at each spawn. It is `MW2_FOV` now in
+  both multiplayers; the campaign reads the switch too, but the app keeps
+  `cg_fov` there ([gameplay.md](gameplay.md#field-of-view)).
   Seen on Windows in the update's multiplayer on Drift with ten bots: 110
   before and after a death, where `cg_fov 110` was 65 after it
   (`pc-fov-*`).

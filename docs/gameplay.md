@@ -284,7 +284,12 @@ degrees a press from the hip at 65 and 80 at 100; 26 down a red dot sight at
 65 and 23 at 100.
 
 Advanced Warfare reads the switch in its campaign and in both builds of its
-multiplayer, and the Android app's slider sets it there too. Until 26
+multiplayer, and the Android app's slider sets it in the multiplayer. In
+the campaign the app still sends `cg_fov`: with `MW2_FOV=85` the visual
+suite's Induction failed at the squad mate's prompt on both phones in every
+attempt, where it passes with `cg_fov`, and why is not known yet; the
+switch itself was seen wider at 110 on Windows and through two restarts
+from a checkpoint on a Retroid Pocket Flip 2. Until 26
 November 2026 the app sent `cg_fov`, which this title's scripts put back to
 65 at every spawn as Modern Warfare 3's do: a tester's view of 110 was 65
 again after each death. The four functions, found from the pointer each

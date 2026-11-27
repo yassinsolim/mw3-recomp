@@ -91,12 +91,15 @@ class GameActivity : AppCompatActivity(), NativeListener {
         get() = isMultiplayer && Title.isMw3
 
     /**
-     * The titles whose field of view is the runtime's own (MW2_FOV): Modern
-     * Warfare 3's multiplayer and Advanced Warfare, whose scripts put cg_fov
-     * back at every spawn.
+     * The titles whose field of view is the runtime's own (MW2_FOV): the
+     * multiplayers of Modern Warfare 3 and Advanced Warfare, whose scripts
+     * put cg_fov back at every spawn. Advanced Warfare's campaign keeps
+     * cg_fov: with the runtime's at the app's 85 degrees Induction's drop
+     * failed at the squad mate's prompt on both phones, run after run, where
+     * it passes with cg_fov (tools/visualqa, aw-campaign).
      */
     private val fovIsRuntimes: Boolean
-        get() = isMw3Multiplayer || Title.isAw
+        get() = isMw3Multiplayer || (Title.isAw && isMultiplayer)
 
     /** What the other title left for this run (RunRequest), as hexadecimal. */
     private var launchData = ""

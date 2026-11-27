@@ -74,8 +74,9 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   110 in the game menu and had 65 again after every respawn: the app sent
   the title's `cg_fov`, which its scripts put back at each spawn. The
   setting is now the runtime's (`MW2_FOV`, `runtime/field_of_view.cpp`), as
-  in Modern Warfare 3's multiplayer, in the campaign and both builds of the
-  multiplayer; turning from the hip keeps the console's speed at any view.
+  in Modern Warfare 3's multiplayer, in both builds of the multiplayer
+  (the campaign reads the switch as well, and the app keeps `cg_fov`
+  there); turning from the hip keeps the console's speed at any view.
   The campaign scales the view's tangents rather than its angle, which that
   executable writes back into its own settings (docs/gameplay.md).
 - **The PC launcher's REPORT A BUG opens the right repository.** It sent
