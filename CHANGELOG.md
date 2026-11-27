@@ -5,6 +5,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Changed
+- **A bug report's game-code line lists every library, and what each was
+  built for.** It named only the disc's campaign and multiplayer, so a log
+  could not show whether Advanced Warfare's title-update multiplayer
+  (`libawmp17game.so`) was built. It now lists it too (built on this device,
+  `MISSING`, or `not needed (no title update added)`), and for every library
+  the first twelve digits of the statement it was built for, with whether
+  this app takes it or a rebuild is due.
+- **The release's update gate is the player's.** The previous published APK
+  builds the game code on the device and the release-signed new APK goes
+  over it with `pm install -r` from a file on the device; the old
+  `adb install -r` check stays as its pre-check
+  ([docs/android-releases.md](docs/android-releases.md#the-update-as-a-player-does-it),
+  `release.py published-apk`).
 - **Setting the game up is one button (all four games on Android).** A new
   player asked which came first, "Build the game code" or "Install the game
   files", and whether the multiplayer was installed by itself: the launcher

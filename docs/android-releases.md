@@ -66,6 +66,7 @@ published by any step but the last.
     python tools/release/release.py tag             push the next tags: the workflows draft the releases
     python tools/release/release.py withdraw        take the tags and drafts back (a later commit is to be released; never a published one)
     python tools/release/release.py gates --wait    gates 1 to 4 and 7 on the drafts
+    python tools/release/release.py published-apk   the previous published APK, from GitHub Releases, with its SHA-256 (gate 6's old app)
     python tools/release/release.py device-template > report.json
     python tools/release/release.py publish --device-report report.json
     python tools/release/release.py verify-public   (publish runs it too)
@@ -109,9 +110,15 @@ The gates. All of them pass or nothing is published:
    ([visualqa.md](visualqa.md)), `game.log` names Turnip, and the frame rate
    is the device's (about 115 to 120 on the Thor, 60 on the Flip 2) and no
    lower than the published release's beyond noise.
-6. **The update**, on a device as well: the new app installed over the
-   published version keeps the saves and the settings, and the game code is
-   taken as it is or built again by itself.
+6. **The update**, on a device as well, **as a player has it**: the
+   previous *published* APK (downloaded from GitHub Releases) builds the game
+   code on the device, then the release-signed new APK is installed over it
+   through Android's package installer (`pm install -r` from a file on the
+   device, which is what a downloaded APK goes through), and the game code
+   built on the device is still accepted with no rebuild, or is built again
+   by itself when the notes say so. The saves and the settings are kept.
+   [The update as a player does it](#the-update-as-a-player-does-it) says
+   how and how long; the old fast check stays as its pre-check.
 7. **The notes.** Plain text, under 1,450 characters (the app shows 1,500),
    written for players, naming the tag, with a `Known issues` line.
 
@@ -128,7 +135,9 @@ and is not debuggable, so nothing can be scripted in it or written into its
 preferences. What is tried instead is the mirror's tagged commit built here
 three ways under a package suffix (`-PappSuffix=.rc`): the release variant
 signed with the release key (the workflow's own Gradle task and
-environment), for the start, the play by hand and the update; the debug
+environment), for the start and the play by hand (and for the update when
+the device has the owner's app: see [the update as a player does
+it](#the-update-as-a-player-does-it)); the debug
 variant signed again with the release key, installed first so that `run-as`
 can write the preferences of a set-up app, and replaced by the release
 variant, which keeps them; and the debug variant under `.vq` for the visual
@@ -143,6 +152,72 @@ addresses the app and setup use (`releases/download/<tag>/` and
 `releases/latest/download/`), the APK's SHA-256 is the one the gates passed,
 each repository's latest release is the new tag, and the build tools'
 download has the SHA-256 named.
+
+## The update as a player does it
+
+Gate 6 used to be `adb install -r` of two locally built `.rc` copies
+over game code that came from a PC. That is not what a player does: the
+player's game code is built *on the phone* by the published app, and the next
+app arrives as a downloaded APK handed to Android's package installer. The
+tester's log (Advanced Warfare, v0.1.1 to v0.1.4) shows that path works, but
+a gate that never took it could not have shown otherwise. Gate 6 is now:
+
+1. **Pre-check, kept** (a few minutes): the old fast check. The new `.rc`
+   release build over the old one with `adb install -r`, on game code from a
+   PC (`setup\setup.cmd`): the statements are taken as they are, or the
+   build starts by itself when the notes say it must. It catches a broken
+   statement, a refused library or lost preferences before the long run.
+2. **The old app is the published one.** `release.py published-apk` downloads
+   `<game>-recomp-<published tag>.apk` from GitHub Releases, checks it as gate 2
+   does and prints its SHA-256; the report names that hash
+   (`update.from_apk_sha256`), and `publish` compares it with the file.
+   Install it with `adb install` (a first install, so the installer's path
+   does not matter yet), choose the disc image, and **build the game code on
+   the device** with it (every library the game has, and the title update's
+   when Add DLC has been done): wait for the notification to end. Or reuse a
+   device on which that build already stands. The report's **game code**
+   line then reads `was built on this device for <hash>, which this app
+   takes` for each library, the title update's too (`libawmp17game.so`).
+3. **The new app goes over it as a downloaded APK does.** The draft's APK is
+   copied to the device and installed from there, with the game closed or
+   running:
+
+       adb push aw-recomp-vX.Y.Z.apk /data/local/tmp/new.apk
+       adb shell pm install -r /data/local/tmp/new.apk
+
+   (`installed_with` in the report is `pm install -r`.) The draft's APK has
+   the published package name and key, so this takes the real package: only
+   on a device that does not have the owner's app of that game, or whose
+   owner agrees to it, since the draft's version cannot be taken back.
+   Where the owner's app is on the device, the same is done under the
+   package suffix: the previous version built from its commit (its own
+   version code, `-PappSuffix=.rc`, the release variant signed with the
+   release key) takes the place of the downloaded APK, builds the game code
+   on the device, and the new `.rc` release build is put over it with the
+   same `pm install -r` from a file; the report names it in `test_package`
+   and says in `equivalent` what stood for the published APK. Never
+   `adb uninstall`, `pm clear` or a reinstall on the way: the data must
+   survive the update, as it does for a player.
+4. **What has to be seen**: the launcher still says the game is ready, the
+   report's game-code line is the same as before the update (every library
+   built on this device for a statement this app takes) and no build ran
+   (`game_code_rebuilt: false`), or, when the notes' first lines say the game
+   code is built again, the build starts by itself and ends (`true`); the
+   saves and the settings are as they were; a campaign level starts and loads
+   `files/game-code/lib<name>game.so`. The report's `game_code` is that line,
+   and `publish` refuses it with MISSING in it, or with "a rebuild is due"
+   when the notes promise none.
+
+**How long it takes**, per game and device: the old app's build is the long
+part, and is [measured](ondevice-build.md#pausing-interruptions-memory-and-heat)
+at 2 to 4 minutes for Call of Duty 4 and 4 to 8 for Modern Warfare 3 on the
+Thor and the Flip 2, and 12 to 13 minutes for Advanced Warfare (plus 6 for
+the update's library after Add DLC) on the Flip 2. The install and the
+checks add about 5 minutes (an estimate, not yet timed), so 10 to 30 minutes
+a game and device, and for all four games on two phones, one after another
+through the devices' lock, a few hours. A build that already stands on a test
+package is reused for later releases that have the same previous version:
+only the install and the checks are left.
 
 ## When the game code has to be rebuilt
 

@@ -6,6 +6,7 @@
     python tools/release/release.py tag
     python tools/release/release.py withdraw
     python tools/release/release.py gates [--wait]
+    python tools/release/release.py published-apk
     python tools/release/release.py device-template
     python tools/release/release.py publish --device-report <report.json>
     python tools/release/release.py verify-public
@@ -13,7 +14,12 @@
 Each step refuses to go on when a gate fails and says which. Nothing is
 published by anything but `publish`, which runs the gates again on the drafts
 as they are then and wants the report of the device gates (5 and 6), which a
-person or an agent fills after trying the apps on the devices.
+person or an agent fills after trying the apps on the devices. The update of
+gate 6 is tried as a player has it: the previous published APK, the game code
+built on the device by that app, and the new APK put over it with
+`pm install -r` from a file on the device; the report says so and publish
+checks what it can (the old APK's SHA-256, whether a rebuild ran as the notes
+say it would, the game-code line after it).
 
   sync     filters the private branch into the four public mirrors' histories
            (the paths docs/android-releases.md names), checks each for game
@@ -36,6 +42,10 @@ person or an agent fills after trying the apps on the devices.
              with that SHA-256 (publish makes it public before the apps).
            7 the notes (docs/releases/<game>-<tag>.txt): plain text, under
              1,450 characters, with a line on known issues.
+  published-apk
+           downloads the previous published release's APK from GitHub
+           Releases (what a player's phone updates from), checks it as gate 2
+           does, and prints its path and SHA-256: the old app of gate 6.
   publish  toolchain first when it is still a draft, then the games, then
            verify-public: the download addresses answer with the drafts'
            bytes and each repository's latest release is the new tag.
@@ -477,18 +487,67 @@ class Release:
         return report, toolchain
 
     # ---- the device gates' report and publishing -----------------------------
+    def published_apk(self, game):
+        """The published release's APK as GitHub Releases serves it: what a player's phone downloads and updates from."""
+        was = self.state.get("published", {}).get(game) or self.published(game)
+        folder = self.out / "published" / f"{game}-{was}"
+        folder.mkdir(parents=True, exist_ok=True)
+        apk = folder / f"{game}-recomp-{was}.apk"
+        if not apk.exists():
+            run("gh", "release", "download", was, "-R", self.repo(game), "-D", folder, "-p", apk.name)
+        self.gate_apk(game, was, apk)
+        return apk
+
     def device_template(self):
         report = {"note": "Gates 5 and 6. Every 'pass' has to be true and every 'evidence' a file or folder that "
-                          "exists; 'apk_sha256' is the draft's APK, or 'equivalent' says what was tried in its place.",
+                          "exists; 'apk_sha256' is the draft's APK, or 'equivalent' says what was tried in its place. "
+                          "The update is the player's (docs/android-releases.md, The update as a player does it).",
                   "games": {}}
         for game in self.games:
             devices = {device: {check: {"pass": False, "evidence": "", "result": ""} for check in DEVICE_CHECKS}
                        for device in DEVICES}
             report["games"][game] = {
                 "apk_sha256": "", "equivalent": "", "devices": devices,
-                "update": {"pass": False, "from": self.state.get("published", {}).get(game, ""), "saves_kept": False,
-                           "settings_kept": False, "game_code": "", "evidence": ""}}
+                "update": {
+                    "pass": False, "from": self.state.get("published", {}).get(game, ""),
+                    # The published APK, from `published-apk`, installed first; or, on a device that has the owner's
+                    # app, the package suffix the previous version was built and signed under instead.
+                    "from_apk_sha256": "", "test_package": "",
+                    "built_on_device": False,
+                    # The command that put the new app over the old: "pm install -r", from a file on the device.
+                    "installed_with": "",
+                    "saves_kept": False, "settings_kept": False,
+                    # Whether a build ran after the update, and the report's "game code:" line from after it.
+                    "game_code_rebuilt": None, "game_code": "",
+                    "minutes": 0, "evidence": "",
+                    # The fast check kept before it: the new app over the old with `adb install -r` on game code from a PC.
+                    "precheck": {"pass": False, "evidence": ""}}}
         print(json.dumps(report, indent=2))
+
+    def update_problems(self, game, update, gates):
+        """What is wrong with the report of gate 6, the update as a player does it."""
+        problems = []
+        if not all(update.get(key) is True for key in ("pass", "saves_kept", "settings_kept", "built_on_device")):
+            problems.append("not passed, or the old app did not build the game code on the device")
+        if not Path(update.get("evidence", "") or "?").exists():
+            problems.append("no evidence")
+        if not Path(update.get("precheck", {}).get("evidence", "") or "?").exists() or \
+                update.get("precheck", {}).get("pass") is not True:
+            problems.append("the fast pre-check (adb install -r over game code from a PC) is not passed, or has no evidence")
+        if update.get("installed_with") != "pm install -r":
+            problems.append("not put over the old app with pm install -r from a file on the device")
+        # A phone with the owner's app on it cannot take the real package: the test package says what stood in.
+        if not update.get("test_package") and update.get("from_apk_sha256") != sha256_of(self.published_apk(game)):
+            problems.append("the old app is not the published APK as GitHub Releases serves it")
+        # Gate 4 says whether the notes promise a rebuild: the update has to do what they say, and nothing else.
+        rebuild_due = "is built again" in gates["games"][game]["abi"]
+        if update.get("game_code_rebuilt") is not rebuild_due:
+            problems.append(f"the game code was {'not ' if rebuild_due else ''}rebuilt after the update, "
+                            f"and the notes say it {'is' if rebuild_due else 'is not'} to be")
+        line = update.get("game_code", "")
+        if not line or "MISSING" in line or (not rebuild_due and "rebuild is due" in line):
+            problems.append("the report's game-code line after the update is missing, or says MISSING or a rebuild is due")
+        return problems
 
     def device_gates(self, path, gates):
         report = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -505,10 +564,8 @@ class Release:
                     one = entry.get("devices", {}).get(device, {}).get(check, {})
                     if one.get("pass") is not True or not Path(one.get("evidence", "") or "?").exists():
                         problems.append(f"{game}, {device}, {check}: not passed, or no evidence")
-            update = entry.get("update", {})
-            if not all(update.get(key) is True for key in ("pass", "saves_kept", "settings_kept")) or \
-                    not update.get("game_code") or not Path(update.get("evidence", "") or "?").exists():
-                problems.append(f"{game}: the update from {self.state['published'][game]}: not passed, or no evidence")
+            for found in self.update_problems(game, entry.get("update", {}), gates):
+                problems.append(f"{game}: the update from {self.state['published'][game]}: {found}")
         if problems:
             raise Refused("gates 5 and 6: " + "; ".join(problems))
         print("gates 5 and 6: PASS by", path)
@@ -580,8 +637,8 @@ class Release:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("step", choices=("status", "sync", "tag", "withdraw", "gates", "device-template", "publish",
-                                         "verify-public"))
+    parser.add_argument("step", choices=("status", "sync", "tag", "withdraw", "gates", "published-apk", "device-template",
+                                         "publish", "verify-public"))
     parser.add_argument("--work", help="the folder with the mirrors' clones and the SDK (RELEASE_WORK)")
     parser.add_argument("--branch", default="origin/android", help="the private branch to release")
     parser.add_argument("--games", default=",".join(GAMES))
@@ -603,6 +660,10 @@ def main():
             release.withdraw()
         elif args.step == "gates":
             release.gates(args.wait)
+        elif args.step == "published-apk":
+            for game in release.games:
+                apk = release.published_apk(game)
+                print(f"{game}: {apk} {sha256_of(apk)}")
         elif args.step == "device-template":
             release.device_template()
         elif args.step == "publish":

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 
 /**
  * The recompiled game code, where the app is published without it
@@ -184,7 +185,50 @@ object GameLibrary {
     fun outdated(context: Context, library: String): Boolean =
         separate && files(context, library).let { files -> files.isNotEmpty() && files.none { taken(context, library, it) } }
 
-    /** Where each title's library is, for a log (DeviceInfo). */
+    /** What is known of the file a library is run from, for a log: where it is and what it was built for. */
+    internal class Found(
+        val builtHere: Boolean,
+        /** The statement the file carries, whole; null when it has none that can be read. */
+        val statement: String?,
+        /** The statement this app expects of the library; null in an app with no build kit, which cannot tell. */
+        val expected: String?,
+        /** Whether this app takes [statement]; null when it cannot tell. */
+        val taken: Boolean?,
+        /** Whether the runtime refused the file although its statement is taken. */
+        val refused: Boolean,
+    )
+
+    /**
+     * The first twelve hexadecimal digits of the SHA-256 of a statement: the
+     * form the game library's build, setup and a release's game_abi.txt name
+     * it in (cmake/game_abi.cmake), so that a log can be set beside them.
+     */
+    internal fun shortHash(statement: String): String =
+        MessageDigest.getInstance("SHA-256").digest(statement.toByteArray(Charsets.ISO_8859_1))
+            .joinToString("") { "%02x".format(it) }.substring(0, 12)
+
+    /**
+     * One library's part of the game-code line. A library nobody has built
+     * says whether anything was due: the title update's is not, until the
+     * player adds the update ([needed]).
+     */
+    internal fun describeLibrary(library: String, found: Found?, needed: Boolean): String {
+        val name = "lib${library}game.so"
+        if (found == null) return if (needed) "$name is MISSING" else "$name not needed (no title update added)"
+        val where = if (found.builtHere) "was built on this device" else "is in the package"
+        val builtFor = if (found.statement == null) "with no statement this app can read" else "for ${shortHash(found.statement)}"
+        // Said against the app's own, so that a log shows whether a build was due without a second one to compare.
+        val wanted = found.expected?.let { shortHash(it) }
+        val verdict = when {
+            found.taken == null -> ""
+            found.refused -> ", which the runtime refused: a rebuild is due"
+            found.taken -> ", which this app takes"
+            else -> ", not the $wanted this app takes: a rebuild is due"
+        }
+        return "$name $where $builtFor$verdict"
+    }
+
+    /** Where each library is and what it was built for, for a log (DeviceInfo). */
     fun describe(context: Context): String {
         if (!separate) return "part of this app"
         val version = try {
@@ -193,12 +237,24 @@ object GameLibrary {
             null
         }
         val packageSaid = if (version != null) "${BuildConfig.GAME_PACKAGE} $version" else "${BuildConfig.GAME_PACKAGE} is not installed"
-        return "$packageSaid, " + Title.carried.joinToString {
-            "lib${it.library}game.so " + when {
-                built(context, it).isFile -> "was built on this device"
-                packaged(context, it) != null -> "is in the package"
-                else -> "is MISSING"
+        // The title update's library too: without it a log cannot say whether the update's multiplayer is built.
+        val update = TitleUpdate.LIBRARY.takeIf { it.isNotEmpty() && Title.carried.none { title -> title.library == it } }
+        val libraries = Title.carried.map { it.library } + listOfNotNull(update)
+        val updateAdded = update != null && (TitleUpdate.required || Dlc.installed(context).any { it.header.update })
+        return "$packageSaid, " + libraries.joinToString { library ->
+            val file = files(context, library).firstOrNull()
+            val found = file?.let {
+                val kit = GameBuild.kit(context)?.titles?.firstOrNull { title -> title.library == library }
+                val states = statement(context, library, it)
+                Found(
+                    builtHere = it == built(context, library),
+                    statement = states,
+                    expected = kit?.expectedAbi,
+                    taken = kit?.takes(states),
+                    refused = refused(context, it),
+                )
             }
+            describeLibrary(library, found, needed = library != update || updateAdded)
         }
     }
 
