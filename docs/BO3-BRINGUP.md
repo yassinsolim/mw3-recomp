@@ -462,8 +462,9 @@ the output before anything else, as Modern Warfare 3's does. The local
 client is a byte at +52 (`T_AIM_INPUT_LOCAL_CLIENT_BYTE`). The turn rates
 (sub_821614E0) are multiplied by state + 168, tan(half the view's height)
 over 0.75 * tan(32.5 degrees). With these, `mouse_look.cpp` turns the view
-by a finger's angle in BO3 too, where before it fell back to the stick. Not
-yet measured on a phone.
+by a finger's angle in BO3 too, where before it fell back to the stick.
+Measured on both phones (below): every swipe turned the view by what it
+asked for at the default 13 degrees a centimetre.
 
 **What the packages hold** (`tools/stfs.py`): Compatibility Pack 1 has the
 twelve base maps, the four Freerun courses and Shadows of Evil; The Giant is
@@ -489,24 +490,32 @@ each run, frames dumped and looked at, 150 s runs, frames a second of play):
 | Play Online through the relay | untested past the menu: the relay welcomes the copy, but no BO3 playlist or Find Game exists |
 | The Sun shadows switch | does nothing: `sm_enable 0` and 13 other likely names change no frame; the app hides the row for BO3 |
 
-**Phones** (debug app `com.bo3.recomp.bo3m`, Turnip, the default Automatic
-setting; the game files pushed into a test folder; 1% low = the mean rate
-of the slowest 1% of single frames from `MW2_FRAME_LOG`, loading hitches
-included):
+**Phones** (debug app `com.bo3.recomp.bo3m` built from `android` at
+`4c809bd`, Turnip, the default Automatic setting; the game files pushed
+into a test folder whose `saves/` and `mp/saves/` were deleted before each
+run; frames a second of play from the log's report; 1% low = the mean rate
+of the slowest 1% of single world frames from `MW2_FRAME_LOG`, over the
+match: from five seconds after its last loading stall to its end screen;
+in brackets, over the whole run from five seconds after the first world
+frame, menus and loading included, as in the first rows):
 
 | | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
 |---|---|---|
-| Multiplayer, base map | mp_spire TDM: 110.7, 1% low not logged | Combine TDM: 56.5, 1% low 13.1 |
-| Multiplayer, Awakening | not run (slot over) | mp_rise Domination: 57.1 |
-| Shadows of Evil | 105.3, 102.4 and 104.8 in three matches; 1% low 16.7 to 17.3 | 56.5, 58.1 and 59.1; 1% low 9.0 to 12.8 |
-| The Giant, Der Eisendrache, Freerun | not run: the persistent profile skipped the first-run screens, so the lobby started Shadows of Evil before the map was set. The script needs `saves/` wiped first | same |
-| Audio | one "mixer is finishing its frames late" in the mp_spire run, no underrun | none logged |
-| Looking by touch | not measured | not measured |
+| Multiplayer, base map | mp_spire TDM: 110.7, 1% low not logged. Combine TDM (standing, the touch run): 112.6, 1% low 27.6 (20.5) | Combine TDM: 56.5, 1% low (13.1); again in the touch run: 56.8, 15.7 (13.3) |
+| Multiplayer, Awakening | mp_rise Domination: 110.9, 1% low 25.7 (19.2), the slowest 1% of frames from 27 ms | mp_rise Domination: 57.1 |
+| Shadows of Evil | 105.3, 102.4 and 104.8 in three matches; 1% low (16.7 to 17.3) | 56.5, 58.1 and 59.1; 1% low (9.0 to 12.8) |
+| The Giant | pass, to Game Over in round 1: 109.1, 1% low 20.9 (17.7) | pass, to Game Over in round 1: 58.1, 1% low 12.7 (12.7) |
+| Der Eisendrache | pass, to Game Over in round 1: 102.7, 1% low 20.8 (18.9) | pass, to Game Over in round 1: 57.6, 1% low 18.0 (13.2) |
+| Freerun | mp_freerun_01: pass, the course's clock runs: 110.5, 1% low 17.4 (15.7) | all four courses pass: 57.1, 57.3, 56.8, 56.9; 1% low 15.9, 17.3, 16.0, 15.2 |
+| Audio | one to three "mixer is finishing its frames late" lines a run, no underrun | the same |
+| Looking by touch (`touchControls` on, `MW2_TRACE_LOOK=1`, `adb shell input swipe` on the right half, Combine) | pass: 2 cm turned 26.03 degrees slow (2 s), brisk (0.3 s) and as a flick (0.06 s), either way; 1 cm down and up 12.97; asked 26.04 and 12.98 | pass: 2 cm turned 25.95 of 25.96 at each speed, 1 cm 13.02 of 13.02 |
 
-The Thor's frames waited for the processor 19% (multiplayer) and 44 to 79%
-(zombies) of the time, with the chip at 4.6 to 5.9 ms: that is the 120 work
-(Bo3Thor120). The app's FOV setting now reaches BO3 as `cg_fov 85` at the
-start of each run, since the console takes it.
+The Thor's frames waited for the processor 10 to 13% (multiplayer), 25%
+(Freerun) and 30 to 79% (zombies) of the time, with the chip at 3.4 to 6.2
+ms: that is the 120 work (Bo3Thor120). The Flip holds 60 everywhere, its
+chip at 11.4 to 13.7 ms. A `STALL` at a run's end is the After Action
+Report, which draws no world. The app's FOV setting now reaches BO3 as
+`cg_fov 85` at the start of each run, since the console takes it.
 
 ## Open
 
@@ -527,9 +536,9 @@ start of each run, since the console takes it.
   a device, and the runtime used to end the process there.
 - A window covered by others presents four frames a second and the game
   slows with it.
-- The Giant and Shadows of Evil were played to round 1 and round 2, Der
-  Eisendrache to round 1. Zetsubou No Shima, Gorod Krovi and Revelations
-  are not on this PC.
+- On Windows The Giant and Shadows of Evil were played to round 1 and
+  round 2, Der Eisendrache to round 1; on the phones all three to round 1.
+  Zetsubou No Shima, Gorod Krovi and Revelations are not on this PC.
 - The thin streak from a zombie's head (above) is still there; it was not
   looked into this round.
 - In `android`, and not released: nothing is published for this title, and
