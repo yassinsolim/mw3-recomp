@@ -3,6 +3,8 @@
 #include "../guest.h"
 #include "../log.h"
 #include "../crash.h"
+#include "../env.h"
+#include "../title.h"
 
 #include <algorithm>
 #include <chrono>
@@ -291,6 +293,7 @@ uint32_t kernel::Wait(Dispatcher* const* objects, uint32_t count, bool all,
 {
     Clock::time_point deadline;
     const bool timed = DeadlineFor(timeout100ns, deadline);
+    const bool poll = timeout100ns && *timeout100ns == 0;
     const uintptr_t me = CurrentThread();
     WaitBlock block;
     bool registered = false;
@@ -344,6 +347,13 @@ uint32_t kernel::Wait(Dispatcher* const* objects, uint32_t count, bool all,
             auto& list = objects[i]->waiters;
             list.erase(std::find(list.begin(), list.end(), &block));
         }
+    held.unlock();
+    // A poll -- no time to wait -- that finds nothing gives the processor to
+    // a thread ready for it (T_POLL_YIELD; MW2_POLL_YIELD=0 or 1 says
+    // otherwise): the host's own wait returns at once where the console's
+    // took a system call, and a title that polls in a loop holds a core.
+    static const bool pollYield = env::Text("MW2_POLL_YIELD") ? env::Flag("MW2_POLL_YIELD") : T_POLL_YIELD != 0;
+    if (pollYield && result == X_STATUS_TIMEOUT && poll) std::this_thread::yield();
     return result;
 }
 

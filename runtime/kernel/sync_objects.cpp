@@ -86,23 +86,27 @@ namespace
     };
     AlwaysSignalled g_always;
 
-    // The objects a wait names, resolved and kept alive for its length.
+    // The largest wait NT allows: MAXIMUM_WAIT_OBJECTS.
+    constexpr uint32_t kMaximumWaitObjects = 64;
+
+    // The objects a wait names, resolved and kept alive for its length. On
+    // the stack: Black Ops III's main and server threads poll an event many
+    // thousand times a second, and two heap blocks a wait were a tenth of
+    // their samples on Windows.
     struct WaitList
     {
-        std::vector<std::shared_ptr<Object>> keep;
-        std::vector<Dispatcher*> objects;
+        std::shared_ptr<Object> keep[kMaximumWaitObjects];
+        Dispatcher* objects[kMaximumWaitObjects];
+        uint32_t count = 0;
         bool Add(std::shared_ptr<Object> object)
         {
-            if (!object) return false;
+            if (!object || count == kMaximumWaitObjects) return false;
             auto* dispatcher = dynamic_cast<Dispatcher*>(object.get());
-            objects.push_back(dispatcher ? dispatcher : &g_always);
-            keep.push_back(std::move(object));
+            objects[count] = dispatcher ? dispatcher : &g_always;
+            keep[count++] = std::move(object);
             return true;
         }
     };
-
-    // The largest wait NT allows: MAXIMUM_WAIT_OBJECTS.
-    constexpr uint32_t kMaximumWaitObjects = 64;
 }
 
 PPC_FUNC(__imp__NtCreateEvent)
@@ -219,7 +223,7 @@ PPC_FUNC(__imp__NtWaitForSingleObjectEx)
     const int64_t* timeout = ReadTimeout(ctx.r6.u32, storage);
     Blocked blocked(ctx.r3.u32, uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
-    ctx.r3.u64 = Wait(list.objects.data(), 1, false, timeout);
+    ctx.r3.u64 = Wait(list.objects, 1, false, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
 }
 
@@ -282,7 +286,7 @@ PPC_FUNC(__imp__NtWaitForMultipleObjectsEx)
     const int64_t* timeout = ReadTimeout(ctx.r8.u32, storage);
     Blocked blocked(handles[0], uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
-    ctx.r3.u64 = Wait(list.objects.data(), count, ctx.r5.u32 == 0, timeout);
+    ctx.r3.u64 = Wait(list.objects, count, ctx.r5.u32 == 0, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
 }
 
@@ -309,7 +313,7 @@ PPC_FUNC(__imp__KeWaitForSingleObject)
     const int64_t* timeout = ReadTimeout(ctx.r7.u32, storage);
     Blocked blocked(ctx.r3.u32, uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
-    ctx.r3.u64 = Wait(list.objects.data(), 1, false, timeout);
+    ctx.r3.u64 = Wait(list.objects, 1, false, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
 }
 
@@ -331,7 +335,7 @@ PPC_FUNC(__imp__KeWaitForMultipleObjects)
     const int64_t* timeout = ReadTimeout(ctx.r9.u32, storage);
     Blocked blocked(objects[0], uint32_t(ctx.lr), ctx.r1.u32, timeout != nullptr);
     if (pacing::On()) { pacing::Note(pacing::kKernelWait, uint32_t(ctx.lr)); pacing::NoteCallers(ctx.r1.u32); }
-    ctx.r3.u64 = Wait(list.objects.data(), count, ctx.r5.u32 == 0, timeout);
+    ctx.r3.u64 = Wait(list.objects, count, ctx.r5.u32 == 0, timeout);
     if (pacing::On()) pacing::Note(pacing::kKernelWaitEnd);
 }
 

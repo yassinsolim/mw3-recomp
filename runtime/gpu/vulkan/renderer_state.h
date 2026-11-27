@@ -650,10 +650,12 @@ namespace vk::renderer::detail
             uint32_t width = 0, height = 0; // the title's scene
             // What this frame's scene is drawn as, and the step it is of.
             uint32_t drawnWidth = 0, drawnHeight = 0, level = 0;
-            // The window being measured: the chip's busy time at its start,
-            // its frames so far, the frames still to pass before one starts,
-            // and how many windows in a row had room for the step above.
+            // The window being measured: the chip's busy time and the clock
+            // at its start, its frames so far, the frames still to pass
+            // before one starts, and how many windows in a row had room for
+            // the step above.
             uint64_t busyAt = 0;
+            std::chrono::steady_clock::time_point startedAt{};
             uint32_t frames = 0, settle = 0, calm = 0;
             uint64_t framesAt[kLevels]{};
         } scene;

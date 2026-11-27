@@ -3,6 +3,7 @@
 #include <ppc_recomp_shared.h>
 #include "kernel.h"
 #include "objects.h"
+#include "../env.h"
 #include "../guest.h"
 #include "../log.h"
 #include "../crash.h"
@@ -35,11 +36,14 @@ namespace
     // not pass the title's "is this the main thread" checks.
     std::atomic<uint32_t> g_nextThreadId{ 2 };   // the main thread is 1
 
-    // The cores for a thread the title has on that processor of the console.
+    // The cores for a thread the title has on that processor of the console:
+    // T_FRAME_PROCESSORS, or MW2_FRAME_PROCESSORS (a mask, 0x prefix allowed)
+    // to measure another layout.
     platform::ThreadAffinityRole RoleOn(uint8_t processor)
     {
-        return (T_FRAME_PROCESSORS >> processor) & 1 ? platform::ThreadAffinityRole::PerformanceCore
-                                                      : platform::ThreadAffinityRole::SpareCore;
+        static const uint64_t frame = env::Number("MW2_FRAME_PROCESSORS", T_FRAME_PROCESSORS, 0);
+        return (frame >> processor) & 1 ? platform::ThreadAffinityRole::PerformanceCore
+                                        : platform::ThreadAffinityRole::SpareCore;
     }
 
     // Signalled once it has exited, which is what a wait on a thread waits for.
@@ -245,6 +249,7 @@ PPC_FUNC(__imp__KeSetAffinityThread)
         *GuestPtr<uint8_t>(t->pcr + kProcessorOffset) = processor;
         // Before it runs it takes its cores itself, by the processor it then has.
         if (const uint32_t thread = t->hostThread) platform::SetThreadAffinity(RoleOn(processor), thread);
+        LOGK("KeSetAffinityThread: thread %u on processor %u", t->threadId, unsigned(processor));
     }
     else if (affinity)
         LOGW("KeSetAffinityThread: %08X is not a guest thread", ctx.r3.u32);

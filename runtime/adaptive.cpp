@@ -185,7 +185,7 @@ namespace
 
     std::string Summary()   // under g_lock
     {
-        char text[440];
+        char text[512];
         const double fps = g_playSeconds > 0 ? g_frames / g_playSeconds : 0;
         double gpu = 0, renderer = 0;
         size_t gpus = 0, renderers = 0;
@@ -195,9 +195,10 @@ namespace
             if (kept.rendererMs >= 0) { renderer += kept.rendererMs; renderers++; }
         }
         int length = std::snprintf(text, sizeof text,
-                                   "%.0f s of play at %.1f frames a second, the slowest two seconds %.1f, %.0f%% of"
-                                   " the time under nine tenths of the rate it was held to",
-                                   g_playSeconds, fps, g_slowest,
+                                   "%.0f s of play at %.1f frames a second, the slowest two seconds %.1f, the slowest"
+                                   " hundredth of frames %.1f, %.0f%% of the time under nine tenths of the rate it was"
+                                   " held to",
+                                   g_playSeconds, fps, g_slowest, g_tally.Result().low1,
                                    g_playSeconds > 0 ? 100.0 * g_missedSeconds / g_playSeconds : 0.0);
         if (gpus)
             length += std::snprintf(text + length, sizeof text - size_t(length), "; the graphics chip %.1f ms a frame",

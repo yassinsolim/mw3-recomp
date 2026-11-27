@@ -11,8 +11,9 @@
 //
 // The share is stepped once a window of frames by what those frames took of
 // the graphics chip, by its own clock (gpu_time.h): down when a frame takes
-// more than the display gives it, up again when the step above would fit
-// with room to spare. A Retroid Pocket Flip 2 (Adreno 650) in Modern Warfare
+// more than the display gives it and the chip was at work for most of the
+// window (not when the processor is late), up again when the step above
+// would fit with room to spare. A Retroid Pocket Flip 2 (Adreno 650) in Modern Warfare
 // 2's flight to the Gulag draws the 832x480 scene in 17 to 22 ms where the
 // display gives 16.7 (46 to 58 frames a second), and a 640x368 one in 15 to
 // 18 (55 to 60): the scene's pixels are what is left to give there
@@ -51,6 +52,9 @@ namespace vk::renderer::detail
         // Windows in a row with room for the step above before it is taken:
         // a second and a half, so the size does not pump at a view's edge.
         constexpr uint32_t kCalm = 9;
+        // The share of a window's time the chip must be at work for its
+        // frames to be the chip's (adaptive::Governor::kChipLate's share).
+        constexpr double kChipFull = adaptive::Governor::kChipLate;
 
         void Draw(uint32_t level)
         {
@@ -159,13 +163,30 @@ namespace vk::renderer::detail
         }
         if (scene.settle)
         {
-            if (!--scene.settle) { scene.busyAt = vk::gpu_time::Busy(); scene.frames = 0; }
+            if (!--scene.settle)
+            {
+                scene.busyAt = vk::gpu_time::Busy();
+                scene.startedAt = std::chrono::steady_clock::now();
+                scene.frames = 0;
+            }
             return;
         }
         if (++scene.frames < kWindow) return;
         const uint64_t busy = vk::gpu_time::Busy();
+        const auto now = std::chrono::steady_clock::now();
         const double taken = double(busy - scene.busyAt) / double(kWindow);
+        // The share of the window's own time the chip was at work. A chip
+        // with time to spare between frames is not what they waited for,
+        // however long each one took it, and fewer pixels bring them no
+        // sooner: Black Ops III's The Giant on an AYN Thor at 120 came at
+        // 104 to 118 frames a second with the chip at work about 70% of
+        // the time (6.3 to 6.6 ms a frame), and the scene stepped down to
+        // 58% of its width while the chip's time a frame went from 6.6 ms
+        // at 84% to 6.3 at 58%.
+        const double wall = std::chrono::duration<double, std::nano>(now - scene.startedAt).count();
+        const bool chipFull = wall > 0 && double(busy - scene.busyAt) >= kChipFull * wall;
         scene.busyAt = busy;
+        scene.startedAt = now;
         scene.frames = 0;
 
         const double given = FrameNanoseconds();
@@ -177,7 +198,7 @@ namespace vk::renderer::detail
         atFull *= android::perf::AdrenoClockShare();
 #endif
         const uint32_t last = State::Scene::kLevels - 1;
-        if ((taken > 0.97 * given || atFull > 0.90 * given) && scene.level < last)
+        if ((taken > 0.97 * given || atFull > 0.90 * given) && chipFull && scene.level < last)
         {
             // The sun's shadows before the scene's pixels, where they are the
             // runtime's choice and on: the title takes a few frames to stop
@@ -197,9 +218,15 @@ namespace vk::renderer::detail
         if (!scene.level) return;
         // The step above, were everything the frame takes its pixels: at
         // most half of it is (the rest is vertices and the frame's own
-        // passes), so this is on the careful side.
+        // passes), so this is on the careful side. Measured against the
+        // frames' own period where the chip had time to spare in it: with
+        // the processor late the chip has that much more time, and The
+        // Giant on the Thor stayed at 58% for seconds at 91 to 100 frames a
+        // second with its chip at 7.0 to 7.7 ms a frame, 1.0 ms less than at
+        // the whole scene.
+        const double room = chipFull ? given : std::max(given, wall / double(kWindow));
         const double above = atFull * (0.5 + 0.5 * Pixels(scene.level - 1) / Pixels(scene.level));
-        scene.calm = above < 0.82 * given ? scene.calm + 1 : 0;
+        scene.calm = above < 0.82 * room ? scene.calm + 1 : 0;
         if (scene.calm >= kCalm)
         {
             Draw(scene.level - 1);

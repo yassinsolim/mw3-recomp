@@ -2436,11 +2436,25 @@
 // cores, with the command recorder, left those cores 97% busy and the three
 // efficiency cores 26%, each thread ready to run and waiting for a core a
 // quarter to a half of the time: 107 frames a second in Fusion's landing,
-// 115 with the workers let onto the other three.
-#if defined(AW_TITLE)
+// 115 with the workers let onto the other three. Black Ops III lays its
+// threads out the same way (Main 0, 2_Backend 3, 3_Server 5, JQ Workers 1, 2
+// and 4; its streaming, database, sound and network threads on 4).
+#if defined(AW_TITLE) || defined(BO3_TITLE)
 #define T_FRAME_PROCESSORS     0b101001u
 #else
 #define T_FRAME_PROCESSORS     0b111111u
+#endif
+
+// Whether a wait with no time to wait that finds nothing yields the
+// processor (kernel/objects.cpp). Black Ops III's main thread, server and
+// job workers wait for one another by polling an event between jobs
+// (sub_826B4448's loop over sub_826662B8, WaitForSingleObject(h, 0)), so on
+// a phone with four performance cores they held cores the threads with
+// work were ready for.
+#if defined(BO3_TITLE)
+#define T_POLL_YIELD           1
+#else
+#define T_POLL_YIELD           0
 #endif
 
 // The macros that turn a table entry into the symbols the recompiled code uses.

@@ -517,6 +517,68 @@ chip at 11.4 to 13.7 ms. A `STALL` at a run's end is the After Action
 Report, which draws no world. The app's FOV setting now reaches BO3 as
 `cg_fov 85` at the start of each run, since the console takes it.
 
+## Toward 120 on the Thor (27 November 2026)
+
+**Where a frame's time went** (The Giant at 120 before, `MW2_REPORT`,
+the threads in % of one core, in brackets the share of the time each stood
+ready with no core): the ring consumer 75, 3_Server 65 (29), 2_Backend 63
+(31), Main 59 (37), the three JQ Workers 46, 45, 30 (43, 43, 58), the
+recorder 20 (20); the chip 6.0 to 6.5 ms a frame, at work about 70% of the
+time. Every thread the title makes was on the four performance cores
+(cpu 3 to 6) with the recorder, and the three efficiency cores were left to
+other programs. The title lays its threads out as Advanced Warfare does:
+`KeSetAffinityThread` (logged now) puts Main on processor 0, 2_Backend on 3,
+3_Server on 5, the JQ Workers on 1, 2 and 4, and Stream, Database, Sound Mix
+and Netchan on 4. On Windows (lldb, 50 samples of every thread) Main and
+3_Server are 92 to 97% busy at 120 a second: they wait for each other
+by polling an event between jobs (sub_826B4448 calling sub_826662B8,
+`WaitForSingleObject(h, 0)`), and a quarter of Main's samples stood on the
+kernel's dispatcher lock or in the two heap blocks every wait took.
+
+**What changed.**
+- `T_FRAME_PROCESSORS` is Advanced Warfare's for Black Ops III: the JQ
+  Workers and the streaming threads may run on the efficiency cores
+  (`MW2_FRAME_PROCESSORS` measures another layout).
+- A poll that finds nothing yields the processor (`T_POLL_YIELD`, on for
+  this title; `MW2_POLL_YIELD`), and a wait keeps the objects it names on
+  the stack (every title).
+- The scene rule (`renderer_scene.cpp`, every title) draws the scene
+  smaller only when the chip was at work for 85% of a window's own time or
+  more, and measures the room for the step back up against the frames' own
+  period where the chip had time to spare. Before, The Giant went down to
+  58% while its chip's time a frame went from 6.6 ms at 84% to 6.3 at 58%.
+- The `performance:` line gives the slowest hundredth of frames (the
+  play's 1% low, `adaptive::Tally`).
+
+**The Thor, The Giant at 120** (one run each, caches warm from the run
+before but for the first; mean of the seconds of play after the first ten,
+1% low of the play's frames):
+
+| | mean | 1% low | longest | seconds at 115+ | scene, mean (least) |
+|---|---|---|---|---|---|
+| before (Bo3Fps, first visit) | 107.0 | | 118 ms | 30% | 68% (58) |
+| old core layout, new scene rule | 109.7 | 25.8 | 97 ms | 45% | 73% (58) |
+| new layout | 112.0 | 34.0 | 81 ms | 66% | 90% (64) |
+| new layout and the poll's yield | 114.6 | 59.5 | 56 ms | 80% | 91% (58) |
+
+With both, the threads stood ready with no core 18 to 40% of the time for
+20 to 59% before. The scene's step back up against the frames' own period
+came after these runs and is not in them. Shadows of Evil with both on its first visit (pipelines
+compiled in play): 99.3, 1% low 26.5, the longest 120 ms; its long frames
+were the renderer's thread standing up to 32 ms for one pipeline
+(`building pipelines (1)`) and the title presenting 30 to 45 ms late.
+
+**The game's timing with the changes** (Windows, the same build, 120
+against 60): the server frame 49.99 against 50.02 ms (multiplayer), 50.09
+against 50.14 (Shadows of Evil); the KN-44 fires 21 rounds in about two
+seconds at both; a reload is back to 30 within one dump (0.26 s) of the
+other; a one-second sidestep moves the minimap 11 px at both.
+
+Open: the warm-cache runs of Shadows of Evil and a second multiplayer map,
+a ten-minute run for the heat, the Flip at 60, and the other titles'
+scenarios on this build (the scene rule and the wait list are theirs too)
+were not measured in this round.
+
 ## Open
 
 - The zombies once ended in `Could not load default asset '' for asset type
