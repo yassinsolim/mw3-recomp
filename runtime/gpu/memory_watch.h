@@ -92,6 +92,10 @@ namespace gpu::watch
     // keeps writing -- a draw's vertex window kept from frame to frame: paced
     // as the shadow's copies are, and 0 while a page of the range waits.
     uint64_t TrackSteady(uint32_t physical, uint32_t bytes, uint64_t (*completed)(), uint64_t frame);
+    // The stamp of the latest copy of any page: what a reader that copies a
+    // page it finds watched, without a Track of its own, may say its copy is
+    // good from. Ring consumer only.
+    uint64_t Stamp();
     // Which pages of the range are not what Unwritten would pass: written
     // since that stamp, or not watched. Their places from the range's first
     // page go into `pages` and their number is returned; UINT32_MAX when

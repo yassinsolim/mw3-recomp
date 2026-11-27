@@ -299,7 +299,17 @@ start:
   copied again where they are, page by page. In place because the slot's
   earlier frames are done before it begins another and no draw of this one
   has named the range yet; a window written later in the frame is copied by
-  its draw.
+  its draw. The written pages are watched again a run at a time, and the
+  watch refuses a run as a whole when one page of it waits its turn or is
+  written meanwhile. The run's other pages may be watched all the same, by
+  another slot's frame since: they are copied too, a page at a time. Left
+  as they were (until 27 November 2026) they read as current once a later
+  run's stamp was the range's, and the slot drew from what it had copied
+  laps before, one frame in three, for as long as the title left the page
+  alone. Counted with the copy compared against guest memory at every draw
+  (a build made for it): four to twenty-five windows a three-minute match of
+  Advanced Warfare on Windows with `MW2_NO_SHADOW=1`, four on the Flip 2,
+  and none in either after.
 - **Places are used again.** A range another took the place of, and one the
   slot lets go, leave their places to the ranges that come; neighbouring
   spare places join, and the lowest goes back to the frame's own.

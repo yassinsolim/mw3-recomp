@@ -1836,25 +1836,52 @@ multiplier 1x, FPS limit 60.
   the campaign and both multiplayers ([gameplay.md](gameplay.md#field-of-view)).
   Seen on Windows in the update's multiplayer on Drift with ten bots: 110
   before and after a death, where `cg_fov 110` was 65 after it
-  (`pc-fov-*`). Not yet seen on a phone.
-- **A blurred square at a boost dodge: open.** Greenband, Team Deathmatch
-  with bots. For some forty frames after a dodge a rectangle in the middle
-  of the picture, about 530 by 220 of 1280 by 720, shows the scene smeared
-  along the dodge (`video-160247-blurred-square-4.3s.jpg`). Windows does not
-  draw it: not at the console's scene, not with the scene at 70% of its width
-  (`MW2_SCENE_SHARE=70`), not with it and the whole scene in turn every two
-  frames, and not at the 832x480 scene an Adreno 6xx is given. What is left
-  is the phone itself.
-- **One gun drawn as sheets across the screen: open.** Drift (Havoc), Team
-  Deathmatch with bots; the HUD names the weapon "ASM1 Custom". In two
-  frames of three the weapon is gone, and in the third dark flat polygons
-  cover the lower two thirds of the picture, for as long as he walks or
-  sprints; while he aims it happens once in some dozens of frames, and with
-  the second weapon out not at all (`video-154751-*`). The period is three
-  frames of the recording's sixty a second. Windows, the update's
-  multiplayer on Drift from the same spawn, the first custom class (ASM1,
-  foregrip, advanced rifling, red dot sight), sun shadows on, with and
-  without bots and at the 832x480 scene: every frame of a sprint is right
-  (`pc-drift-asm1-832x480-shadows-no-fault.jpg`). The flat, unlit shapes are
-  what a shadow map's casters look like drawn into the scene, which is where
-  to look first on an Adreno 650 with sun shadows On.
+  (`pc-fov-*`).
+- **One gun drawn as sheets across the screen: not reproduced; one cause
+  of that picture found and fixed.** Drift (Havoc), Team Deathmatch with
+  bots; the HUD names the weapon "ASM1 Custom" (his has iron sights and
+  another operator's arms than the first custom class). Every third frame
+  of the recording's sixty a second has large dark triangles over the lower
+  two thirds of the picture where the weapon is, for as long as he walks or
+  sprints, and the two frames between are right; while he aims it happens
+  once in some dozens of frames, and with the second weapon out not at all
+  (`video-154751-*`). A Retroid Pocket Flip 2 (the same Adreno 650) with his
+  settings does not draw it: eleven runs of some seventy seconds of play
+  each on Drift and Greenband with the first custom class's ASM1, with the
+  bundled Turnip and with the system's driver, the scene's share forced,
+  the arena at half its size. Nor does Windows.
+
+  What his frames say: a period of three is the renderer's three frame
+  slots, and triangles between unrelated points are one mesh's indices over
+  another's vertices. Only Turnip's path has vertex data a slot keeps to
+  itself ([rendering.md](rendering.md#vertex-data-kept-without-the-shadow));
+  Windows draws from the shadow of guest memory, which is why it showed
+  nothing, and `MW2_NO_SHADOW=1` puts it on the phone's path. A build that
+  compares every kept window with guest memory at its draw found windows
+  the watch passed as unwritten whose copy was laps old: a slot bringing a
+  range up to date skipped the pages of a run the watch refused, among them
+  pages another slot's frame had already had watched again, and a later
+  run's stamp then covered them. Such a page stays wrong in that one slot
+  until the title writes it again. Windows with `MW2_NO_SHADOW=1`: 2 to 25
+  such windows a match in ten runs of the build before, none in four
+  after; the Flip 2: 4 in one match before (36 frames a second with the
+  comparison), none after. Whether his fault is this one is not shown: it
+  was never on a screen here.
+- **A blurred square at a boost dodge: not reproduced, open.** Greenband,
+  Team Deathmatch with bots. For some forty frames after a dodge a
+  rectangle in the middle of the picture, about 530 by 220 of 1280 by 720,
+  shows the scene smeared along the dodge
+  (`video-160247-blurred-square-4.3s.jpg`). Dodges on the Flip 2 with his
+  settings and on Windows (the stick to one side, then the left stick's
+  click 0.3 s later; a click at once is a sidestep) are drawn without it, at
+  the console's scene, at 832x480 and with the scene at 70% and 58% of its
+  width. The executable has a view effect for each direction of a dodge
+  (`vfx/code/dodge_left_view` and the like), whose vertices are dynamic
+  geometry of the kind the fault above leaves stale, so the fix may be this
+  one's as well; that is a guess until he says.
+- **On the Flip 2 with the change** (the update's multiplayer, sun shadows
+  On, 110 degrees, ten bots): Drift 60.0 frames a second over two minutes of
+  play, as before it (59.9 and 60.0), the view 110 degrees after every
+  death there and on Greenband (each from a start of its own: a second map
+  in one run was not played); the campaign's Induction 110 degrees after
+  two restarts from its checkpoint.
