@@ -2446,15 +2446,33 @@
 #endif
 
 // Whether a wait with no time to wait that finds nothing yields the
-// processor (kernel/objects.cpp). Black Ops III's main thread, server and
-// job workers wait for one another by polling an event between jobs
-// (sub_826B4448's loop over sub_826662B8, WaitForSingleObject(h, 0)), so on
-// a phone with four performance cores they held cores the threads with
-// work were ready for.
+// processor (kernel/objects.cpp): 0 not, 1 yields, 2 yields as
+// NtYieldExecution does (kernel::Yield, which sleeps where the thread is
+// spinning). Black Ops III's main thread, server and job workers wait for
+// one another by polling an event between jobs (sub_826B4448's loop over
+// sub_826662B8, WaitForSingleObject(h, 0)), so on a phone with four
+// performance cores they held cores the threads with work were ready for;
+// with the polls sleeping as well, Shadows of Evil on an AYN Thor kept its
+// 101 to 104 frames a second and its slowest hundredth of frames came at 60
+// to 62 against 53 to 54.
 #if defined(BO3_TITLE)
-#define T_POLL_YIELD           1
+#define T_POLL_YIELD           2
 #else
 #define T_POLL_YIELD           0
+#endif
+
+// How long a guest thread that keeps yielding sleeps in place of each yield
+// after the first, in microseconds (kernel::Yield in kernel/objects.cpp);
+// 0 yields every time. Black Ops III's job workers spin on SwitchToThread
+// while the queued jobs are other workers' to take. On a phone only: a
+// sleep on Windows is a millisecond or more, and Black Ops III's multiplayer
+// came at 92.5 frames a second there with it against 101.7 without, where
+// Shadows of Evil came at 99 to 102 on an AYN Thor with it against 92 to 95
+// without.
+#if defined(BO3_TITLE) && defined(__ANDROID__)
+#define T_YIELD_SLEEP_US       100
+#else
+#define T_YIELD_SLEEP_US       0
 #endif
 
 // The macros that turn a table entry into the symbols the recompiled code uses.

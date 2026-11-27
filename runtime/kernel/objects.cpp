@@ -350,11 +350,38 @@ uint32_t kernel::Wait(Dispatcher* const* objects, uint32_t count, bool all,
     held.unlock();
     // A poll -- no time to wait -- that finds nothing gives the processor to
     // a thread ready for it (T_POLL_YIELD; MW2_POLL_YIELD=0 or 1 says
-    // otherwise): the host's own wait returns at once where the console's
-    // took a system call, and a title that polls in a loop holds a core.
-    static const bool pollYield = env::Text("MW2_POLL_YIELD") ? env::Flag("MW2_POLL_YIELD") : T_POLL_YIELD != 0;
-    if (pollYield && result == X_STATUS_TIMEOUT && poll) std::this_thread::yield();
+    // otherwise, 2 sleeps as a spinning yield does): the host's own wait
+    // returns at once where the console's took a system call, and a title
+    // that polls in a loop holds a core.
+    static const uint64_t pollYield = env::Number("MW2_POLL_YIELD", T_POLL_YIELD);
+    if (pollYield && result == X_STATUS_TIMEOUT && poll)
+    {
+        if (pollYield == 2) Yield();
+        else std::this_thread::yield();
+    }
     return result;
+}
+
+// The processor to whoever is ready for it. A thread that yields again
+// within 50 microseconds of its last yield is spinning, and sleeps instead
+// (T_YIELD_SLEEP_US; MW2_YIELD_SLEEP_US says otherwise, 0 never): the
+// host's sched_yield returns at once where no other thread waits on that
+// core, so a spin holds the core the console's hardware thread would have
+// shared. Black Ops III's job workers spin so while jobs are queued that
+// only other workers may take (sub_82146A48, round sub_82146978 and
+// SwitchToThread): one of them spent 40% of a core in sched_yield in
+// Shadows of Evil on an AYN Thor, on the cluster where the threads with
+// work waited a fifth to a third of the time for a core.
+void kernel::Yield()
+{
+    static const uint32_t sleepUs = uint32_t(env::Number("MW2_YIELD_SLEEP_US", T_YIELD_SLEEP_US));
+    if (!sleepUs) { std::this_thread::yield(); return; }
+    thread_local Clock::time_point last{};
+    if (Clock::now() - last < std::chrono::microseconds(50))
+        std::this_thread::sleep_for(std::chrono::microseconds(sleepUs));
+    else
+        std::this_thread::yield();
+    last = Clock::now();
 }
 
 uint32_t kernel::InsertHandle(std::shared_ptr<Object> object, const char* creatorThread, uint32_t creatorLr)

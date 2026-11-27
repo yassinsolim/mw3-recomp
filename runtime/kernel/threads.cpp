@@ -262,5 +262,5 @@ PPC_FUNC(__imp__KeQueryBasePriorityThread) { ctx.r3.u64 = 0; }
 // III's SwitchToThread (sub_826C72E0) tells its caller whether another thread
 // ran by the answer not being STATUS_NO_YIELD_PERFORMED; the host does not
 // say, so one did.
-PPC_FUNC(__imp__NtYieldExecution) { std::this_thread::yield(); ctx.r3.u64 = X_STATUS_SUCCESS; }
+PPC_FUNC(__imp__NtYieldExecution) { kernel::Yield(); ctx.r3.u64 = X_STATUS_SUCCESS; }
 PPC_FUNC(__imp__ExRegisterTitleTerminateNotification) { ctx.r3.u64 = 0; }

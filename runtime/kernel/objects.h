@@ -116,6 +116,10 @@ namespace kernel
     uint32_t Wait(Dispatcher* const* objects, uint32_t count, bool all,
                   const int64_t* timeout100ns);
 
+    // The processor to whoever is ready for it; a thread that yields again
+    // within 50 us sleeps instead (T_YIELD_SLEEP_US, MW2_YIELD_SLEEP_US).
+    void Yield();
+
     uint32_t InsertHandle(std::shared_ptr<Object> object, const char* creatorThread = nullptr, uint32_t creatorLr = 0);
     std::shared_ptr<Object> LookupHandle(uint32_t handle);
     bool CloseHandle(uint32_t handle);
