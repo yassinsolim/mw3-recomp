@@ -142,7 +142,7 @@ walking to it.
 | `MW2_TRACE_INDIRECT` | CMake option, on by default: reports an indirect call with no recompiled target instead of jumping to null (one outside the code section is reported in every build) |
 | `MW2_ENGINE_LOG=1` | the title's own `Com_Printf` output in the log |
 | `MW2_TRACE_ERRORS=1` | the guest call stack under every `Com_Error`; one wrapper raises every error, so the message alone does not say where it came from |
-| `MW2_TRACE_CBUF=1` | every command queued to the title's console, which shows what a menu runs (Modern Warfare 2, and Modern Warfare 3's multiplayer) |
+| `MW2_TRACE_CBUF=1` | every command queued to the title's console, which shows what a menu runs (Modern Warfare 2, Modern Warfare 3's multiplayer, and both Black Ops III titles: its local lobby's Start Game is `lobbyLaunchGame`, which takes `ui_mapname` and `ui_gametype`) |
 | `MW2_TRACE_LUA=1` | Black Ops III: every module its menus `require`, with the caller, before the Lua library looks for it |
 | `MW2_TRACE_BOTS=1` | the bots: the menus' names, each menu answer, where every bot is and what it is doing every five seconds, and each target that went down while a bot fired at it |
 | `MW2_TRACE_MATCH=1` | Modern Warfare 3's multiplayer, on the host: at every landing, how long the player was in the air, how high it rose, how fast it was moving, which way it faced, how far down it looked and where it landed -- what the `MW2_MATCH_` options and `MW2_FOV`'s turn rate come to, and where a player stands |

@@ -441,6 +441,73 @@ Open: the scene rule draws the scene smaller where the processor is late
 does not help a frame the chip is not late for; a second multiplayer map
 and the Thor's 1% low over single frames were not measured.
 
+## Every mode and map (27 November 2026)
+
+**The console's queue.** `Cbuf_AddText` is found in both executables
+(multiplayer sub_8263A6A0, zombies sub_82631630: the "p<digit> " prefix
+parse, then the client's buffer; `title.h`), so `MW2_CONSOLE` and the app's
+console reach the title, and `MW2_TRACE_CBUF` shows what the menus queue.
+Commands work; dvars work by name where the title registered them so
+(`cg_drawFPS 1` drew the counter). The local lobby's Start Game queues
+`lobbyLaunchGame 1 <map> <type>`, which ignores its arguments and takes
+`ui_mapname` and `ui_gametype`: the runs below set those after the lobby's
+`exec gamedata/configs/mp/mp_default_gamesettings.cfg` and before the launch.
+A guest does not get a map set that way (it loads the lobby's own and drops,
+`Script file not found: scripts/mp/<map>.gsc`), so the two-copy runs keep
+the lobby's map. `map <name>` from the main menu fails (`mem_pmem.cpp:645`).
+
+**Looking by touch.** `AimAssist_UpdateGamePadInput` is sub_821634E8
+(zombies sub_82163388): it copies the input's pitch at +8 and yaw at +20 to
+the output before anything else, as Modern Warfare 3's does. The local
+client is a byte at +52 (`T_AIM_INPUT_LOCAL_CLIENT_BYTE`). The turn rates
+(sub_821614E0) are multiplied by state + 168, tan(half the view's height)
+over 0.75 * tan(32.5 degrees). With these, `mouse_look.cpp` turns the view
+by a finger's angle in BO3 too, where before it fell back to the stick. Not
+yet measured on a phone.
+
+**What the packages hold** (`tools/stfs.py`): Compatibility Pack 1 has the
+twelve base maps, the four Freerun courses and Shadows of Evil; The Giant is
+zm_factory; Awakening has mp_crucible (Gauntlet), mp_rise, mp_skyjacked and
+mp_waterpark, plus zm_castle (Der Eisendrache). Eclipse (Zetsubou No Shima),
+Descent (Gorod Krovi) and Salvation (Revelations) are not on this PC:
+untested. The 360's zombies lobby offers only the classic mode (Start Game,
+Change Map, GobbleGum, Weapon Kits), so there is no Nightmares to test.
+
+**Windows** (RTX 5080, diagnostics build of `bo3-modes`, a fresh profile
+each run, frames dumped and looked at, 150 s runs, frames a second of play):
+
+| | result |
+|---|---|
+| Team Deathmatch on all 16 multiplayer maps: mp_apartments, biodome, chinatown, ethiopia, havoc, infection, metro, redwood, sector, spire, stronghold, veiled; Awakening's crucible, rise, skyjacked, waterpark | pass: each loads and plays, no `Com_Error`, 45 to 60 (two copies at once) |
+| Every mode on Combine: FFA, Domination, Hardpoint, S&D, Demolition, CTF, Kill Confirmed, Uplink, Safeguard, Gun Game, Sticks and Stones | pass: each loading screen names the mode, the match runs, 58.5 to 59.3 |
+| `clean` (Fracture), `prop` (Prop Hunt) | not on the 360: `Script file not found: scripts/mp/gametypes/<type>.gsc`; the menus don't offer them |
+| Bots (bot_maxAllies 5, bot_maxAxis 6), Domination on Aquarium | pass: the player is killed by a bot (killcam), 53.1 |
+| Freerun: mp_freerun_01 to 04 | pass: each course loads at its start, 58.7 to 59.3 |
+| Zombies: Shadows of Evil, The Giant, Der Eisendrache | pass: each map's match plays to `Game Over` in round 1 (the scripted player doesn't fight), 56.0, 57.2, 59.0 |
+| Find LAN Game, two copies (`MW2_NETWORK=lan`) | pass: the guest joins the host's lobby (2 Players) and plays the match on Combine |
+| The relay, two copies (`MW2_NETWORK=server`, mw2-relay built from `relay/` in WSL) | pass: Find LAN Game through the relay, 2 Players, the match on Combine, until the idle guest is kicked for inactivity |
+| Play Online through the relay | untested past the menu: the relay welcomes the copy, but no BO3 playlist or Find Game exists |
+| The Sun shadows switch | does nothing: `sm_enable 0` and 13 other likely names change no frame; the app hides the row for BO3 |
+
+**Phones** (debug app `com.bo3.recomp.bo3m`, Turnip, the default Automatic
+setting; the game files pushed into a test folder; 1% low = the mean rate
+of the slowest 1% of single frames from `MW2_FRAME_LOG`, loading hitches
+included):
+
+| | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
+|---|---|---|
+| Multiplayer, base map | mp_spire TDM: 110.7, 1% low not logged | Combine TDM: 56.5, 1% low 13.1 |
+| Multiplayer, Awakening | not run (slot over) | mp_rise Domination: 57.1 |
+| Shadows of Evil | 105.3, 102.4 and 104.8 in three matches; 1% low 16.7 to 17.3 | 56.5, 58.1 and 59.1; 1% low 9.0 to 12.8 |
+| The Giant, Der Eisendrache, Freerun | not run: the persistent profile skipped the first-run screens, so the lobby started Shadows of Evil before the map was set. The script needs `saves/` wiped first | same |
+| Audio | one "mixer is finishing its frames late" in the mp_spire run, no underrun | none logged |
+| Looking by touch | not measured | not measured |
+
+The Thor's frames waited for the processor 19% (multiplayer) and 44 to 79%
+(zombies) of the time, with the chip at 4.6 to 5.9 ms: that is the 120 work
+(Bo3Thor120). The app's FOV setting now reaches BO3 as `cg_fov 85` at the
+start of each run, since the console takes it.
+
 ## Open
 
 - The zombies once ended in `Could not load default asset '' for asset type
@@ -460,8 +527,11 @@ and the Thor's 1% low over single frames were not measured.
   a device, and the runtime used to end the process there.
 - A window covered by others presents four frames a second and the game
   slows with it.
-- The Giant and Shadows of Evil were played to round 1 and round 2; Der
-  Eisendrache was not started.
+- The Giant and Shadows of Evil were played to round 1 and round 2, Der
+  Eisendrache to round 1. Zetsubou No Shima, Gorod Krovi and Revelations
+  are not on this PC.
+- The thin streak from a zombie's head (above) is still there; it was not
+  looked into this round.
 - In `android`, and not released: nothing is published for this title, and
   the release script leaves its paths out of every mirror
   (`tools/release/release.py`, `UNRELEASED`).
