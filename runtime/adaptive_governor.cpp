@@ -35,6 +35,14 @@ bool adaptive::Governor::HasRoom(const Measured& window, double periodMs, double
            (window.rendererMs < 0 || window.rendererMs <= rendererShare * periodMs);
 }
 
+adaptive::Late adaptive::Governor::WhatWasLate(const Measured& window, uint32_t target)
+{
+    if (window.fps <= 0) return Late::Unknown;
+    if (target && window.fps >= kMiss * double(target)) return Late::Nothing;
+    if (window.gpuMs < 0) return Late::Unknown;
+    return ChipLate(window, 1000.0 / (target ? double(target) : window.fps)) ? Late::Chip : Late::Processor;
+}
+
 void adaptive::Governor::StepTo(size_t step, std::string why)
 {
     m_step = step;
@@ -89,7 +97,7 @@ bool adaptive::Governor::Feed(const Measured& window)
         if (!m_rate || m_missed < kDownSeconds) return false;
         // Where the chip is what a frame waits for, the scene's pixels go
         // before the rate does; where it is not, they would buy nothing.
-        const bool chipLate = window.gpuMs < 0 || window.gpuMs >= 0.85 * periodMs;
+        const bool chipLate = ChipLate(window, periodMs);
         if (chipLate && !window.sceneAtFloor) return false;
         const double sustained = m_missedFrames / m_missed;
         size_t pick = m_step;

@@ -407,7 +407,7 @@ class MainActivity : AppCompatActivity() {
         // The launcher asks for the mode the game will ask for (the limit may
         // have been changed in Settings since), and says so when the system
         // has not given it after the moment a mode change takes.
-        if (prefs.fpsLimit in Prefs.FPS_LIMITS) DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
+        DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
         handler.postDelayed({ showDisplayHeld() }, DISPLAY_SETTLE_MS)
         // Back from an install the Play card started: it said a disc was
         // found, and the game is there now.

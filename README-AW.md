@@ -133,13 +133,13 @@ more.
 The app does not go by the chip's name. It measures the play in front of you
 and gives up, in this order, what the device has no time for:
 
-1. **Sun shadows** (Settings → Graphics → Sun shadows, *Chosen for this
-   device*): on only once half a minute of play has held its frame rate
-   with room to spare, off again when frames come late with them.
+1. **Sun shadows** (Settings → Graphics → Advanced → Sun shadows, *Auto*):
+   on only once half a minute of play has held its frame rate with room to
+   spare, off again when frames come late with them.
 2. **The 3D scene's pixels**: drawn at 92% down to 58% of its size while the
    graphics chip is late with a frame, and whole again when it is not. The
    HUD and the menus keep theirs.
-3. **The frame rate** (Settings → Graphics → FPS limit, *Auto*): from the
+3. **The frame rate** (Advanced → Frame-rate limit, *Auto*): from the
    screen's fastest rate down to an even 60 or 30 when ten seconds in a row
    did not come near it, and up again when there is room. A limit you choose
    yourself is kept whatever happens, and so are shadows you turn on or off.
@@ -264,6 +264,35 @@ for them itself: **Add DLC** names the ones still to add, its entry on the
 start screen reads **ADD DLC · 2 MISSING**, and until they are all there
 **Multiplayer** stays the disc's version.
 
+## Graphics settings
+
+**Settings → Graphics** has five presets. Pick one; each says what it does.
+
+| Preset | What it does |
+|---|---|
+| **Automatic** (the default) | The game measures your device as you play and settles the frame rate, the 3D scene and the sun shadows by itself |
+| **Battery saver** | 30 FPS, a smaller 3D scene, no sun shadows: the least heat and the longest play on a charge |
+| **Balanced** | 60 FPS, the 3D scene drawn smaller only while the graphics chip is late, sun shadows where there is room for them |
+| **Best looking** | The screen's own rate where your device keeps it, the whole 3D scene at the screen's full resolution, sun shadows on. It is drawn at twice the size only once play has shown the graphics chip has the time |
+| **Custom** | What the Advanced page says |
+
+**Advanced…** has each setting by itself, with a line under each: resolution
+scale, frame-rate limit (Auto, 30, 60, and 90 and 120 where the screen is
+that fast), sun shadows (Auto, On, Off), render multiplier, dynamic
+resolution and the graphics driver (the Turnip driver the app carries, or
+the phone's own). What you choose there is kept whatever the game measures,
+and makes the preset Custom. **Reset to automatic** puts them all back.
+
+In a game, **Menu → Graphics** has the same. The preset, the frame-rate
+limit, sun shadows and the resolution scale change as you choose them.
+Render multiplier, dynamic resolution and graphics driver are marked `*`
+there: they take effect the next time the game starts.
+
+**The performance counter** is the small line in the top left corner of the
+game: frames a second, the time one frame takes, and what holds the frame
+rate where it is: the limit, the graphics chip or the processor. Turn it
+off or on in Settings → Graphics, or in the game's Menu → Graphics.
+
 ## Tips
 
 - **Bots.** Tap **Bots** under Multiplayer on the app's start screen, then
@@ -279,7 +308,8 @@ start screen reads **ADD DLC · 2 MISSING**, and until they are all there
   ([docs/relay.md](docs/relay.md)). **LAN** plays on your own WiFi only.
 - **AYN Thor stuck at 60 Hz?** Turn on **Settings → Display → Smooth Display**
   in Android, or the refresh-rate tile in the quick settings.
-- **Sharper picture.** **Settings → Internal render multiplier** draws the
+- **Sharper picture.** **Settings → Graphics → Advanced → Render
+  multiplier** draws the
   game at two or three times the console's 1280x720, from the next start of
   the game. It costs the graphics chip in proportion: on an AYN Thor in a
   match with six bots, 1x ran at 120 FPS (3.6 ms of the chip a frame), 2x at

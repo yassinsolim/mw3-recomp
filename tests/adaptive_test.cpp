@@ -15,6 +15,9 @@
 //     was late, and keeps its fastest where the processor was; and it goes
 //     back to its fastest, a limit the player chose or not, once the sound
 //     has broken up for six seconds in a slower mode.
+//   * The app's counter is told what a window's frames waited for: nothing
+//     at nine tenths of the rate and above, the graphics chip where it took
+//     85% of the frame's period, the processor where it did not.
 #include "adaptive.h"
 
 #include <cstdio>
@@ -240,6 +243,18 @@ int main()
         Governor none;
         none.Start({}, true, true);
         Check(none.Target() == 0 && !none.Feed(Window(10, 1, 1)), "no steps: no target, nothing to decide");
+    }
+    {
+        using adaptive::Late;
+        Check(Governor::WhatWasLate(Window(59, 15.5, 6.0), 60) == Late::Nothing, "59 under 60 waits for nothing");
+        Check(Governor::WhatWasLate(Window(54, 12.0, 6.0), 60) == Late::Nothing, "nor does nine tenths of the rate");
+        Check(Governor::WhatWasLate(Window(48, 15.0, 6.0), 60) == Late::Chip, "48 under 60 with the chip at 15 ms: the chip");
+        Check(Governor::WhatWasLate(Window(48, 9.0, 14.0), 60) == Late::Processor, "with the chip at 9 ms: the processor");
+        Check(Governor::WhatWasLate(Window(90, 7.5, 3.0), 120) == Late::Chip, "90 under 120 with the chip at 7.5 ms: the chip");
+        Check(Governor::WhatWasLate(Window(48, -1, 14.0), 60) == Late::Unknown, "a chip that keeps no time is not named");
+        Check(Governor::WhatWasLate(Window(45, 20.0, 5.0), 0) == Late::Chip, "no limit: the chip at 20 ms of a 22 ms frame");
+        Check(Governor::WhatWasLate(Window(45, 8.0, 5.0), 0) == Late::Processor, "no limit: the chip at 8 ms of 22");
+        Check(Governor::WhatWasLate(Window(0, 8.0, 5.0), 60) == Late::Unknown, "no frames: nothing to say");
     }
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);

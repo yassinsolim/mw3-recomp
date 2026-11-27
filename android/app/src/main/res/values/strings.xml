@@ -180,10 +180,45 @@
     <string name="section_sound">Sound</string>
     <string name="section_controls">Controls</string>
     <string name="section_files">Game files</string>
-    <string name="resolution">Display resolution: %1$d%%</string>
-    <string name="resolution_hint">How many pixels are actually drawn, as a share of the screen. The display scales the result up, which costs nothing. This is the single biggest thing a weaker phone can be given; 60 to 75 percent looks close to the original console.</string>
-    <string name="render_scale">Internal render multiplier: %1$dx</string>
-    <string name="render_scale_hint">Vulkan internal render scale (MW2_SCALE). Multiplies the title\'s base framebuffer dimensions: 1x native, 2x (supersampled), 3x (high-end). Higher multipliers require significant GPU horsepower.</string>
+    <!-- the presets (GraphicsPresets.kt): a name, and one line saying what it does -->
+    <string name="section_preset">Graphics preset</string>
+    <string-array name="preset_names">
+        <item>Automatic</item>
+        <item>Battery saver</item>
+        <item>Balanced</item>
+        <item>Best looking</item>
+        <item>Custom</item>
+    </string-array>
+    <string-array name="preset_lines">
+        <item>The game measures this device as you play and settles the frame rate, the 3D scene and the sun shadows by itself.</item>
+        <item>30 FPS, a smaller 3D scene and no sun shadows: the least heat and the longest play on a charge.</item>
+        <item>60 FPS, the 3D scene drawn smaller only while the graphics chip is late, sun shadows where there is room for them.</item>
+        <item>The screen\'s own rate where this device keeps it, the whole 3D scene at the screen\'s full resolution, sun shadows on; drawn at twice the size once play has shown the graphics chip has the time.</item>
+        <item>What the Advanced page says, setting by setting.</item>
+    </string-array>
+    <string name="advanced_graphics">Advanced\u2026</string>
+    <string name="advanced_graphics_hint">Each setting of a preset by itself: resolution, frame-rate limit, sun shadows, render multiplier, dynamic resolution and the graphics driver. Changing one makes the preset Custom.</string>
+    <string name="section_advanced">Advanced graphics</string>
+    <string name="advanced_intro">Resolution, frame-rate limit and sun shadows can also be changed in the game\'s own menu while you play, and take effect at once. Render multiplier, dynamic resolution and graphics driver take effect the next time the game starts.</string>
+    <string name="advanced_back">Back to Graphics</string>
+    <string name="resolution">Resolution scale: %1$d%%</string>
+    <string name="resolution_hint">The share of the screen\'s pixels the picture is made at; the screen enlarges it. 60 to 75% is close to the console\'s own picture.</string>
+    <string name="render_scale">Render multiplier: %1$dx</string>
+    <string name="render_scale_hint">Draws everything two or three times wider and taller than the console did, for sharper edges, at two to four times the graphics chip\'s work. Needs the game restarted.</string>
+    <string name="scene">Dynamic resolution: %1$s</string>
+    <string-array name="scene_choices">
+        <item>On</item>
+        <item>Off (always whole)</item>
+        <item>Always smaller</item>
+    </string-array>
+    <string name="scene_hint">On draws the 3D scene with fewer pixels while the graphics chip is late and whole again afterwards; the HUD and the menus keep theirs. Off always draws it whole; Always smaller always at 70% of its width. Needs the game restarted, and does nothing with a render multiplier above 1x.</string>
+    <string name="driver_choice">Graphics driver: %1$s</string>
+    <string name="driver_bundled">The Turnip driver this app carries</string>
+    <string name="driver_other">Other drivers\u2026</string>
+    <string name="driver_choice_hint">The software between the game and the graphics chip. On a Snapdragon the app\'s own is usually quicker and draws what the phone\'s gets wrong. Needs the game restarted.</string>
+    <string name="reset_graphics">Reset to automatic</string>
+    <string name="reset_graphics_hint">Puts everything on this page back as a newly installed app has it, and the preset to Automatic.</string>
+    <string name="reset_graphics_done">These settings are automatic again.</string>
     <string name="msaa">Smooth edges (multisampling)</string>
     <string name="detail">Detail at distance: %1$s</string>
     <string-array name="detail_biases">
@@ -195,8 +230,9 @@
     <string name="prefer_60">Lock display to 60 FPS (Hardware Lock)</string>
     <string name="fov">Field of View (FOV): %1$d°</string>
     <string name="fov_hint">85° is recommended for ultrawide 20:9 mobile displays. (65° was original 16:9 console FOV).</string>
-    <string name="fps_limit">FPS limit: %1$d</string>
-    <string name="fps_limit_auto">FPS limit: Auto (%1$d, or the fastest this device keeps)</string>
+    <string name="fps_limit">Frame-rate limit: %1$d FPS</string>
+    <string name="fps_limit_auto">Frame-rate limit: Auto (%1$d, or the fastest this device keeps)</string>
+    <string name="fps_limit_hint">Auto starts at the screen\'s rate and settles on what this device keeps; a number is held whatever happens. Only the rates this screen can show are offered.</string>
     <string name="held_to">Held to %1$d FPS: this is what the device keeps here</string>
     <!-- A toast, of which Android 12 and later show two lines: on the AYN Thor the sentence it was ended at "are sh…". -->
     <string name="display_held">Screen held at %1$d Hz by the system: %1$d FPS, not %2$d. See the launcher.</string>
@@ -204,15 +240,21 @@
     <string name="display_held_ayn">On an AYN handheld: turn on Settings \u203a Display \u203a Smooth Display, or the refresh rate tile in the quick settings (swipe down from the top). The dual-screen assistant can turn it off again after a restart.</string>
     <string name="sun_shadows">Sun shadows: %1$s</string>
     <string-array name="sun_shadows_choices">
-        <item>Chosen for this device</item>
+        <item>Auto</item>
         <item>On</item>
         <item>Off</item>
     </string-array>
-    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Chosen for this device measures it: they come on once half a minute of play has held the frame rate with room to spare, and go again when frames come late with them. On keeps them at a lower frame rate.</string>
+    <string name="sun_shadows_hint">The shadows the sun casts cost a fifth or more of a frame. Auto has them where half a minute of play held its frame rate with room to spare; On keeps them at a lower frame rate; Off never draws them.</string>
     <string name="sharpening">Sharpening: %1$d%%</string>
     <string name="sharpening_off">Sharpening: off</string>
-    <string name="sharpening_hint">Sharpens the picture as it is enlarged to the screen, which gives back some of the detail the enlarging blurs; 80 to 100% is nearest a picture drawn at the screen\'s own size. The game is then shown at the screen\'s full resolution whatever the resolution above says. It costs a third to half a millisecond of the graphics chip\'s time a frame: a few frames a second where the chip is already at its limit.</string>
-    <string name="show_stats">Show frames per second</string>
+    <string name="sharpening_hint">Sharpens the picture as it is enlarged to the screen, which gives back some of the detail the enlarging blurs; 80 to 100% is nearest a picture drawn at the screen\'s own size. The game is then shown at the screen\'s full resolution whatever the resolution scale says. It costs a third to half a millisecond of the graphics chip\'s time a frame: a few frames a second where the chip is already at its limit.</string>
+    <string name="show_stats">Show the performance counter</string>
+    <string name="show_stats_hint">A small line in the top corner of the game: frames a second, the time a frame takes, and whether the frame-rate limit, the graphics chip or the processor is what holds the frame rate where it is. Tap it for more. It can also be turned on and off in the game\'s menu.</string>
+    <!-- the counter over the game (GameActivity.limitText): what holds the frame rate where it is -->
+    <string name="counter_at_limit">held by the limit</string>
+    <string name="counter_chip">held by the graphics chip</string>
+    <string name="counter_processor">held by the processor</string>
+    <string name="counter_shaders">shaders %1$d%%</string>
     <string name="texture_budget_auto">Texture memory: chosen for this phone</string>
     <string name="texture_budget">Texture memory: %1$d MB</string>
     <string name="texture_hint">How much the texture cache may hold before it starts letting go of what has not been drawn for a while. Left alone, the runtime picks a figure from the memory this phone has.</string>
@@ -253,7 +295,7 @@
 
     <!-- split-screen (a physical controller means a second player) -->
     <string name="splitscreen_title">Two-player split-screen?</string>
-    <string name="splitscreen_warning">A controller is attached, so a second player can join: Spec Ops co-op and split-screen multiplayer take a second player through the game\u2019s sign-in screen.\n\nHeads-up: two viewports cost frames. Expect dips below 60 FPS, a hot phone, and fast battery drain — lower the display resolution first on weaker devices.</string>
+    <string name="splitscreen_warning">A controller is attached, so a second player can join: Spec Ops co-op and split-screen multiplayer take a second player through the game\u2019s sign-in screen.\n\nHeads-up: two viewports cost frames. Expect dips below 60 FPS, a hot phone, and fast battery drain — choose the Battery saver or Balanced preset in Settings on weaker devices.</string>
     <string name="play_anyway">Play anyway</string>
     <string name="dont_show_again">Don\u2019t show again</string>
 
@@ -350,10 +392,10 @@
     <string name="menu_gamepad">Physical controllers</string>
     <string name="menu_bots">Bots in my matches</string>
     <string name="menu_bots_none">None</string>
-    <string name="menu_resolution">Display resolution</string>
+    <string name="menu_resolution">Resolution scale</string>
     <string name="menu_percent">%1$d%%</string>
     <string name="menu_sharpening">Sharpening</string>
-    <string name="menu_fps_limit">FPS limit</string>
+    <string name="menu_fps_limit">Frame-rate limit</string>
     <string name="menu_sun_shadows">Sun shadows</string>
     <string-array name="menu_sun_shadows_choices">
         <item>Auto</item>
@@ -366,9 +408,19 @@
     <string name="menu_texture_budget">Texture memory</string>
     <string name="menu_auto">Auto</string>
     <string name="menu_megabytes">%1$d MB</string>
-    <string name="menu_stats">Frames per second shown</string>
+    <string name="menu_stats">Performance counter</string>
     <string name="menu_fill_screen">Fill the screen</string>
-    <string name="menu_render_scale">Internal render multiplier</string>
+    <string name="menu_render_scale">Render multiplier</string>
+    <string name="menu_preset">Preset</string>
+    <string name="menu_scene">Dynamic resolution</string>
+    <string-array name="menu_scene_choices">
+        <item>On</item>
+        <item>Off</item>
+        <item>Smaller</item>
+    </string-array>
+    <string name="menu_driver_phone">The phone\'s</string>
+    <string name="menu_driver_bundled">This app\'s</string>
+    <string name="menu_driver_imported">Imported</string>
     <string name="menu_times">%1$dx</string>
     <string name="menu_after_restart">* takes effect the next time the game is started. Everything else changes as you choose it, and is what Settings shows.</string>
     <string name="menu_hint">On a controller, Select and Start together open this menu: D-pad to choose, left and right to change, A to take, B to go back.</string>

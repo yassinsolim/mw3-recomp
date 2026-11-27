@@ -146,6 +146,11 @@ class GameMenu(context: Context, private val host: FrameLayout, private val onCl
         show(next, 0)
     }
 
+    /** The page shown, made again: a row's choice changed what the others say. The row chosen stays chosen. */
+    fun replace(next: Page) {
+        if (isOpen) show(next, selected)
+    }
+
     fun close() {
         if (!isOpen) return
         host.removeView(scrim)

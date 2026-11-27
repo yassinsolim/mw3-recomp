@@ -230,6 +230,10 @@ render::Size render::SceneAsked()
         const Size frame = Frame();
         const Size own = Scene(frame);
         const char* asked = env::Text("MW2_SCENE");
+        // "console" is the console's own on any chip, in a title that takes
+        // another scene or not: what the app's whole scene asks for, which
+        // knows no title's sizes.
+        if (asked && !std::strcmp(asked, "console")) return own;
 #if defined(MW2_ANDROID) && (defined(T_R_VideoSizes) || defined(T_R_SetVidConfigOfSizes))
         // An Adreno 650 draws Modern Warfare 2's console scene at 49 to 55
         // frames a second and this one at 54 to 59, and Modern Warfare 3's

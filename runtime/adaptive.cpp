@@ -69,6 +69,9 @@ namespace
     std::vector<uint32_t> g_steps;          // under g_lock: the rates the display shows evenly
     double g_playSeconds = 0, g_frames = 0, g_missedSeconds = 0, g_slowest = 0, g_said = 0;   // under g_lock
     bool g_startedLocked = false;           // under g_lock
+    Clock::time_point g_keptAt;             // under g_lock: when the newest of g_kept ended
+    // Under g_lock: the seconds of play whose frames waited for the chip and for the processor.
+    double g_chipSeconds = 0, g_processorSeconds = 0;
     // Read by the title's thread at every present, and by the app's.
     std::atomic<bool> g_shadows{ false }, g_shadowsFollow{ true };
     std::atomic<uint32_t> g_scenePercent{ 100 };
@@ -185,7 +188,7 @@ namespace
 
     std::string Summary()   // under g_lock
     {
-        char text[320];
+        char text[440];
         const double fps = g_playSeconds > 0 ? g_frames / g_playSeconds : 0;
         double gpu = 0, renderer = 0;
         size_t gpus = 0, renderers = 0;
@@ -203,8 +206,13 @@ namespace
             length += std::snprintf(text + length, sizeof text - size_t(length), "; the graphics chip %.1f ms a frame",
                                     gpu / double(gpus));
         if (renderers)
-            std::snprintf(text + length, sizeof text - size_t(length), ", the renderer's thread %.1f ms",
-                          renderer / double(renderers));
+            length += std::snprintf(text + length, sizeof text - size_t(length), ", the renderer's thread %.1f ms",
+                                    renderer / double(renderers));
+        // Which of the two the late frames waited for, as the app's counter says it.
+        if (g_chipSeconds + g_processorSeconds > 0)
+            std::snprintf(text + length, sizeof text - size_t(length),
+                          "; the frames waited for the graphics chip %.0f%% of the time and for the processor %.0f%%",
+                          100.0 * g_chipSeconds / g_playSeconds, 100.0 * g_processorSeconds / g_playSeconds);
         return text;
     }
 }
@@ -317,8 +325,12 @@ void adaptive::Frame(bool world, const Scene& scene)
             g_playSeconds += seconds;
             g_frames += window.fps * seconds;
             if (target && window.fps < Governor::kMiss * double(target)) g_missedSeconds += seconds;
+            const Late late = Governor::WhatWasLate(window, target);
+            if (late == Late::Chip) g_chipSeconds += seconds;
+            else if (late == Late::Processor) g_processorSeconds += seconds;
             g_slowest = g_slowest > 0 ? std::min(g_slowest, window.fps) : window.fps;
             g_kept.push_back({ at, window.fps, window.gpuMs, window.rendererMs, target, scene.percent, shadows });
+            g_keptAt = now;
             if (g_kept.size() > kKept) g_kept.pop_front();
         }
         if (play && g_governor.Feed(window))
@@ -427,6 +439,18 @@ adaptive::Now adaptive::Current()
         now.fps = g_kept.back().fps;
         now.gpuMs = g_kept.back().gpuMs;
         now.rendererMs = g_kept.back().rendererMs;
+        Measured last;
+        last.fps = now.fps;
+        last.gpuMs = now.gpuMs;
+        now.late = Governor::WhatWasLate(last, g_kept.back().target);
+        now.age = std::chrono::duration<double>(Clock::now() - g_keptAt).count();
+        double gpu = 0;
+        size_t gpus = 0;
+        for (const Kept& kept : g_kept)
+            if (kept.gpuMs >= 0) { gpu += kept.gpuMs; gpus++; }
+        if (gpus) now.playGpuMs = gpu / double(gpus);
+        now.playSeconds = g_playSeconds;
+        now.playMissed = g_playSeconds > 0 ? g_missedSeconds / g_playSeconds : 0;
     }
     return now;
 }

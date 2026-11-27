@@ -790,6 +790,18 @@ MW2_NATIVE(void, nativeStats)(JNIEnv* env, jobject, jfloatArray out)
         values[11] = jfloat(now.scenePercent);
         values[12] = now.follows ? 1.0f : 0.0f;
         values[13] = jfloat(now.display);
+        if (len >= 19)
+        {
+            // The counter's last word and the Best looking preset's measure:
+            // what the last window's frames waited for (adaptive::Late, as
+            // its number) and how long ago it ended, and of the play so far
+            // its seconds, the chip's time a frame and the share that came late.
+            values[14] = jfloat(int(now.late));
+            values[15] = jfloat(now.age);
+            values[16] = jfloat(now.playSeconds);
+            values[17] = jfloat(now.playGpuMs);
+            values[18] = jfloat(now.playMissed);
+        }
     }
     env->SetFloatArrayRegion(out, 0, len, values.data());
 }

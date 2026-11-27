@@ -38,6 +38,11 @@ namespace adaptive
         bool sceneWhole = true, sceneAtFloor = true;
     };
 
+    // What a window's frames waited for: nothing (they came at the rate the
+    // run is held to), the graphics chip, or the processor; unknown where
+    // they came late on a device whose chip keeps no time.
+    enum class Late { Nothing, Chip, Processor, Unknown };
+
     class Governor
     {
     public:
@@ -97,6 +102,17 @@ namespace adaptive
         bool RateFollows() const { return m_rate; }
         // Why the last change was made, for the log.
         const std::string& Why() const { return m_why; }
+        // The chip is what a late window's frames waited for: it took this
+        // share of the frame's period or more. A chip that keeps no time is
+        // taken to be late, which gives up the scene's pixels before the rate.
+        static constexpr double kChipLate = 0.85;
+        static bool ChipLate(const Measured& window, double periodMs)
+        {
+            return window.gpuMs < 0 || window.gpuMs >= kChipLate * periodMs;
+        }
+        // The same for the app's counter, of a window under `target` frames
+        // a second (0: no limit, and the window's own frame time is judged).
+        static Late WhatWasLate(const Measured& window, uint32_t target);
 
         // A window is a miss under this share of the target.
         static constexpr double kMiss = 0.90;
@@ -179,8 +195,22 @@ namespace adaptive
     uint32_t DisplayRate();
     // What the app's overlay shows: the rate the run is held to, the rate
     // the display is asked for, and the last window's frames a second, chip
-    // time and scene.
-    struct Now { uint32_t target = 0, display = 0; bool follows = false; double fps = 0, gpuMs = -1, rendererMs = -1; uint32_t scenePercent = 100; bool shadows = false; };
+    // time and scene; what that window's frames waited for and how many
+    // seconds ago it ended (negative before the first: a menu's frames are
+    // no window); and of the play so far its seconds, the chip's time a
+    // frame and the share of it under nine tenths of the rate, which the
+    // app's Best looking preset reads before it draws at twice the size.
+    struct Now
+    {
+        uint32_t target = 0, display = 0;
+        bool follows = false;
+        double fps = 0, gpuMs = -1, rendererMs = -1;
+        uint32_t scenePercent = 100;
+        bool shadows = false;
+        Late late = Late::Unknown;
+        double age = -1;
+        double playSeconds = 0, playGpuMs = -1, playMissed = 0;
+    };
     Now Current();
     // The performance report a player shares (android/jni.cpp): the device's
     // graphics, the settings in force and how the run went, a line each.

@@ -232,7 +232,11 @@ object NativeBridge {
      * the rate the run is held to, the graphics chip's ms a frame (negative
      * when it does not say), the scene's share of its width in percent,
      * 1 when the rate follows the device, the rate the display is to be
-     * asked for a mode of }.
+     * asked for a mode of, what the last two seconds of play waited for (0
+     * nothing, 1 the graphics chip, 2 the processor, 3 not known) and the
+     * seconds since they ended (negative before any), and of the play so
+     * far its seconds, the chip's ms a frame and the share of it that came
+     * under nine tenths of the rate }.
      */
     external fun nativeStats(out: FloatArray)
 

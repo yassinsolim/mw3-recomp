@@ -134,7 +134,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var vibrator: Vibrator? = null
     private var lastRumble = 0
 
-    private val statsValues = FloatArray(14)
+    private val statsValues = FloatArray(19)
     private var started = false
 
     /**
@@ -322,6 +322,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 NativeBridge.nativeStats(statsValues)
                 watchForBlackScreen()
                 followHeldRate()
+                measureBestLooking()
             }
             if (prefs.showStats && NativeBridge.isLoaded()) {
                 if (cachedRendererInfo.isEmpty()) {
@@ -339,49 +340,42 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 val frameTimeMs = if (statsValues[4] > 0.01f) statsValues[4] else if (fps > 0) 1000f / fps else 0f
                 val framesPresented = statsValues[5].toLong()
 
-                val temp = getDeviceTemp()
-                val (appMb, totalMb) = getMemoryStats()
-                val (battTemp, isCharging, battPct) = getBatteryStats()
-                val cpuStr = if (cpuUsagePercent >= 0f) String.format(Locale.US, "%.0f%%", cpuUsagePercent) else "N/A"
-
                 val warmupQueued = if (statsValues.size >= 7) statsValues[6].toInt() else 0
                 val warmupCompleted = if (statsValues.size >= 8) statsValues[7].toInt() else 0
                 val warmupLastMs = if (statsValues.size >= 9) statsValues[8].toInt() else 0
 
-                val tempPart = if (temp > 0f) String.format(Locale.US, " · %.0f°C", temp) else ""
-                val ramPart = if (appMb > 0) String.format(Locale.US, " · RAM %dM", appMb) else ""
-                val ftPart = if (frameTimeMs > 0f) String.format(Locale.US, " · %.1fms", frameTimeMs) else ""
-                val warmupPart = if (warmupQueued > 0 && warmupCompleted < warmupQueued) {
-                    val pct = (warmupCompleted * 100) / warmupQueued
-                    String.format(Locale.US, "  •  ⚡ Shaders %d%% (%d/%d)", pct, warmupCompleted, warmupQueued)
-                } else ""
-
                 // Other copies heard on the network (multiplayer only). Zero
                 // with a friend hosting beside this phone means discovery is
                 // not arriving -- same WiFi, firewall, hotspot; see the guide.
-                // The TU badge matters: TU0 plays only with TU0, TU6 with TU6.
-                val isMpHud = isMultiplayer
-                val tuHud = BuildConfig.MW2_TU.uppercase()
-                val lanPeers = if (isMpHud) {
+                val lanPeers = if (isMultiplayer) {
                     try {
                         NativeBridge.nativeLanPeers()
                     } catch (_: Throwable) {
                         0
                     }
                 } else 0
-                val lanPart = if (isMpHud) {
-                    String.format(Locale.US, "  •  LAN: %d · %s", lanPeers, tuHud)
-                } else {
-                    String.format(Locale.US, "  •  %s", tuHud)
+
+                // The counter: small, and only what says how the game runs
+                // -- the frames a second, a frame's time and what holds the
+                // rate where it is. Shaders still compiling explain a low
+                // number while they last. The rest is in the card a tap opens.
+                statsText.text = buildString {
+                    append(fps).append(" FPS")
+                    if (frameTimeMs > 0f) append(String.format(Locale.US, " · %.1f ms", frameTimeMs))
+                    val limit = limitText()
+                    if (limit.isNotEmpty()) append(" · ").append(limit)
+                    if (warmupQueued > 0 && warmupCompleted < warmupQueued) {
+                        append(" · ").append(getString(R.string.counter_shaders, (warmupCompleted * 100) / warmupQueued))
+                    }
+                    if (isMultiplayer) append(" · LAN: ").append(lanPeers)
+                    append(" ▾")
                 }
 
-                statsText.text = String.format(
-                    Locale.US,
-                    "%d FPS%s  •  CPU %s%s%s  •  Tex %dMB%s%s  [▼ HUD]",
-                    fps, ftPart, cpuStr, tempPart, ramPart, texMb, warmupPart, lanPart
-                )
-
                 if (hudIsExpanded) {
+                    val temp = getDeviceTemp()
+                    val (appMb, totalMb) = getMemoryStats()
+                    val (battTemp, isCharging, battPct) = getBatteryStats()
+                    val cpuStr = if (cpuUsagePercent >= 0f) String.format(Locale.US, "%.0f%%", cpuUsagePercent) else "N/A"
                     val parts = cachedRendererInfo.split("|")
                     val devName = if (parts.isNotEmpty() && parts[0].isNotEmpty()) parts[0] else "Vulkan Device"
                     val renderMode = if (parts.size > 1) parts[1] else "Vulkan 1.1 Legacy RenderPass"
@@ -399,7 +393,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
                     hudExpandedText.text = buildString {
                         append("FPS / FRAME TIME\n")
                         append(String.format(Locale.US, "  ▶ %d FPS   (%.1f ms)\n", fps, frameTimeMs))
-                        append(String.format(Locale.US, "  Presented: %,d frames\n\n", framesPresented))
+                        // TU0 plays only with TU0, TU6 with TU6.
+                        append(String.format(
+                            Locale.US, "  Presented: %,d frames  ·  %s\n\n", framesPresented, BuildConfig.MW2_TU.uppercase(),
+                        ))
 
                         append("CPU & SYSTEM\n")
                         append("  Utilization: $cpuStr (${Runtime.getRuntime().availableProcessors()} Cores)\n")
@@ -424,6 +421,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
                         if (statsValues[12] > 0f) append(" (auto)")
                         if (gpuMs >= 0f) append(String.format(Locale.US, "  •  GPU: %.1f ms", gpuMs))
                         append("  •  Scene: ${statsValues[11].roundToInt()}%\n")
+                        val limit = limitText()
+                        if (limit.isNotEmpty()) append("  Limit: $limit\n")
                         if (isMultiplayer) {
                             append("\nNETWORK\n")
                             append("  Players heard on LAN: $lanPeers\n")
@@ -432,6 +431,65 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 }
             }
             handler.postDelayed(this, 500)
+        }
+    }
+
+    /**
+     * The counter's last word: what the frames of the last two seconds of
+     * play waited for, as the runtime measured them (adaptive::Late) --
+     * nothing, where they came at the rate the run is held to, the graphics
+     * chip or the processor. Empty with no play in the last five seconds: a
+     * menu, a film and a loading screen say nothing of the device, nor does
+     * a chip that keeps no time.
+     */
+    private fun limitText(): String {
+        val age = statsValues[15]
+        if (age < 0f || age > 5f) return ""
+        return when (statsValues[14].roundToInt()) {
+            0 -> getString(R.string.counter_at_limit)
+            1 -> getString(R.string.counter_chip)
+            2 -> getString(R.string.counter_processor)
+            else -> ""
+        }
+    }
+
+    /** What this run was started with, which Best looking's measure is read against (applyOptions). */
+    private var runStartedBest = false
+    private var runRenderScale = 1
+    private var runStartedAt = 0
+    private var measuredAtPlay = 0f
+
+    /**
+     * Best looking draws at twice the size only where it was measured to
+     * hold (Prefs.settleBestLooking), and this is the measuring: once a
+     * minute of play is behind a run started under that preset, and every
+     * half minute after, a run at 1x leaves the graphics chip's time a
+     * frame for the next start to judge, and a run at 2x that came late or
+     * was held to a slower rate says so, which makes the next start 1x.
+     */
+    private fun measureBestLooking() {
+        if (!runStartedBest) return
+        val play = statsValues[16]
+        if (play < GraphicsPresets.MEASURED_AFTER || play - measuredAtPlay < 30f) return
+        measuredAtPlay = play
+        val name = title.name
+        if (runRenderScale == 1) {
+            val chipMs = statsValues[17]
+            if (chipMs >= 0f) {
+                prefs.noteChipTime(name, chipMs)
+                NativeBridge.nativeLog(false, String.format(
+                    Locale.US, "graphics: best looking measured the graphics chip at %.1f ms a frame in %.0f s of play at 1x",
+                    chipMs, play,
+                ))
+            }
+        } else if (GraphicsPresets.twiceFailed(statsValues[18], statsValues[9].roundToInt(), runStartedAt)) {
+            prefs.noteTwiceFailed(name)
+            runStartedBest = false
+            NativeBridge.nativeLog(false, String.format(
+                Locale.US, "graphics: best looking at %dx did not hold (%.0f%% of %.0f s of play came late, held to %d of %d):" +
+                    " 1x from the next start",
+                runRenderScale, statsValues[18] * 100f, play, statsValues[9].roundToInt(), runStartedAt,
+            ))
         }
     }
 
@@ -624,7 +682,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // Sustained performance mode locks CPU/GPU governors to steady frequencies
         // to prevent erratic thermal throttling mid-gameplay.
         window.setSustainedPerformanceMode(true)
-        if (prefs.fpsLimit in Prefs.FPS_LIMITS) DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
+        DisplayRate.request(window, shownDisplay(), prefs.fpsLimit)
         logDisplayMode()
         getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, handler)
         handler.postDelayed({ sayDisplayHeld() }, 5000)
@@ -1059,8 +1117,24 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
         NativeBridge.nativeSetOption("MW2_NO_AUDIO", if (prefs.audioEnabled) "" else "1")
         NativeBridge.nativeSetOption("MW2_NO_MSAA", if (prefs.multisampling) "" else "1")
-        if (prefs.renderScale in 1..3) {
-            NativeBridge.nativeSetOption("MW2_SCALE", prefs.renderScale.toString())
+        // Best looking draws at twice the size in a title measured to hold
+        // it, which is settled now; what the run starts with is kept for
+        // the measuring (measureBestLooking).
+        prefs.settleBestLooking(title.name)
+        runStartedBest = prefs.graphicsPreset == GraphicsPresets.BEST
+        runRenderScale = prefs.renderScale
+        runStartedAt = prefs.fpsLimit
+        prefs.graphicsSummary().take(3).forEach { NativeBridge.nativeLog(false, "graphics: $it") }
+        NativeBridge.nativeSetOption("MW2_SCALE", prefs.renderScale.toString())
+        // The 3D scene: left to the runtime it follows the load; whole, it
+        // is the console's on every chip; smaller, one fixed share of it.
+        when (prefs.scene) {
+            GraphicsPresets.SCENE_WHOLE -> {
+                NativeBridge.nativeSetOption("MW2_SCENE_DYNAMIC", "0")
+                NativeBridge.nativeSetOption("MW2_SCENE", "console")
+            }
+            GraphicsPresets.SCENE_SMALLER ->
+                NativeBridge.nativeSetOption("MW2_SCENE_SHARE", GraphicsPresets.SMALLER_PERCENT.toString())
         }
         // Modern Warfare 2 alone has the hook (runtime/model_detail.cpp).
         if (!Title.isMw3) NativeBridge.nativeSetOption("MW2_LOD_BIAS", prefs.detailBias.toString())
@@ -1300,20 +1374,29 @@ class GameActivity : AppCompatActivity(), NativeListener {
     }
 
     /**
-     * What Settings' Graphics page has, with the same Prefs behind it. All
-     * but the last two are taken by the running game; those two are sizes the
-     * renderer makes its targets at once, and are marked.
+     * What Settings' Graphics page and its Advanced page have, with the same
+     * Prefs behind them: the preset first, and under it each setting by
+     * itself. Those the running game cannot take are marked, and wait for
+     * the next start: sizes the renderer makes its targets at once, and the
+     * driver, which a process opens once.
      */
     private fun graphicsPage(): GameMenu.Page {
         val rows = mutableListOf<GameMenu.Row>()
+
+        val preset = prefs.graphicsPreset
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_preset), resources.getStringArray(R.array.preset_names).toList(), preset,
+        ) { chooseGraphicsPreset(it) })
 
         val percents = (35..100 step 5).toList()
         rows.add(GameMenu.Choice(
             getString(R.string.menu_resolution), percents.map { getString(R.string.menu_percent, it) },
             nearest(percents, (prefs.resolutionScale * 100f).roundToInt()),
         ) {
-            prefs.resolutionScale = percents[it] / 100f
-            resizeSurface()
+            advanced {
+                prefs.resolutionScale = percents[it] / 100f
+                resizeSurface()
+            }
         })
 
         // Sharpened, the picture is shown at the screen's full size
@@ -1331,17 +1414,25 @@ class GameActivity : AppCompatActivity(), NativeListener {
         })
 
         // Auto first: the screen's rate, and under it what the device keeps.
+        val limits = prefs.fpsLimits
         rows.add(GameMenu.Choice(
-            getString(R.string.menu_fps_limit), listOf(getString(R.string.menu_auto)) + Prefs.FPS_LIMITS.map { it.toString() },
-            if (prefs.fpsFollowsDevice) 0 else Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit) + 1,
-        ) { if (it == 0) followDeviceFps() else setFpsLimit(Prefs.FPS_LIMITS[it - 1]) })
+            getString(R.string.menu_fps_limit), listOf(getString(R.string.menu_auto)) + limits.map { it.toString() },
+            if (prefs.fpsFollowsDevice) 0 else limits.indexOf(prefs.fpsLimit) + 1,
+        ) {
+            advanced {
+                if (it == 0) prefs.followDeviceFps() else prefs.fpsLimit = limits[it - 1]
+                applyFpsLimit()
+            }
+        })
 
         rows.add(GameMenu.Choice(
             getString(R.string.menu_sun_shadows), resources.getStringArray(R.array.menu_sun_shadows_choices).toList(),
             prefs.sunShadows,
         ) {
-            prefs.sunShadows = it
-            NativeBridge.nativeApplyOption("MW2_SHADOWS", when (it) { 1 -> "1"; 2 -> "0"; else -> "" })
+            advanced {
+                prefs.sunShadows = it
+                applySunShadows()
+            }
         })
 
         val views = (65..110 step 5).toList()
@@ -1383,12 +1474,66 @@ class GameActivity : AppCompatActivity(), NativeListener {
         rows.add(GameMenu.Choice(
             getString(R.string.menu_render_scale), (1..3).map { getString(R.string.menu_times, it) },
             prefs.renderScale - 1, afterRestart = true,
-        ) { prefs.renderScale = it + 1 })
+        ) { advanced { prefs.renderScale = it + 1 } })
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_scene), resources.getStringArray(R.array.menu_scene_choices).toList(),
+            prefs.scene, afterRestart = true,
+        ) { advanced { prefs.scene = it } })
+        driverRow()?.let { rows.add(it) }
         rows.add(GameMenu.Choice(
             getString(R.string.msaa), onOff(), if (prefs.multisampling) 1 else 0, afterRestart = true,
         ) { prefs.multisampling = it == 1 })
 
-        return GameMenu.Page(getString(R.string.menu_graphics), rows, getString(R.string.menu_after_restart))
+        return GameMenu.Page(
+            getString(R.string.menu_graphics), rows,
+            resources.getStringArray(R.array.preset_lines)[preset] + "\n" + getString(R.string.menu_after_restart),
+        )
+    }
+
+    /**
+     * A preset chosen in the menu: the frame rate, the sun's shadows and the
+     * resolution are the running game's at once, the rest at the next
+     * start, and the page is shown again with the preset's values in it.
+     */
+    private fun chooseGraphicsPreset(preset: Int) {
+        prefs.choosePreset(preset)
+        applyFpsLimit()
+        applySunShadows()
+        resizeSurface()
+        menu.replace(graphicsPage())
+    }
+
+    /**
+     * A setting of the Advanced page changed by itself, which makes the
+     * preset Custom (Prefs): the page is shown again when that is news, for
+     * its first row and the line under it.
+     */
+    private fun advanced(change: () -> Unit) {
+        val before = prefs.graphicsPreset
+        change()
+        if (before != GraphicsPresets.CUSTOM) menu.replace(graphicsPage())
+    }
+
+    /**
+     * The driver, where the build carries one: the phone's own, the app's,
+     * and a third the player imported while that is the one in use (the
+     * rest are in Settings). For the next start; null where there is only
+     * the phone's.
+     */
+    private fun driverRow(): GameMenu.Row? {
+        val bundled = DriverStore(this).bundled(prefs) ?: return null
+        val bundledDirectory = bundled.directory.absolutePath
+        val importedDirectory = prefs.driverDirectory
+        val importedLibrary = prefs.driverLibrary
+        val imported = importedDirectory.isNotEmpty() && importedDirectory != bundledDirectory
+        val names = mutableListOf(getString(R.string.menu_driver_phone), getString(R.string.menu_driver_bundled))
+        if (imported) names.add(getString(R.string.menu_driver_imported))
+        val now = if (importedDirectory.isEmpty()) 0 else if (imported) 2 else 1
+        return GameMenu.Choice(getString(R.string.graphics_driver), names, now, afterRestart = true) {
+            prefs.driverChoiceMade = true
+            prefs.driverDirectory = when (it) { 0 -> ""; 1 -> bundledDirectory; else -> importedDirectory }
+            prefs.driverLibrary = when (it) { 0 -> ""; 1 -> bundled.library; else -> importedLibrary }
+        }
     }
 
     /** The place of the value nearest [wanted]: a setting saved between two of the menu's steps. */
@@ -1405,19 +1550,19 @@ class GameActivity : AppCompatActivity(), NativeListener {
     )
 
     /**
-     * The cap, changed under the running title: the runtime paces by it from
-     * the next frame (frame_rate.h), and says which rate the display is to
-     * be asked for (followHeldRate).
+     * The cap as Prefs has it, given to the running title: the runtime paces
+     * by it from the next frame (frame_rate.h), and says which rate the
+     * display is to be asked for (followHeldRate). With none chosen it is
+     * the runtime's again, from the screen's rate, as a fresh install starts.
      */
-    private fun setFpsLimit(limit: Int) {
-        prefs.fpsLimit = limit
-        NativeBridge.nativeApplyOption("MW2_FPS_LIMIT", limit.toString())
+    private fun applyFpsLimit() {
+        if (prefs.fpsFollowsDevice) NativeBridge.nativeApplyOption("MW2_FPS_AUTO", "1")
+        else NativeBridge.nativeApplyOption("MW2_FPS_LIMIT", prefs.fpsLimit.toString())
     }
 
-    /** The cap left to the runtime again: from the screen's rate, as a fresh install starts. */
-    private fun followDeviceFps() {
-        prefs.followDeviceFps()
-        NativeBridge.nativeApplyOption("MW2_FPS_AUTO", "1")
+    /** The sun's shadows as Prefs has them, given to the running title. */
+    private fun applySunShadows() {
+        NativeBridge.nativeApplyOption("MW2_SHADOWS", when (prefs.sunShadows) { 1 -> "1"; 2 -> "0"; else -> "" })
     }
 
     /**

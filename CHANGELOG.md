@@ -254,6 +254,35 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   how it was found.
 
 ### Added
+- **Graphics presets, an Advanced page and a performance counter (all four
+  games on Android).** **Settings → Graphics** starts with five presets, each
+  with one line saying what it does: **Automatic** (the default: the game
+  measures the device and settles the frame rate, the 3D scene and the sun
+  shadows itself, as before), **Battery saver** (30 FPS, the 3D scene at 70%
+  of its width, no sun shadows), **Balanced** (60 FPS, the scene drawn
+  smaller only under load, shadows where the frames have room), **Best
+  looking** (the screen's rate where the device keeps it, the whole scene at
+  the screen's full resolution, shadows on, and twice the size only in a
+  game where a minute of play has shown the graphics chip has the time) and
+  **Custom**. **Advanced…** has each setting by itself with a line under
+  it: resolution scale, frame-rate limit (Auto, 30, 60, and 90 and 120 where
+  the screen is that fast), sun shadows (Auto, On, Off), render multiplier,
+  dynamic resolution (On, Off, Always smaller) and the graphics driver (the
+  app's or the phone's), and **Reset to automatic**. Changing one makes the
+  preset Custom, and what was set by hand comes back when Custom is chosen
+  again. A preset is only values of the switches the runtime already had,
+  and a choice is still never overruled by what is measured. The game's own
+  **Menu → Graphics** has the preset and the same settings; the three that
+  need the game restarted (render multiplier, dynamic resolution, driver)
+  are marked there and say so in Settings. **The performance counter**
+  replaces the long statistics line: `118 FPS · 8.5 ms · held by the
+  graphics chip`, small, in the top left corner, with what holds the frame
+  rate where it is (the limit, the graphics chip or the processor) from the
+  runtime's own measurements; a tap still opens the card with the rest. The
+  log names the preset and the settings at the start of every run, and its
+  line a minute says what the late frames waited for. A frame-rate limit of
+  45 is no longer offered; one that was saved stays
+  ([docs/android.md](docs/android.md#graphics-settings-the-presets-the-advanced-page-and-the-counter-graphicspresetskt-prefskt)).
 - **The app measures what a device keeps instead of going by its chip's
   name (all four games on Android).** The defaults were the ones the two
   devices the project owns were measured to want, an Adreno 740 and an

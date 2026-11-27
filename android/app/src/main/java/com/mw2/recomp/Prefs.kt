@@ -66,7 +66,7 @@ class Prefs(context: Context) {
      */
     var resolutionScale: Float
         get() = store.getFloat(KEY_RESOLUTION, 0f).let { if (it <= 0f) 0.7f else it }
-        set(value) = store.edit().putFloat(KEY_RESOLUTION, value.coerceIn(0.35f, 1.0f)).apply()
+        set(value) = custom().putFloat(KEY_RESOLUTION, value.coerceIn(0.35f, 1.0f)).apply()
 
     /**
      * Internal Vulkan render scale multiplier (MW2_SCALE):
@@ -74,7 +74,21 @@ class Prefs(context: Context) {
      */
     var renderScale: Int
         get() = store.getInt(KEY_RENDER_SCALE, 1).coerceIn(1, 3)
-        set(value) = store.edit().putInt(KEY_RENDER_SCALE, value.coerceIn(1, 3)).apply()
+        set(value) = custom().putInt(KEY_RENDER_SCALE, value.coerceIn(1, 3)).apply()
+
+    /**
+     * The 3D scene the title draws under its frame, which the HUD and the
+     * menus are no part of: GraphicsPresets.SCENE_FOLLOWS, the default, has
+     * it drawn smaller while the graphics chip is late (MW2_SCENE_DYNAMIC,
+     * renderer_scene.cpp); SCENE_WHOLE never, and at the console's size on a
+     * chip that is given a smaller one by its name (MW2_SCENE); SCENE_SMALLER
+     * always at GraphicsPresets.SMALLER_PERCENT of its width
+     * (MW2_SCENE_SHARE). Read at the start of a run.
+     */
+    var scene: Int
+        get() = store.getInt(KEY_SCENE, GraphicsPresets.SCENE_FOLLOWS)
+            .coerceIn(GraphicsPresets.SCENE_FOLLOWS, GraphicsPresets.SCENE_SMALLER)
+        set(value) = custom().putInt(KEY_SCENE, value).apply()
 
     /**
      * How strongly the frame is sharpened on its way to the screen, in
@@ -148,19 +162,31 @@ class Prefs(context: Context) {
     }
 
     /**
-     * Frame-rate cap, one of FPS_LIMITS (MW2_FPS_LIMIT). Until the player
+     * The frame-rate limits this screen is offered, slowest first: those of
+     * FPS_LIMITS it has a mode for, and the one saved where that is none of
+     * them (45, which an older version offered, or a limit kept from
+     * another screen): the player's choice is shown as it is and stays.
+     */
+    val fpsLimits: List<Int>
+        get() = (FPS_LIMITS.filter { it <= displayLimit } + listOf(savedLimit).filter { it > 0 }).distinct().sorted()
+
+    /** The limit the player chose, or 0 for none. */
+    private val savedLimit: Int
+        get() {
+            forgetOldDefault()
+            return store.getInt(KEY_FPS_LIMIT, 0).let { if (it >= FPS_LIMITS.first()) it else 0 }
+        }
+
+    /**
+     * Frame-rate cap (MW2_FPS_LIMIT), one of [fpsLimits]. Until the player
      * chooses, the screen's own fastest rate (displayLimit), and the run may
      * go under it by itself ([fpsFollowsDevice]).
      */
     var fpsLimit: Int
-        get() {
-            forgetOldDefault()
-            val saved = store.getInt(KEY_FPS_LIMIT, 0)
-            return if (saved in FPS_LIMITS) saved else displayLimit
-        }
+        get() = savedLimit.let { if (it > 0) it else displayLimit }
         set(value) {
-            val v = if (value in FPS_LIMITS) value else 60
-            store.edit().putInt(KEY_FPS_LIMIT, v).putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
+            custom().putInt(KEY_FPS_LIMIT, value.coerceAtLeast(FPS_LIMITS.first()))
+                .putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
         }
 
     /**
@@ -171,14 +197,11 @@ class Prefs(context: Context) {
      * under a cap of 120 shows them at uneven steps, and 60 evenly.
      */
     val fpsFollowsDevice: Boolean
-        get() {
-            forgetOldDefault()
-            return store.getInt(KEY_FPS_LIMIT, 0) !in FPS_LIMITS
-        }
+        get() = savedLimit == 0
 
     /** The cap is the runtime's again: the player chose Auto. */
     fun followDeviceFps() {
-        store.edit().remove(KEY_FPS_LIMIT).putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
+        custom().remove(KEY_FPS_LIMIT).putBoolean(KEY_CAP_FOLLOWS_SCREEN, true).apply()
     }
 
     /**
@@ -204,8 +227,113 @@ class Prefs(context: Context) {
      */
     var sunShadows: Int
         get() = store.getInt(KEY_SUN_SHADOWS, 0).coerceIn(0, 2)
-        set(value) = store.edit().putInt(KEY_SUN_SHADOWS, value.coerceIn(0, 2)).apply()
-  
+        set(value) = custom().putInt(KEY_SUN_SHADOWS, value.coerceIn(0, 2)).apply()
+
+    // ---- the presets --------------------------------------------------------
+
+    /**
+     * The preset the graphics settings are (GraphicsPresets): the one the
+     * player chose, Custom once a setting of the Advanced page was changed
+     * by itself, and in an install older than the presets the one its
+     * settings are, which is Automatic where nobody changed them.
+     */
+    val graphicsPreset: Int
+        get() {
+            val saved = store.getInt(KEY_PRESET, -1)
+            if (saved in GraphicsPresets.AUTOMATIC..GraphicsPresets.CUSTOM) return saved
+            return GraphicsPresets.matching(advancedValues())
+        }
+
+    /** The preset in English, for the log and the reports. */
+    val graphicsPresetName: String
+        get() = GraphicsPresets.name(graphicsPreset)
+
+    /**
+     * The player chose a preset: every setting of the Advanced page but the
+     * driver has its value from then on, in one write, so the page and the
+     * game's menu show what the preset is. What the player had set by hand
+     * is kept when Custom is left and put back when Custom is chosen again:
+     * trying a preset costs nobody their own settings.
+     */
+    fun choosePreset(preset: Int) {
+        val was = graphicsPreset
+        if (was == preset && preset == GraphicsPresets.CUSTOM) return
+        val edit = store.edit().putInt(KEY_PRESET, preset)
+        if (was == GraphicsPresets.CUSTOM) {
+            val own = advancedValues()
+            edit.putString(
+                KEY_CUSTOM,
+                listOf(own.resolution, own.fpsLimit, own.sunShadows, own.renderScale, own.scene).joinToString(","),
+            )
+        }
+        (if (preset == GraphicsPresets.CUSTOM) keptCustom() else GraphicsPresets.values(preset))?.let { put(edit, it) }
+        edit.apply()
+    }
+
+    /** The Advanced page's settings as they are now. */
+    private fun advancedValues() = GraphicsPresets.Values(
+        Math.round(resolutionScale * 100f), if (fpsFollowsDevice) 0 else fpsLimit, sunShadows, renderScale, scene,
+    )
+
+    /** What the player had set by hand when Custom was last left; null when it never was. */
+    private fun keptCustom(): GraphicsPresets.Values? {
+        val kept = store.getString(KEY_CUSTOM, "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }
+        return if (kept.size == 5) GraphicsPresets.Values(kept[0], kept[1], kept[2], kept[3], kept[4]) else null
+    }
+
+    private fun put(edit: SharedPreferences.Editor, values: GraphicsPresets.Values) {
+        edit.putFloat(KEY_RESOLUTION, values.resolution / 100f)
+            .putInt(KEY_SUN_SHADOWS, values.sunShadows)
+            .putInt(KEY_RENDER_SCALE, values.renderScale)
+            .putInt(KEY_SCENE, values.scene)
+            .putBoolean(KEY_CAP_FOLLOWS_SCREEN, true)
+        if (values.fpsLimit == 0) edit.remove(KEY_FPS_LIMIT) else edit.putInt(KEY_FPS_LIMIT, values.fpsLimit)
+    }
+
+    /** An edit that also makes the preset Custom: a setting of the Advanced page is being changed by itself. */
+    private fun custom(): SharedPreferences.Editor = store.edit().putInt(KEY_PRESET, GraphicsPresets.CUSTOM)
+
+    /**
+     * Best looking, as a title starts: the render multiplier is 2x where a
+     * minute and more of this title's play at 1x has shown the graphics chip
+     * has the time for it (GraphicsPresets.twiceHolds), and 1x until then
+     * and once a run at 2x did not hold. The campaign and the multiplayer
+     * are measured apart, by the title's name. Written before it returns:
+     * the run reads it next.
+     */
+    fun settleBestLooking(title: String) {
+        if (graphicsPreset != GraphicsPresets.BEST) return
+        val twice = !store.getBoolean(KEY_TWICE_FAILED + title, false) &&
+            GraphicsPresets.twiceHolds(store.getFloat(KEY_CHIP_MS + title, -1f), displayLimit)
+        store.edit().putInt(KEY_RENDER_SCALE, if (twice) 2 else 1).commit()
+    }
+
+    /** The graphics chip's time a frame in this title's play under Best looking at 1x, in milliseconds. */
+    fun noteChipTime(title: String, milliseconds: Float) {
+        store.edit().putFloat(KEY_CHIP_MS + title, milliseconds).apply()
+    }
+
+    /** A run of this title at 2x under Best looking did not hold: it is 1x from the next start. */
+    fun noteTwiceFailed(title: String) {
+        store.edit().putBoolean(KEY_TWICE_FAILED + title, true).apply()
+    }
+
+    /**
+     * The Advanced page's Reset to automatic: its settings as a fresh
+     * install has them, the driver the app would choose by itself included,
+     * and what Best looking has measured forgotten.
+     */
+    fun resetGraphics() {
+        val edit = store.edit().putInt(KEY_PRESET, GraphicsPresets.AUTOMATIC).remove(KEY_CUSTOM)
+        GraphicsPresets.values(GraphicsPresets.AUTOMATIC)?.let { put(edit, it) }
+        for (title in Title.entries) edit.remove(KEY_CHIP_MS + title.name).remove(KEY_TWICE_FAILED + title.name)
+        edit.putBoolean(KEY_DRIVER_CHOICE_MADE, false).putString(KEY_DRIVER_DIR, "").putString(KEY_DRIVER_LIB, "")
+        edit.commit()
+        // The driver the build carries is the default on the chips it is
+        // for, and the phone's own elsewhere.
+        DriverStore(app).installBundledDefault(this)
+    }
+
     /**
      * Field of View (cg_fov). Modern phones are 20:9 ultrawide,
      * so 85 FOV gives a natural, wide cinematic view without gun distortion,
@@ -221,7 +349,10 @@ class Prefs(context: Context) {
      * app (GameActivity.sharePerformance).
      */
     fun graphicsSummary(): List<String> = listOf(
-        "resolution ${(resolutionScale * 100).toInt()}%, internal multiplier ${renderScale}x, sharpening $sharpening%" +
+        "preset $graphicsPresetName",
+        "resolution ${(resolutionScale * 100).toInt()}%, internal multiplier ${renderScale}x, 3D scene " +
+            arrayOf("follows the load", "whole (chosen)", "at ${GraphicsPresets.SMALLER_PERCENT}% (chosen)")[scene] +
+            ", sharpening $sharpening%" +
             ", multisampling ${if (multisampling) "on" else "off"}, fill ${if (fillScreen) "on" else "off"}",
         "FPS limit " + (if (fpsFollowsDevice) "auto (starts at $fpsLimit, may go to one of ${fpsSteps.joinToString("/")})"
         else "$fpsLimit (chosen)") +
@@ -649,9 +780,17 @@ class Prefs(context: Context) {
         private const val KEY_LIVE_SIGN_IN = "liveSignIn"
         private const val KEY_FPS_LIMIT = "fpsLimit"
         private const val KEY_SUN_SHADOWS = "sunShadows"
-        val FPS_LIMITS = listOf(30, 45, 60, 120)
+        /** The frame-rate limits a player is offered, where the screen has a mode that fast (fpsLimits). */
+        val FPS_LIMITS = listOf(30, 60, 90, 120)
         private const val KEY_RESOLUTION = "resolutionScale"
         private const val KEY_RENDER_SCALE = "renderScale"
+        private const val KEY_SCENE = "scene"
+        private const val KEY_PRESET = "graphicsPreset"
+        /** The Advanced page's five settings as the player last set them by hand (choosePreset). */
+        private const val KEY_CUSTOM = "graphicsCustom"
+        /** With a title's name after it: what Best looking has measured of that title (settleBestLooking). */
+        private const val KEY_CHIP_MS = "bestLookingChipMs."
+        private const val KEY_TWICE_FAILED = "bestLookingTwiceFailed."
         private const val KEY_SHARPENING = "sharpening"
         private const val KEY_MSAA = "multisampling"
         private const val KEY_DETAIL_BIAS = "detailBias"

@@ -5,9 +5,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -36,6 +38,22 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var prefs: Prefs
     private val tabButtons = mutableListOf<Button>()
     private val tabPages = mutableListOf<android.view.View>()
+
+    /** The presets' buttons, in GraphicsPresets' order. */
+    private val presetButtons = intArrayOf(
+        R.id.preset_automatic, R.id.preset_battery, R.id.preset_balanced, R.id.preset_best, R.id.preset_custom,
+    )
+
+    /** The limits the frame-rate slider stops at after Auto (Prefs.fpsLimits), as last shown. */
+    private var fpsStops: List<Int> = emptyList()
+
+    /** The page is being made to show what Prefs holds: a button checked meanwhile is not the player's choice. */
+    private var showing = false
+
+    /** The back key on the Advanced page goes back to Graphics, not out of Settings. */
+    private val backFromAdvanced = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = showAdvanced(false)
+    }
 
     private val modBrowse = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -79,7 +97,7 @@ class SettingsActivity : AppCompatActivity() {
         prefs = Prefs(this)
         colorValues(
             R.id.resolution_label, R.id.render_scale_label, R.id.detail_label, R.id.fps_limit_label,
-            R.id.sun_shadows_label, R.id.fov_label, R.id.texture_label, R.id.look_x_label,
+            R.id.sun_shadows_label, R.id.scene_label, R.id.driver_label, R.id.fov_label, R.id.texture_label, R.id.look_x_label,
             R.id.look_y_label, R.id.smoothing_label, R.id.bot_count_label, R.id.bot_skill_label,
             R.id.match_gravity_label, R.id.match_speed_label, R.id.match_jump_label,
         )
@@ -110,29 +128,8 @@ class SettingsActivity : AppCompatActivity() {
         selectTab(intent.getIntExtra(EXTRA_TAB, TAB_GRAPHICS).coerceIn(0, tabButtons.lastIndex))
 
         // ---- picture ----
-        val resolutionLabel: TextView = findViewById(R.id.resolution_label)
-        val resolution: SeekBar = findViewById(R.id.resolution)
-        resolution.max = 65                       // 35% to 100%
-        resolution.progress = ((prefs.resolutionScale * 100f) - 35f).roundToInt().coerceIn(0, 65)
-        resolutionLabel.text = getString(R.string.resolution, resolution.progress + 35)
-        resolution.setOnSeekBarChangeListener(object : Simple() {
-            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                resolutionLabel.text = getString(R.string.resolution, value + 35)
-                if (fromUser) prefs.resolutionScale = (value + 35) / 100f
-            }
-        })
-
-        val renderScaleLabel: TextView = findViewById(R.id.render_scale_label)
-        val renderScale: SeekBar = findViewById(R.id.render_scale)
-        renderScale.max = 2 // 0 = 1x, 1 = 2x, 2 = 3x
-        renderScale.progress = (prefs.renderScale - 1).coerceIn(0, 2)
-        renderScaleLabel.text = getString(R.string.render_scale, renderScale.progress + 1)
-        renderScale.setOnSeekBarChangeListener(object : Simple() {
-            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                renderScaleLabel.text = getString(R.string.render_scale, value + 1)
-                if (fromUser) prefs.renderScale = value + 1
-            }
-        })
+        bindGraphics()
+        showGraphics()
 
         switch(R.id.msaa, prefs.multisampling) { prefs.multisampling = it }
         // Detail at distance is Modern Warfare 2's, the only title with the hook.
@@ -151,35 +148,6 @@ class SettingsActivity : AppCompatActivity() {
                 }
             })
         }
-        // The first stop is Auto: the screen's rate, and under it the
-        // fastest the device keeps (Prefs.fpsFollowsDevice).
-        val fpsLabel: TextView = findViewById(R.id.fps_limit_label)
-        val fpsSlider: SeekBar = findViewById(R.id.fps_limit)
-        fun fpsText(stop: Int) =
-            if (stop == 0) getString(R.string.fps_limit_auto, prefs.fpsSteps.first())
-            else getString(R.string.fps_limit, Prefs.FPS_LIMITS[stop - 1])
-        fpsSlider.max = Prefs.FPS_LIMITS.size
-        fpsSlider.progress = if (prefs.fpsFollowsDevice) 0 else Prefs.FPS_LIMITS.indexOf(prefs.fpsLimit) + 1
-        fpsLabel.text = fpsText(fpsSlider.progress)
-        fpsSlider.setOnSeekBarChangeListener(object : Simple() {
-            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                fpsLabel.text = fpsText(value)
-                if (!fromUser) return
-                if (value == 0) prefs.followDeviceFps() else prefs.fpsLimit = Prefs.FPS_LIMITS[value - 1]
-            }
-        })
-        val shadowChoices = resources.getStringArray(R.array.sun_shadows_choices)
-        val shadowLabel: TextView = findViewById(R.id.sun_shadows_label)
-        val shadows: SeekBar = findViewById(R.id.sun_shadows)
-        shadows.max = shadowChoices.size - 1
-        shadows.progress = prefs.sunShadows
-        shadowLabel.text = getString(R.string.sun_shadows, shadowChoices[shadows.progress])
-        shadows.setOnSeekBarChangeListener(object : Simple() {
-            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                shadowLabel.text = getString(R.string.sun_shadows, shadowChoices[value])
-                if (fromUser) prefs.sunShadows = value
-            }
-        })
         val sharpeningLabel: TextView = findViewById(R.id.sharpening_label)
         val sharpening: SeekBar = findViewById(R.id.sharpening)
         fun sharpeningText(tenths: Int) =
@@ -497,6 +465,9 @@ class SettingsActivity : AppCompatActivity() {
         tabPages.forEachIndexed { i, page ->
             page.visibility = if (i == index) android.view.View.VISIBLE else android.view.View.GONE
         }
+        // The Advanced page stands in for Graphics until a tab is chosen.
+        findViewById<android.view.View>(R.id.page_graphics_advanced).visibility = android.view.View.GONE
+        backFromAdvanced.isEnabled = false
         tabButtons.forEachIndexed { i, button ->
             if (i == index) {
                 button.setBackgroundResource(R.drawable.bg_entry_selected)
@@ -506,6 +477,188 @@ class SettingsActivity : AppCompatActivity() {
                 button.setTextColor(0xFFE8EAED.toInt())
             }
         }
+    }
+
+    /** The Advanced page in the Graphics page's place, or Graphics again. */
+    private fun showAdvanced(on: Boolean) {
+        findViewById<android.view.View>(R.id.page_graphics).visibility =
+            if (on) android.view.View.GONE else android.view.View.VISIBLE
+        findViewById<android.view.View>(R.id.page_graphics_advanced).visibility =
+            if (on) android.view.View.VISIBLE else android.view.View.GONE
+        backFromAdvanced.isEnabled = on
+    }
+
+    /**
+     * The presets and the Advanced page, once: what each control writes.
+     * Every setting of the Advanced page makes the preset Custom when it is
+     * changed by itself (Prefs), so each says the preset again after it.
+     */
+    private fun bindGraphics() {
+        onBackPressedDispatcher.addCallback(this, backFromAdvanced)
+        val names = resources.getStringArray(R.array.preset_names)
+        val lines = resources.getStringArray(R.array.preset_lines)
+        presetButtons.forEachIndexed { preset, id ->
+            val text = android.text.SpannableString(names[preset] + "\n" + lines[preset])
+            val from = names[preset].length + 1
+            text.setSpan(android.text.style.RelativeSizeSpan(0.8f), from, text.length, 0)
+            text.setSpan(android.text.style.ForegroundColorSpan(0xFF7D8792.toInt()), from, text.length, 0)
+            findViewById<RadioButton>(id).text = text
+        }
+        findViewById<RadioGroup>(R.id.preset).setOnCheckedChangeListener { _, checked ->
+            val preset = presetButtons.indexOf(checked)
+            if (showing || preset < 0) return@setOnCheckedChangeListener
+            prefs.choosePreset(preset)
+            showGraphics()
+        }
+        findViewById<Button>(R.id.advanced_graphics).setOnClickListener { showAdvanced(true) }
+        findViewById<Button>(R.id.advanced_back).setOnClickListener { showAdvanced(false) }
+
+        val resolutionLabel: TextView = findViewById(R.id.resolution_label)
+        val resolution: SeekBar = findViewById(R.id.resolution)
+        resolution.max = 65                       // 35% to 100%
+        resolution.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                resolutionLabel.text = getString(R.string.resolution, value + 35)
+                if (!fromUser) return
+                prefs.resolutionScale = (value + 35) / 100f
+                showPreset()
+            }
+        })
+
+        // The first stop is Auto: the screen's rate, and under it the
+        // fastest the device keeps (Prefs.fpsFollowsDevice).
+        val fpsLabel: TextView = findViewById(R.id.fps_limit_label)
+        findViewById<SeekBar>(R.id.fps_limit).setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                fpsLabel.text = fpsText(value)
+                if (!fromUser) return
+                if (value == 0) prefs.followDeviceFps() else prefs.fpsLimit = fpsStops[value - 1]
+                showPreset()
+            }
+        })
+
+        val shadowChoices = resources.getStringArray(R.array.sun_shadows_choices)
+        val shadowLabel: TextView = findViewById(R.id.sun_shadows_label)
+        val shadows: SeekBar = findViewById(R.id.sun_shadows)
+        shadows.max = shadowChoices.size - 1
+        shadows.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                shadowLabel.text = getString(R.string.sun_shadows, shadowChoices[value])
+                if (!fromUser) return
+                prefs.sunShadows = value
+                showPreset()
+            }
+        })
+
+        val renderScaleLabel: TextView = findViewById(R.id.render_scale_label)
+        val renderScale: SeekBar = findViewById(R.id.render_scale)
+        renderScale.max = 2 // 0 = 1x, 1 = 2x, 2 = 3x
+        renderScale.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                renderScaleLabel.text = getString(R.string.render_scale, value + 1)
+                if (!fromUser) return
+                prefs.renderScale = value + 1
+                showPreset()
+            }
+        })
+
+        val sceneChoices = resources.getStringArray(R.array.scene_choices)
+        val sceneLabel: TextView = findViewById(R.id.scene_label)
+        val scene: SeekBar = findViewById(R.id.scene)
+        scene.max = sceneChoices.size - 1
+        scene.setOnSeekBarChangeListener(object : Simple() {
+            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                sceneLabel.text = getString(R.string.scene, sceneChoices[value])
+                if (!fromUser) return
+                prefs.scene = value
+                showPreset()
+            }
+        })
+
+        // The app's driver or the phone's: a choice, which the app's default
+        // does not come back over (Prefs.driverChoiceMade). An imported one
+        // is chosen on the drivers' own screen.
+        findViewById<RadioGroup>(R.id.driver).setOnCheckedChangeListener { _, checked ->
+            if (showing || checked == -1) return@setOnCheckedChangeListener
+            val bundled = if (checked == R.id.driver_bundled) DriverStore(this).bundled(prefs) else null
+            prefs.driverChoiceMade = true
+            prefs.driverDirectory = bundled?.directory?.absolutePath ?: ""
+            prefs.driverLibrary = bundled?.library ?: ""
+            showGraphics()
+        }
+        findViewById<Button>(R.id.driver_other).setOnClickListener {
+            startActivity(Intent(this, DriverActivity::class.java))
+        }
+        findViewById<Button>(R.id.reset_graphics).setOnClickListener {
+            prefs.resetGraphics()
+            showGraphics()
+            android.widget.Toast.makeText(this, R.string.reset_graphics_done, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun fpsText(stop: Int): String =
+        if (stop == 0) getString(R.string.fps_limit_auto, prefs.fpsSteps.first())
+        else getString(R.string.fps_limit, fpsStops[stop - 1])
+
+    /** The preset's button as Prefs has it. */
+    private fun showPreset() {
+        showing = true
+        findViewById<RadioGroup>(R.id.preset).check(presetButtons[prefs.graphicsPreset])
+        showing = false
+    }
+
+    /**
+     * The presets and the Advanced page as Prefs has them: at the start,
+     * after a preset or Reset to automatic wrote them all, and on coming
+     * back from the drivers' screen or a game whose menu changed them.
+     */
+    private fun showGraphics() {
+        showPreset()
+        val resolution: SeekBar = findViewById(R.id.resolution)
+        resolution.progress = ((prefs.resolutionScale * 100f) - 35f).roundToInt().coerceIn(0, 65)
+        findViewById<TextView>(R.id.resolution_label).text = getString(R.string.resolution, resolution.progress + 35)
+
+        fpsStops = prefs.fpsLimits
+        val fps: SeekBar = findViewById(R.id.fps_limit)
+        fps.max = fpsStops.size
+        fps.progress = if (prefs.fpsFollowsDevice) 0 else fpsStops.indexOf(prefs.fpsLimit) + 1
+        findViewById<TextView>(R.id.fps_limit_label).text = fpsText(fps.progress)
+
+        val shadows: SeekBar = findViewById(R.id.sun_shadows)
+        shadows.progress = prefs.sunShadows
+        findViewById<TextView>(R.id.sun_shadows_label).text =
+            getString(R.string.sun_shadows, resources.getStringArray(R.array.sun_shadows_choices)[shadows.progress])
+
+        val renderScale: SeekBar = findViewById(R.id.render_scale)
+        renderScale.progress = (prefs.renderScale - 1).coerceIn(0, 2)
+        findViewById<TextView>(R.id.render_scale_label).text = getString(R.string.render_scale, renderScale.progress + 1)
+
+        val scene: SeekBar = findViewById(R.id.scene)
+        scene.progress = prefs.scene
+        findViewById<TextView>(R.id.scene_label).text =
+            getString(R.string.scene, resources.getStringArray(R.array.scene_choices)[scene.progress])
+
+        val store = DriverStore(this)
+        val bundled = store.bundled(prefs)
+        val directory = prefs.driverDirectory
+        findViewById<android.view.View>(R.id.driver_bundled).visibility =
+            if (bundled != null) android.view.View.VISIBLE else android.view.View.GONE
+        findViewById<TextView>(R.id.driver_label).text = getString(
+            R.string.driver_choice,
+            when {
+                directory.isEmpty() -> getString(R.string.driver_system)
+                else -> store.list().firstOrNull { it.directory.absolutePath == directory }?.name ?: File(directory).name
+            },
+        )
+        showing = true
+        val drivers: RadioGroup = findViewById(R.id.driver)
+        when {
+            directory.isEmpty() -> drivers.check(R.id.driver_phone)
+            directory == bundled?.directory?.absolutePath -> drivers.check(R.id.driver_bundled)
+            // An imported driver is neither.
+            else -> drivers.clearCheck()
+        }
+        showing = false
     }
 
     /** The camouflage packs' own screen: which are installed, whose each is, adding one. */
@@ -751,10 +904,11 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** Back from the install screen, which may have changed it. */
+    /** Back from the install screen, the drivers' screen or a game, which may have changed what is shown. */
     override fun onResume() {
         super.onResume()
         showPaths()
+        showGraphics()
     }
 
     /** The two methods nobody ever needs, out of the way. */

@@ -131,47 +131,80 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- The presets (GraphicsPresets.kt); SettingsActivity gives each button its name and its line. -->
+                <TextView
+                    style="@style/SectionHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_preset" />
+
+                <RadioGroup
+                    android:id="@+id/preset"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/preset_automatic"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="#E4E9EE" />
+
+                    <RadioButton
+                        android:id="@+id/preset_battery"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="#E4E9EE" />
+
+                    <RadioButton
+                        android:id="@+id/preset_balanced"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="#E4E9EE" />
+
+                    <RadioButton
+                        android:id="@+id/preset_best"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="#E4E9EE" />
+
+                    <RadioButton
+                        android:id="@+id/preset_custom"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="#E4E9EE" />
+                </RadioGroup>
+
+                <Button
+                    android:id="@+id/advanced_graphics"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/advanced_graphics" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/advanced_graphics_hint" />
+
                 <TextView
                     style="@style/SectionHeading"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/section_picture" />
-
-                <TextView
-                    android:id="@+id/resolution_label"
-                    style="@style/SettingLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <SeekBar
-                    android:id="@+id/resolution"
-                    style="@style/SettingSeek"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <TextView
-                    style="@style/SettingHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/resolution_hint" />
-
-                <TextView
-                    android:id="@+id/render_scale_label"
-                    style="@style/SettingLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <SeekBar
-                    android:id="@+id/render_scale"
-                    style="@style/SettingSeek"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <TextView
-                    style="@style/SettingHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/render_scale_hint" />
 
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/msaa"
@@ -206,36 +239,6 @@
                         android:layout_height="wrap_content"
                         android:text="@string/detail_hint" />
                 </LinearLayout>
-
-                    <TextView
-        android:id="@+id/fps_limit_label"
-        style="@style/SettingLabel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
-    <SeekBar
-        android:id="@+id/fps_limit"
-        style="@style/SettingSeek"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
-                <TextView
-                    android:id="@+id/sun_shadows_label"
-                    style="@style/SettingLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <SeekBar
-                    android:id="@+id/sun_shadows"
-                    style="@style/SettingSeek"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <TextView
-                    style="@style/SettingHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/sun_shadows_hint" />
 
                 <TextView
                     android:id="@+id/sharpening_label"
@@ -279,6 +282,12 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/show_stats" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/show_stats_hint" />
 
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/fill_screen"
@@ -350,6 +359,185 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/audio_on" />
+            </LinearLayout>
+
+            <!-- GRAPHICS, ADVANCED: each setting of a preset by itself. Shown in the Graphics
+                 page's place by its Advanced button (SettingsActivity.showAdvanced). -->
+            <LinearLayout
+                android:id="@+id/page_graphics_advanced"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/SectionHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_advanced" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/advanced_intro" />
+
+                <TextView
+                    android:id="@+id/resolution_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/resolution"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/resolution_hint" />
+
+                <TextView
+                    android:id="@+id/fps_limit_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/fps_limit"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/fps_limit_hint" />
+
+                <TextView
+                    android:id="@+id/sun_shadows_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/sun_shadows"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/sun_shadows_hint" />
+
+                <TextView
+                    android:id="@+id/render_scale_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/render_scale"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/render_scale_hint" />
+
+                <TextView
+                    android:id="@+id/scene_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/scene"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/scene_hint" />
+
+                <TextView
+                    android:id="@+id/driver_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <!-- The first is there where the build carries a driver for this chip (SettingsActivity). -->
+                <RadioGroup
+                    android:id="@+id/driver"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/driver_bundled"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/driver_bundled"
+                        android:textColor="#E4E9EE" />
+
+                    <RadioButton
+                        android:id="@+id/driver_phone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/driver_system"
+                        android:textColor="#E4E9EE" />
+                </RadioGroup>
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/driver_choice_hint" />
+
+                <Button
+                    android:id="@+id/driver_other"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/driver_other" />
+
+                <Button
+                    android:id="@+id/reset_graphics"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/reset_graphics" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/reset_graphics_hint" />
+
+                <Button
+                    android:id="@+id/advanced_back"
+                    android:background="@drawable/bg_button_action"
+                    android:textColor="#E8EAED"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/advanced_back" />
             </LinearLayout>
 
             <!-- CONTROLS -->

@@ -40,6 +40,10 @@ class DriverStore(private val context: Context) {
             .sortedBy { it.name.lowercase() }
     }
 
+    /** The driver the build carries, once it is unpacked (installBundledDefault); null in a build or on a chip without one. */
+    fun bundled(prefs: Prefs): Driver? =
+        prefs.bundledDriverDirectory.takeIf { it.isNotEmpty() }?.let { read(File(it)) }
+
     private fun read(directory: File): Driver? {
         val meta = File(directory, "meta.json")
         if (!meta.exists()) return null
