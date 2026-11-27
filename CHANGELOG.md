@@ -201,6 +201,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
     a Retroid Pocket Flip 2, the libraries stating what a PC's do. A match
     on Combine: 52 frames a second on the Thor, 32 to 42 on the Flip, the
     graphics chip the limit on both.
+  - Both phones on 26 November, the bundled Turnip, every run recorded:
+    Shadows of Evil and The Giant at 58 frames a second and a match on
+    Combine at 56 on the Thor and the Flip alike, the Thor's from the app's
+    own Install & Play and Add DLC. The far end of Shadows of Evil's street
+    was flat rectangles for a second on the Flip as the zombies arrived
+    (100 frames of 4,271): the image pool's chequerboard moves were taken
+    for plain ones and made a frame late, over the neighbouring block
+    (`runtime/image_move.cpp`); none in two runs since. Open: a thin streak
+    from a zombie's head for a single frame, a few times a match.
   - A thread of this title has the 8,568 bytes of its own the image says,
     not 512 (`runtime/kernel/kernel.cpp`): the rest lay in another thread's
     memory, the engine's lock counts among it.

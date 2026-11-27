@@ -263,25 +263,27 @@ look at each frame it named).
   three runs with the table read once, where the frame first binds it
   (`MW2_TABLE_AT_BIND`, on for this title alone). Not seen on Windows
   either way.
-- **The zombies' launch.** The launcher starts them with launch data
-  (`TitleUpdate.zombiesLaunchData`); without it the zombies' executable
-  shows the main menu, where A is Multiplayer. A test that writes
-  `run_request.txt` itself must write that line too; the player's name is
-  asked before the zombies' first start as before any multiplayer's.
+- **The zombies' start.** The launcher's ZOMBIES entry starts the zombies'
+  executable with no launch data (`TitleUpdate.zombiesLaunchData` is Advanced
+  Warfare's Exo Zombies'), and the executable opens at its own lobby. Twice,
+  on a Flip whose new app had only run the multiplayer, its first start
+  showed the main menu instead, where A is Multiplayer; the start after was
+  the lobby. Not looked into. A test's `run_request.txt` is written again by
+  the launcher's direct launch, so a second line in it never reaches the
+  game.
 - The Thor's zombies of this round are not counted: `adb push` of the game
   folder stopped at 111 files of 380 (`copy response: EOF`), and a
   multiplayer run on it ended in `Could not load default asset`.
 
-**The chequerboard moves (26 November, evening; Windows only).** The image
+**The chequerboard moves (26 November, evening).** The image
 pool's move function takes flags, and with bits 3 to 8 set the block is
 every other 128 bytes of a 4 KB or 8 KB piece, the other 128s in the next
 piece: two blocks lie in each other's gaps, and a second vertex shader
 copies them a piece a draw (`image_move.cpp`). Taken for plain moves, they
 matched no draw and were made whole at the end of the frame after, late and
 over the other block's half: 4,517 of 22,309 moves in a hundred seconds of
-Shadows of Evil, none since (`image pool:` in the log, 0 at the end of
-their frame). Not yet run on a device, so whether this is the Flip's flat
-far street is not shown.
+Shadows of Evil on Windows, none since (`image pool:` in the log, 0 at the
+end of their frame). It was the Flip's flat far street (the round below).
 
 What it is not: the one flat frame in several thousand on Windows. That is
 still there at the same rate with the moves right (2 in 12,100 frames of
@@ -300,17 +302,65 @@ the other, which only fits if each has half), not from a console: with all
 of them written the far street was flat rectangles in dozens of frames a
 run, with the piece alone in none beyond the streaks above.
 
+**The round of 26 November, night: both phones, and the merge into
+`android`.** The apps are the debug builds of the branch with `android`
+merged (`ae96179`: the guided setup, what a device keeps measured), but for
+the first three rows, which are of the commit before that merge; Turnip in
+every log; every run recorded, `tools/visualqa` over the recordings and a
+look at each frame it named. Frames a second are of the seconds of the
+match.
+
+| | in play | the chip | the frames |
+|---|---|---|---|
+| Thor, Shadows of Evil, from the app's own install (below) | 57.6 | 6.6 ms, at work 37% | the player's own tracers only |
+| Thor, The Giant | 58.6 | 8.4 ms, 49% | clean |
+| Thor, multiplayer on Combine | 56.5 | 5.6 ms, 32% | muzzle flashes only |
+| Thor, Shadows of Evil, the merged launcher's ZOMBIES entry | 58.7 | 6.1 ms, 35% | |
+| Flip, Shadows of Evil, two runs | 58.4, 58.3 | 13.8 ms, 80% | no flat rectangle; a thin streak for one frame, once and five times (open) |
+| Flip, The Giant | 58.7 | 14.7 ms, 86% | muzzle flashes and snow only |
+| Flip, multiplayer on Combine (the commit before the merge), two runs | 56.0, 56.1 | 14.1 ms, 78% | |
+
+- **The Flip's flat far street is gone.** Counted as frames unlike both
+  their neighbours over more than a twentieth of the picture, in the eighty
+  seconds of recording around the zombies' arrival: 100 of 4,271 before
+  (`c6d16c5`), 0 of 4,569 and 0 of 4,577 now. The log's count of moves made
+  late: 6,535 of 30,464 before, 0 of 36,159 and 0 of 39,668 now.
+- **The Thor's install was the app's.** Install & Play found the image in a
+  folder of Download and set the game up to play from it in five seconds;
+  Add DLC, the folder `4156091D` chosen in the system's picker, copied the
+  update and the four packages (4.0 GB) in three seconds, and Shadows of
+  Evil, The Giant and a multiplayer match were played from that. Done again
+  with the merged launcher, where the one large button is *Install the game
+  files*, then *Add DLC*, then *PLAY*: Black Ops III keeps the install
+  screen and is not in the guided setup, whose order is disc, build, packs
+  (`Setup.guided`).
+- **The rate's steps stop at 60** (`adaptive.cpp`): the title makes 60 at
+  most, and a step of 120 on the Thor would be missed, given up and tried
+  again for as long as the chip has room.
+- The Flip's scene is at 58% of its width in three quarters of the frames
+  (70% before the merge of `android`, whose floor is lower).
+
+**The other four games on this build** (`tools/visualqa`, the ten
+scenarios, the test apps beside the owner's). On the Thor, 117.1 to 118.9
+frames a second, eight passed at once and two did not:
+
+- `mw3-bots`: the held weapon and the arm drawn black for one frame, 82 s
+  into the run; three more runs passed. A model lit by nothing for a frame
+  is what this title's lighting table read half written looks like (above);
+  Modern Warfare 3 reads its table at the segments' ends as before
+  (`MW2_TABLE_AT_BIND` is off for it), and no run of `android` by itself was
+  made to say whether it is seen there.
+- `aw-shadows`: the run ended 57 s in, while Solar loaded. The debug
+  build's dump of every thread's stack at a `STALL` (`crash.cpp`) faulted
+  inside the unwinder (`SIGILL` at an `autia1716` of libunwind's
+  `stepWithDwarf`); the run after passed at 118.5. Not this branch's code,
+  and not in a release build, which has no such dump.
+
 Open on Android:
 
-- Shadows of Evil: for a second as the first zombies arrive, the far end of
-  the street is one flat rectangle, black, red or the sky's colour by turns
-  (Flip, 100 frames of 4,271); one such frame in 3,500 on Windows, with a
-  thin spike through it, which looks like a draw with vertices that are not its
-  own (not shown). Not
-  found: the consumer was not compiling in those seconds.
-- The Thor's zombies and second multiplayer run with the build as it is,
-  and Advanced Warfare's three scenarios on the Flip (its test files were
-  not on the phone) before the merge into `android`.
+- A thin streak, white or dark, from a zombie's head across the picture for
+  one frame: one and five such frames in two Shadows of Evil matches of
+  about 3,400 frames on the Flip, two in 12,100 frames on Windows (above).
 - The copied install was not run on a device.
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
 
@@ -335,7 +385,6 @@ Open on Android:
   slows with it.
 - The Giant and Shadows of Evil were played to round 1 and round 2; Der
   Eisendrache was not started.
-- Not merged into `android`: the other four games have not been compared
-  with this branch (the shader translator, the installer and the thread
-  block changed), and `android` took no change to `runtime/gpu` or
-  `runtime/kernel` while a regression of its own was being found.
+- In `android`, and not released: nothing is published for this title, and
+  the release script leaves its paths out of every mirror
+  (`tools/release/release.py`, `UNRELEASED`).
