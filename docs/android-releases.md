@@ -219,6 +219,22 @@ through the devices' lock, a few hours. A build that already stands on a test
 package is reused for later releases that have the same previous version:
 only the install and the checks are left.
 
+**Tried on the AYN Thor** (27 November 2026, the release-signed `.ug` apps
+that `tools/release/update_test_apks.sh` builds at the two tagged commits,
+because the published APK cannot be renamed; the disc images from Downloads;
+`pm install -r` of the new APK from `/data/local/tmp` while the game ran):
+
+| Game | From, to | Build on the device (old app) | Install | After the update |
+|---|---|---|---|---|
+| Call of Duty 4 | v0.1.5, v0.1.6 | 2 min 14 s | 0.5 s | both libraries "built on this device", no build service, `game-build-report.txt` untouched, the game ran at 119 frames a second |
+| Modern Warfare 2 | v0.1.10, v0.1.11 | 3 min 2 s | 0.5 s | the same; `files/game-code/libmw2game.so` loaded |
+| Modern Warfare 3 | v0.1.10, v0.1.11 | 4 min 30 s | 0.5 s | the same; `libmw3game.so` loaded |
+| Advanced Warfare | v0.1.3, v0.1.4 | 6 min 48 s (campaign and multiplayer, no DLC) | not yet | not yet; the update's library (`libawmp17game.so`) is the part still to try |
+
+A test app of Modern Warfare 3 built without the workflow's
+`MW3_XEX_SHA256` refuses the player's disc ("not a disc this build was made
+from"): the script sets it.
+
 ## When the game code has to be rebuilt
 
 An app takes only game code whose statement is its own
