@@ -234,6 +234,28 @@ over 0.45 of what `local-flicker` asks; the patches at the picture's edge
 that three earlier runs were failed for (a post or a wall's edge in a fast
 turn) did not come again, and no recording of them was kept to measure.
 
+On 27 November 2026, with the apps built at `fff0519` and the checks as
+they are here (`94045b8`, merged since, is not in these runs):
+
+| scenario | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
+|---|---|---|
+| `mw2-campaign` | PASS, 118.5, 44 ms (run again: the first run's recording was not pulled, its folder gone from the PC) | FAIL, 60.1, 58 ms: `local-flicker` at 103.8 s, a rifle's flash at the firing range behind the squad, which the scenario calls calm |
+| `mw2-bots` | FAIL, 118.6, 52 ms: `local-flicker` at 89.5 s, the check's mistake (the ribbed wall of a dark shed in a turn) | PASS, 60.2, 58 ms |
+| `mw3-campaign` | PASS, 117.0, 97 ms | PASS, 59.9, 85 ms |
+| `mw3-bots` | PASS, 117.2, 77 ms | PASS, 59.7, 73 ms |
+| `mw3-survival` | PASS, 118.2, 41 ms | PASS, 60.0, 77 ms |
+| `cod4-campaign` | PASS, 117.5, 58 ms | PASS, 59.9, 75 ms |
+| `cod4-bots` | PASS, 118.6, 62 ms | PASS, 60.1, 133 ms |
+| `aw-campaign` | PASS, 118.3, 52 ms | PASS, 60.4, 56 ms |
+| `aw-match` | PASS, 118.4, 61 ms | FAIL, 60.1, 274 ms: `local-flicker` at 183.4 s, the check's mistake (pillars at the picture's right edge in a fast turn) |
+| `aw-shadows` | FAIL, 118.3, 102 ms: `local-flicker` at 131.9 s, the glow under a strip light brighter for single frames six times in a third of a second, the view standing; it looks like the lamp's own flicker and is not proven to be | PASS, 60.2, 168 ms |
+
+Sixteen of the twenty pass. Three of the four that fail are looked at in
+their pictures and are not the game's; Solar's strip light is open. The pillars at the picture's edge are the
+mistake three earlier runs of `aw-shadows` were failed for, and this time
+its recording is kept (`private-captures\releaseready`), for the check to
+be mended against.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
