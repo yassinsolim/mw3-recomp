@@ -151,6 +151,19 @@
 // NetConstStrings asset '%s' for current map", 82079B60).
 #define T_ASSET_NETCONSTSTRINGS 0x33u
 
+// ---- field of view (field_of_view.cpp) ----
+// The disc's four, found again from cg_fovScale's pointer (829AAEB0, stored
+// by sub_827BE608): cg is [82AD0298] + client * 0xBF780.
+#define T_CG_ViewFov           825DD8B8
+#define T_CG_CullZoom          825DB658
+#define T_CG_SetViewFov        825DBDD8
+#define T_DATA_CgArray            0x82AD0298u
+#define T_CG_STRIDE               0xBF780u
+#define T_CG_ZOOM_SENSITIVITY     0x43114u
+#define T_AimAssist_FovScale   827734F0
+#define T_AIM_STATE_REGISTER      r4
+#define T_AIM_TURN_RATE_SCALE     260u
+
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
 #define T_DATA_ClientStates       0u
@@ -395,6 +408,32 @@
 #define T_WEAPON_AIM_IN_FROM_SPRINT 0x6E8u
 #define T_WEAPON_AIM_OUT            0x6ECu
 
+// ---- field of view (field_of_view.cpp) ----
+// Found from the two settings' pointers, which sub_8281B4D0 stores: cg_fov's
+// at 829FF390 and cg_fovScale's at 829FF38C. The scripts put cg_fov back to
+// 65 at every spawn, as Modern Warfare 3's do.
+//   T_CG_ViewFov     (local client): cg_fov, or the weapon's, a turret's or a
+//                    kill camera's, times cg_fovScale and the scripts'
+//                    "fov_scale" of the client (sub_8262DE80), held between
+//                    cg_fovMin and 170.
+//   T_CG_CullZoom    the zoom the distance culls take, divided by both scales.
+//   T_CG_SetViewFov  (local client, angle): what sub_826306F8 hands the angle
+//                    to. It keeps tan(angle / 2) / tan(32.5 degrees) at cg +
+//                    0x44914, the input's sensitivity scale; cg is [82ACFE38] +
+//                    client * 0xC0B00.
+//   T_AimAssist_FovScale (local client, state, tan(half the view's height)):
+//                    state + 260 is that tangent over tan(65 * both scales /
+//                    2) * 0.75, the pad's turn rate scale.
+#define T_CG_ViewFov           82630250
+#define T_CG_CullZoom          8262DEF8
+#define T_CG_SetViewFov        8262E608
+#define T_DATA_CgArray            0x82ACFE38u
+#define T_CG_STRIDE               0xC0B00u
+#define T_CG_ZOOM_SENSITIVITY     0x44914u
+#define T_AimAssist_FovScale   827D0A18
+#define T_AIM_STATE_REGISTER      r4
+#define T_AIM_TURN_RATE_SCALE     260u
+
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
 #define T_DATA_ClientStates       0u
@@ -485,6 +524,26 @@
 #define T_DATA_TimeStampBundlePtr 0x82000874u   // the KeTimeStampBundle import record
 #define T_DATA_DebugMonitorPtr    0x82000970u   // the KeDebugMonitorData import record
 #define T_DATA_ModuleHandlePtr    0x8200089Cu   // the XexExecutableModuleHandle import record
+
+// ---- field of view (field_of_view.cpp) ----
+// As the multiplayer's above, found from cg_fovScale's pointer (828FD154,
+// stored by sub_82364310), with one difference: CG_ViewFov (822199C8) is not
+// hooked. CG_SetViewFov, which is handed its answer, writes that angle back:
+// into cg_fov (through sub_824A0818, divided by the scales) and into cg +
+// 0x423A8, the view a script's change over a time starts from. So the angle
+// is left the title's, and the tangents of half the view that CG_SetViewFov
+// keeps (sub_8248A278 writes the width's at cg + 0x27010 and the height's,
+// tan(angle / 2) * 0.75, at cg + 0x27014) are scaled instead. The campaign
+// has one client: its cg is the structure at 82A67680 itself. The aim
+// assist's state has the turn rate's scale at + 276.
+#define T_CG_CullZoom          822174B8
+#define T_CG_SetViewFov        82216E88
+#define T_DATA_Cg                 0x82A67680u
+#define T_CG_VIEW_HALF_WIDTH      0x27010u
+#define T_CG_VIEW_HALF_HEIGHT     0x27014u
+#define T_AimAssist_FovScale   82106710
+#define T_AIM_STATE_REGISTER      r4
+#define T_AIM_TURN_RATE_SCALE     276u
 
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
@@ -1191,10 +1250,9 @@
 // The aim assist's (state, tan(half the view's height)): the pad's turn rate
 // is multiplied by state + 280, that tangent over tan(65 * cg_fovScale / 2) *
 // 0.75 (820D31D0..820D321C), which is 1 from the hip and less down a sight.
-// The dvar's pointer is where sub_82125880 stored it.
 #define T_AimAssist_FovScale   820D31A0
+#define T_AIM_STATE_REGISTER      r3
 #define T_AIM_TURN_RATE_SCALE     280u
-#define T_DATA_FovScaleDvar       0x8261098Cu
 
 // The end-of-match vote (map_vote.cpp, MW2_MAP_VOTE and MW2_MAP_ROTATION). The
 // script's exitLevel (builtin 0xED) marks the level finished, calls SV_MatchEnd

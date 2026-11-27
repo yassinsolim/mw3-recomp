@@ -173,9 +173,11 @@ namespace vk::renderer::detail
     //
     // The pages are listed before they are watched again, a run of them at
     // a time: one written after that is not watched, and the next frame
-    // lists it. A run the watch will not take yet -- the title writes it
-    // too often -- stays as it is, unwatched, and Unwritten goes on
-    // refusing the windows over it whatever the range's stamp becomes.
+    // lists it. Of a run the watch will not take yet -- the title writes a
+    // page of it too often -- the pages that are not watched stay as they
+    // are, and Unwritten goes on refusing the windows over them whatever the
+    // range's stamp becomes; the pages that are watched are copied as the
+    // others are.
     void Refresh(uint32_t from, State::Slot::Kept& kept)
     {
         const uint32_t length = kept.end - from;
@@ -202,10 +204,32 @@ namespace vk::renderer::detail
             const uint32_t start = uint32_t(std::max<uint64_t>(page, from));
             const uint32_t stop = uint32_t(std::min<uint64_t>(page + uint64_t(run) * gpu::watch::kPageBytes, kept.end));
             const uint64_t stamp = gpu::watch::TrackSteady(start, stop - start, CompletedSerial, g.frames);
-            if (!stamp) continue;
-            CopyVertices(ArenaAt(kept.at + (start - from)), source + (start - from), stop - start, kept.endian);
-            g.arenaWritten[kArenaVertices] += stop - start;
-            newest = std::max(newest, stamp);
+            if (stamp)
+            {
+                CopyVertices(ArenaAt(kept.at + (start - from)), source + (start - from), stop - start, kept.endian);
+                g.arenaWritten[kArenaVertices] += stop - start;
+                newest = std::max(newest, stamp);
+                continue;
+            }
+            // Refused: a page of the run waits its turn, or was written
+            // while the run was being watched. Its other pages may be
+            // watched all the same -- by another slot's frame since this
+            // range's stamp, or by this call before it met that one -- and
+            // would read as current as soon as a later run's stamp is the
+            // range's, with what this slot copied laps ago in their place:
+            // one frame in three drawn from another mesh's vertices, for as
+            // long as the title leaves the page alone. So they are copied
+            // too, a page at a time; one that is not watched goes on
+            // refusing its windows whatever the stamp.
+            for (uint32_t at = start, next; at < stop; at = next)
+            {
+                next = uint32_t(std::min<uint64_t>((uint64_t(at) / gpu::watch::kPageBytes + 1) * gpu::watch::kPageBytes, stop));
+                // Watched, whenever it was: no stamp is too late for it.
+                if (!gpu::watch::Unwritten(at, next - at, UINT64_MAX)) continue;
+                CopyVertices(ArenaAt(kept.at + (at - from)), source + (at - from), next - at, kept.endian);
+                g.arenaWritten[kArenaVertices] += next - at;
+                newest = std::max(newest, gpu::watch::Stamp());
+            }
         }
         // Every page listed is copied as it was watched or is not watched
         // at all, and the others were watched before the old stamp.

@@ -364,6 +364,8 @@ uint64_t gpu::watch::TrackSteady(uint32_t physical, uint32_t bytes, uint64_t (*c
     return g_stamp;
 }
 
+uint64_t gpu::watch::Stamp() { return g_stamp; }
+
 bool gpu::watch::Unwritten(uint32_t physical, uint32_t bytes, uint64_t since)
 {
     uint32_t first, last;
