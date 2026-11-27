@@ -55,7 +55,16 @@ say it would, the game-code line after it).
            takes the webhook from DISCORD_RELEASES_WEBHOOK or --webhook-file.
   publish  toolchain first when it is still a draft, then the games, then
            verify-public: the download addresses answer with the drafts'
-           bytes and each repository's latest release is the new tag.
+           bytes and each repository's latest release is the new tag. Last,
+           the Discord bot's cases the release provably fixed are told
+           "Fixed in <game> <tag>" in their threads (botctl fixed-in, below).
+           --dry-run runs the gates, publishes nothing and prints those cases.
+  fixed-in the last part of publish alone, for the tags of this release: the
+           Discord bot is given each game's repository, tag and the commit
+           the tag is at, and tells the open cases whose issue was closed by
+           a commit in that tag's history, each thread once. --dry-run prints
+           them and posts nothing. It never fails or holds up a release: the
+           bot is stopped after BOT_SECONDS and a failure is one warning.
 
 Where things are: RELEASE_WORK (or --work) is the folder holding the mirrors'
 clones (public-hist, mw2-public, cod4-public, aw-public; made when missing),
@@ -70,6 +79,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 import zipfile
@@ -119,6 +129,10 @@ GAME_PATH = re.compile(r"(?i)\.(xex|xexp|ff|ffm|iwd|iwi|bik|iso|god|pak|apk|aab|
 ADRENOTOOLS_LIBRARIES = ("libhook_impl.so", "libmain_hook.so", "libfile_redirect_hook.so", "libgsl_alloc_hook.so")
 DEVICES = ("thor", "flip")
 DEVICE_CHECKS = ("campaign", "multiplayer", "visual", "turnip", "fps")
+# The Discord bot's command on this PC (yassinsolim/projects-bot, its docs/discord-bot.md); PROJECTS_BOT moves it.
+BOTCTL = Path(os.environ.get("PROJECTS_BOT", Path.home() / "projects-bot")) / "botctl.cmd"
+BOT_SECONDS = 300  # for one game's cases
+DISCORD_NAMES = {"mw3": "MW3", "mw2": "MW2", "cod4": "CoD4", "aw": "AW"}
 
 
 class Refused(Exception):
@@ -131,6 +145,28 @@ def run(*command, cwd=None, check=True, stdin=None):
     if check and done.returncode != 0:
         raise Refused(f"{' '.join(str(part) for part in command[:6])} ...: {out[-1500:]}")
     return out
+
+
+def bounded(command, seconds, cwd=None):
+    """The exit code and output of a command that may not hold the release up: over time, it and its children are killed.
+
+    The output goes to a file, not a pipe: a child that outlives the kill cannot keep this waiting for a pipe's end.
+    """
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen([str(part) for part in command], cwd=cwd, stdin=subprocess.DEVNULL, stdout=output,
+                                   stderr=subprocess.DEVNULL)
+        try:
+            code = process.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            try:
+                if os.name == "nt":  # botctl.cmd is cmd.exe, then the launcher, then Python: all of them go
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, timeout=30)
+            finally:
+                process.kill()
+                process.wait(timeout=30)
+            raise
+        output.seek(0)
+        return code, output.read().decode("utf-8", "replace").strip()
 
 
 def gh_json(*command):
@@ -580,9 +616,14 @@ class Release:
             raise Refused("gates 5 and 6: " + "; ".join(problems))
         print("gates 5 and 6: PASS by", path)
 
-    def publish(self, device_report):
+    def publish(self, device_report, dry_run=False):
         gates, (toolchain_repo, toolchain_tag, toolchain) = self.gates(wait=False)
         self.device_gates(device_report, gates)
+        if dry_run:
+            for game in self.games:
+                print(f"dry run: {self.repo(game)} {self.state['tags'][game]} passes the gates and is not published")
+            self.tell_discord(dry_run=True)
+            return
         if toolchain_tag:
             run("gh", "release", "edit", toolchain_tag, "-R", toolchain_repo, "--draft=false", "--prerelease", "--latest=false")
             print(f"published {toolchain_repo} {toolchain_tag}")
@@ -594,6 +635,40 @@ class Release:
                 "--prerelease=false", "--latest")
             print(f"published https://github.com/{self.repo(game)}/releases/tag/{tag}")
         self.verify_public()
+        self.tell_discord()
+
+    def tell_discord(self, dry_run=False):
+        """'Fixed in <game> <tag>; please update' in the Discord threads of the cases this release provably fixed.
+
+        The bot gets the evidence and decides: the repository, the tag and the commit the tag is at in the mirror's
+        clone. It tells nobody unless GitHub has that tag at that commit in a published full release, and tells a
+        case only when the commit that closed its issue is in the tag's history. A dry run posts nothing. The
+        release is out by now: a bot that is missing, fails or hangs is a warning and nothing more.
+        """
+        if not BOTCTL.is_file():
+            print(f"discord: no bot at {BOTCTL}, no 'fixed in' replies")
+            return
+        for game in self.games:
+            tag = self.state["tags"][game]
+            try:
+                code, commit = bounded(("git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}"), 60,
+                                       cwd=self.work / GAMES[game][0])
+                if code != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit):
+                    print(f"discord: WARNING: {game}: no 'fixed in' replies: {tag} is not a tag in the mirror's clone")
+                    continue
+                code, out = bounded((BOTCTL, "fixed-in", "--repo", self.repo(game), "--name", DISCORD_NAMES[game],
+                                     "--version", tag, "--commit", commit, *(["--dry-run"] if dry_run else [])), BOT_SECONDS)
+            except subprocess.TimeoutExpired as late:
+                print(f"discord: WARNING: {game}: the bot was stopped after {late.timeout} s; `release.py fixed-in` "
+                      "tells the cases it did not reach")
+                continue
+            except OSError as error:
+                print(f"discord: WARNING: {game}: no 'fixed in' replies: the bot did not start ({type(error).__name__})")
+                continue
+            for line in out.splitlines():
+                print("discord:", line)
+            if code != 0:
+                print(f"discord: WARNING: {game}: the bot ended with {code}; `release.py fixed-in` tries again")
 
     def verify_public(self):
         """What a player's app and setup fetch: the latest tag, the APK and statements by address, the build tools."""
@@ -648,7 +723,7 @@ class Release:
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("step", choices=("status", "sync", "tag", "withdraw", "gates", "published-apk", "device-template",
-                                         "publish", "verify-public", "announce"))
+                                         "publish", "verify-public", "announce", "fixed-in"))
     parser.add_argument("--work", help="the folder with the mirrors' clones and the SDK (RELEASE_WORK)")
     parser.add_argument("--branch", default="origin/android", help="the private branch to release")
     parser.add_argument("--games", default=",".join(GAMES))
@@ -656,7 +731,9 @@ def main():
                         help="a tag other than the published one's patch plus one")
     parser.add_argument("--push", action="store_true", help="sync: push each mirror's main")
     parser.add_argument("--wait", action="store_true", help="gates: wait for the workflows to end")
-    parser.add_argument("--dry-run", action="store_true", help="announce: print the messages, send nothing")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="announce, fixed-in: print the messages, send nothing; publish: the gates only, nothing "
+                             "published or sent")
     parser.add_argument("--webhook-file", help="announce: a file holding the webhook, instead of DISCORD_RELEASES_WEBHOOK")
     parser.add_argument("--device-report", help="publish: the filled report of gates 5 and 6")
     args = parser.parse_args()
@@ -665,6 +742,8 @@ def main():
             for game in args.games.split(","):
                 announce.announce(f"{OWNER}/{game}-recomp", None, args.dry_run, args.webhook_file)
             return 0
+        if args.dry_run and args.step not in ("publish", "fixed-in"):
+            raise Refused(f"{args.step} has no dry run")
         release = Release(args)
         if args.step == "status":
             release.status()
@@ -685,7 +764,11 @@ def main():
         elif args.step == "publish":
             if not args.device_report:
                 raise Refused("publish wants --device-report: the device gates (5 and 6) are not this script's to pass")
-            release.publish(args.device_report)
+            release.publish(args.device_report, args.dry_run)
+        elif args.step == "fixed-in":
+            if not all(game in release.state.get("tags", {}) for game in release.games):
+                raise Refused("fixed-in is for the tags of this release: there are none in out/release/state.json")
+            release.tell_discord(args.dry_run)
         else:
             release.verify_public()
     except (Refused, announce.Refused) as refused:

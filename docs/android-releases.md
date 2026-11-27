@@ -71,6 +71,7 @@ published by any step but the last.
     python tools/release/release.py publish --device-report report.json
     python tools/release/release.py verify-public   (publish runs it too)
     python tools/release/release.py announce --dry-run   the Discord message of each game's latest release, printed
+    python tools/release/release.py fixed-in --dry-run   the Discord cases this release's tags provably fixed, printed
 
 `RELEASE_WORK` holds the mirrors' clones (`public-hist`, `mw2-public`,
 `cod4-public`, `aw-public`, each with the remote `public`; cloned when
@@ -152,7 +153,27 @@ then each game (notes from the file, marked latest), and ends with
 addresses the app and setup use (`releases/download/<tag>/` and
 `releases/latest/download/`), the APK's SHA-256 is the one the gates passed,
 each repository's latest release is the new tag, and the build tools'
-download has the SHA-256 named.
+download has the SHA-256 named. `publish --dry-run` stops after the gates:
+nothing is published and nothing is sent.
+
+After that it runs the Discord bot's `botctl fixed-in` for each game
+(`yassinsolim/projects-bot`, `docs/discord-bot.md` there), with the game's
+repository, the tag and the commit the tag is at in the mirror's clone. The
+bot tells nobody unless GitHub has that tag at that commit in a published
+full release (not a draft, not a pre-release). An open case of the bot's
+then gets "Fixed in MW3 v0.1.12; please update, and tell us here if it still
+happens." in its Discord threads only when its issue in that game's
+repository is closed as completed by a commit of that repository and that
+commit is in the tag's history: the fix's commit closes the issue (`Fixes
+#12` in its message, on the mirror's `main`). An issue closed by hand, or
+fixed after the tag was cut, is named in the output and not told; such a case
+is answered by hand (`botctl reply`) or by the release that has the fix.
+Each thread is told once and what was sent is kept per thread, so a rerun
+(`release.py fixed-in`) reaches only the threads a failure left out;
+`--dry-run` prints the cases and posts nothing. A PC without the bot skips
+this. The bot is stopped after five minutes a game, and a failure or a
+stopped bot is a warning: it does not fail the release, which is out by
+then.
 
 ### The Discord announcement
 

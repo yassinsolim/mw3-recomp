@@ -55,3 +55,6 @@ jobs:
 
       - name: Test the release announcement
         run: python3 -B tests/announce_test.py
+
+      - name: Test the release's 'fixed in' replies
+        run: python3 -B tests/release_discord_test.py
