@@ -30,11 +30,18 @@
 //! leaves, to the standard output and to --log-file if given, and stops on
 //! SIGINT or SIGTERM. --status-port answers any TCP connection with what the
 //! relay holds right now, as JSON, on --status-address: 127.0.0.1 unless told
-//! otherwise, since it has no password.
+//! otherwise, since it has no password. --perf-port takes the performance
+//! reports of players who chose to send them (perf.rs, docs/perf-reports.md)
+//! as HTTP on --perf-address, 127.0.0.1 unless told otherwise, and keeps them
+//! in the file --perf-db names; MW2_RELAY_PERF_PORT and MW2_RELAY_PERF_DB in
+//! the environment say the same, for a unit that a drop-in adds them to.
+//! Reports that cannot be taken are a line of the log, never a relay that
+//! does not start: the players come first.
 
 mod directory;
 mod limits;
 mod log;
+mod perf;
 mod protocol;
 mod relay;
 
@@ -72,12 +79,16 @@ struct Options {
     status_address: Ipv4Addr,
     playlists: Vec<String>,
     log_file: Option<String>,
+    perf_port: u16,
+    perf_address: Ipv4Addr,
+    perf_db: String,
 }
 
 const USAGE: &str = "usage: mw2-relay [--port N] [--public | --password TEXT] [--max N] [--per-address N]
                  [--sessions-per-address N] [--rate N] [--total-rate N]
                  [--max-payload N] [--playlists [TITLE=]FILE]... [--log-file FILE]
-                 [--status-port N] [--status-address ADDRESS]";
+                 [--status-port N] [--status-address ADDRESS]
+                 [--perf-port N --perf-db FILE [--perf-address ADDRESS]]";
 
 fn options() -> Option<Options> {
     let mut options = Options {
@@ -94,6 +105,9 @@ fn options() -> Option<Options> {
         status_address: Ipv4Addr::LOCALHOST,
         playlists: Vec::new(),
         log_file: None,
+        perf_port: std::env::var("MW2_RELAY_PERF_PORT").ok().and_then(|port| port.parse().ok()).unwrap_or(0),
+        perf_address: Ipv4Addr::LOCALHOST,
+        perf_db: std::env::var("MW2_RELAY_PERF_DB").unwrap_or_default(),
     };
     fn positive<Number: std::str::FromStr + Default + PartialEq>(value: &str) -> Option<Number> {
         value.parse().ok().filter(|number| *number != Number::default())
@@ -121,6 +135,9 @@ fn options() -> Option<Options> {
             "--log-file" => options.log_file = Some(value),
             "--status-port" => options.status_port = value.parse().ok()?,
             "--status-address" => options.status_address = value.parse().ok()?,
+            "--perf-port" => options.perf_port = value.parse().ok()?,
+            "--perf-address" => options.perf_address = value.parse().ok()?,
+            "--perf-db" => options.perf_db = value,
             _ => return None,
         }
     }
@@ -198,6 +215,26 @@ fn run(options: Options) -> Result<(), String> {
         })?;
         listening.set_nonblocking(true).map_err(|error| error.to_string())?;
         status = Some(listening);
+    }
+    if options.perf_port != 0 {
+        let listening = TcpListener::bind((options.perf_address, options.perf_port))
+            .map_err(|error| format!("cannot listen on {}, TCP port {}: {error}", options.perf_address, options.perf_port));
+        let reports = if options.perf_db.is_empty() {
+            Err("--perf-port without --perf-db: nowhere to keep them".to_string())
+        } else {
+            perf::Perf::open(&options.perf_db, Instant::now(), perf::today())
+        };
+        match (listening, reports) {
+            (Ok(listening), Ok(reports)) => {
+                // Its own thread: a report is written to a file, and the
+                // players' packets do not wait for a disk.
+                std::thread::Builder::new()
+                    .name("perf".into())
+                    .spawn(move || perf::serve(listening, reports))
+                    .map_err(|error| error.to_string())?;
+            }
+            (Err(why), _) | (_, Err(why)) => log!("performance reports: not taken: {why}"),
+        }
     }
     let stop = Arc::new(AtomicBool::new(false));
     for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {

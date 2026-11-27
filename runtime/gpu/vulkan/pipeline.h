@@ -68,6 +68,11 @@ namespace vk::pipeline
     void LogShaderStats(void* pipeline, uint64_t vertexHash, uint64_t pixelHash);
 
     const char* DeviceName();
+    // The driver's name ("turnip Mesa driver") and what it says of its
+    // version ("Mesa 25.3.0"; the version's number where it says nothing),
+    // for a performance report (docs/perf-reports.md); empty before the device.
+    std::string DriverName();
+    std::string DriverVersion();
     // Opaque, so this header stays free of the Vulkan headers: a VkInstance,
     // VkDevice, VkPhysicalDevice and VkQueue, and the queue's family index.
     void*    Instance();

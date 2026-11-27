@@ -97,6 +97,11 @@ namespace kernel
     // here on, and the title is told it arrived.
     void AcceptInvite(uint64_t inviterAccount, const uint8_t* session60, bool fromInvite);
 
+    // The level the title last asked for ("mp_dome"), by the name it asks
+    // for the level's loading screen by; empty before the first. For a
+    // performance report (docs/perf-reports.md), which names the map and no file.
+    std::string LevelAsked();
+
     // Content packages -- saved games. The title mounts one as a lettered drive
     // ("save0:") and then opens "save0:\savegame.svg" through the ordinary file
     // API, so XAM and the file layer have to share one table of device roots.

@@ -246,6 +246,13 @@ object NativeBridge {
     /** The run's side of the performance report: driver, device, what it is held to, how it went. */
     external fun nativePerformance(): String
 
+    /**
+     * The run's play so far as a performance report has it (PerfReports.kt):
+     * a line each of name=value -- its seconds, frames a second and 1% low,
+     * what the frames waited for, the map, the graphics chip and its driver.
+     */
+    external fun nativeSession(): String
+
     /** Returns formatted "Device|RendererMode|TextureCompression" */
     external fun nativeRendererInfo(): String
 

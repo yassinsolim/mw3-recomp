@@ -14,6 +14,8 @@ void vk::pipeline::SaveCache() {}
 bool vk::pipeline::OneCreation() { return true; }
 bool vk::pipeline::Ready() { return false; }
 const char* vk::pipeline::DeviceName() { return "none"; }
+std::string vk::pipeline::DriverName() { return {}; }
+std::string vk::pipeline::DriverVersion() { return {}; }
 void*    vk::pipeline::Instance() { return nullptr; }
 void*    vk::pipeline::Device() { return nullptr; }
 void*    vk::pipeline::PhysicalDevice() { return nullptr; }
@@ -153,6 +155,8 @@ namespace
         // (LogDeviceSummary), which is what a tester of a device nobody here
         // has sends back.
         std::string deviceClass = "no device";
+        // The driver's name and what it says of its version (DriverName).
+        std::string driverName, driverInfo;
         // What the device was refused for (Refusal), a literal.
         const char* refusal = "";
         std::vector<std::string> fallbacks;
@@ -1692,8 +1696,8 @@ bool vk::pipeline::Initialise(void* device, void* physical, void* queue, uint32_
     vkGetPhysicalDeviceProperties(g.physical, &props);
     g.deviceProperties = props;
     g.name = props.deviceName;
-    // A bug report is read against the driver's known faults.
-    if (report::On())
+    // A bug report is read against the driver's known faults, and a
+    // performance report says which driver drew it.
     {
         VkPhysicalDeviceDriverProperties driver{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES };
         if (props.apiVersion >= VK_API_VERSION_1_2)
@@ -1702,10 +1706,18 @@ bool vk::pipeline::Initialise(void* device, void* physical, void* queue, uint32_
             more.pNext = &driver;
             vkGetPhysicalDeviceProperties2(g.physical, &more);
         }
-        LOGI("report: graphics %s (%04X:%04X), driver %s %s (%08X), Vulkan %u.%u.%u", props.deviceName,
-             props.vendorID, props.deviceID, driver.driverName, driver.driverInfo, props.driverVersion,
-             VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion),
-             VK_API_VERSION_PATCH(props.apiVersion));
+        char version[32];
+        std::snprintf(version, sizeof version, "%08X", props.driverVersion);
+        // The device is made again with the window: the same strings, which
+        // another thread may be reading.
+        if (g.driverName != driver.driverName) g.driverName = driver.driverName;
+        const std::string info = driver.driverInfo[0] ? driver.driverInfo : version;
+        if (g.driverInfo != info) g.driverInfo = info;
+        if (report::On())
+            LOGI("report: graphics %s (%04X:%04X), driver %s %s (%08X), Vulkan %u.%u.%u", props.deviceName,
+                 props.vendorID, props.deviceID, driver.driverName, driver.driverInfo, props.driverVersion,
+                 VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion),
+                 VK_API_VERSION_PATCH(props.apiVersion));
     }
 
     if (!CreateSetLayouts()) { Shutdown(); return false; }
@@ -1747,6 +1759,8 @@ void vk::pipeline::Shutdown()
 
 bool vk::pipeline::Ready() { return g.device != VK_NULL_HANDLE; }
 const char* vk::pipeline::DeviceName() { return g.name.c_str(); }
+std::string vk::pipeline::DriverName() { return g.driverName; }
+std::string vk::pipeline::DriverVersion() { return g.driverInfo; }
 void*    vk::pipeline::Instance() { return g.instance; }
 void*    vk::pipeline::Device() { return g.device; }
 void*    vk::pipeline::PhysicalDevice() { return g.physical; }

@@ -149,6 +149,10 @@ android {
         // the download against the same server; empty for the release
         // setup/toolchain.json names. The file's SHA-256 is that list's either way.
         buildConfigField("String", "TOOLCHAIN_URL", "\"${setting("MW2_TOOLCHAIN_URL") ?: ""}\"")
+        // Where performance reports go, for a player who chose to send them
+        // (docs/perf-reports.md): HTTPS always, but for a debug build pointed
+        // at a server on the PC beside it (MW2_PERF_URL=http://127.0.0.1:...).
+        buildConfigField("String", "PERF_URL", "\"${setting("MW2_PERF_URL") ?: "https://mw3.yassin.app/perf"}\"")
         // The toolchain package's name: -PtoolchainSuffix=.test for a build
         // that tries an update of it beside the published package, which the
         // published apps on the same device go on using.

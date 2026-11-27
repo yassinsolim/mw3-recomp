@@ -60,10 +60,15 @@ namespace
         double busyAtFullNs = 0;
         uint32_t deepest = 0;
         uint64_t underrunsAt = 0;
+        // What each frame of play in the window took, in milliseconds, for
+        // the run's sum (adaptive::Tally): twice the fastest display's.
+        float frameMs[640];
+        uint32_t timed = 0;
     } w;
 
     std::mutex g_lock;
     adaptive::Governor g_governor;          // under g_lock
+    adaptive::Tally g_tally;                // under g_lock
     std::deque<Kept> g_kept;                // under g_lock
     std::vector<Change> g_changes;          // under g_lock
     std::vector<uint32_t> g_steps;          // under g_lock: the rates the display shows evenly
@@ -248,8 +253,10 @@ void adaptive::Frame(bool world, const Scene& scene)
     // movie between two of them says nothing of what the device sustains.
     if (world && w.lastWasWorld)
     {
-        w.playNs += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now - w.last).count());
+        const auto took = now - w.last;
+        w.playNs += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(took).count());
         w.intervals++;
+        if (w.timed < std::size(w.frameMs)) w.frameMs[w.timed++] = std::chrono::duration<float, std::milli>(took).count();
     }
     w.lastWasWorld = world;
     w.last = now;
@@ -332,7 +339,10 @@ void adaptive::Frame(bool world, const Scene& scene)
             g_kept.push_back({ at, window.fps, window.gpuMs, window.rendererMs, target, scene.percent, shadows });
             g_keptAt = now;
             if (g_kept.size() > kKept) g_kept.pop_front();
+            for (uint32_t frame = 0; frame < w.timed; frame++) g_tally.Frame(w.frameMs[frame]);
+            g_tally.Window(window);
         }
+        w.timed = 0;
         if (play && g_governor.Feed(window))
         {
             char what[320];
@@ -509,4 +519,10 @@ void adaptive::Write()
     std::lock_guard lock(g_lock);
     if (g_playSeconds <= 0) return;
     LOGI("performance: %s; %zu changes of the rate or the shadows", Summary().c_str(), g_changes.size());
+}
+
+adaptive::Session adaptive::SessionSoFar()
+{
+    std::lock_guard lock(g_lock);
+    return g_tally.Result();
 }

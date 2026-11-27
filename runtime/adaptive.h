@@ -166,6 +166,41 @@ namespace adaptive
         std::string m_why;
     };
 
+    // A run's play summed up for a player who chose to send performance
+    // reports (docs/perf-reports.md): numbers of the play alone.
+    struct Session
+    {
+        // The play's seconds, its frames a second, and the frames a second
+        // of its slowest hundredth of frames (the "1% low").
+        double seconds = 0, fps = 0, low1 = 0;
+        // What the frames waited for in most of it: the graphics chip, where
+        // it took 85% of a frame's time by its own clock (as the rule above
+        // has it), or the processor; unknown where the chip keeps no clock.
+        enum Limit { kUnknown, kGpu, kCpu } limit = kUnknown;
+    };
+
+    // The sum itself, with no clock and no device in it, as the Governor.
+    class Tally
+    {
+    public:
+        // A frame of play took this long after the one before it.
+        void Frame(double ms);
+        // A window of play.
+        void Window(const Measured& window);
+        Session Result() const;
+
+    private:
+        // Frames by how long they took, a quarter of a millisecond to a
+        // bin; the last has all that took a quarter of a second or more.
+        static constexpr size_t kBins = 1000;
+        static constexpr double kBinMs = 0.25;
+        uint32_t m_bins[kBins]{};
+        uint64_t m_frames = 0;
+        // All the frames' time, and the last bin's.
+        double m_ms = 0, m_longestMs = 0;
+        double m_gpuSeconds = 0, m_cpuSeconds = 0, m_unknownSeconds = 0;
+    };
+
     // ---- the runtime's side -------------------------------------------------
 
     // The scene as the renderer draws it this frame (renderer_scene.cpp).
@@ -217,4 +252,7 @@ namespace adaptive
     std::string Report();
     // The same in the log, when the run ends.
     void Write();
+    // The run's play so far, for the app to keep as the run goes: a run a
+    // player ends is killed, and says nothing at its end. Any thread.
+    Session SessionSoFar();
 }

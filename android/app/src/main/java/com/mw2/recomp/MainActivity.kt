@@ -399,6 +399,10 @@ class MainActivity : AppCompatActivity() {
         // the code on the device is not it; and a build the system ended
         // carries on (GameUpdate.kt). What it does is shown as it goes.
         GameUpdate.consider(this)
+        // The last run's performance report, for a player who chose to send
+        // them, and the question itself once a first session has been played
+        // (PerfReports.kt).
+        PerfReports.onLauncher(this)
         handler.removeCallbacks(buildTick)
         handler.postDelayed(buildTick, BUILD_TICK_MS)
         showArt()

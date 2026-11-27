@@ -224,6 +224,14 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!-- Performance reports that could not be sent, tried again once the
+             phone has a network (PerfReports.kt): only for a player who
+             chose to send them. -->
+        <service
+            android:name=".PerfSendJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <activity
             android:name=".FileBrowserActivity"
             android:exported="false"

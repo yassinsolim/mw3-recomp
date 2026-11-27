@@ -156,3 +156,50 @@ bool adaptive::Governor::Feed(const Measured& window)
     m_shadowsCalm = 0;
     return false;
 }
+
+// ---- a run's play summed up (adaptive::Session) ------------------------------
+
+void adaptive::Tally::Frame(double ms)
+{
+    if (!(ms > 0)) return;
+    const size_t bin = std::min(size_t(ms / kBinMs), kBins - 1);
+    m_bins[bin]++;
+    if (bin == kBins - 1) m_longestMs += ms;
+    m_frames++;
+    m_ms += ms;
+}
+
+void adaptive::Tally::Window(const Measured& window)
+{
+    // The counter's rule, of the window's own frame time (no limit to fall short of).
+    switch (Governor::WhatWasLate(window, 0)) {
+    case Late::Chip: m_gpuSeconds += window.seconds; break;
+    case Late::Processor: m_cpuSeconds += window.seconds; break;
+    default: m_unknownSeconds += window.seconds; break;
+    }
+}
+
+adaptive::Session adaptive::Tally::Result() const
+{
+    Session session;
+    if (!m_frames || m_ms <= 0) return session;
+    session.seconds = m_ms / 1000.0;
+    session.fps = double(m_frames) / session.seconds;
+    // The slowest hundredth of the frames, one at the least, from the
+    // longest down; a bin's frames took its middle, the last bin's what they did.
+    const uint64_t slowest = std::max<uint64_t>(1, m_frames / 100);
+    uint64_t taken = 0;
+    double ms = 0;
+    for (size_t bin = kBins; bin-- > 0 && taken < slowest;)
+    {
+        const uint64_t frames = std::min<uint64_t>(m_bins[bin], slowest - taken);
+        if (!frames) continue;
+        const double each = bin == kBins - 1 ? m_longestMs / double(m_bins[bin]) : (double(bin) + 0.5) * kBinMs;
+        ms += each * double(frames);
+        taken += frames;
+    }
+    session.low1 = ms > 0 ? 1000.0 * double(taken) / ms : 0;
+    if (m_gpuSeconds + m_cpuSeconds > m_unknownSeconds)
+        session.limit = m_gpuSeconds >= m_cpuSeconds ? Session::kGpu : Session::kCpu;
+    return session;
+}

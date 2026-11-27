@@ -41,6 +41,11 @@ impl Bucket {
         self.tokens -= cost;
         true
     }
+
+    /// True when nothing has been asked of it for `quiet`.
+    pub fn quiet_for(&self, quiet: Duration, now: Instant) -> bool {
+        now.saturating_duration_since(self.filled) >= quiet
+    }
 }
 
 /// What a log line is about. Each has its own share of the log, so a flood of

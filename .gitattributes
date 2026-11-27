@@ -7,3 +7,6 @@ setup/*.cmd text eol=crlf
 # CRLF checkout of the patch (core.autocrlf, Git for Windows' default) would
 # match none of them.
 *.patch text eol=lf
+# Run by bash on the relay's host as it was checked out (docs/perf-reports.md):
+# a CRLF checkout fails at its first line.
+relay/perf-setup.sh text eol=lf

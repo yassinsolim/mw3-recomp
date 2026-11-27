@@ -228,6 +228,25 @@ int main()
     }
     assert(Create("D:\\", GENERIC_READ, FILE_OPEN).status == X_STATUS_OBJECT_NAME_NOT_FOUND);
 
+    // ---- the level asked for: the name its loading screen goes by ------------
+    assert(kernel::LevelAsked().empty());
+    for (const auto& [name, level] : std::initializer_list<std::pair<const char*, const char*>>{
+             { "D:\\mp_dome_load.ff", "mp_dome" },
+             { "D:\\common.ff", "mp_dome" },
+             { "D:\\video\\Trainer_load.bik", "trainer" },
+             { "D:\\bog_a_load.ff", "bog_a" },
+             { "D:\\mp_solar_load.ff", "mp_solar" },
+             { "update:\\patch_mp_solar_load.ff", "mp_solar" },
+             { "D:\\english\\eng_patch_mp_solar_load.ff", "mp_solar" },
+             { "D:\\english\\eng_seoul_load.ff", "seoul" },
+             { "D:\\_load.ff", "seoul" },
+             { "D:\\seoul_load.txt", "seoul" },
+             { "D:\\load.ff", "seoul" } })
+    {
+        Open(name);
+        assert(kernel::LevelAsked() == level);
+    }
+
     // An OBJECT_ATTRIBUTES with no name in it is a different bug, and also not a file.
     PutName("D:\\zone\\sub\\data.bin");
     *GuestPtr<be32>(kAttributes + 4) = 0;

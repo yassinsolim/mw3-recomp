@@ -257,6 +257,29 @@ class SettingsActivity : AppCompatActivity() {
         val lanIface: EditText = findViewById(R.id.lan_iface)
         lanIface.setText(prefs.lanIface)
         lanIface.doAfterTextChanged { prefs.lanIface = it.toString() }
+        // ---- performance reports (PerfReports.kt) ----
+        if (PerfReports.game != null) {
+            findViewById<android.view.View>(R.id.perf_group).visibility = android.view.View.VISIBLE
+            findViewById<TextView>(R.id.perf_hint).text = getString(R.string.perf_reports_hint, PerfReports.privacyPage)
+            val perfSwitch: SwitchCompat = findViewById(R.id.perf_reports)
+            switch(R.id.perf_reports, PerfReports.chosen(this)) { on ->
+                if (!on) PerfReports.choose(this, false)
+                // Turned on only where there is somewhere to send them: a
+                // queue that waits for a server that is not there is no use.
+                else kotlin.concurrent.thread(name = "perf-health", isDaemon = true) {
+                    val answers = PerfReports.serverAnswers(applicationContext, fresh = true)
+                    runOnUiThread {
+                        if (answers) PerfReports.choose(this, true)
+                        else {
+                            perfSwitch.isChecked = false
+                            android.widget.Toast.makeText(this, R.string.perf_no_server, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            findViewById<Button>(R.id.perf_example).setOnClickListener { PerfReports.showExample(this) }
+            findViewById<Button>(R.id.perf_sent).setOnClickListener { PerfReports.showSent(this) }
+        }
         val playerName: EditText = findViewById(R.id.player_name)
         playerName.setText(prefs.playerName)
         playerName.hint = prefs.defaultPlayerName

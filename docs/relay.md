@@ -55,6 +55,7 @@ To build the image yourself: `docker build -t mw2-relay relay/`.
                 [--total-rate 20000] [--max-payload 2048]
                 [--playlists [<title>=]<file>]... [--log-file <file>]
                 [--status-port <port>] [--status-address 127.0.0.1]
+                [--perf-port <port> --perf-db <file> [--perf-address 127.0.0.1]]
 
 `--max` is how many players it takes at once, `--per-address` how many of them
 from one IP address: players behind one router share theirs, so a LAN party
@@ -123,6 +124,14 @@ it must, for Docker to publish it, on the machine alone:
 
 **The firewall** lets in UDP on the relay's port, from anywhere. Players need
 nothing open.
+
+**Performance reports.** `--perf-port` with `--perf-db` (or
+`MW2_RELAY_PERF_PORT` and `MW2_RELAY_PERF_DB` in the environment) has the
+relay take the anonymous reports of players who chose to send them, keep them
+in a SQLite file, and answer a public summary: plain HTTP on 127.0.0.1, for a
+server in front that holds the certificate. It keeps no address. What it
+takes, how it is put up and how the project's own is run:
+[perf-reports.md](perf-reports.md). A relay without the option takes none.
 
 **The players** set, under NETWORK in the launcher: NETWORK SERVER, SERVER to
 the relay's address (`relay.example.com`, or `relay.example.com:<port>` for
@@ -207,7 +216,9 @@ for a game with Find Game; keep the password to the people the relay is for.
 On a public relay that is anyone at all. The relay's owner can see all the
 traffic and every player's address; the players see neither. What a player has
 unlocked or wears is its own copy's and never passes the relay's judgement:
-the relay hands the game's packets on unread.
+the relay hands the game's packets on unread. Performance reports, where a
+relay takes them, are another matter and keep no address
+([PRIVACY.md](../PRIVACY.md)).
 
 ## How it works
 

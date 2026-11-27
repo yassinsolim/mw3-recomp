@@ -29,6 +29,7 @@
 #include "../frame_rate.h"
 #include "../live_options.h"
 #include "../online/service.h"
+#include "../kernel/kernel.h"
 #if MW2_SPLIT_GAME
 #include "game_library.h"
 #endif
@@ -466,6 +467,22 @@ MW2_NATIVE(jstring, nativePerformance)(JNIEnv* env, jobject)
     std::snprintf(line, sizeof line, "textures: %.0f MB held\n", double(vk::textures::LiveBytes()) / (1024.0 * 1024.0));
     text += line;
     return FromString(env, text);
+}
+
+// The run's play so far, for a player who chose to send performance reports
+// (docs/perf-reports.md, PerfReports.kt): a line each of name=value, numbers
+// and names and no path. The app asks as the run goes, since a run a player
+// ends is killed, and adds the phone and the settings.
+MW2_NATIVE(jstring, nativeSession)(JNIEnv* env, jobject)
+{
+    const adaptive::Session session = adaptive::SessionSoFar();
+    static const char* const kLimits[] = { "unknown", "gpu", "cpu" };
+    char numbers[160];
+    std::snprintf(numbers, sizeof numbers, "seconds=%.0f\nfps=%.1f\nlow1=%.1f\nlimit=%s\n", session.seconds,
+                  session.fps, session.low1, kLimits[session.limit]);
+    return FromString(env, std::string(numbers) + "map=" + kernel::LevelAsked() + "\ngpu=" + vk::pipeline::DeviceName() +
+                               "\ndriver=" + vk::pipeline::DriverName() + "\ndriver_version=" +
+                               vk::pipeline::DriverVersion() + "\n");
 }
 
 // ---- the surface -----------------------------------------------------------

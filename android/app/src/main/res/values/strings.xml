@@ -360,6 +360,26 @@
     <string name="lan_accept_hint">When another player on the network invites this phone to their lobby, join without asking. Off means invites are only logged.</string>
     <string name="lan_iface">Announced adapter (blank = auto)</string>
     <string name="lan_iface_hint">Which connection sessions invite to: a name or address piece (WiFi, wlan0, 192.168.1). Needed with a VPN and WiFi at once, so guests are told a door they can reach.</string>
+
+    <!-- performance reports (PerfReports.kt, PRIVACY.md) -->
+    <string name="section_perf">Performance reports</string>
+    <string name="perf_reports">Send anonymous performance reports</string>
+    <string name="perf_reports_hint">Off unless you turn it on. After each session the app sends how well the game ran on this phone, so the settings can be tuned for each chip. No name, no account, no files, no location; the server keeps no IP address. Everything a report holds: %1$s</string>
+    <string name="perf_sent">Reports sent</string>
+    <string name="perf_sent_none">No report has been sent from this phone.</string>
+    <plurals name="perf_waiting">
+        <item quantity="one">%1$d report is waiting to be sent.</item>
+        <item quantity="other">%1$d reports are waiting to be sent.</item>
+    </plurals>
+    <string name="perf_no_server">Reports cannot be sent right now, so this stays off. Try again later.</string>
+    <string name="perf_ask_title">Help tune the game for your phone?</string>
+    <string name="perf_ask_body">After each session the app can send a short anonymous report of how well the game ran. Reports from many phones show which settings suit each chip, and the results are public.\n\nA report holds only: the phone model, its chip and board, the graphics chip with its driver\'s name and version, the Android version, the app and game version, the game, mode and map, the minutes played, the average FPS and the 1%% low, whether the graphics chip or the processor held it back, your graphics settings (preset, scene scale, shadows, FPS limit, multiplier), how hot the phone got, and a random number that changes every month.\n\nNothing else: no name or account, no IP address kept, no file names, nothing about your disc or game files, no location, no contacts.\n\nIt is off unless you say yes. You can change your mind and read every report sent in Settings, Network.\n\n%1$s</string>
+    <string name="perf_yes">Yes, send them</string>
+    <string name="perf_no">No</string>
+    <string name="perf_example">Show me an example</string>
+    <string name="perf_example_title">An example report</string>
+    <string name="perf_example_sent_as">Sent as:</string>
+    <string name="perf_back">Back</string>
     <string name="invite_players">Invite a network player</string>
     <string name="no_players">Nobody else is heard on the server yet.</string>
     <string name="nobody_on_lan">No other players found on this network: are both devices on the same Wi-Fi? Two routers, a mesh\'s second network or a guest network keep them apart; Settings, NETWORK, Online joins them.</string>

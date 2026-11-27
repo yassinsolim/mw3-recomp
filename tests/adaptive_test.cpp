@@ -18,6 +18,9 @@
 //   * The app's counter is told what a window's frames waited for: nothing
 //     at nine tenths of the rate and above, the graphics chip where it took
 //     85% of the frame's period, the processor where it did not.
+//   * A run's play summed up for a performance report (Tally): its frames a
+//     second, the frames a second of its slowest hundredth of frames, and
+//     what the frames waited for in most of it.
 #include "adaptive.h"
 
 #include <cstdio>
@@ -255,6 +258,39 @@ int main()
         Check(Governor::WhatWasLate(Window(45, 20.0, 5.0), 0) == Late::Chip, "no limit: the chip at 20 ms of a 22 ms frame");
         Check(Governor::WhatWasLate(Window(45, 8.0, 5.0), 0) == Late::Processor, "no limit: the chip at 8 ms of 22");
         Check(Governor::WhatWasLate(Window(0, 8.0, 5.0), 60) == Late::Unknown, "no frames: nothing to say");
+    }
+
+    {
+        using adaptive::Session;
+        adaptive::Tally tally;
+        Check(tally.Result().seconds == 0 && tally.Result().fps == 0 && tally.Result().limit == Session::kUnknown,
+              "no play: nothing to sum");
+        // 990 frames at 60 a second and ten of 50 ms.
+        for (int frame = 0; frame < 990; frame++) tally.Frame(1000.0 / 60);
+        for (int frame = 0; frame < 10; frame++) tally.Frame(50);
+        tally.Frame(0);
+        tally.Frame(-3);
+        const Session session = tally.Result();
+        Check(session.seconds > 16.9 && session.seconds < 17.1, "17 seconds of play, a frame without a time not counted");
+        Check(session.fps > 58.5 && session.fps < 59.5, "at 58.8 frames a second");
+        Check(session.low1 > 19.8 && session.low1 < 20.2, "the slowest hundredth of the frames: 20 a second");
+        Check(session.limit == Session::kUnknown, "no window: what they waited for is not known");
+
+        adaptive::Tally few;
+        for (int frame = 0; frame < 30; frame++) few.Frame(10);
+        few.Frame(400);
+        Check(few.Result().low1 > 2.4 && few.Result().low1 < 2.6,
+              "under a hundred frames the slowest one, and a frame of 400 ms as long as it was");
+
+        adaptive::Tally limits;
+        limits.Frame(16);
+        for (int window = 0; window < 3; window++) limits.Window(Window(60, 15.0, 5.0));
+        for (int window = 0; window < 2; window++) limits.Window(Window(60, 6.0, 12.0));
+        Check(limits.Result().limit == Session::kGpu, "the chip took 85% of a frame in most of it: the chip");
+        for (int window = 0; window < 2; window++) limits.Window(Window(45, 6.0, 20.0));
+        Check(limits.Result().limit == Session::kCpu, "then the processor in most of it");
+        for (int window = 0; window < 8; window++) limits.Window(Window(60, -1, 5.0));
+        Check(limits.Result().limit == Session::kUnknown, "a chip that keeps no clock in most of it: not known");
     }
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);

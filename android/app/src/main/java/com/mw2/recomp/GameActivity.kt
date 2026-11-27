@@ -152,6 +152,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
      */
     private var heldTo = 0
     private var displayAsked = 0
+    /** The session as a performance report has it, for a player who chose to send them (PerfReports.kt). */
+    private var perfSession: PerfSession? = null
 
     // The system changes the display's mode under a running game: it grants
     // the rate asked for a moment after the surface is made, and takes it
@@ -323,6 +325,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 watchForBlackScreen()
                 followHeldRate()
                 measureBestLooking()
+                perfSession?.tick()
             }
             if (prefs.showStats && NativeBridge.isLoaded()) {
                 if (cachedRendererInfo.isEmpty()) {
@@ -675,6 +678,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             fail(getString(R.string.error_library, NativeBridge.loadError() ?: "?"))
             return
         }
+        perfSession = PerfSession(this, request.title, prefs)
 
         buildUi()
         goFullscreen()

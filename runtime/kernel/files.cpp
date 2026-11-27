@@ -367,12 +367,48 @@ namespace
         return device == "harddisk0" && Lower(relative) == "partition0";
     }
 
+    // The level being played, as the title last asked for one: every one of
+    // these games asks for "<level>_load" while a level loads and for
+    // nothing else by such a name -- a fastfile with the picture shown
+    // meanwhile, or the campaign's briefing film. Advanced Warfare asks for
+    // its title update's ("patch_<level>_load.ff") after the level's own,
+    // and a localised one lies in the language's folder under the
+    // language's three letters ("english\eng_<level>_load.ff").
+    std::mutex g_levelLock;
+    std::string g_level;
+
+    void NoteLevel(const std::string& relative)
+    {
+        const size_t folder = relative.find_last_of("\\/");
+        std::string name = Lower(folder == std::string::npos ? relative : relative.substr(folder + 1));
+        const size_t dot = name.rfind('.');
+        if (dot == std::string::npos || (name.compare(dot, std::string::npos, ".ff") != 0 &&
+                                         name.compare(dot, std::string::npos, ".bik") != 0))
+            return;
+        name.resize(dot);
+        static const std::string kEnd = "_load";
+        if (name.size() <= kEnd.size() || name.compare(name.size() - kEnd.size(), kEnd.size(), kEnd) != 0) return;
+        name.resize(name.size() - kEnd.size());
+        static const char* const kLanguages[] = { "eng_", "bri_", "fra_", "deu_", "ita_", "spa_", "rus_", "pol_",
+                                                   "por_", "kor_", "tai_", "jpn_", "chi_", "tha_" };
+        if (folder != std::string::npos)
+            for (const char* language : kLanguages)
+                if (name.size() > 4 && name.compare(0, 4, language) == 0) { name.erase(0, 4); break; }
+        static const std::string kUpdate = "patch_";
+        if (name.size() > kUpdate.size() && name.compare(0, kUpdate.size(), kUpdate) == 0) name.erase(0, kUpdate.size());
+        std::lock_guard lock(g_levelLock);
+        if (name == g_level) return;
+        g_level = name;
+        LOGI("level: %s", name.c_str());
+    }
+
     uint32_t OpenFileCommon(const char* operation, const std::string& guestPath,
                             uint32_t desiredAccess, uint32_t disposition, uint32_t options,
                             uint32_t& handleOut, uint32_t& information)
     {
         std::string device, relative;
         SplitDevice(guestPath, device, relative);
+        NoteLevel(relative);
 
         // Xenia registers Partition0 (along with cache placeholders) as a
         // NullDevice rather than mapping it onto the game directory. MW3 has
@@ -532,6 +568,12 @@ void kernel::MountContent(const std::string& name, std::shared_ptr<ReadVolume> v
     mount.marker = Lower(marker);
     mount.markerIs = markerIs;
     g_mounts[Lower(name)] = std::move(mount);
+}
+
+std::string kernel::LevelAsked()
+{
+    std::lock_guard lock(g_levelLock);
+    return g_level;
 }
 
 void kernel::UnmountDevice(const std::string& name)

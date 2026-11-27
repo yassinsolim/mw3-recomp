@@ -19,6 +19,26 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   (`.github/workflows/announce-release.yml`, `tools/release/announce.py`).
   `release.py announce --dry-run` prints the message and sends nothing
   ([docs/android-releases.md](docs/android-releases.md#the-discord-announcement)).
+- **Anonymous performance reports, if you say yes (all four games on
+  Android).** So the settings can be tuned for chips nobody on the project
+  owns, the app can send a short report after each session: the phone model,
+  chip, graphics chip and driver, Android, app and game version, the game,
+  mode and map, the minutes played, the average FPS and 1% low, whether the
+  graphics chip or the processor held it back, the graphics settings in use,
+  how hot the phone got, and a random number that changes every month.
+  Nothing else, and nothing at all unless you turn it on: the app asks once,
+  after your first session, on one screen that lists every field and shows an
+  example, and only once the server is there to take reports. **Settings,
+  Network, Performance reports** has the switch and **Reports sent**, every
+  report that left the phone. The server keeps no IP address, deletes
+  reports after 12 months, and publishes medians for groups of at least five
+  phones at `mw3.yassin.app/perf` ([PRIVACY.md](PRIVACY.md),
+  [docs/perf-reports.md](docs/perf-reports.md)).
+- **The relay can take those reports** (`--perf-port`, `--perf-db`;
+  `relay/src/perf.rs`): `POST /perf`, `GET /perf/summary`, a page at `/perf`,
+  SQLite beside it, a rate limit for each address held in memory only, a
+  2,048-byte cap. `relay/perf-setup.sh` puts Caddy in front of it and takes
+  it away again.
 
 - **Players are told they can remove the build tools.** The setup's
   Ready to play screen, the build-finished message and the four READMEs

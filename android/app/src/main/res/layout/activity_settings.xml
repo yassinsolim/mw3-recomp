@@ -850,6 +850,53 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/lan_iface_hint" />
+
+                <!-- Performance reports, for the games that are published (SettingsActivity shows it). -->
+                <LinearLayout
+                    android:id="@+id/perf_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/SectionHeading"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/section_perf" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/perf_reports"
+                        style="@style/SettingSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/perf_reports" />
+
+                    <TextView
+                        android:id="@+id/perf_hint"
+                        style="@style/SettingHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:autoLink="web" />
+
+                    <Button
+                        android:id="@+id/perf_example"
+                        android:background="@drawable/bg_button_action"
+                        android:textColor="#E8EAED"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/perf_example" />
+
+                    <Button
+                        android:id="@+id/perf_sent"
+                        android:background="@drawable/bg_button_action"
+                        android:textColor="#E8EAED"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/perf_sent" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- MULTIPLAYER -->

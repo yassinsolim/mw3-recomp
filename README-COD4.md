@@ -60,6 +60,7 @@ the app downloads the tools again and Android asks you to install them.
 - The game is never provided. Build it from your own disc image, dumped from a disc you own. We don't link to download sites, and we can't help with downloaded copies.
 - Reporting a problem: [open an issue](https://github.com/yassinsolim/cod4-recomp/issues/new/choose) and attach the log (LOG -> SHARE in the app).
 - Help, news and requests: our Discord [yassin.app/discord](https://yassin.app/discord). For bugs, attach your log (LOG -> SHARE).
+- Privacy: nothing about you or your phone is sent anywhere unless you turn on anonymous performance reports, which are off until you say yes. What they hold, and what is never sent: [PRIVACY.md](PRIVACY.md).
 
 ## FAQ
 
