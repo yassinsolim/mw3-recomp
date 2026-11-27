@@ -47,6 +47,10 @@ class TouchOverlayView @JvmOverloads constructor(
     /** Told when a control was moved or resized, so the layout can be saved. */
     var onLayoutEdited: (() -> Unit)? = null
 
+    /** Which axes of a finger's look are turned round (Settings and the game's menu); read for each movement. */
+    @Volatile
+    var lookInvert: LookInvert = LookInvert.NONE
+
     var editing: Boolean = false
         set(value) {
             if (field == value) return
@@ -412,7 +416,10 @@ class TouchOverlayView @JvmOverloads constructor(
         val dy = y - look.lastY
         look.lastX = x
         look.lastY = y
-        if (dx != 0f || dy != 0f) NativeBridge.nativeLookDelta(dx, dy, millis * NANOS_PER_MILLI)
+        if (dx != 0f || dy != 0f) {
+            val invert = lookInvert
+            NativeBridge.nativeLookDelta(invert.right(dx), invert.down(dy), millis * NANOS_PER_MILLI)
+        }
     }
 
     private fun moveStick(element: ControlElement, x: Float, y: Float) {

@@ -419,9 +419,31 @@ class Prefs(context: Context) {
         get() = store.getFloat(KEY_TOUCH_LOOK_AIMING, 1.0f)
         set(value) = store.edit().putFloat(KEY_TOUCH_LOOK_AIMING, value.coerceIn(0.25f, 2.0f)).apply()
 
-    var invertLook: Boolean
-        get() = store.getBoolean(KEY_LOOK_INVERT, false)
-        set(value) = store.edit().putBoolean(KEY_LOOK_INVERT, value).apply()
+    /**
+     * Looking left and right turned round, for a finger on the look area and
+     * for the gyroscope (LookInvert). Up and down is the next one; a
+     * controller's stick is [invertPadHorizontal] and the title's own option.
+     */
+    var invertLookHorizontal: Boolean
+        get() = store.getBoolean(LookInvert.KEY_HORIZONTAL, false)
+        set(value) = store.edit().putBoolean(LookInvert.KEY_HORIZONTAL, value).apply()
+
+    /** Up and down, the same two. It starts from what the one switch of older versions was set to. */
+    var invertLookVertical: Boolean
+        get() = LookInvert.verticalIn(store)
+        set(value) = store.edit().putBoolean(LookInvert.KEY_VERTICAL, value).apply()
+
+    val lookInvert: LookInvert
+        get() = store.let { LookInvert(it.getBoolean(LookInvert.KEY_HORIZONTAL, false), LookInvert.verticalIn(it)) }
+
+    /**
+     * A physical controller's right stick, left and right turned round. The
+     * titles have an Invert option of their own for up and down and none for
+     * left and right, so only this one is here.
+     */
+    var invertPadHorizontal: Boolean
+        get() = store.getBoolean(LookInvert.KEY_PAD_HORIZONTAL, false)
+        set(value) = store.edit().putBoolean(LookInvert.KEY_PAD_HORIZONTAL, value).apply()
 
     /** A tap on the look area fires a shot. */
     var tapToFire: Boolean
@@ -832,7 +854,6 @@ class Prefs(context: Context) {
         private const val KEY_TOUCH_LOOK = "touchLookDegreesPerCm"
         private const val KEY_TOUCH_LOOK_VERTICAL = "touchLookVertical"
         private const val KEY_TOUCH_LOOK_AIMING = "touchLookAiming"
-        private const val KEY_LOOK_INVERT = "lookInvert"
         private const val KEY_TAP_TO_FIRE = "tapToFire"
         private const val KEY_GYRO_MODE = "gyroMode"
         private const val KEY_GYRO_SENSITIVITY = "gyroSensitivity"

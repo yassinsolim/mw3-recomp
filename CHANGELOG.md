@@ -5,6 +5,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Invert looking left and right, and up and down, for touch and the
+  gyroscope.** The one switch ("Invert looking up and down", touch only)
+  is two: **Invert looking left and right** and **Invert looking up and
+  down**, each applied to a finger on the look area and to the gyroscope,
+  under Settings → Controls and in the game's menu. Whoever had the old
+  switch on has Invert up and down on (their touch look is as it was; the
+  gyroscope follows it now). A third switch, **Controller: invert the right
+  stick left and right** (off to begin with), is for a physical controller:
+  Modern Warfare 2 and 3, Call of Duty 4, Advanced Warfare and Black Ops III
+  each have their own invert option for up and down and none for left and
+  right, so up and down is left to the game's own option, and the setting
+  says so. The signs are in `LookInvert.kt`, tested in `LookInvertTest`.
 - **The app in thirteen more languages.** All five apps follow the phone's
   language: Spanish, Portuguese (Brazil), French, German, Italian, Russian,
   Polish, Turkish, Arabic (right to left), Simplified Chinese, Japanese,

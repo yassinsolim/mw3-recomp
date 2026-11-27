@@ -164,7 +164,6 @@ object NativeBridge {
         degreesX: Float,
         degreesY: Float,
         aimingFactor: Float,
-        invertY: Boolean,
         gyroMode: Int,
     )
 

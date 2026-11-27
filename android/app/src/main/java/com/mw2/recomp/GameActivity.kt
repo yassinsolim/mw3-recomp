@@ -1603,8 +1603,14 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private fun applyLook() {
         val sideways = TouchLook.degreesPerPixel(prefs.touchLookSensitivity, resources.displayMetrics.densityDpi)
         NativeBridge.nativeLookSettings(
-            sideways, sideways * prefs.touchLookVertical, prefs.touchLookAiming, prefs.invertLook, prefs.gyroMode,
+            sideways, sideways * prefs.touchLookVertical, prefs.touchLookAiming, prefs.gyroMode,
         )
+        // Which way each axis turns, for a finger and the gyroscope, and for
+        // a controller's right stick (LookInvert).
+        val invert = prefs.lookInvert
+        overlay.lookInvert = invert
+        gyro.invert = invert
+        pads.invertRightX = prefs.invertPadHorizontal
         gyro.sensitivity = prefs.gyroSensitivity
         gyro.listen(started && inFront && prefs.gyroMode != Prefs.GYRO_OFF)
     }
@@ -1638,8 +1644,17 @@ class GameActivity : AppCompatActivity(), NativeListener {
             prefs.touchLookAiming = shares[it] / 100f
             applyLook()
         })
-        rows.add(GameMenu.Choice(getString(R.string.invert_look), onOff(), if (prefs.invertLook) 1 else 0) {
-            prefs.invertLook = it == 1
+        rows.add(GameMenu.Choice(getString(R.string.invert_horizontal), onOff(), if (prefs.invertLookHorizontal) 1 else 0) {
+            prefs.invertLookHorizontal = it == 1
+            applyLook()
+        })
+        rows.add(GameMenu.Choice(getString(R.string.invert_vertical), onOff(), if (prefs.invertLookVertical) 1 else 0) {
+            prefs.invertLookVertical = it == 1
+            applyLook()
+        })
+        // A controller's right stick: the title's own Invert option is for up and down.
+        rows.add(GameMenu.Choice(getString(R.string.invert_pad_horizontal), onOff(), if (prefs.invertPadHorizontal) 1 else 0) {
+            prefs.invertPadHorizontal = it == 1
             applyLook()
         })
         // Read by the on-screen pad as each touch comes up.
@@ -1663,7 +1678,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 applyLook()
             })
         }
-        return GameMenu.Page(getString(R.string.menu_look), rows, getString(R.string.menu_look_note))
+        return GameMenu.Page(
+            getString(R.string.menu_look), rows,
+            getString(R.string.menu_look_note) + "\n\n" + getString(R.string.invert_pad_hint),
+        )
     }
 
     /**

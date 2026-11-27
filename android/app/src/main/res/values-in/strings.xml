@@ -238,7 +238,11 @@
     <string name="use_gamepad">Gunakan controller fisik</string>
     <string name="gamepad_hint">Nonaktifkan ini untuk mengabaikan controller sepenuhnya. Beberapa ponsel melaporkan aksesori, atau sensornya sendiri, sebagai gamepad dengan stik yang tidak di tengah, sehingga karakter berjalan sendiri.</string>
     <string name="vibration">Getaran</string>
-    <string name="invert_look">Balik arah lihat atas dan bawah</string>
+    <string name="invert_horizontal">Balik arah lihat kiri dan kanan</string>
+    <string name="invert_vertical">Balik arah lihat atas dan bawah</string>
+    <string name="invert_hint">Masing-masing berlaku untuk geseran jari di area lihat dan untuk giroskop.</string>
+    <string name="invert_pad_horizontal">Kontroler: balik stik kanan kiri dan kanan</string>
+    <string name="invert_pad_hint">Hanya untuk stik kanan kontroler fisik, dan mati secara bawaan. Setiap gim punya opsi balik sendiri untuk lihat atas dan bawah di kontroler (di opsi kontrolnya) dan tidak ada untuk kiri dan kanan, jadi balik atas dan bawah di sana, bukan di sini, agar tidak terbalik dua kali.</string>
     <string name="touch_look">Sensitivitas bidik sentuh: %1$d° per sentimeter, setengah putaran dalam %2$.1f lebar layar</string>
     <string name="touch_look_hint">Geser di separuh kanan layar untuk melihat sekeliling. Pandangan berputar sesuai jarak gerakan jari, sama seberapa pun cepatnya dan di setiap ponsel. Jari yang menekan tombol di sana (Tembak, tombol aksi) lalu digeser keluar juga memutar pandangan, jadi Anda bisa terus membidik sambil menembak.</string>
     <string name="touch_look_vertical">Atas dan bawah: %1$d%% oleh sensitivitas samping</string>

@@ -155,8 +155,9 @@ namespace android::input
     void ClearLook();
     // Degrees a pixel sideways and up and down, the share of them while the
     // left trigger is held, and the gyroscope: 0 off, 1 always, 2 while
-    // aiming.
-    void SetLookSettings(float degreesX, float degreesY, float sightsFactor, bool invertY, int gyroMode);
+    // aiming. Which way each axis turns is the app's (LookInvert.kt): the
+    // degrees come here already signed.
+    void SetLookSettings(float degreesX, float degreesY, float sightsFactor, int gyroMode);
 
     // From a physical pad. `user` is 0..3, as the console numbers them.
     void SetHardwarePad(uint32_t user, const Pad& pad);

@@ -238,7 +238,11 @@
     <string name="use_gamepad">Używaj fizycznego kontrolera</string>
     <string name="gamepad_hint">Wyłącz, aby całkowicie ignorować kontrolery. Niektóre telefony zgłaszają akcesorium lub własne czujniki jako gamepad z niewyśrodkowaną gałką, przez co postać sama chodzi.</string>
     <string name="vibration">Wibracje</string>
-    <string name="invert_look">Odwróć patrzenie w górę i w dół</string>
+    <string name="invert_horizontal">Odwróć patrzenie w lewo i w prawo</string>
+    <string name="invert_vertical">Odwróć patrzenie w górę i w dół</string>
+    <string name="invert_hint">Każde dotyczy palca przeciąganego po obszarze rozglądania i żyroskopu.</string>
+    <string name="invert_pad_horizontal">Kontroler: odwróć prawą gałkę w lewo i w prawo</string>
+    <string name="invert_pad_hint">Tylko dla prawej gałki fizycznego kontrolera, domyślnie wyłączone. Gry mają własną opcję odwracania patrzenia w górę i w dół na kontrolerze (w opcjach sterowania), a w lewo i w prawo nie mają żadnej, więc górę i dół odwracaj tam, nie tutaj, bo oś odwróci się dwa razy.</string>
     <string name="touch_look">Czułość rozglądania dotykiem: %1$d° na centymetr, pół obrotu na %2$.1f szerokości ekranu</string>
     <string name="touch_look_hint">Przeciągaj po prawej połowie ekranu, by się rozglądać. Widok obraca się o tyle, o ile przesuniesz palec, niezależnie od szybkości i na każdym telefonie. Palec, który nacisnął tam przycisk (Strzał, przyciski akcji) i z niego zjedzie, też obraca widok, więc możesz celować, strzelając.</string>
     <string name="touch_look_vertical">Góra i dół: %1$d%% obrotu na boki</string>

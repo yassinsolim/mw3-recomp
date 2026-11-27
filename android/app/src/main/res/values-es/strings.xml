@@ -238,7 +238,11 @@
     <string name="use_gamepad">Usar un mando físico</string>
     <string name="gamepad_hint">Desactívalo para ignorar los mandos por completo. Algunos teléfonos detectan un accesorio, o sus propios sensores, como un mando con un stick descentrado, y el personaje camina solo.</string>
     <string name="vibration">Vibración</string>
-    <string name="invert_look">Invertir la vista arriba y abajo</string>
+    <string name="invert_horizontal">Invertir la vista a izquierda y derecha</string>
+    <string name="invert_vertical">Invertir la vista arriba y abajo</string>
+    <string name="invert_hint">Cada opción se aplica al arrastrar el dedo en la zona de mirar y al giroscopio.</string>
+    <string name="invert_pad_horizontal">Mando: invertir el stick derecho a izquierda y derecha</string>
+    <string name="invert_pad_hint">Solo para el stick derecho de un mando físico y desactivado por defecto. Los juegos tienen su propia opción de invertir para mirar arriba y abajo con mando (en sus opciones de controles) y ninguna para izquierda y derecha: invierte arriba y abajo allí, no aquí, o se invertiría dos veces.</string>
     <string name="touch_look">Sensibilidad de la vista táctil: %1$d° por centímetro, media vuelta en %2$.1f anchos de pantalla</string>
     <string name="touch_look_hint">Arrastra en la mitad derecha de la pantalla para mirar. La vista gira según cuánto se mueve el dedo, igual sea cual sea la velocidad y en cualquier teléfono. Un dedo que pulsó un botón ahí (Disparar, los botones frontales) y se arrastra fuera también gira la vista, así puedes seguir apuntando mientras disparas.</string>
     <string name="touch_look_vertical">Arriba y abajo: %1$d%% obtenido de la horizontal</string>

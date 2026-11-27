@@ -265,7 +265,11 @@
     <string name="use_gamepad">Use a physical controller</string>
     <string name="gamepad_hint">Turn this off to ignore controllers entirely. Some phones report an accessory, or their own sensors, as a gamepad with a stick that is not centred, which makes the character walk on its own.</string>
     <string name="vibration">Vibration</string>
-    <string name="invert_look">Invert looking up and down</string>
+    <string name="invert_horizontal">Invert looking left and right</string>
+    <string name="invert_vertical">Invert looking up and down</string>
+    <string name="invert_hint">Each applies to a finger dragged on the look area and to the gyroscope.</string>
+    <string name="invert_pad_horizontal">Controller: invert the right stick left and right</string>
+    <string name="invert_pad_hint">For a physical controller\'s right stick only, and off by default. The games have their own invert option for looking up and down on a controller (in their controls options) and none for left and right, so turn up and down round there, not here, or it is inverted twice.</string>
     <string name="touch_look">Touch look sensitivity: %1$d° a centimetre, half a turn in %2$.1f screen widths</string>
     <string name="touch_look_hint">Drag on the right half of the screen to look. The view turns by how far the finger moves, the same however fast it moves and on every phone. A finger that pressed a button there (Fire, the face buttons) and is dragged off it turns the view too, so you can go on aiming while you fire.</string>
     <string name="touch_look_vertical">Up and down: %1$d%% of sideways</string>

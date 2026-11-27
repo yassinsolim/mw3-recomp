@@ -246,10 +246,16 @@ No controller is needed. The same in all four games:
 - **Make it yours.** In a game, **Menu → Touch look and gyroscope** sets how
   fast the view turns (13° for a centimetre of swipe to begin with, about
   half a turn across the screen), up and down against sideways, how much
-  slower it is while aiming, and inverts up and down; each is felt on the
+  slower it is while aiming, and inverts left and right and up and down (a
+  finger and the gyroscope); each is felt on the
   next swipe. **Menu → Edit controls** moves, resizes or hides any button,
   and brings back a right stick if you want one. The same settings are
   under **Settings → Controls** on the app's start screen.
+- **Invert on a controller.** **Settings → Controls** (and the game's menu)
+  has **Invert looking left and right** and **up and down** for a finger
+  and the gyroscope, and a third switch for a physical controller's right
+  stick, left and right only: the game's own invert option does up and down
+  there, so turn that one on in the game, not here.
 - **Gyroscope aiming** (off to begin with): turning the phone turns the
   view, always or only while you aim, on top of your finger or a
   controller's stick.

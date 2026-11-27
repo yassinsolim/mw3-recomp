@@ -577,9 +577,9 @@ MW2_NATIVE(void, nativeLookEnd)(JNIEnv*, jobject)
 }
 
 MW2_NATIVE(void, nativeLookSettings)(JNIEnv*, jobject, jfloat degreesX, jfloat degreesY,
-                                     jfloat sightsFactor, jboolean invertY, jint gyroMode)
+                                     jfloat sightsFactor, jint gyroMode)
 {
-    android::input::SetLookSettings(degreesX, degreesY, sightsFactor, invertY == JNI_TRUE, gyroMode);
+    android::input::SetLookSettings(degreesX, degreesY, sightsFactor, gyroMode);
 }
 
 MW2_NATIVE(void, nativePadState)(JNIEnv*, jobject, jint user, jint buttons, jint leftTrigger,

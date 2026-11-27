@@ -238,7 +238,11 @@
     <string name="use_gamepad">Fiziksel kumanda kullan</string>
     <string name="gamepad_hint">Kontrolcüleri tamamen yok saymak için bunu kapat. Bazı telefonlar bir aksesuarı ya da kendi sensörlerini, çubuğu ortalanmamış bir oyun kumandası olarak bildirir; bu da karakterin kendi kendine yürümesine yol açar.</string>
     <string name="vibration">Titreşim</string>
-    <string name="invert_look">Yukarı ve aşağı bakmayı ters çevir</string>
+    <string name="invert_horizontal">Sola ve sağa bakmayı ters çevir</string>
+    <string name="invert_vertical">Yukarı ve aşağı bakmayı ters çevir</string>
+    <string name="invert_hint">Her biri, bakış alanında sürüklenen parmağa ve jiroskopa uygulanır.</string>
+    <string name="invert_pad_horizontal">Kontrolcü: sağ çubuğu sola ve sağa ters çevir</string>
+    <string name="invert_pad_hint">Yalnızca fiziksel bir kontrolcünün sağ çubuğu için ve varsayılan olarak kapalı. Oyunların kontrolcü için yukarı ve aşağı bakmayı ters çeviren kendi seçeneği (kontrol seçeneklerinde) var, sola ve sağa için yok: yukarı ve aşağıyı orada ters çevir, burada değil, yoksa eksen iki kez ters çevrilir.</string>
     <string name="touch_look">Dokunarak bakış hassasiyeti: santimetre başına %1$d°, %2$.1f ekran genişliğinde yarım tur</string>
     <string name="touch_look_hint">Bakmak için ekranın sağ yarısında sürükle. Görüş, parmağın ne kadar hareket ettiğine göre döner; hızı fark etmez ve her telefonda aynıdır. Orada bir düğmeye (Ateş, yüz düğmeleri) basıp düğmeden dışarı sürüklenen parmak da görüşü döndürür, böylece ateş ederken nişan almaya devam edebilirsin.</string>
     <string name="touch_look_vertical">Yukarı ve aşağı: yatayın %1$d%% oranı</string>

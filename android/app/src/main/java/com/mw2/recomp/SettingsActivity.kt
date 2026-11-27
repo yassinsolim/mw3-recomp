@@ -319,7 +319,12 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         switch(R.id.vibration, prefs.vibration) { prefs.vibration = it }
-        switch(R.id.invert, prefs.invertLook) { prefs.invertLook = it }
+        // Which way looking turns, for a finger and the gyroscope (LookInvert),
+        // and for a controller's right stick, left and right only: the titles
+        // have their own Invert option for up and down.
+        switch(R.id.invert_horizontal, prefs.invertLookHorizontal) { prefs.invertLookHorizontal = it }
+        switch(R.id.invert_vertical, prefs.invertLookVertical) { prefs.invertLookVertical = it }
+        switch(R.id.invert_pad_horizontal, prefs.invertPadHorizontal) { prefs.invertPadHorizontal = it }
 
         // Looking by touch (TouchLook.kt): degrees for a centimetre of
         // glass, with what that comes to on this screen beside it.

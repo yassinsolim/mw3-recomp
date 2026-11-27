@@ -42,6 +42,10 @@ class GyroInput(context: Context) : SensorEventListener {
     @Volatile
     var sensitivity = 1f
 
+    /** Which axes of the phone's turn are turned round, as a finger's are (LookInvert). */
+    @Volatile
+    var invert: LookInvert = LookInvert.NONE
+
     /** Whether this phone has the sensor at all. */
     val available: Boolean
         get() = sensor != null
@@ -77,7 +81,10 @@ class GyroInput(context: Context) : SensorEventListener {
         val z = values[2]
         val w = if (values.size >= 4) values[3] else sqrt(max(0f, 1f - x * x - y * y - z * z))
         if (look.turn(x, y, z, w, event.timestamp, rotation, turn)) {
-            NativeBridge.nativeGyroDelta(turn[0] * sensitivity, turn[1] * sensitivity, System.nanoTime())
+            val flip = invert
+            NativeBridge.nativeGyroDelta(
+                flip.right(turn[0]) * sensitivity, flip.down(turn[1]) * sensitivity, System.nanoTime(),
+            )
         }
     }
 

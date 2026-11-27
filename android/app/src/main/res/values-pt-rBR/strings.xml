@@ -238,7 +238,11 @@
     <string name="use_gamepad">Usar um controle físico</string>
     <string name="gamepad_hint">Desative para ignorar controles totalmente. Alguns celulares informam um acessório, ou os próprios sensores, como um gamepad com analógico fora do centro, o que faz o personagem andar sozinho.</string>
     <string name="vibration">Vibração</string>
-    <string name="invert_look">Inverter olhar para cima e para baixo</string>
+    <string name="invert_horizontal">Inverter olhar para esquerda e para direita</string>
+    <string name="invert_vertical">Inverter olhar para cima e para baixo</string>
+    <string name="invert_hint">Cada uma vale para o dedo arrastado na área de olhar e para o giroscópio.</string>
+    <string name="invert_pad_horizontal">Controle: inverter o analógico direito para esquerda e direita</string>
+    <string name="invert_pad_hint">Apenas para o analógico direito de um controle físico, desativado por padrão. Os jogos têm opção própria de inverter para cima e para baixo no controle (nas opções de controles) e nenhuma para esquerda e direita: inverta cima e baixo lá, não aqui, ou o eixo será invertido duas vezes.</string>
     <string name="touch_look">Sensibilidade da visão por toque: %1$d° por centímetro, meia volta em %2$.1f larguras de tela</string>
     <string name="touch_look_hint">Arraste na metade direita da tela para olhar. A visão gira conforme a distância que o dedo percorre, independentemente da velocidade e em qualquer celular. Um dedo que apertou um botão ali (Atirar, os botões de ação) e é arrastado para fora dele também gira a visão, então você pode continuar mirando enquanto atira.</string>
     <string name="touch_look_vertical">Cima e baixo: %1$d%% obtidos da sensibilidade lateral</string>

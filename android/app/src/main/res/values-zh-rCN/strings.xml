@@ -238,7 +238,11 @@
     <string name="use_gamepad">使用实体手柄</string>
     <string name="gamepad_hint">关闭后将完全忽略手柄。有些手机会把配件或自身传感器识别为摇杆未居中的手柄，导致角色自己走动。</string>
     <string name="vibration">振动</string>
-    <string name="invert_look">反转上下视角</string>
+    <string name="invert_horizontal">反转左右视角</string>
+    <string name="invert_vertical">反转上下视角</string>
+    <string name="invert_hint">每项都同时适用于在视角区域拖动的手指和陀螺仪。</string>
+    <string name="invert_pad_horizontal">手柄：反转右摇杆左右方向</string>
+    <string name="invert_pad_hint">仅用于实体手柄的右摇杆，默认关闭。游戏自带手柄的上下反转选项（在其操作选项中），但没有左右反转，所以请在游戏里反转上下，不要在这里设置，否则会反转两次。</string>
     <string name="touch_look">触屏视角灵敏度：每厘米 %1$d°，%2$.1f 个屏幕宽度转半圈</string>
     <string name="touch_look_hint">在屏幕右半边拖动来转动视角。视角转动幅度取决于手指移动的距离，与速度无关，在所有手机上都一样。在那里按下按钮（开火、功能键）后拖离的手指也会转动视角，让你边开火边瞄准。</string>
     <string name="touch_look_vertical">上下灵敏度：左右的 %1$d%% of sideways</string>

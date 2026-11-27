@@ -238,7 +238,11 @@
     <string name="use_gamepad">실제 컨트롤러 사용</string>
     <string name="gamepad_hint">끄면 컨트롤러를 완전히 무시해요. 일부 휴대폰은 액세서리나 자체 센서를 스틱이 중앙에 있지 않은 게임패드로 인식해서 캐릭터가 저절로 걸어가기도 해요.</string>
     <string name="vibration">진동</string>
-    <string name="invert_look">상하 시점 반전</string>
+    <string name="invert_horizontal">좌우 시점 반전</string>
+    <string name="invert_vertical">상하 시점 반전</string>
+    <string name="invert_hint">각 항목은 시점 영역을 드래그하는 손가락과 자이로스코프 모두에 적용돼요.</string>
+    <string name="invert_pad_horizontal">컨트롤러: 오른쪽 스틱 좌우 반전</string>
+    <string name="invert_pad_hint">실제 컨트롤러의 오른쪽 스틱에만 적용되며 기본값은 꺼짐이에요. 게임에는 컨트롤러용 상하 반전 옵션(조작 옵션 안)이 따로 있고 좌우 반전은 없어요. 두 번 반전되지 않도록 상하 반전은 여기가 아니라 게임에서 설정하세요.</string>
     <string name="touch_look">터치 시점 감도: 1센티미터당 %1$d°, 화면 너비 %2$.1f배에 반 바퀴</string>
     <string name="touch_look_hint">화면 오른쪽 절반을 드래그해서 주위를 둘러봐요. 시점은 손가락이 움직인 거리만큼 돌아가며, 움직이는 속도와 상관없이 모든 휴대폰에서 똑같아요. 그곳의 버튼(사격, 액션 버튼)을 누른 손가락을 버튼 밖으로 드래그해도 시점이 돌아가서, 사격하면서 계속 조준할 수 있어요.</string>
     <string name="touch_look_vertical">상하: 좌우 감도의 %1$d%% of sideways</string>

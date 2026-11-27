@@ -238,7 +238,11 @@
     <string name="use_gamepad">コントローラーを使う</string>
     <string name="gamepad_hint">オフにするとコントローラーを完全に無視します。端末によっては、アクセサリや内蔵センサーをスティックが中央にないゲームパッドとして認識し、キャラクターが勝手に歩いてしまうことがあります。</string>
     <string name="vibration">振動</string>
-    <string name="invert_look">視点の上下を反転</string>
+    <string name="invert_horizontal">視点の左右を反転</string>
+    <string name="invert_vertical">視点の上下を反転</string>
+    <string name="invert_hint">どちらも、視点エリアでドラッグする指とジャイロの両方に適用されます。</string>
+    <string name="invert_pad_horizontal">コントローラー：右スティックの左右を反転</string>
+    <string name="invert_pad_hint">物理コントローラーの右スティックだけが対象で、初期設定はオフです。各ゲームにはコントローラー用の上下反転オプション（操作オプション内）がありますが、左右反転はありません。二重に反転しないよう、上下の反転はここではなくゲーム側で設定してください。</string>
     <string name="touch_look">タッチ視点の感度：1センチあたり%1$d°、画面幅%2$.1f個分で半回転</string>
     <string name="touch_look_hint">画面の右半分をドラッグすると視点を動かせます。視点は指を動かした距離に応じて回転し、動かす速さや端末に関係なく同じです。そこにあるボタン（発射、フェイスボタン）を押した指をそのままドラッグしても視点が回るので、撃ちながらエイムを続けられます。</string>
     <string name="touch_look_vertical">上下: %1$d%% of 左右</string>

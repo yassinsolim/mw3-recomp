@@ -238,7 +238,11 @@
     <string name="use_gamepad">Utiliser une manette physique</string>
     <string name="gamepad_hint">Désactivez ceci pour ignorer complètement les manettes. Certains téléphones signalent un accessoire, ou leurs propres capteurs, comme une manette dont le stick n\'est pas centré, ce qui fait marcher le personnage tout seul.</string>
     <string name="vibration">Vibration</string>
-    <string name="invert_look">Inverser le regard haut/bas</string>
+    <string name="invert_horizontal">Inverser le regard gauche/droite</string>
+    <string name="invert_vertical">Inverser le regard haut/bas</string>
+    <string name="invert_hint">Chaque réglage s\'applique au doigt glissé sur la zone de visée et au gyroscope.</string>
+    <string name="invert_pad_horizontal">Manette : inverser le stick droit gauche/droite</string>
+    <string name="invert_pad_hint">Uniquement pour le stick droit d\'une manette physique, désactivé par défaut. Les jeux ont leur propre option d\'inversion pour le haut/bas à la manette (dans leurs options de commandes) et aucune pour la gauche/droite : inversez le haut/bas là-bas, pas ici, sinon l\'axe est inversé deux fois.</string>
     <string name="touch_look">Sensibilité de la visée tactile : %1$d° par centimètre, un demi-tour en %2$.1f largeurs d\'écran</string>
     <string name="touch_look_hint">Faites glisser sur la moitié droite de l\'écran pour viser. La vue tourne selon la distance parcourue par le doigt, quelle que soit sa vitesse et sur tous les téléphones. Un doigt qui a appuyé sur un bouton à cet endroit (Tir, les boutons d\'action) et glisse en dehors fait aussi tourner la vue, pour continuer à viser en tirant.</string>
     <string name="touch_look_vertical">Haut et bas : %1$d%% obtenus par rapport à l\'horizontal</string>

@@ -588,11 +588,37 @@
                     android:text="@string/vibration" />
 
                 <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/invert"
+                    android:id="@+id/invert_horizontal"
                     style="@style/SettingSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/invert_look" />
+                    android:text="@string/invert_horizontal" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/invert_vertical"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/invert_vertical" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/invert_hint" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/invert_pad_horizontal"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/invert_pad_horizontal" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/invert_pad_hint" />
 
                 <TextView
                     android:id="@+id/touch_look_label"

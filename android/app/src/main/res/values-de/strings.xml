@@ -238,7 +238,11 @@
     <string name="use_gamepad">Echten Controller verwenden</string>
     <string name="gamepad_hint">Schalte das aus, um Controller komplett zu ignorieren. Manche Handys melden ein Zubehör oder ihre eigenen Sensoren als Gamepad mit nicht zentriertem Stick, wodurch die Figur von selbst läuft.</string>
     <string name="vibration">Vibration</string>
-    <string name="invert_look">Blick nach oben/unten umkehren</string>
+    <string name="invert_horizontal">Blick nach links/rechts umkehren</string>
+    <string name="invert_vertical">Blick nach oben/unten umkehren</string>
+    <string name="invert_hint">Jede Einstellung gilt fürs Ziehen mit dem Finger auf der Blickfläche und fürs Gyroskop.</string>
+    <string name="invert_pad_horizontal">Controller: rechten Stick links/rechts umkehren</string>
+    <string name="invert_pad_hint">Nur für den rechten Stick eines echten Controllers, standardmäßig aus. Die Spiele haben für den Controller eine eigene Umkehr-Option für oben/unten (in ihren Steuerungsoptionen), aber keine für links/rechts – oben/unten also dort umkehren, nicht hier, sonst wird doppelt umgekehrt.</string>
     <string name="touch_look">Touch-Umsehen-Empfindlichkeit: %1$d° pro Zentimeter, halbe Drehung in %2$.1f Bildschirmbreiten</string>
     <string name="touch_look_hint">Zieh auf der rechten Bildschirmhälfte, um dich umzusehen. Die Ansicht dreht sich je nachdem, wie weit sich der Finger bewegt – unabhängig vom Tempo und auf jedem Handy gleich. Ein Finger, der dort eine Taste gedrückt hat (Feuern, die Aktionstasten) und davon weggezogen wird, dreht die Ansicht ebenfalls, so kannst du beim Feuern weiterzielen.</string>
     <string name="touch_look_vertical">Hoch/runter: %1$d%% obiger Seitwärts-Empfindlichkeit</string>

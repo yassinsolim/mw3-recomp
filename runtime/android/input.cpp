@@ -52,7 +52,6 @@ namespace
     std::mutex g_lookLock;
     float g_degreesX = 0.03f, g_degreesY = 0.03f;   // degrees a pixel
     float g_sightsFactor = 1.0f;                    // of that, while aiming
-    bool g_invertY = false;
     int g_gyroMode = 0;                             // 0 off, 1 always, 2 while aiming
     // The left trigger at the last poll: the sights are up, or coming up.
     std::atomic<bool> g_aiming{ false };
@@ -177,7 +176,7 @@ void android::input::AddLook(float dx, float dy, long long when)
         std::lock_guard lock(g_lookLock);
         const float factor = g_aiming.load(std::memory_order_relaxed) ? g_sightsFactor : 1.0f;
         right = dx * g_degreesX * factor;
-        down = dy * g_degreesY * factor * (g_invertY ? -1.0f : 1.0f);
+        down = dy * g_degreesY * factor;
     }
     Turn(right, down, when);
 }
@@ -199,13 +198,12 @@ void android::input::ClearLook()
     g_stick.right = g_stick.down = 0;
 }
 
-void android::input::SetLookSettings(float degreesX, float degreesY, float sightsFactor, bool invertY, int gyroMode)
+void android::input::SetLookSettings(float degreesX, float degreesY, float sightsFactor, int gyroMode)
 {
     std::lock_guard lock(g_lookLock);
     g_degreesX = std::clamp(degreesX, 0.0f, 10.0f);
     g_degreesY = std::clamp(degreesY, 0.0f, 10.0f);
     g_sightsFactor = std::clamp(sightsFactor, 0.05f, 4.0f);
-    g_invertY = invertY;
     g_gyroMode = std::clamp(gyroMode, 0, 2);
 }
 

@@ -28,6 +28,10 @@ class GamepadInput {
     private val axes = Array(4) { FloatArray(4) }       // lx, ly, rx, ry
     private val triggers = Array(4) { IntArray(2) }
 
+    /** A controller's right stick, left and right turned round: the titles' own Invert option is for up and down only. */
+    @Volatile
+    var invertRightX = false
+
     fun setEnabled(value: Boolean) {
         if (enabled == value) return
         enabled = value
@@ -130,7 +134,7 @@ class GamepadInput {
         axes[slot][0] = lx
         // The guest's sticks point up; Android's point down.
         axes[slot][1] = -ly
-        axes[slot][2] = rx
+        axes[slot][2] = LookInvert.stickX(rx, invertRightX)
         axes[slot][3] = -ry
 
         val lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER).takeIf { it > 0f }

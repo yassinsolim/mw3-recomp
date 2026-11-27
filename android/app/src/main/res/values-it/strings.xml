@@ -238,7 +238,11 @@
     <string name="use_gamepad">Usa un controller fisico</string>
     <string name="gamepad_hint">Disattiva questa opzione per ignorare del tutto i controller. Alcuni telefoni segnalano un accessorio, o i propri sensori, come un gamepad con una levetta non centrata, che fa camminare il personaggio da solo.</string>
     <string name="vibration">Vibrazione</string>
-    <string name="invert_look">Inverti la visuale su e giù</string>
+    <string name="invert_horizontal">Inverti la visuale a sinistra e destra</string>
+    <string name="invert_vertical">Inverti la visuale su e giù</string>
+    <string name="invert_hint">Ognuna vale per il dito trascinato sull\'area di visuale e per il giroscopio.</string>
+    <string name="invert_pad_horizontal">Controller: inverti lo stick destro a sinistra e destra</string>
+    <string name="invert_pad_hint">Solo per lo stick destro di un controller fisico, disattivato di default. I giochi hanno una propria opzione di inversione per guardare su e giù con il controller (nelle loro opzioni dei comandi) e nessuna per sinistra e destra: inverti su e giù lì, non qui, altrimenti l\'asse viene invertito due volte.</string>
     <string name="touch_look">Sensibilità visuale touch: %1$d° per centimetro, mezzo giro in %2$.1f larghezze dello schermo</string>
     <string name="touch_look_hint">Trascina sulla metà destra dello schermo per guardarti intorno. La visuale ruota in base a quanto si sposta il dito, a prescindere dalla velocità e su ogni telefono. Anche un dito che ha premuto un pulsante lì (Fuoco, i pulsanti frontali) e viene trascinato fuori ruota la visuale, così puoi continuare a mirare mentre spari.</string>
     <string name="touch_look_vertical">Su e giù: %1$d%% orizzontale</string>
