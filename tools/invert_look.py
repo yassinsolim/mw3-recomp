@@ -60,6 +60,7 @@ def main():
     parser.add_argument("--suffix", default=".inv")
     parser.add_argument("--fps", type=int, default=60)
     parser.add_argument("--feed", action="store_true", help="also the gyroscope and a controller's stick (a patched debug build)")
+    parser.add_argument("--only", help="run only the settings with these names, separated by commas")
     parser.add_argument("--keep", action="store_true", help="leave the app on the phone")
     arguments = parser.parse_args()
 
@@ -95,7 +96,10 @@ def main():
 
     try:
         target.install(scenario.game, arguments.apks)
+        chosen = arguments.only.split(",") if arguments.only else None
         for name, preferences, flips_right, flips_down, flips_stick in SETTINGS:
+            if chosen and name not in chosen:
+                continue
             prefs = {"touchControls": True, "fpsLimit": arguments.fps, "touchLookDegreesPerCm": 13.0,
                      "touchLookAiming": 1.0, "gyroMode": 0}
             prefs.update(preferences)
