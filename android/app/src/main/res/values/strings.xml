@@ -523,7 +523,7 @@
     <string name="build_jobs_memory">Compilers at once: %1$d (fewer: memory is short); battery %2$.0f °C</string>
     <string name="build_jobs_heat">Compilers at once: %1$d (fewer: the device is hot); battery %2$.0f °C</string>
     <string name="build_done">The game code is built.</string>
-    <string name="build_done_explained">The game code is built and ready: the game starts from the launcher.</string>
+    <string name="build_done_explained">The game code is built and ready: the game starts from the launcher.\n\nYou can now uninstall "CoD recompilation build tools" in Android Settings to save space. The tools are shared by all four ports: wait until none is building. Keep the game app, game code and disc images. If a later update needs a rebuild, the app downloads the tools again and Android asks you to install them.</string>
     <string name="build_failed">The build of the game code stopped</string>
     <string name="build_failed_where">What was done is kept, and Build carries on from it. A report is in %1$s.</string>
     <string name="build_unsupported_executable">%1$s is not a version of the game this app supports.</string>
@@ -534,7 +534,7 @@
     <string name="update_code_title">Updating the game</string>
     <string name="update_code_done">The game is up to date for this version of the app.</string>
     <string name="update_code_confirm">Android asks once whether the build tools may be updated. Tap to answer; the update of the game then carries on.</string>
-    <string name="update_code_toolchain">This update of the app needs the game built again. Tap to build it; it takes a few minutes.</string>
+    <string name="update_code_toolchain">This update of the app needs the game built again. Tap to build it; it takes a few minutes. If you removed the build tools, the app downloads them again and Android asks you to install them.</string>
     <string name="update_code_charger">The update of the game waits for the charger (battery %1$d%%). Tap to build it now.</string>
     <string name="update_code_open">The game has to be updated for this version of the app. Tap to start; it takes a few minutes.</string>
     <string name="update_code_never">Update the game code by itself: never</string>
@@ -640,8 +640,8 @@
     <string name="setup_dlc_skip">CONTINUE WITHOUT DLC</string>
     <string name="setup_dlc_add">Add my DLC</string>
     <string name="setup_done_heading">Ready to play</string>
-    <string name="setup_done_sentence">The campaign and the multiplayer are installed. Keep your .iso file where it is: the game plays from it.</string>
-    <string name="setup_done_sentence_two">The campaign and the multiplayer are installed. Keep your two .iso files where they are: the game plays from them.</string>
+    <string name="setup_done_sentence">The campaign and the multiplayer are installed. Keep your .iso file where it is: the game plays from it.\n\nYou can now uninstall "CoD recompilation build tools" in Android Settings to save space. They are shared by all four ports: wait until none is building. If an update needs a rebuild, the app downloads the tools again and Android asks you to install them. Keep the game app and game code.</string>
+    <string name="setup_done_sentence_two">The campaign and the multiplayer are installed. Keep your two .iso files where they are: the game plays from them.\n\nYou can now uninstall "CoD recompilation build tools" in Android Settings to save space. They are shared by all four ports: wait until none is building. If an update needs a rebuild, the app downloads the tools again and Android asks you to install them. Keep the game app and game code.</string>
     <string name="setup_play">PLAY</string>
     <string name="setup_to_main">Back to the main screen</string>
 

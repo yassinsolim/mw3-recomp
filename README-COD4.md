@@ -48,6 +48,11 @@ The app updates itself. If an update needs the game built again, the app
 does it by itself in the background, or the large button says **UPDATE THE
 GAME**; no disc image is asked for again.
 
+Once the game is built you can uninstall **CoD recompilation build tools**
+in Android Settings to save space. All four ports share it: uninstall it only
+when none of them is building. If a later update needs the game built again,
+the app downloads the tools again and Android asks you to install them.
+
 ## Official downloads
 
 - The only official APKs are on this project's [GitHub releases page](https://github.com/yassinsolim/cod4-recomp/releases).

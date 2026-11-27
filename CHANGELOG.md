@@ -20,6 +20,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   `release.py announce --dry-run` prints the message and sends nothing
   ([docs/android-releases.md](docs/android-releases.md#the-discord-announcement)).
 
+- **Players are told they can remove the build tools.** The setup's
+  Ready to play screen, the build-finished message and the four READMEs
+  say that **CoD recompilation build tools** can be uninstalled once the
+  game is built, only when no port is building (all four share it), and that
+  a later update needing a rebuild downloads it again and has Android ask
+  to install it.
+
 ### Changed
 - **A bug report's game-code line lists every library, and what each was
   built for.** It named only the disc's campaign and multiplayer, so a log
