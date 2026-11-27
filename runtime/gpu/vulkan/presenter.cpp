@@ -28,6 +28,11 @@ uint64_t vk::GuestBlankPeriod() { return 0; }
 void     vk::TakeMouse(bool, Mouse& out) { out = {}; }
 bool     vk::Running()         { return false; }
 uint64_t vk::PresentedFrames() { return 0; }
+const char* vk::PresenterStage(uint64_t& milliseconds, uint64_t& newestQueued)
+{
+    milliseconds = newestQueued = 0;
+    return "no window";
+}
 #else
 
 #include <atomic>
@@ -175,6 +180,10 @@ namespace
         Queued held;
         uint32_t holdsLeft = 0;
         std::atomic<uint64_t> lastQueued{ 0 };
+        // What the window thread is doing and since when, for the log's line
+        // about a window that has had no frame for a while (PresenterStage).
+        std::atomic<const char*> stage{ "starting" };
+        std::atomic<int64_t> stageSince{ 0 };
 
         // When each present reaches the screen (VK_KHR_present_wait), from a
         // thread of its own, which is what the guest's blank follows.
@@ -852,6 +861,15 @@ namespace
                    std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
+    // The window thread's word for what it is doing now, and since when it
+    // has been doing it (PresenterStage).
+    void Stage(const char* what)
+    {
+        if (g.stage.load(std::memory_order_relaxed) == what) return;
+        g.stage.store(what, std::memory_order_relaxed);
+        g.stageSince.store(Nanoseconds(), std::memory_order_relaxed);
+    }
+
     // Frame `id` reached the screen at `at` (under waitLock). A frame held on
     // screen longer than a blank is a stutter; the guest's blank is set to the
     // display's, a touch longer while more than one frame waits behind the
@@ -1208,10 +1226,11 @@ namespace
 
     void DrawOneFrame(bool idle)
     {
-        if (g.remakeSwapchain) RemakeSwapchain();
+        if (g.remakeSwapchain) { Stage("making the swapchain"); RemakeSwapchain(); }
         if (g.remakeSwapchain || !g.swapchain) { LetGo(); return; }
 
         Frame& frame = g.frames[g.frameIndex];
+        Stage("waiting for the fence of its copy two frames ago");
         if (vk::pipeline::Failed(vkWaitForFences(g.device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX),
                                  "the presenter's fence"))
             return;
@@ -1228,6 +1247,7 @@ namespace
         // FIFO: this is where the window waits for the display, with the
         // frame it will show still in the queue, so the queue's length is
         // how far the renderer is ahead of the screen.
+        Stage("acquiring a swapchain image");
         uint32_t imageIndex = 0;
         VkResult acquired = vkAcquireNextImageKHR(g.device, g.swapchain, UINT64_MAX,
                                                   frame.acquired, VK_NULL_HANDLE, &imageIndex);
@@ -1238,6 +1258,7 @@ namespace
         if (acquired == VK_SUBOPTIMAL_KHR) { if (!g.suboptimalIsExpected) g.remakeSwapchain = true; }
         else if (acquired != VK_SUCCESS) return;
 
+        Stage("recording the copy into the window");
         Presenter::Queued shown;
         // Shown before, and on screen for another blank.
         bool again = false;
@@ -1376,6 +1397,7 @@ namespace
         // to be externally synchronised for a present as for a submission. Two
         // holds rather than one, so a submission of the renderer's can go
         // between them.
+        Stage("submitting the copy");
         VkResult submitRes = VK_SUCCESS;
         {
             std::lock_guard queueLock(vk::pipeline::QueueMutex());
@@ -1435,6 +1457,7 @@ namespace
         // Out of date and suboptimal here mean the window changed under the
         // present: the swapchain is remade before the next frame. Only a lost
         // device is a failure.
+        Stage("presenting");
         const VkResult presented = [&] {
             std::lock_guard queueLock(vk::pipeline::QueueMutex());
             return vkQueuePresentKHR(g.queue, &present);
@@ -1846,7 +1869,7 @@ namespace
             if (!g.running) break;
             // Nothing is presented to a hidden window, where a present can
             // wait for a frame the compositor never asks for.
-            if (!g.shown) continue;
+            if (!g.shown) { Stage("not presenting to a hidden window"); continue; }
             // MW2_TEST_NO_FRAMES=1, in a build with diagnostics: the title's
             // frames never reach the window, as under a driver that takes
             // them and shows nothing, to see the app say so (GameActivity's
@@ -1859,6 +1882,7 @@ namespace
             }
             if (queued) DrawOneFrame(false);
             else if (!g.presented.load(std::memory_order_relaxed)) DrawOneFrame(true);
+            Stage("waiting for the renderer's next frame");
         }
         LOGI("vulkan: presenter stopped after %llu frames, %llu swapchains",
              (unsigned long long)g.presented.load(), (unsigned long long)g.swapchainsMade);
@@ -2014,6 +2038,15 @@ void vk::Stop()
 
 bool vk::Running() { return g.running.load(); }
 uint64_t vk::PresentedFrames() { return g.presented.load(); }
+
+const char* vk::PresenterStage(uint64_t& milliseconds, uint64_t& newestQueued)
+{
+    const int64_t since = g.stageSince.load(std::memory_order_relaxed);
+    const int64_t now = Nanoseconds();
+    milliseconds = since && now > since ? uint64_t((now - since) / 1000000) : 0;
+    newestQueued = g.lastQueued.load(std::memory_order_relaxed);
+    return g.stage.load(std::memory_order_relaxed);
+}
 
 void vk::TakeMouse(bool menu, Mouse& out)
 {

@@ -22,6 +22,11 @@ uint64_t vk::renderer::CompletedSubmission() { return 0; }
 void vk::renderer::BeforeStreamWrite(uint32_t, uint32_t) {}
 void vk::renderer::BeforeCompletion() {}
 void vk::renderer::Idle() {}
+void vk::renderer::PipelineWork(uint32_t& asked, uint32_t& built, uint64_t& longestBuildingMs)
+{
+    asked = built = 0;
+    longestBuildingMs = 0;
+}
 #else
 
 #include "renderer_state.h"

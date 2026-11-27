@@ -59,6 +59,8 @@ These lines of the log are what gets read first, so check they are there:
 | `step:` | start-up, a line before each part; the last one is what the run was doing if the log ends there |
 | `last step:` | a fault's report: the signal, the step and the backtrace follow |
 | `vulkan: the device was lost` | the driver reset the GPU: the lines just above are what it was doing |
+| `stall: no frame has reached the window` | ten seconds (then 20, 40, 80...) with no new frame on screen, and where each stage of a frame was: how many frames the title swapped in that time, whether the ring consumer is stuck in one batch (and at which draw stage) or has nothing to read, the pipelines asked for and built and how long the one under way has taken, the newest frame the renderer finished, and what the window thread is waiting for |
+| `cpu:` | which cores the ring consumer, the title's threads and the background work were given, and whether by the kernel's capacity or by clock |
 
 ## If something is wrong
 

@@ -493,6 +493,13 @@ namespace vk::renderer::detail
         // MW2_SHADER_PREWARM_ALL): what the app shows over the black screen.
         std::atomic<uint32_t> g_bootTotal{ 0 };
         std::atomic<uint32_t> g_bootDone{ 0 };
+        // When each worker's pipeline under way began (steady_clock
+        // nanoseconds, 0: none), for the log's line about a window that has
+        // had no frame for a while (vk::renderer::PipelineWork). A slot a
+        // worker: the scheduler and at most eight for the draws.
+        constexpr uint32_t kBuildSlots = 9;
+        std::atomic<int64_t> g_buildingSince[kBuildSlots]{};
+        std::atomic<uint32_t> g_buildSlotsTaken{ 0 };
 
         // Millisecond timestamp (steady_clock epoch) of the last render-thread
         // vkQueueSubmit. The warmup worker reads this to back off when the GPU
@@ -557,6 +564,7 @@ namespace vk::renderer::detail
         void Worker(bool demanded)
         {
             t_warmupThread = true;
+            const uint32_t slot = g_buildSlotsTaken.fetch_add(1, std::memory_order_relaxed);
             // The warm-up on the little cores, out of the title's way, but at
             // the priority it was made with: it takes the locks the consumer
             // takes at every change of shader or pipeline, and held back with
@@ -651,10 +659,14 @@ namespace vk::renderer::detail
                 }
 
                 const auto start = std::chrono::steady_clock::now();
+                if (slot < kBuildSlots)
+                    g_buildingSince[slot].store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        start.time_since_epoch()).count(), std::memory_order_relaxed);
                 bool made = false;
                 const VkPipeline built = vertex ? EnsurePipeline(key, *vertex, *pixel, &made) : VK_NULL_HANDLE;
                 const uint32_t tookMs = uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - start).count());
+                if (slot < kBuildSlots) g_buildingSince[slot].store(0, std::memory_order_relaxed);
                 {
                     std::lock_guard lock(g_pipelinesMutex);
                     g_building.erase(key);
@@ -1017,6 +1029,7 @@ namespace vk::renderer::detail
         for (std::thread& thread : warmup::g_demandThreads) thread.join();
         warmup::g_demandThreads.clear();
         warmup::g_warmupRunning.store(false);
+        warmup::g_buildSlotsTaken.store(0, std::memory_order_relaxed);
     }
 
     void SetCutsceneActive(bool active)
@@ -1291,5 +1304,21 @@ namespace vk::renderer::detail
 }
 
 void vk::renderer::SaveCaches() { detail::saver::Save(); }
+
+void vk::renderer::PipelineWork(uint32_t& asked, uint32_t& built, uint64_t& longestBuildingMs)
+{
+    using namespace detail;
+    asked = warmup::g_statQueued.load(std::memory_order_relaxed);
+    built = warmup::g_statCompleted.load(std::memory_order_relaxed);
+    const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    int64_t oldest = 0;
+    for (const auto& since : warmup::g_buildingSince)
+    {
+        const int64_t at = since.load(std::memory_order_relaxed);
+        if (at && (!oldest || at < oldest)) oldest = at;
+    }
+    longestBuildingMs = oldest && now > oldest ? uint64_t((now - oldest) / 1000000) : 0;
+}
 
 #endif  // MW2_HAVE_VULKAN

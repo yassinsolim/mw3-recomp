@@ -23,8 +23,12 @@
 #include "vulkan/presenter.h"
 #include "vulkan/renderer.h"
 #include "vulkan/texture_cache.h"
+#ifdef MW2_ANDROID
+#include "../android/android.h"
+#endif
 
 #include <atomic>
+#include <cstdio>
 #include <chrono>
 #include <mutex>
 #include <thread>
@@ -67,7 +71,7 @@ namespace
         // the two threads that can raise one here take turns.
         std::mutex guestCall;
 
-        std::thread worker, vblank;
+        std::thread worker, vblank, watch;
         std::atomic<bool> running{ false };
         std::atomic<uint64_t> frames{ 0 };       // VdSwap calls
         diag::Stat vblanks;
@@ -229,6 +233,73 @@ namespace
             RaiseInterrupt(kVBlankSource);
         }
     }
+
+    // A window with no new frame for ten seconds -- the first not come yet, or
+    // the frames stopped -- is said in the log with where each stage of a
+    // frame is: the title's swaps, the ring consumer, the pipelines the draws
+    // wait for, the frames the renderer finished and the window thread. Then
+    // again at twice the wait (20, 40, 80 s...) for as long as it lasts. The
+    // overlay's frame counter only says that no frame came; this line, in the
+    // log a player shares, says which stage held it.
+    void WatchFrames()
+    {
+        using Clock = std::chrono::steady_clock;
+        uint64_t lastShown = vk::PresentedFrames();
+        uint64_t swapsThen = g.frames.load(std::memory_order_relaxed);
+        Clock::time_point since = Clock::now();
+        double next = 10;
+        while (g.running.load(std::memory_order_relaxed))
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            const Clock::time_point now = Clock::now();
+            const uint64_t shown = vk::PresentedFrames();
+            bool watching = vk::Running();
+#ifdef MW2_ANDROID
+            // Out of sight nothing is presented, and that is no stall.
+            watching = watching && !android::Paused();
+#endif
+            if (!watching || shown != lastShown)
+            {
+                lastShown = shown;
+                swapsThen = g.frames.load(std::memory_order_relaxed);
+                since = now;
+                next = 10;
+                continue;
+            }
+            const double quiet = std::chrono::duration<double>(now - since).count();
+            if (quiet < next) continue;
+            next *= 2;
+
+            const uint64_t swaps = g.frames.load(std::memory_order_relaxed);
+            uint32_t read = 0, written = 0, writeBack = 0;
+            RingPosition(read, written, writeBack);
+            const BatchStatus batch = CurrentBatchStatus();
+            const char* stage = CurrentDrawStage();
+            char consumer[160];
+            if (batch.inBatch)
+                std::snprintf(consumer, sizeof consumer, "has been in one batch of %u dwords for %llu ms (draw stage %s)",
+                              batch.available, (unsigned long long)batch.elapsedMs, stage ? stage : "none");
+            else if (read == written)
+                std::snprintf(consumer, sizeof consumer, "has read all the title gave it (ring at %u)", read);
+            else
+                std::snprintf(consumer, sizeof consumer, "is %u dwords behind", (written - read) & g.ring.mask);
+            uint32_t asked = 0, built = 0;
+            uint64_t buildingMs = 0;
+            vk::renderer::PipelineWork(asked, built, buildingMs);
+            char building[64] = "";
+            if (buildingMs)
+                std::snprintf(building, sizeof building, ", one under way for %llu ms", (unsigned long long)buildingMs);
+            uint64_t presenterMs = 0, newest = 0;
+            const char* presenter = vk::PresenterStage(presenterMs, newest);
+            LOGW("stall: no frame has reached the window for %.0f s (%llu so far, %.0f s into the run): the title"
+                 " swapped %llu frames in that time (%llu in all); the ring consumer %s; the pipelines the draws"
+                 " wait for: %u asked for, %u built%s; the newest frame the renderer finished is #%llu; the window"
+                 " thread is %s (for %llu ms)",
+                 quiet, (unsigned long long)shown, Seconds(), (unsigned long long)(swaps - swapsThen),
+                 (unsigned long long)swaps, consumer, asked, built, building, (unsigned long long)newest,
+                 presenter, (unsigned long long)presenterMs);
+        }
+    }
 }
 
 bool gpu::detail::Running() { return g.running.load(std::memory_order_relaxed); }
@@ -286,6 +357,7 @@ void gpu::Initialise()
     if (g.running.exchange(true)) return;
     g.start = std::chrono::steady_clock::now();
     vk::Start();
+    g.watch = std::thread(WatchFrames);
     // Eagerly, not on the first draw: a renderer that comes up on the first
     // bind reports the whole opening burst as failures.
     if (Rendering() && !vk::renderer::Initialise())
@@ -308,6 +380,7 @@ void gpu::Shutdown()
 {
     if (!g.running.exchange(false)) return;
     if (g.vblank.joinable()) g.vblank.join();
+    if (g.watch.joinable()) g.watch.join();
     if (g.worker.joinable()) g.worker.join();
     // The window thread first, because it shows an image the renderer owns.
     vk::StopPresenting();

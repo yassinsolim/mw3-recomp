@@ -57,4 +57,9 @@ namespace vk
 
     bool Running();
     uint64_t PresentedFrames();
+    // What the window thread is doing (a few words) and for how many
+    // milliseconds it has been, and the serial of the newest frame the
+    // renderer has handed it (0: none yet): for the log's line about a window
+    // that has had no frame for a while (gpu::WatchFrames).
+    const char* PresenterStage(uint64_t& milliseconds, uint64_t& newestQueued);
 }

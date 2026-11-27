@@ -228,6 +228,7 @@ void platform::IdleThreadPriority()
 }
 
 #if defined(__ANDROID__)
+#include "log.h"
 namespace
 {
     struct CpuTopology
@@ -245,40 +246,74 @@ namespace
         if (cpus <= 1) return topo;
 
         const int maxCpus = std::min(int(cpus), 32);
-        struct CoreFreq { int id; unsigned long freq; };
-        std::vector<CoreFreq> freqs;
-
+        // A core's strength is the kernel's cpu_capacity where every core has
+        // one (0..1024: its own measure of a core, design and clock both), and
+        // its highest clock elsewhere. The clock alone takes a little core for
+        // a performance one where the two clusters' clocks are close: a
+        // Dimensity 1100's Cortex-A55s reach 2.0 GHz to its A78s' 2.6, 77% of
+        // them, over the three quarters that made a performance core, so the
+        // title's threads were all held to the four little cores and the A78s
+        // left to the ring consumer (Retroid Pocket 4 Pro). By capacity those
+        // A55s are well under half an A78.
+        std::vector<uint64_t> clock(size_t(maxCpus), 0), capacity(size_t(maxCpus), 0);
+        bool clocks = true, capacities = true;
+        const auto readNumber = [](const char* path) {
+            unsigned long long value = 0;
+            if (FILE* f = std::fopen(path, "r"))
+            {
+                if (std::fscanf(f, "%llu", &value) != 1) value = 0;
+                std::fclose(f);
+            }
+            return uint64_t(value);
+        };
         for (int i = 0; i < maxCpus; ++i)
         {
             char path[128];
             std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
-            FILE* f = std::fopen(path, "r");
-            unsigned long freq = 0;
-            if (f)
-            {
-                if (std::fscanf(f, "%lu", &freq) == 1) freqs.push_back({ i, freq });
-                std::fclose(f);
-            }
+            clock[size_t(i)] = readNumber(path);
+            std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpu_capacity", i);
+            capacity[size_t(i)] = readNumber(path);
+            clocks = clocks && clock[size_t(i)];
+            capacities = capacities && capacity[size_t(i)];
         }
 
-        if (freqs.size() == size_t(maxCpus) && !freqs.empty())
+        if (capacities || clocks)
         {
-            std::sort(freqs.begin(), freqs.end(), [](const CoreFreq& a, const CoreFreq& b) {
-                return a.freq > b.freq;
-            });
-
-            unsigned long maxFreq = freqs[0].freq;
-            for (const auto& c : freqs)
+            const std::vector<uint64_t>& strength = capacities ? capacity : clock;
+            const uint64_t strongest = *std::max_element(strength.begin(), strength.end());
+            // The little cores. By capacity, the ones under the largest drop
+            // between two neighbouring strengths, where one falls below three
+            // quarters (perf.cpp's FindCores draws the same line); with none,
+            // there are none. By clock, as before: under three quarters of
+            // the fastest.
+            uint64_t bigFloor = strongest * 75 / 100;
+            if (capacities)
             {
-                if (c.freq >= maxFreq * 95 / 100)
-                    topo.primeMask |= (1u << c.id);
-                else if (c.freq >= maxFreq * 75 / 100)
-                    topo.perfMask |= (1u << c.id);
+                std::vector<uint64_t> levels(strength);
+                std::sort(levels.begin(), levels.end(), [](uint64_t a, uint64_t b) { return a > b; });
+                levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
+                bigFloor = levels.back();
+                double worst = 0.75;
+                for (size_t i = 0; i + 1 < levels.size(); i++)
+                {
+                    const double ratio = double(levels[i + 1]) / double(levels[i]);
+                    if (ratio < worst) { worst = ratio; bigFloor = levels[i]; }
+                }
+            }
+            for (int i = 0; i < maxCpus; ++i)
+            {
+                const uint64_t s = strength[size_t(i)];
+                if (s < bigFloor)
+                    topo.workerMask |= (1u << i);
+                else if (s >= strongest * 95 / 100)
+                    topo.primeMask |= (1u << i);
                 else
-                    topo.workerMask |= (1u << c.id);
+                    topo.perfMask |= (1u << i);
             }
             if (!topo.perfMask) topo.perfMask = topo.primeMask;
             if (!topo.workerMask) topo.workerMask = topo.perfMask;
+            LOGI("cpu: cores %02X the fastest, %02X the title's, %02X the background's (by %s)",
+                 topo.primeMask, topo.perfMask, topo.workerMask, capacities ? "capacity" : "clock");
         }
         else
         {

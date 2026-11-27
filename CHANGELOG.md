@@ -129,6 +129,17 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   to install it.
 
 ### Changed
+- **A black screen says why in the log.** Ten seconds without a new frame
+  on screen (then 20, 40, 80...) writes a `stall:` line naming where the
+  frame is held: the title not swapping, the ring consumer stuck in one
+  batch, a pipeline the driver is still compiling, or the window thread
+  waiting on the driver. Asked by a Retroid Pocket 4 Pro (Mali-G77) whose
+  campaign never showed a frame.
+- **Phones whose little cores are clocked near their big ones keep the game
+  on the big ones.** The cores were sorted by clock, and a Dimensity 1100's
+  2.0 GHz Cortex-A55s, 77% of its A78s' 2.6, counted as performance cores:
+  the game's threads ran on the four little cores alone. They are sorted by
+  the kernel's capacity now, and the log's `cpu:` line says which went where.
 - **The public mirrors take Black Ops III's source.** `release.py sync`
   refused every mirror once `bo3` was merged into `android`, for any path
   naming the game. The owner decided Black Ops III goes public, so its code,

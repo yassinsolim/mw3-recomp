@@ -49,6 +49,12 @@ namespace vk::renderer
     // thread; nothing to do before Initialise or after Shutdown.
     void SaveCaches();
 
+    // The pipelines draws and the warm-up have asked the workers for so far,
+    // the ones the driver has built, and how long the oldest build under way
+    // has taken (0: none is): for the log's line about a window that has had
+    // no frame for a while (gpu::WatchFrames). Any thread.
+    void PipelineWork(uint32_t& asked, uint32_t& built, uint64_t& longestBuildingMs);
+
     // What the draw packet carries that the register file does not.
     struct DrawCall
     {
