@@ -53,6 +53,8 @@
    "what": "Riot on a Retroid Pocket Flip 2, no fault: a pillar passing behind the minimap in a turn"},
   {"file": "runs/thor_aw-shadows.mp4", "log": "runs/thor_aw-shadows.log", "offset": 109.74, "play_from": 125,
    "what": "Solar on an AYN Thor with the sun's shadows on, no fault seen: a honeycomb wall, a grille's slots, bare walls sliding past in turns"},
+  {"file": "runs/thor_aw-shadows_honeycomb.mp4", "log": "runs/thor_aw-shadows_honeycomb.log", "offset": 109.55, "play_from": 125,
+   "what": "Solar again (fff0519), no fault: the honeycomb wall from further off, its round holes of a block's size in 23 frames at 226 s, which the block check once counted"},
   {"file": "runs/flip_mw3-campaign.mp4", "log": "runs/flip_mw3-campaign.log", "offset": 50.65, "play_from": 95, "combat_from": 95,
    "what": "Black Tuesday: sparks in the overturned vehicle, the street fight"},
   {"file": "runs/flip_mw3-survival.mp4", "log": "runs/flip_mw3-survival.log", "offset": 50.65, "play_from": 70, "combat_from": 70,

@@ -337,8 +337,13 @@ jump's. Seen on Windows on Greenband: the rectangle at `MW2_FOV=110` and at
 `cg_fov 110` before, the edges of the whole picture blurred after, as at 65
 (the update's multiplayer); and on a Retroid Pocket Flip 2 in the disc's
 multiplayer at 110, the slides of two runs without a rectangle at 59.9
-frames a second. The campaign's hook was not seen in play: the Windows runs
-did not get out of Induction's pod to a slide.
+frames a second. The dash forward in the air and the slam have the same
+sprite under other names (`dodge_forward_view` with
+`radialblur_sprite_screenedges_dodge`, `slam_view` with the slide's), and
+the hook sizes them alike: a tester's rectangle in a dash was that. The
+campaign's hook was reached once in play on Windows, in Induction's street,
+with `cg_fov` back at the scripts' 65; a slide at the app's 85 has not been
+seen there ([AW-BRINGUP.md](AW-BRINGUP.md)).
 
 The campaign's angle is left the title's. Its `CG_SetViewFov` writes the
 angle it is handed back into `cg_fov` and into the view a script's change

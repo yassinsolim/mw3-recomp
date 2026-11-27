@@ -132,6 +132,18 @@ class PictureChecks(unittest.TestCase):
         found = checks(pictures)
         self.assertEqual(found.get("blocks"), detectors.FAIL)
 
+    def test_round_holes_are_not_a_block_lattice(self):
+        # Solar's honeycomb wall through the encoder: holes of a block's size in rows and columns
+        # with their corners gone, 0.85 of the box round each.
+        pictures = drifting(30)
+        corners = np.array([(5, 0), (12, 0), (17, 5), (17, 12), (12, 17), (5, 17), (0, 12), (0, 5)])
+        for index in range(10, 16):
+            for row in range(8):
+                for column in range(12):
+                    place = (60 + column * 45, 30 + row * 30 + (15 if column % 2 else 0))
+                    cv2.fillPoly(pictures[index], [corners + place], (0, 0, 0))
+        self.assertNotIn("blocks", checks(pictures))
+
     def test_scattered_rectangles_are_not_a_lattice(self):
         picture = scene()
         spots = np.random.default_rng(5).integers(0, 400, (12, 2))

@@ -1897,3 +1897,52 @@ multiplier 1x, FPS limit 60.
   death there and on Greenband (each from a start of its own: a second map
   in one run was not played); the campaign's Induction 110 degrees after
   two restarts from its checkpoint.
+
+## The bright frame in Induction's pod, and the tester's rectangle again (27 November 2026)
+
+- **One bright frame in the drop pod** (`aw-campaign`, 93 to 97 s: the
+  visual suite's `flicker` in one run of four on both phones, since before
+  Black Ops III was merged). It is not another view: for one frame the pod's
+  screens are gone, the holograms with them, and the window behind them is
+  seen bare (`private-captures\releaseready\thor-pod-bright-frames.jpg`,
+  `flip-pod-bright-frame.jpg`). It is on Windows too, on an RTX 5080, when
+  the title is paced by the display at 240 Hz (`MW2_FPS_LIMIT=240` there:
+  two and three such frames in two runs of three,
+  `pc-240hz-pod-bright-frames.jpg`), and in none of five runs kept frame by
+  frame at the console's pacing of 60 or with the title's limiter at 120. So
+  it is neither the phones' driver nor a surface read too early. In the
+  frames kept with their draws (the AYN Thor at 120 Hz, the Flip 2, Windows)
+  the bright frame has the draws of its neighbours, none refused, and the
+  same textures at the same versions; the float constants the title hands
+  the shaders are what differ. The luminance the title draws of its own
+  scene, before any exposure, is 1.7 to 9 times its neighbours' in that
+  frame (0.94 between 0.10 and 0.11; 1.73 between 1.00 and 1.08), and it was
+  written back one frame after it was drawn in every one of 18,545 frames:
+  the exposure's write-back is not it, and holding the write-back two frames
+  longer on purpose changed no frame. What the title does there is its own:
+  the screens come on with a flicker it draws itself (34 draws of one
+  material in a lit frame and none in the next, the picture stepping 30
+  times a second at any frame rate), and the bright frame is one frame of
+  that at a frame time the console's 60 a second never has. Which constant
+  it is was not found, and no Xbox 360 was at hand to compare; nothing is
+  changed, and the suite's `flicker` there is this.
+- **The tester's recording of v0.1.4** (multiplayer, Greenband, 110
+  degrees): the rectangle is 644 by 362 of 1280 by 720, which is the sprite
+  of 9.6 by 5.4 ten units ahead at 110 degrees (645 by 363), and comes with
+  the slides, for as long as the weapon is held across; once it comes
+  without one, in a dash in the air, at the same size
+  (`tester-014-*.jpg`). That one is `vfx/code/dodge_forward_view`, whose
+  sprite's material is `radialblur_sprite_screenedges_dodge`; the hook
+  takes every material named `radialblur_sprite_`, and on Windows at 110
+  it wrote that sprite's size and the slam's (`slam_view`, the slide's
+  material) as the slide's, with the picture's edges blurred and no
+  rectangle in a slide, a forward dash in the air and a slam
+  (`pc-head-fov110-slide-dodge-slam-no-rectangle.jpg`). The dodges to the
+  side have no such sprite.
+- **The campaign's hook** was reached once in play on Windows (Induction's
+  street, after the pod's three prompts: X pressed fast, both triggers,
+  the right stick): `vfx/code/slide_view` came through it and its sprite was
+  found, sized by a `cg_fov` the level's scripts had put back to 65 by
+  then, so left at the console's size. A slide with `cg_fov` at 85 was not
+  got on screen in six more runs, and neither were the scope's overlay,
+  the reticle, the hit markers and the threat outlines looked at at 110.

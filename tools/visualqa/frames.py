@@ -177,6 +177,15 @@ BLOCK_SIDES = (8, 40)
 # Wider than any block, so that a block is small beside it and the walls and
 # sky round it are not.
 _BLOCK_SURROUND = cv2.getStructuringElement(cv2.MORPH_RECT, (31, 31))
+# A block fills the upright box round it and a round hole 0.79 of its own.
+# The middle one of a frame's rectangles fills this much of its box or the
+# frame has no lattice. Solar's honeycomb and its pipes, counted as lattices
+# in 29 frames of three runs on the AYN Thor: 0.81 to 0.85. The lattices
+# recorded, through the encoder's softened corners: Call of Duty 4's Bog
+# 0.87 to 0.98 and Modern Warfare 2's S.S.D.D. 1.00, every frame; Modern
+# Warfare 3's Dome 0.92 in the middle frame and 0.86 or more in 436 of the
+# 477 frames counted before.
+BLOCK_FILL = 0.86
 
 
 def _on_a_lattice(centres, side):
@@ -205,6 +214,8 @@ def block_lattice(picture, keep):
     honeycomb and the slots of a grille are, and are not square as the
     renderer's blocks are (Solar: 23 by 21 and 13 by 9 at this size, where
     the lattices recorded are 15 to 18 a side and within 1 of square).
+    Solar's honeycomb seen from further off, and a rack of round pipes
+    there, are square and of a block's size, and are round: BLOCK_FILL.
     """
     grey = cv2.cvtColor(cv2.resize(picture, BLOCK_PICTURE, interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
     best = (0, 0.0, 0.0)
@@ -227,6 +238,8 @@ def block_lattice(picture, keep):
         alike = blocks & (np.abs(wide - side_across) <= 2) & (np.abs(high - side_down) <= 2)
         number = int(alike.sum())
         if number <= best[0] or number < 6:
+            continue
+        if np.median(area[alike] / (wide[alike] * high[alike])) < BLOCK_FILL:
             continue
         across, down = centres[alike, 0], centres[alike, 1]
         columns = len(np.unique(np.round(across / side_across)))
