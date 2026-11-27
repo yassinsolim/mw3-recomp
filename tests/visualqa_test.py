@@ -200,6 +200,29 @@ class PictureChecks(unittest.TestCase):
             pictures[index][300:540, 200:760] = (128, 128, 128)
         self.assertEqual(checks(pictures).get("missing"), detectors.FAIL)
 
+    def test_post_filling_a_column_is_not_ground_gone(self):
+        # A post of one colour strafed past close by: the frame before, its edge was inside a
+        # column of regions (60 pixels wide here); now it fills that column, the rest standing.
+        def strafed(paint):
+            pictures = drifting(60)
+            for index in (19, 20, 39, 40):
+                pictures[index] = pictures[index].copy()
+                left = 510 if index in (19, 39) else 478
+                paint(pictures[index], left)
+            return pictures
+
+        def post(picture, left):
+            picture[0:360, left:left + 64] = (40, 50, 60)
+
+        self.assertNotIn("missing", checks(strafed(post)))
+
+        # Flat region by region but a different colour in each, it is not one surface, and fails.
+        def patched(picture, left):
+            for row in range(6):
+                picture[60 * row:60 * row + 60, left:left + 64] = 20 + 30 * (row % 2)
+
+        self.assertEqual(checks(strafed(patched)).get("missing"), detectors.FAIL)
+
     def test_frozen_while_the_game_runs(self):
         still = scene()
         pictures = drifting(60) + [still] * 240 + drifting(60)

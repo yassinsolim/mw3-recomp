@@ -1231,6 +1231,20 @@ waited for and its draw made in its own frame, a frame late at worst. Of a
 first visit's hundreds the first is waited for and the rest are skipped as
 before, with a wait of 16 ms every sixteen frames or so.
 
+A known case the allowance does not cover: no wait is begun while more
+pipelines are awaited than there are workers, so a held weapon that needs
+more new pipelines at once than that still goes for a frame. On an AYN Thor
+with a fresh install (empty caches), Solar with the sun's shadows on, the
+weapon and arms were gone for one frame at 134.7 s but for a sight and a
+magazine: seven pipelines for them were found missing together (six
+workers), each 30 to 57 ms to build. The run at `c41a440` showed it once in
+three runs of that scenario. The run at `7c8a5f1` had the same path and as
+many skips, 68,660 draws against 80,045. It is kept as a labelled recording
+in the visual QA set (`runs/thor_aw-shadows_viewmodel.mp4`,
+[visualqa.md](visualqa.md#where-the-suite-stands)). Changing the rule
+(waiting for an object already on screen even in a crowd, say) needs a
+first visit's frame times measured in every title.
+
 The consumer builds none of the others itself. It did once a draw had been
 skipped for 20 frames, one pipeline a frame, behind a single worker
 compiling the same ones: a first visit's hundreds were then 25 to 35 ms of

@@ -309,8 +309,20 @@ def missing_geometry(m, context, t):
             alike = np.abs(before[beside] - now[at_down, at_across]).max(axis=2) <= t.flat_slid_levels
             if (alike & was_flat[beside]).any():
                 grid[at_down, at_across] = 0
-        count, _, boxes, _ = cv2.connectedComponentsWithStats(grid, connectivity=4)
-        largest = int(boxes[1:, cv2.CC_STAT_AREA].max()) if count > 1 else 0
+        count, labels, boxes, _ = cv2.connectedComponentsWithStats(grid, connectivity=4)
+        largest = 0
+        for label in range(1, count):
+            area = int(boxes[label, cv2.CC_STAT_AREA])
+            # A post or a pillar close by, strafed past, fills a column of
+            # regions with its own one colour as the edge that was in them
+            # slides out (Solar on the Thor, two columns of five and six
+            # regions, 0 to 4 levels apart): geometry that goes missing
+            # leaves more than one column's width, and not one colour down it.
+            if boxes[label, cv2.CC_STAT_WIDTH] == 1:
+                cells = now[labels == label]
+                if (cells.max(axis=0) - cells.min(axis=0)).max() <= t.flat_slid_levels:
+                    continue
+            largest = max(largest, area)
         # A view turning towards a dark wall or the sky goes flat there too,
         # with the rest of the picture moving; where geometry goes missing
         # the rest stands.

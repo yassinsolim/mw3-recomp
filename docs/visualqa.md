@@ -122,7 +122,7 @@ with what they were measured against.
 | `local-flicker` | where the scenario is calm, a patch at least 20 screen pixels thick and 0.4% of the frame (more in a turn: +12% of the share of the picture that is moving, measured between the two neighbours and against the frame before, whichever is larger) differs from both neighbours for one frame and is in neither of them at another place, and is not an upright band (at most 0.25 of the width, from the top of what is seen down 0.7 of the height or more, with 0.2 of the picture moving: a post passed too close to be in a neighbouring frame); once in a run | the sun shadow's wedge 3 to 29% of the frame; lit patches through a doorway 0.8 to 0.9%; Dome's shadow lost for a frame in a turn 8.0% with 43% moving; Rust with half its draws missing for a frame 7.5%; clean play standing still at most 0.14%; a beam crossing a dark shed in a jump at 120 Hz 2.6% with 20% moving |
 | `blocks` | eight or more squares of one size (26 to 38 px a side, as wide as high to within 3 px, the middle one filling 0.86 of the box round it) stand in rows and columns on one lattice, in three frames | the lattices of Call of Duty 4's Bog, Modern Warfare 3's Dome and Modern Warfare 2's S.S.D.D. on the phone's own driver: 9 to 59 blocks 30 to 36 px a side, regularity 0.94 to 1.00, filling 0.87 to 1.00 of their boxes (Dome's 0.86 or more in 436 of 477 frames); clean play at most 5 alike and not in rows; Solar's honeycomb wall and a grille's slots stand in rows and are 46 by 42 and 26 by 18, and the honeycomb from further off and a rack of pipes are a block's size and round, filling 0.81 to 0.85; a perforated screen on Riot, Rust's wire fence and Dome's window grilles are square and in rows, 16 to 22 px |
 | `black`, `white`, `uniform` | in play, 97% of the frame is black, or 60% white or nothing in it darker than level 150, or its spread is under 3 levels, for five seconds | a level's own fades are under five seconds (Black Tuesday's: four) |
-| `missing` | where the scenario is calm, four or more neighbouring regions (of 16 by 9) go from textured to one flat colour between two frames while no more than a fifth of the rest of the picture changes and no region beside them was that colour without texture the frame before, twice in a run | the wedge does, with a tenth of the rest changing; a walk up to a dark wall goes flat with 0.45 to 0.58 of the rest changing; a bare wall sliding in as an edge slides out in a turn is the colour of the region beside it to 1 to 4 levels |
+| `missing` | where the scenario is calm, four or more neighbouring regions (of 16 by 9) go from textured to one flat colour between two frames while no more than a fifth of the rest of the picture changes and no region beside them was that colour without texture the frame before, twice in a run; a single column of them all one colour (to 8 levels) does not count | the wedge does, with a tenth of the rest changing; a walk up to a dark wall goes flat with 0.45 to 0.58 of the rest changing; a bare wall sliding in as an edge slides out in a turn is the colour of the region beside it to 1 to 4 levels; a pillar strafed past close by fills one column of five or six regions with its one colour, 0 to 4 levels apart |
 | `frozen` | in play, the picture does not change for two seconds while the log says frames were made | |
 | `stall` | the log has a `STALL` (a second or more without a world frame) in play | Call of Duty 4's first visit to The Bog: 9.9 s |
 | `unfinished` | the log has no closing report: the game stopped or was killed | |
@@ -281,6 +281,37 @@ both neighbours in the whole recording: none in three runs on the Thor (117
 frames a second recorded) and none in one on the Flip 2, where a run before
 `7ef5f79` had three, one of them the pod's 202 levels against 23.
 
+On 27 November 2026, with the apps built at `c41a440` (graphics presets,
+performance reports, looking by touch) and the checks as they are here:
+
+| scenario | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
+|---|---|---|
+| `mw2-campaign` | PASS, 117.1, 43 ms | PASS, 60.0, 69 ms |
+| `mw2-bots` | PASS, 118.9, 45 ms | PASS, 60.2, 57 ms |
+| `mw3-campaign` | PASS, 116.2, 97 ms | PASS, 59.8, 88 ms |
+| `mw3-bots` | PASS, 117.4, 70 ms | PASS, 59.8, 67 ms |
+| `mw3-survival` | PASS, 117.9, 42 ms | PASS, 59.9, 71 ms |
+| `cod4-campaign` | PASS, 118.0, 57 ms | PASS, 59.6, 76 ms |
+| `cod4-bots` | PASS, 119.0, 49 ms | PASS, 60.0, 76 ms |
+| `aw-campaign` | PASS, 118.3, 52 ms | PASS, 60.4, 50 ms |
+| `aw-match` | PASS, 117.7, 76 ms | PASS, 60.2, 301 ms (a first visit's hitch at 198.3 s: 71 shaders and 160 textures new) |
+| `aw-shadows` | PASS, 117.9, 98 ms (third run; the first, 118.2, failed `local-flicker` at 134.7 s, a real fault, and the second, 118.2, failed `missing` at 152.4 and 153.8 s, the check's mistake, mended) | PASS, 60.2, 168 ms |
+
+No frame rate fell from the `7c8a5f1` runs by more than 0.3 a second;
+the Thor's S.S.D.D. and Black Tuesday, 115.3 and 115.0 then, are 117.1 and
+116.2. The fights' single-frame patches are muzzle flashes, explosions and,
+on Crash, chips of a wall shot at close range.
+
+The fault: in the first Thor run of `aw-shadows` the held weapon and arms
+are gone for one frame but for a sight and a magazine. Seven pipelines for
+them were new at once on the fresh install's first visit, more than the six
+workers, so their draws were skipped. That rule and its skip counts are
+the same at `7c8a5f1`. It is a known fault of a first visit, written up in
+[rendering.md](rendering.md#pipelines), and its recording is in the
+labelled set. The second run's `missing` was a dark pillar, strafed past
+close by, filling one column of regions with its own colour. The check
+now lets a single column of one colour pass.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
@@ -296,7 +327,7 @@ On 27 November 2026, with the numbers in `Thresholds` and `frames.py`:
 |---|---|---|
 | whole-frame flicker (Advanced Warfare's gamma fault: the owner's recording, three reproductions in the lobby, one in a match) | 5 | 5 caught |
 | local flicker (a tester's three recordings of the sun shadow on Solar and through a doorway) | 3 | 3 caught |
-| single frames of a run that were wrong, in an empty match (Rust with half its draws missing, Dome's sun shadow lost) | 2 | 2 caught |
+| single frames of a run that were wrong, in an empty match (Rust with half its draws missing, Dome's sun shadow lost, Solar's held weapon gone while its pipelines compiled) | 3 | 3 caught |
 | block lattices on the phone's own driver (two recordings, two single frames) | 4 | 4 caught |
 | clean menus and first screens of the four titles, before and after the gamma fix where it changed nothing | 11 | 11 passed |
 | a clean match with the player turning fast | 1 | passed |
@@ -306,8 +337,9 @@ On 27 November 2026, with the numbers in `Thresholds` and `frames.py`:
 | Riot on the Flip 2, where a pillar passing behind the minimap in a turn was taken for a flash | 1 | passed |
 | a post or a pillar passed too close to be in either neighbouring frame (Riot strafed past on the Flip 2 twice, Solar on the Thor) | 3 | 3 passed |
 | Riot on the Thor, whose perforated screen of square holes 16 to 18 px a side the block check took for a lattice | 1 | passed |
+| Solar on the Thor, where a pillar strafed past close by filled a column of regions with its colour and the missing check took it for ground gone | 1 | passed |
 
-14 of 14 faulty recordings caught and 28 of 28 clean ones passed: recall
+15 of 15 faulty recordings caught and 29 of 29 clean ones passed: recall
 1.00, precision 1.00, by recording. The set is small, and nothing in it is
 a black world, a washed frame, a frozen picture or missing ground in a
 recording of a real run: those checks are tested on drawn pictures alone
