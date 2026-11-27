@@ -574,10 +574,42 @@ against 50.14 (Shadows of Evil); the KN-44 fires 21 rounds in about two
 seconds at both; a reload is back to 30 within one dump (0.26 s) of the
 other; a one-second sidestep moves the minimap 11 px at both.
 
-Open: the warm-cache runs of Shadows of Evil and a second multiplayer map,
-a ten-minute run for the heat, the Flip at 60, and the other titles'
-scenarios on this build (the scene rule and the wait list are theirs too)
-were not measured in this round.
+**The Thor with every change, caches warm** (`68f1dbf` and the scene's step
+back up; the mean of the seconds of play after the first ten; 1% low of
+the play's frames from the `performance:` line, and in brackets as
+Bo3Modes counts it from `MW2_FRAME_LOG`, world frames from 5 s after the
+first, gaps under a second, loading hitches included; android `4c809bd`
+alone, Bo3Modes' runs that day, in the last column):
+
+| | mean | 1% low | longest | seconds at 115+ | scene, mean (least) | android alone |
+|---|---|---|---|---|---|---|
+| Shadows of Evil, two runs | 104.0, 103.7 | 32.1, 35.9 (22.3, 24.0) | 88, 117 ms | 23%, 12% | 89%, 88% (70) | 102.4 to 105.3, 1% low 16.7 to 17.3 |
+| Shadows of Evil, no poll yield | 101.2 | 37.8 (23.4) | 85 ms | 12% | 90% (76) | |
+| The Giant | 114.5 | 64.5 (29.4) | 66 ms | 68% | 90% (64) | 109.1, 1% low 20.9 |
+| mp_spire TDM, two runs | 117.8, 118.8 | 45.6, 61.0 (34.2, 41.6) | 89, 82 ms | 90%, 96% | 91%, 90% (58) | 110.7 |
+| mp_spire, ten minutes | 118.8 over 662 s | 85.1 (69.9) | 65 ms | 99% | 98% (58) | |
+
+In the ten minutes the hottest zone read 93 to 95 C and no clock was held
+down (the prime core's limit 3187 MHz, the performance cores' 2803, the
+chip's 680). No underrun in any run; 7 "mixer is finishing its frames late"
+lines in all. Shadows of Evil is the one still short: 3,840 draws a frame,
+the frames waited for the processor 52% of the time and the chip 16%, the
+threads at main 66, ring consumer 65, JQ Workers 64, 57, 49, 3_Server 58,
+2_Backend 51 (% of a core), with 3.7 MB of constants copied a frame.
+
+The other titles on this build (`tools/visualqa`, the Thor; FinalSuite's
+runs of `15a8a62` beside them): `mw3-bots` passed at 117.5 (117.4),
+`aw-shadows` 118.5 (117.9 to 118.2), `cod4-campaign` 118.0 (118.0),
+`mw2-campaign` 115.6 and 116.4 (117.1), its scene whole in every run, so
+the scene rule is not what differs there; the wait list is the one change
+it shares, and one run of `15a8a62` does not say whether a frame a second
+is that or the run.
+
+**The Retroid Pocket Flip 2 at 60** (the same build, first runs, the
+pipelines compiled in play): Shadows of Evil 58.5 (83% of the seconds at
+57 or more, 1% low 20.1), The Giant 59.7 (96%, 24.2), mp_spire 60.2 (95%,
+28.3); the scene still steps down there (58 to 68% of its width on
+average), its chip being what is late. No underrun.
 
 ## Open
 
