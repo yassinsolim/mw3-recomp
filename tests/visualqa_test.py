@@ -116,6 +116,24 @@ class PictureChecks(unittest.TestCase):
         still[6][60:480, 450:510] = 20
         self.assertEqual(checks(still).get("local-flicker"), detectors.FAIL)
 
+    def test_post_passed_close_while_strafing_is_not_flicker(self):
+        # A post so near that it crosses the picture between two frames: a narrow band from the
+        # top down most of the picture in one frame alone, while the view moves.
+        base = scene()
+        moving = [np.roll(base, 14 * index, axis=1) for index in range(12)]
+        post = [picture.copy() for picture in moving]
+        post[6][0:470, 600:700] = 25
+        self.assertNotIn("local-flicker", checks(post))
+        # Standing still, the same band is a flash.
+        still = drifting(12)
+        still[6] = still[6].copy()
+        still[6][0:470, 600:700] = 25
+        self.assertEqual(checks(still).get("local-flicker"), detectors.FAIL)
+        # And so is a wide patch from the top while the view moves.
+        wide = [picture.copy() for picture in moving]
+        wide[6][0:470, 200:700] = 25
+        self.assertEqual(checks(wide).get("local-flicker"), detectors.FAIL)
+
     def lattice(self, picture):
         holed = picture.copy()
         for row in range(8):

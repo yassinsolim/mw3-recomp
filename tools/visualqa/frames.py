@@ -278,6 +278,26 @@ FLASH_MOVED_ALIKE = 0.35
 # The largest patches of a frame are tried in turn: behind a post that moved
 # there may be a patch that flashed.
 FLASH_PATCHES = 4
+# A post, a pillar or a wall's edge the player strafes past close moves
+# further in a frame than FLASH_REACH looks, and is in neither neighbour: an
+# upright band from the top of the picture down most of it, narrow, while
+# the view moves. Four such patches on Riot and Solar (34 to 96 pixels of
+# SMALL wide, 192 to 252 high, from the top, with 0.26 to 0.73 of the picture
+# moving) were failed for flashes; a patch that flashed is not shaped so.
+FLASH_BAND_HIGH = 0.7     # of the picture's height, from its top
+FLASH_BAND_WIDE = 0.25    # of its width at most
+FLASH_BAND_MOVING = 0.2   # share of the picture that changed between the neighbours
+
+
+def _upright_band(box, seen, moving):
+    """Whether a patch is a near post or edge passing: a narrow band from the top down, the view moving.
+
+    The top is the lowest of the first rows seen in its columns: the HUD may cover the picture's own."""
+    left, top, wide, high = box
+    columns = seen[:, left:left + wide]
+    shown = columns.any(axis=0)
+    return (moving >= FLASH_BAND_MOVING and shown.any() and top <= int(columns.argmax(axis=0)[shown].max()) + 2
+            and high >= FLASH_BAND_HIGH * seen.shape[0] and wide <= FLASH_BAND_WIDE * seen.shape[1])
 
 
 def _flashed_patches(before, frame, after, seen):
@@ -324,13 +344,16 @@ def flash(before, frame, after, seen):
     thin lines along their edges: only patches at least five pixels thick
     (twenty of the screen's) are kept, and of those only the ones that are
     in neither neighbour at another place (FLASH_REACH): a post passing in
-    a turn is, and so is the whole view at a hit's jolt. The share of the
-    picture that changed between the two neighbours is returned beside it,
-    for the detector to ask more of a frame in a fast turn.
+    a turn is, and so is the whole view at a hit's jolt. A post passed too
+    close to be found there is left out by its shape (_upright_band). The
+    share of the picture that changed between the two neighbours is returned
+    beside it, for the detector to ask more of a frame in a fast turn.
     """
     moving = float((np.abs(before - after)[seen] > 6).mean())
     for pixels, across, down, box in _flashed_patches(before, frame, after, seen):
         if _moved_from(before, frame, box, seen) or _moved_from(after, frame, box, seen):
+            continue
+        if _upright_band(box, seen, moving):
             continue
         height, width = frame.shape
         return pixels / float(seen.sum()), moving, across / width, down / height
