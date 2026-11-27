@@ -611,6 +611,74 @@ pipelines compiled in play): Shadows of Evil 58.5 (83% of the seconds at
 28.3); the scene still steps down there (58 to 68% of its width on
 average), its chip being what is late. No underrun.
 
+## The spinning job worker (27 November 2026, later)
+
+**Where Shadows of Evil's processor time went** (`simpleperf`, 8 s at
+2 kHz in play on the Thor, before): the four performance cores (cpu 3 to
+6) 77% busy, the prime core (cpu 7) 42% and all of it the ring consumer's,
+the three efficiency cores 23%. JQ Worker 2 took 6,886 samples, 6,436 of
+them in the kernel and 366 in `sched_yield`, against 450 in the game's
+code: it spins on `SwitchToThread` (`NtYieldExecution`) while jobs are
+queued that only other workers may take (sub_82146A48, round sub_82146978:
+a nonzero count at 64(r25) sends it back to the queues after a yield, and
+only a zero count to its event). The host's `sched_yield` returns at once
+where nothing else waits on that core, so the spin held a performance core
+where the threads with work stood ready a fifth to a third of the time.
+The ring consumer itself is 44% of the prime core: not what holds a frame.
+
+**What changed** (`kernel::Yield`, kernel/objects.cpp): a guest thread that
+yields again within 50 us of its last yield sleeps `T_YIELD_SLEEP_US` (100
+for this title on Android; `MW2_YIELD_SLEEP_US`) instead, and the title's
+polls that find nothing yield the same way (`T_POLL_YIELD` 2). Not on
+Windows, where a sleep is a millisecond: the multiplayer came at 92.5
+there with it against 101.7 without. JQ Worker 2 is 800 samples now.
+
+| Shadows of Evil, the Thor at 120, warm | mean | 1% low |
+|---|---|---|
+| plain yields (`MW2_YIELD_SLEEP_US=0`), two runs | 94.7, 92.5 | 39.3, 45.8 |
+| the job worker sleeping, two runs | 101.6, 99.2 | 50.8, 49.7 |
+| the polls sleeping too, two runs | 103.6, 104.8 | 61.6, 60.5 |
+| the same build without them (interleaved), two runs | 103.9, 100.9 | 53.7, 53.1 |
+
+Tried and dropped: the title's threads let onto the prime core beside the
+ring consumer (96.4 and 87.7, the ring consumer pushed off it), 3_Server
+held to the performance cores (`MW2_FRAME_PROCESSORS=0x2d`, 101.6: no
+change). The Thor's zones started each of these runs at 69 to 82 C and the
+same build read 87 to 104 over the slot before, so only runs side by side
+are compared.
+
+**The Thor with every change** (`MW2_REPORT` per second after the first
+ten; 1% low from the `performance:` line; warm: caches from the run before,
+first: shader and pipeline caches deleted):
+
+| | mean | 1% low | longest | seconds at 115+ | scene |
+|---|---|---|---|---|---|
+| Shadows of Evil, warm, two runs | 100.5, 106.0 | 57.4, 59.7 | 70, 63 ms | 16, 30% | 93, 89% |
+| Shadows of Evil, first | 105.6 | 51.7 | 62 ms | 26% | 87% |
+| The Giant, warm, two runs | 117.4, 113.4 | 64.1, 46.4 | 52, 72 ms | 82, 69% | 77, 91% |
+| The Giant, first | 111.2 | 38.4 | 65 ms | 51% | 91% |
+| mp_spire TDM, warm / first | 117.5 / 119.0 | 45.4 / 63.0 | 115 / 43 ms | 89 / 96% | 92 / 89% |
+| Combine (mp_sector) TDM, warm / first | 118.6 / 119.0 | 53.4 / 63.4 | 59 / 39 ms | 93 / 97% | 93 / 94% |
+| Combine, ten minutes | 118.8 over 664 s | 86.1 | 79 ms | 99% | 98% |
+
+In the ten minutes the hottest zone read 93 to 95 C, the chip's limit
+stayed at 680 MHz and the prime core's at 3187; no underrun in any run.
+The timing at 120 against 60 with the sleeps (Windows, forced on): the
+server frame 50.4 against 50.0 ms on average.
+
+**What still holds Shadows of Evil:** the title's own threads. A first
+visit's long frames were the renderer standing up to 32 ms for one
+pipeline (`MW2_PIPELINE_WAIT_MS`) and the title presenting 40 to 65 ms
+late in the first seconds after the spawn; warm, the longest presents are
+25 ms late and nothing waits for a pipeline. In play the frames wait for
+the processor about 40% of the time; Main is 60% of a performance core,
+the JQ Workers 46 to 50%, 3_Server 56% (a third of it on the efficiency
+cores), 2_Backend 53%, the performance cores 71% busy and the game's code
+flat (its hottest function, sub_82493D58, 3.5% of its samples; its memcpy,
+sub_82A08D60, 2%; the outlined atomics `__aarch64_cas*` 3%). The Giant is
+held by the chip instead: the scene at 77 to 91% of its width and the
+frames waiting for the processor 5 to 24% of the time.
+
 ## Open
 
 - The zombies once ended in `Could not load default asset '' for asset type
