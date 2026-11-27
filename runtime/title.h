@@ -218,6 +218,13 @@
 // The vsync dvar's pointer, read by the swap callback (sub_824A18E0) as the
 // multiplayer's.
 #define T_DATA_VsyncDvar       0x83858360u
+// The console's queue and the view turned by an angle, as the
+// multiplayer's below: the same functions instruction for instruction.
+#define T_Cbuf_AddText         82631630
+#define T_AimAssist_UpdateInput 82163388   // (input, output)
+#define T_AIM_INPUT_LOCAL_CLIENT_BYTE 52u
+#define T_DATA_AimAssistState     0x8445B750u
+#define T_AIMASSIST_FOV_SCALE     168u
 
 // the kernel's data imports, found as the multiplayer's
 #define T_DATA_TimeStampBundlePtr 0x820008E0u   // the KeTimeStampBundle import record
@@ -260,6 +267,25 @@
 // The Lua library's `require`, with Treyarch's lowering of the name: the one
 // user of the format `unable to load module "%s":%s` (820D7068); (state).
 #define T_Lua_Require          82502288
+// Cbuf_AddText(local client, text): the "p<digit> " prefix parse (112, 80,
+// 48, 32) the other titles' have, then the text appended to the client's
+// buffer; "exec %s\n" and the button configurations are queued through it.
+// MW2_CONSOLE and the app's console entry feed it (console.cpp). The dvars
+// go by hashes: a command such as `map mp_spire` reaches the title, a dvar's
+// name only where the title registered it by name.
+#define T_Cbuf_AddText         8263A6A0
+// The view turned by an angle (mouse_look.cpp): AimAssist_UpdateGamePadInput
+// is sub_821634E8, which copies the input's pitch at +8 and yaw at +20 to the
+// output's +0 and +4 before anything else, as Modern Warfare 3's does. The
+// local client is a byte at +52 of the input; the first client's aim assist
+// state is at 84498390 (20016 bytes a client). The turn rates
+// (sub_821614E0) are multiplied by state + 168, which sub_821606E8 keeps as
+// tan(half the view's height) over 0.75 * tan(32.5 degrees): 1 from the hip
+// at the console's 65 degrees, less down a sight.
+#define T_AimAssist_UpdateInput 821634E8   // (input, output)
+#define T_AIM_INPUT_LOCAL_CLIENT_BYTE 52u
+#define T_DATA_AimAssistState     0x84498390u
+#define T_AIMASSIST_FOV_SCALE     168u
 
 // A move of a streamed image's memory, done by the GPU with a memory export
 // (image_move.cpp): (destination, source, size, flags). One of the four

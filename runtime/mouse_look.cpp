@@ -50,11 +50,20 @@ namespace
 
     // AimInput and AimOutput, as AimAssist_UpdateGamePadInput reads and
     // writes them. Call of Duty 4's input is a word shorter before the
-    // local client (title.h).
+    // local client, and Black Ops III keeps it as a byte (title.h).
 #ifndef T_AIM_INPUT_LOCAL_CLIENT
 #define T_AIM_INPUT_LOCAL_CLIENT 44u
 #endif
     constexpr uint32_t kInputLocalClient = T_AIM_INPUT_LOCAL_CLIENT;
+
+    uint32_t LocalClient(uint8_t* base, uint32_t input)
+    {
+#ifdef T_AIM_INPUT_LOCAL_CLIENT_BYTE
+        return PPC_LOAD_U8(input + T_AIM_INPUT_LOCAL_CLIENT_BYTE);
+#else
+        return PPC_LOAD_U32(input + kInputLocalClient);
+#endif
+    }
     constexpr uint32_t kOutputPitch = 0, kOutputYaw = 4;
     constexpr uint32_t kGamepadSensitivity = 4;
 
@@ -114,7 +123,7 @@ GUEST_HOOK(T_AimAssist_UpdateInput)
     const uint32_t input = ctx.r3.u32, output = ctx.r4.u32;
     GUEST_ORIG(T_AimAssist_UpdateInput)(ctx, base);
     // The mouse and the touch controls are the first player's.
-    const uint32_t localClient = PPC_LOAD_U32(input + kInputLocalClient);
+    const uint32_t localClient = LocalClient(base, input);
     if (localClient != 0) return;
 
     float right, down, exactRight, exactDown;

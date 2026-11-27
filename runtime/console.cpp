@@ -82,3 +82,15 @@ GUEST_HOOK(T_Cbuf_AddText)
     GUEST_ORIG(T_Cbuf_AddText)(ctx, base);
 }
 #endif
+
+// Black Ops III has no bots of the runtime's and is built as Modern Warfare 3
+// is, whose Cbuf_AddText engine_log.cpp leaves alone: its menus' commands
+// are traced here.
+#if defined(BO3_TITLE) && defined(T_Cbuf_AddText)
+GUEST_HOOK(T_Cbuf_AddText)
+{
+    static const bool traced = diag::Flag("MW2_TRACE_CBUF");
+    if (traced && ctx.r4.u32) LOGI("cbuf(%u): %s", ctx.r3.u32, reinterpret_cast<const char*>(base + ctx.r4.u32));
+    GUEST_ORIG(T_Cbuf_AddText)(ctx, base);
+}
+#endif
