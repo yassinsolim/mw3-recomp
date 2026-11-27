@@ -1,0 +1,14 @@
+Modern Warfare 2 for Android v0.1.11
+
+Nothing to rebuild: the game code you built for v0.1.10 is used as it is, and your saves and settings are kept.
+
+New
+- Fixed, on the bundled Turnip driver: one frame in three could draw a model from out-of-date vertex data, which looks like a weapon or model flashing as stray triangles. The bug was found and measured in Advanced Warfare; this game shares the renderer, so it gets the fix too.
+
+Known issues
+- The automatic settings were measured on two devices only; if yours runs worse, send a performance report.
+- Map packs are experimental.
+- The first minutes on a fresh install stutter while shaders compile.
+- Multiplayer over the internet needs a relay server; see the README.
+
+Official downloads are only on GitHub Releases. Never share the game code you build: it contains the game. Unofficial fan project, not affiliated with Activision or Microsoft.
