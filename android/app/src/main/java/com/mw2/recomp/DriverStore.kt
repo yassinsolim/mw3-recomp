@@ -117,7 +117,7 @@ class DriverStore(private val context: Context) {
 
             val minApi = json.optInt("minApi", 0)
             if (minApi > 0 && android.os.Build.VERSION.SDK_INT < minApi) {
-                return Outcome.Failed("Driver requires Android API $minApi (device has ${android.os.Build.VERSION.SDK_INT})")
+                return Outcome.Failed(context.getString(R.string.driver_needs_api, minApi, android.os.Build.VERSION.SDK_INT))
             }
 
             val name = json.optString("name", suggestedName).ifEmpty { suggestedName }

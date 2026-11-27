@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Russian, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="game_code_refused">Код игры на этом устройстве не соответствует этой версии приложения: %1$s.\n\nСоберите его заново: на ПК обновите папку проекта (git pull) и запустите setup\\setup.cmd -Game mw2 -GameOnly, подключив это устройство по USB. Если вы собирали онлайн: в своём приватном репозитории откройте Actions, Build my game package, Run workflow. Файлы игры и сохранения останутся на месте.</string>
+</resources>

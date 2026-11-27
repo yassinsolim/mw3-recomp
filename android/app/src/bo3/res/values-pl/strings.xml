@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Polish, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">TRYB WIELOOSOBOWY</string>
+    <string name="title_multiplayer">ZOMBIE</string>
+    <string name="game_code_missing">Kodu gry nie ma na tym urządzeniu. Powstaje tutaj z twojej płyty i aktualizacji 5: Dodaj DLC pobiera aktualizację i go buduje.</string>
+    <string name="build_code_missing">Kodu gry nie ma jeszcze na tym urządzeniu: powstaje z twojej płyty i aktualizacji 5.\nDodaj DLC go buduje i pokazuje postęp; trwa to kilka minut i działa w tle.</string>
+    <string name="status_update_needed">Black Ops III na tej konsoli uzupełniają aktualizacja 5 oraz Compatibility Packs 1 i 2: sama płyta nie ma żadnej mapy.\nWybierz Dodaj DLC i wskaż folder Content\\0000000000000000\\4156091D skopiowany z dysku twojego Xbox 360. Kod gry zostanie wtedy zbudowany z twojej płyty i aktualizacji, tutaj, na tym urządzeniu.</string>
+    <string name="build_update_missing">Kod gry powstaje z twojej płyty i aktualizacji 5, a aktualizacji nie ma w folderze DLC: najpierw dodaj ją przez Dodaj DLC.</string>
+    <string name="build_name_campaign">tryb wieloosobowy</string>
+    <string name="build_name_multiplayer">zombie</string>
+    <string name="install_mode_copy_hint">Ok. 4 GB w pamięci wewnętrznej urządzenia i minuta lub dwie. Potem obraz lub folder nie jest już potrzebny.</string>
+    <string name="dlc_detail_update">Twoja własna aktualizacja, Compatibility Packs i pakiety map, skopiowane z dysku twojego Xbox 360. Aplikacja ich nie zawiera i niczego nie pobiera.</string>
+    <string name="dlc_hint_update">Skopiuj folder Content\\0000000000000000\\4156091D z dysku konsoli (pendrive Xbox 360 albo dysk w PC) i wybierz go tutaj lub wybierz pliki w nim: aktualizacja 5 jest w 000B0000, a Compatibility Packs 1 i 2, których gra też potrzebuje, w 00000002 razem z pakietami map (The Giant, Awakening). Pliki pozostają twoje i są tylko odczytywane. Przytrzymaj pozycję, aby ją usunąć.</string>
+    <string name="dlc_none">Na razie nic tu nie ma. Gra potrzebuje aktualizacji 5 oraz pakietów zgodności (Compatibility Packs) 1 i 2.</string>
+    <string name="dlc_ready">Pakiety (%1$d) i aktualizacja gry są na miejscu, a kod gry jest zbudowany: gra uruchamia się z launchera. Dodane tu dodatki z mapami pojawią się w menu gry przy następnym uruchomieniu; nic nie trzeba dla nich ponownie budować.</string>
+    <string name="dlc_code_missing">Pakiety (%1$d) i aktualizacja gry są na miejscu, ale brakuje jeszcze kodu gry, który buduje się na tym urządzeniu z twojej płyty i aktualizacji: użyj przycisku \"Zbuduj teraz\" poniżej (kilka minut, w tle).</string>
+    <string name="dlc_building">Pakiety (%1$d) i aktualizacja gry są na miejscu, a kod gry jest właśnie budowany na tym urządzeniu: %2$s. Możesz opuścić ten ekran; po zakończeniu gra uruchomi się z launchera.</string>
+    <string name="dlc_build_failed">Pakiety (%1$d) i aktualizacja gry są na miejscu, ale nie udało się zbudować kodu gry: %2$s</string>
+    <string name="dlc_update_missing">Pakiety (%1$d) są na miejscu, ale brakuje aktualizacji 5, z której powstaje gra: to plik Content\\0000000000000000\\4156091D\\000B0000 na dysku twardym konsoli.</string>
+    <string name="dlc_packs_missing">Nadal brakuje: %1$s. Gra potrzebuje obu: bez jednego z nich wyświetla tylko komunikat, że trzeba pobrać wymaganą zawartość, a tutaj nic się nie pobiera. Są darmowe i znajdziesz je na dysku twardym konsoli obok dodatków z mapami, w Content\\0000000000000000\\4156091D\\00000002 (konsola pobrała je razem z aktualizacją gry); dodaj je tutaj w ten sam sposób.</string>
+    <string name="dlc_nothing_found_update">Żaden z tych plików nie jest pakietem Black Ops III. To pliki bez rozszerzenia, z nazwami z liter i cyfr, w Content\\0000000000000000\\4156091D na dysku twardym konsoli.</string>
+    <string name="disclaimer">NIEOFICJALNE. NIEPOWIĄZANE Z ACTIVISION, TREYARCH ANI MICROSOFT.</string>
+</resources>

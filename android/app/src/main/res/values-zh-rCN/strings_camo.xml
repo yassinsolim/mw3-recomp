@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">额外迷彩，与游戏自带迷彩一起显示在“自定义职业”中“黄金”迷彩的下方：任何迷彩包都不会替换游戏自带或其他包中的迷彩。关闭某个迷彩包即可将其从列表中隐藏；长按可将其移除。更改将在下次启动游戏时生效。</string>
+    <string name="camo_packs_none">还没有安装迷彩包。</string>
+    <plurals name="camo_pack_count">
+        <item quantity="other">%1$d 个迷彩包，%2$d 款迷彩在游戏中显示</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="other">%1$d 款迷彩，作者：%2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">未署名作者</string>
+    <string name="camo_pack_add">从文件添加迷彩包</string>
+    <string name="camo_pack_fetch">获取本项目的迷彩包</string>
+    <string name="camo_pack_fetching">正在下载…</string>
+    <string name="camo_pack_fetched">%1$s（作者：%2$s）：已安装</string>
+    <string name="camo_pack_checksum">下载的文件不是应用所需的文件</string>
+    <string name="camo_pack_converting">正在转换…</string>
+    <string name="camo_pack_name">迷彩包名称</string>
+    <string name="camo_pack_default_name">我的迷彩</string>
+    <string name="camo_pack_rar">%1$s：手机上无法打开 .rar 或 .7z 文件。请将其解压后选择其中的 .iwi 文件，或重新压缩为 zip，或在电脑上通过 setup 导入（setup -CamoPacks）。</string>
+    <string name="camo_pack_no_pictures">选择一个 PC 版迷彩 mod：.zip 或 .iwd 文件，或其中的 .iwi 图片（可一次选择多张）。</string>
+    <string name="camo_pack_nothing">%1$s：其中未找到迷彩</string>
+    <string name="camo_pack_failed">%1$s：未添加（%2$s）</string>
+    <plurals name="camo_pack_added">
+        <item quantity="other">%1$s：已添加 %2$d 款迷彩</item>
+    </plurals>
+    <string name="camo_pack_animate">动画</string>
+    <string name="camo_pack_listed">在游戏中显示</string>
+    <string name="camo_pack_remove">移除</string>
+    <string name="camo_pack_remove_hint">要从手机中移除这个迷彩包吗？使用了其中迷彩的职业将显示为“黄金”迷彩，直到重新添加该包。</string>
+    <string name="camo_pack_bundled">这个迷彩包随应用附带，下次启动时会重新出现。关闭它即可将其从游戏列表中隐藏。</string>
+    <string name="camo_animate_gold">为黄金类迷彩添加动画（Sloth 风格）</string>
+    <string name="camo_animate_gold_hint">PC mod 为“黄金”迷彩制作的迷彩会在武器上滚动流动，效果与 PC 版 Sloth 的 Animated Camos Mod 相同，由本移植版自行渲染。在迷彩包上开启“动画”，可让该包中所有静态迷彩呈现同样效果。</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Polish, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">KAMPANIA</string>
+    <string name="game_code_refused">Kod gry na tym urządzeniu nie pasuje do tej wersji aplikacji: %1$s.\n\nZbuduj go ponownie: na PC zaktualizuj folder projektu (git pull) i uruchom setup\\setup.cmd -Game aw -GameOnly, gdy to urządzenie jest podłączone przez USB. Twoje pliki gry i zapisy zostaną zachowane.</string>
+    <string name="install_hint">Ta gra ma dwie płyty – płytę z grą i płytę instalacyjną – i potrzebuje obu. Wskaż ich obrazy (.iso) na tym urządzeniu lub karcie pamięci: dotknij jednego, a drugi zostanie znaleziony obok, wybierz folder, w którym są oba, albo zaznacz oba w aplikacji Pliki. Gra działa prosto z obrazów, bez kopiowania; możesz też skopiować oba do aplikacji (ok. 12 GB).</string>
+    <string name="install_mode_link_hint">Nic nie jest kopiowane i wszystko jest gotowe w sekundę. Oba obrazy muszą zostać tam, gdzie są: gra czyta z nich swoje pliki. Zapisy, ustawienia i mody jak zawsze zostają w aplikacji.</string>
+    <string name="install_mode_copy_hint">Ok. 7 GB z płyty z grą i 4 GB z płyty instalacyjnej, w pamięci wewnętrznej urządzenia; minuta lub dwie na każdą. Potem obrazy nie są już potrzebne.</string>
+    <string name="install_done_link">Gra jest ustawiona tak, by działać z dwóch obrazów płyt. Zostaw oba tam, gdzie są.</string>
+    <string name="change_source_hint">Otwiera ekran instalacji: graj z dwóch obrazów płyt zamiast ze skopiowanych plików (i zwolnij ich 12 GB), skopiuj pliki albo wskaż obraz, który został przeniesiony.</string>
+    <string name="disclaimer">NIEOFICJALNE. NIEPOWIĄZANE Z ACTIVISION, SLEDGEHAMMER GAMES ANI MICROSOFT.</string>
+    <string name="build_hint">Kod gry powstaje z twojej własnej kopii gry, tutaj, na tym urządzeniu. Potrzebny jest obraz twojej płyty (.iso), który jest tylko odczytywany, pakiet narzędzi (kompilator, instalowany raz, ok. 45 MB do pobrania) i ok. 1 GB wolnego miejsca w trakcie pracy. Budowanie trwało ok. 13 minut na Retroid Pocket Flip 2 (Snapdragon 865), jedynym urządzeniu, na którym to zmierzono; na wolniejszym lub nagrzanym trwa dłużej. Działa, gdy używasz innych aplikacji, a po przerwaniu wznawia się od miejsca, w którym skończyło.</string>
+</resources>

@@ -139,6 +139,7 @@ walking to it.
 
 | switch | effect |
 |---|---|
+| `MW2_LANGUAGE=<n>`, `MW2_LOCALE=<n>` | the dashboard's language (`XC_LANGUAGE_*`: 1 English, 3 German, 4 French, 5 Spanish, 6 Italian, 9 Portuguese, 11 Polish, 12 Russian) and locale (`XC_LOCALE_*`: 36 the United States, 31 Spain, 22 Mexico...) the title is told; English and the United States when unset. Only Black Ops III's disc has other languages; the Android app sets both from the phone's for it ([languages.md](languages.md)) |
 | `MW2_TRACE_INDIRECT` | CMake option, on by default: reports an indirect call with no recompiled target instead of jumping to null (one outside the code section is reported in every build) |
 | `MW2_ENGINE_LOG=1` | the title's own `Com_Printf` output in the log |
 | `MW2_TRACE_ERRORS=1` | the guest call stack under every `Com_Error`; one wrapper raises every error, so the message alone does not say where it came from |

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="game_code_refused">Der Spielcode auf diesem Gerät passt nicht zu dieser App-Version: %1$s.\n\nErstelle ihn neu: Aktualisiere am PC den Projektordner (git pull) und führe setup\\setup.cmd -Game mw2 -GameOnly aus, während dieses Gerät per USB verbunden ist. Wenn du ihn online erstellt hast: In deinem privaten Repository unter Actions „Build my game package“ und dann „Run workflow“ wählen. Deine Spieldateien und Spielstände bleiben erhalten.</string>
+</resources>

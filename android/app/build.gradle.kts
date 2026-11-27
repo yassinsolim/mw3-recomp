@@ -825,6 +825,12 @@ kitGames.forEach { (game, kit) ->
     }
 }
 
+// LocaleResourcesTest reads every source set's strings from src/: a changed
+// translation runs the unit tests again rather than finding them up to date.
+tasks.withType<Test>().configureEach {
+    inputs.files(fileTree("src") { include("*/res/values*/strings*.xml") }).withPropertyName("stringResources")
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")

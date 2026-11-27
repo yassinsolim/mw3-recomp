@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">CAMPAGNE</string>
+    <string name="game_code_refused">Le code du jeu sur cet appareil ne correspond pas à cette version de l\'application : %1$s.\n\nCompilez-le à nouveau : sur votre PC, mettez à jour le dossier du projet (git pull) et lancez setup\\setup.cmd -Game aw -GameOnly avec cet appareil branché en USB. Vos fichiers de jeu et vos sauvegardes sont conservés.</string>
+    <string name="install_hint">Ce jeu a deux disques, le disque du jeu et le disque d\'installation, et il lui faut les deux. Indiquez leurs images (.iso), sur cet appareil ou sa carte mémoire : touchez-en une et l\'autre sera trouvée à côté, choisissez le dossier qui contient les deux, ou sélectionnez les deux dans l\'app Fichiers. Le jeu tourne depuis les images là où elles sont, sans rien copier ; ou bien les deux peuvent être copiées dans l\'application, environ 12 GB.</string>
+    <string name="install_mode_link_hint">Rien n\'est copié, c\'est prêt en une seconde. Les deux images doivent rester où elles sont : le jeu y lit ses fichiers. Les sauvegardes, paramètres et mods restent dans l\'application comme d\'habitude.</string>
+    <string name="install_mode_copy_hint">Environ 7 GB du disque du jeu et 4 GB du disque d\'installation, sur le stockage interne de l\'appareil ; une minute ou deux chacun. Les images ne sont plus nécessaires ensuite.</string>
+    <string name="install_done_link">Le jeu est configuré pour tourner depuis les deux images disque. Laissez-les toutes les deux où elles sont.</string>
+    <string name="change_source_hint">Ouvre l\'écran d\'installation : jouer depuis les deux images disque plutôt que depuis les fichiers copiés (et libérer leurs 12 GB), copier les fichiers à la place, ou indiquer une image qui a été déplacée.</string>
+    <string name="disclaimer">NON OFFICIEL. SANS LIEN AVEC ACTIVISION, SLEDGEHAMMER GAMES OU MICROSOFT.</string>
+    <string name="build_hint">Le code du jeu est créé à partir de votre propre copie du jeu, ici sur cet appareil. Il faut l\'image de votre disque (.iso), qui est seulement lue, le paquet d\'outils (le compilateur, installé une fois, un téléchargement d\'environ 45 MB) et environ 1 GB d\'espace libre pendant l\'opération. La compilation a pris environ 13 minutes sur un Retroid Pocket Flip 2 (Snapdragon 865), le seul appareil sur lequel elle a été mesurée, et prend plus de temps sur un appareil plus lent ou qui chauffe ; elle continue pendant que vous utilisez d\'autres apps, et reprend où elle en était si elle est interrompue.</string>
+</resources>

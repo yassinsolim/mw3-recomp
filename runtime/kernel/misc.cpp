@@ -3,6 +3,7 @@
 #include "../pacing_trace.h"
 #include "kernel.h"
 #include "../guest.h"
+#include "../env.h"
 #include "../log.h"
 #include "../crash.h"
 #include "../install/install.h"
@@ -273,9 +274,31 @@ PPC_FUNC(__imp__XexLoadImage)
     if (auto* handle = GuestPtr<be32>(ctx.r6.u32)) *handle = 0;
     ctx.r3.u64 = X_STATUS_DLL_NOT_FOUND;
 }
+
+// A number the console never gives (0, or past the last language, 17, and
+// the last locale, 43) is English and the United States, as an unset one.
+uint32_t kernel::ConsoleLanguage()
+{
+    static const uint32_t language = [] {
+        const uint64_t value = env::Number("MW2_LANGUAGE", 1);
+        return value >= 1 && value <= 17 ? uint32_t(value) : 1u;
+    }();
+    return language;
+}
+
+uint32_t kernel::ConsoleLocale()
+{
+    static const uint32_t locale = [] {
+        const uint64_t value = env::Number("MW2_LOCALE", 36);
+        return value >= 1 && value <= 43 ? uint32_t(value) : 36u;
+    }();
+    return locale;
+}
+
 PPC_FUNC(__imp__XexUnloadImage)         { ctx.r3.u64 = X_STATUS_SUCCESS; }
 PPC_FUNC(__imp__XGetAVPack)             { ctx.r3.u64 = 0x010000; }   // HDMI
-PPC_FUNC(__imp__XGetLanguage)           { ctx.r3.u64 = 1; }          // English
+PPC_FUNC(__imp__XGetLanguage)           { ctx.r3.u64 = kernel::ConsoleLanguage(); }
+PPC_FUNC(__imp__XamGetLanguage)         { ctx.r3.u64 = kernel::ConsoleLanguage(); }
 PPC_FUNC(__imp__KeLockL2)               { ctx.r3.u64 = 0; }
 PPC_FUNC(__imp__KeUnlockL2)             { }
 PPC_FUNC(__imp__KiApcNormalRoutineNop)  { ctx.r3.u64 = 0; }

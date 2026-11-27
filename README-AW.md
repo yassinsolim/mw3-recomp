@@ -116,6 +116,11 @@ and attach that file. See [Known limits](#known-limits), [Tips](#tips) and
   (7.3 GB from the game disc, 4 GB from the install disc, about 12 GB on the
   device's own storage), after which the images are no longer needed:
   **Repair / rebuild**, **Disc image and game files**.
+- **Languages.** The app follows the phone's language: English, Spanish,
+  Portuguese (Brazil), French, German, Italian, Russian, Polish, Turkish,
+  Arabic, Simplified Chinese, Japanese, Korean and Indonesian. The game is
+  English: the game disc holds the levels' text in English only
+  ([docs/languages.md](docs/languages.md)).
 
 ## Supported devices and what to expect
 

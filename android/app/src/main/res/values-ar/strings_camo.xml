@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arabic (Modern Standard), translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">تمويهات إضافية تظهر أسفل الذهبي في Create a Class بجانب تمويهات اللعبة: لا تستبدل أي حزمة تمويهًا من اللعبة أو من حزمة أخرى. أوقف حزمة لاستبعادها من القائمة؛ واضغط مطولًا على حزمة لإزالتها. تسري التغييرات عند تشغيل اللعبة في المرة القادمة.</string>
+    <string name="camo_packs_none">لم يتم تثبيت أي حزمة تمويه بعد.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="zero">%1$d حزمة، %2$d تمويه ظاهر في اللعبة</item>
+        <item quantity="one">%1$d حزمة، %2$d تمويه ظاهر في اللعبة</item>
+        <item quantity="two">%1$d حزمة، %2$d تمويه ظاهر في اللعبة</item>
+        <item quantity="few">%1$d حزم، %2$d تمويهات ظاهرة في اللعبة</item>
+        <item quantity="many">%1$d حزمة، %2$d تمويهًا ظاهرًا في اللعبة</item>
+        <item quantity="other">%1$d حزمة، %2$d تمويه ظاهر في اللعبة</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="zero">%1$d تمويه، من %2$s</item>
+        <item quantity="one">%1$d تمويه، من %2$s</item>
+        <item quantity="two">%1$d تمويه، من %2$s</item>
+        <item quantity="few">%1$d تمويهات، من %2$s</item>
+        <item quantity="many">%1$d تمويهًا، من %2$s</item>
+        <item quantity="other">%1$d تمويه، من %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">مؤلف غير معروف</string>
+    <string name="camo_pack_add">إضافة حزمة من ملف</string>
+    <string name="camo_pack_fetch">تنزيل حزم المشروع</string>
+    <string name="camo_pack_fetching">جارٍ التنزيل…</string>
+    <string name="camo_pack_fetched">%1$s من %2$s: تم التثبيت</string>
+    <string name="camo_pack_checksum">الملف الذي تم تنزيله ليس الملف الذي يتوقعه التطبيق</string>
+    <string name="camo_pack_converting">جارٍ التحويل…</string>
+    <string name="camo_pack_name">اسم الحزمة</string>
+    <string name="camo_pack_default_name">تمويهاتي</string>
+    <string name="camo_pack_rar">%1$s: لا يمكن فتح ملفات .rar أو .7z على الهاتف. فك ضغطه واختر ملفات .iwi منه، أو أعد ضغطه بصيغة zip، أو دع أداة setup على الكمبيوتر تستورده (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">اختر تعديل تمويه للكمبيوتر: ملف .zip أو .iwd، أو صور .iwi الخاصة به (عدة ملفات معًا).</string>
+    <string name="camo_pack_nothing">%1$s: لا يحتوي على أي تمويه</string>
+    <string name="camo_pack_failed">%1$s: لم تتم الإضافة (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="zero">%1$s: تمت إضافة %2$d تمويه</item>
+        <item quantity="one">%1$s: تمت إضافة %2$d تمويه</item>
+        <item quantity="two">%1$s: تمت إضافة %2$d تمويه</item>
+        <item quantity="few">%1$s: تمت إضافة %2$d تمويهات</item>
+        <item quantity="many">%1$s: تمت إضافة %2$d تمويهًا</item>
+        <item quantity="other">%1$s: تمت إضافة %2$d تمويه</item>
+    </plurals>
+    <string name="camo_pack_animate">تحريك</string>
+    <string name="camo_pack_listed">ظاهر في اللعبة</string>
+    <string name="camo_pack_remove">إزالة</string>
+    <string name="camo_pack_remove_hint">هل تريد إزالة هذه الحزمة من الهاتف؟ أي فئة تستخدم أحد تمويهاتها ستظهر بالذهبي حتى تُضاف الحزمة مجددًا.</string>
+    <string name="camo_pack_bundled">هذه الحزمة مرفقة بالتطبيق، لذا ستعود عند التشغيل التالي. أوقفها لاستبعادها من قائمة اللعبة.</string>
+    <string name="camo_animate_gold">تحريك التمويهات من نوع Gold (على طريقة Sloth)</string>
+    <string name="camo_animate_gold_hint">التمويهات التي صنعها تعديل للكمبيوتر بدلًا من الذهبي تتحرك عبر السلاح، بمظهر Animated Camos Mod من Sloth للكمبيوتر، ويرسمها المنفذ نفسه هنا. خيار \"تحريك\" على حزمة يفعل الشيء نفسه لكل تمويه ثابت في تلك الحزمة.</string>
+</resources>

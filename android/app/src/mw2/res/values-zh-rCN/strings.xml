@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="game_code_refused">此设备上的游戏代码与当前版本的应用不匹配：%1$s。\n\n请重新构建：在电脑上更新项目文件夹（git pull），用 USB 连接此设备后运行 setup\\setup.cmd -Game mw2 -GameOnly。如果你是在线构建的：在你的私有仓库中依次进入 Actions、Build my game package、Run workflow。你的游戏文件和存档会保留。</string>
+</resources>

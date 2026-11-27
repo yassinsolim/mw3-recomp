@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Camouflages supplémentaires, affichés sous Or dans Créer une classe à côté de ceux du jeu : aucun pack ne remplace un camouflage du jeu ou d\'un autre pack. Désactivez un pack pour le retirer de la liste ; maintenez-en un appuyé pour le supprimer. Les modifications prennent effet au prochain lancement du jeu.</string>
+    <string name="camo_packs_none">Aucun pack de camos n\'est encore installé.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d pack, %2$d camouflages affichés dans le jeu</item>
+        <item quantity="many">%1$d de packs, %2$d camouflages affichés dans le jeu</item>
+        <item quantity="other">%1$d packs, %2$d camouflages affichés dans le jeu</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d camouflage, par %2$s</item>
+        <item quantity="many">%1$d de camouflages, par %2$s</item>
+        <item quantity="other">%1$d camouflages, par %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">un auteur anonyme</string>
+    <string name="camo_pack_add">Ajouter un pack depuis un fichier</string>
+    <string name="camo_pack_fetch">Obtenir les packs du projet</string>
+    <string name="camo_pack_fetching">Téléchargement…</string>
+    <string name="camo_pack_fetched">%1$s par %2$s : installé</string>
+    <string name="camo_pack_checksum">le fichier téléchargé n\'est pas celui attendu par l\'appli</string>
+    <string name="camo_pack_converting">Conversion…</string>
+    <string name="camo_pack_name">Nom du pack</string>
+    <string name="camo_pack_default_name">Mes camos</string>
+    <string name="camo_pack_rar">%1$s : un .rar ou un .7z ne s\'ouvre pas sur le téléphone. Décompressez-le et choisissez ses fichiers .iwi, recompressez-le en zip, ou laissez setup l\'importer sur un PC (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Choisissez un mod de camouflage PC : un .zip ou un .iwd, ou ses images .iwi (plusieurs à la fois).</string>
+    <string name="camo_pack_nothing">%1$s : aucun camouflage trouvé</string>
+    <string name="camo_pack_failed">%1$s : non ajouté (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s : %2$d camouflage ajouté</item>
+        <item quantity="many">%1$s : %2$d de camouflages ajoutés</item>
+        <item quantity="other">%1$s : %2$d camouflages ajoutés</item>
+    </plurals>
+    <string name="camo_pack_animate">Animer</string>
+    <string name="camo_pack_listed">Affiché dans le jeu</string>
+    <string name="camo_pack_remove">Supprimer</string>
+    <string name="camo_pack_remove_hint">Supprimer ce pack du téléphone ? Une classe qui utilise l\'un de ses camouflages affichera Or jusqu\'à ce que le pack soit de nouveau ajouté.</string>
+    <string name="camo_pack_bundled">Ce pack est fourni avec l\'appli, il reviendrait donc au prochain lancement. Désactivez-le pour le retirer de la liste du jeu.</string>
+    <string name="camo_animate_gold">Animer les camos de type Or (style de Sloth)</string>
+    <string name="camo_animate_gold_hint">Les camouflages qu\'un mod PC a conçus pour Or défilent sur l\'arme, comme dans l\'Animated Camos Mod de Sloth sur PC, rendus ici par le portage lui-même. \"Animer\" sur un pack fait de même pour chaque camouflage fixe de ce pack.</string>
+</resources>

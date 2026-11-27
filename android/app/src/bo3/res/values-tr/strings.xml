@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Turkish, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">ÇOK OYUNCULU</string>
+    <string name="title_multiplayer">ZOMBİLER</string>
+    <string name="game_code_missing">Oyun kodu bu cihazda yok. Kendi diskinden ve 5. oyun güncellemesinden burada oluşturulur: DLC ekle güncellemeyi alır ve derler.</string>
+    <string name="build_code_missing">Oyun kodu henüz bu cihazda yok: kendi diskinden ve 5. oyun güncellemesinden oluşturulur.\nDLC ekle onu derler ve ne kadar ilerlediğini gösterir; birkaç dakika sürer ve arka planda devam eder.</string>
+    <string name="status_update_needed">Bu konsoldaki Black Ops III, 5. oyun güncellemesi ve Compatibility Pack 1 ile 2 ile tamamlanır: disk tek başına hiç harita içermez.\nDLC ekle\'yi seç ve Xbox 360\'ının sabit diskinden kopyalanan Content\\0000000000000000\\4156091D klasörünü göster. Ardından oyun kodu diskinden ve güncellemeden burada, bu cihazda derlenir.</string>
+    <string name="build_update_missing">Oyun kodu diskinden ve 5. oyun güncellemesinden oluşturulur, ama güncelleme DLC klasöründe yok: önce DLC ekle ile ekle.</string>
+    <string name="build_name_campaign">çok oyunculu</string>
+    <string name="build_name_multiplayer">zombiler</string>
+    <string name="install_mode_copy_hint">Cihazın kendi depolama alanında yaklaşık 4 GB ve bir iki dakika. Sonrasında kalıba ya da klasöre gerek kalmaz.</string>
+    <string name="dlc_detail_update">Xbox 360\'ının sabit diskinden kopyalanan kendi oyun güncellemen, Compatibility Pack\'lerin ve harita paketlerin. Uygulamada bunlar yoktur ve hiçbirini indirmez.</string>
+    <string name="dlc_hint_update">Content\\0000000000000000\\4156091D klasörünü konsolunun sabit diskinden (bir Xbox 360 USB sürücüsü ya da bilgisayara takılı disk) kopyala ve burada seç ya da içindeki dosyaları seç: 5. oyun güncellemesi 000B0000 içinde; oyunun ayrıca ihtiyaç duyduğu Compatibility Pack 1 ve 2 ise harita paketleriyle (The Giant, Awakening) birlikte 00000002 içinde. Dosyalar senin kalır ve yalnızca okunur. Bir girişi kaldırmak için basılı tut.</string>
+    <string name="dlc_none">Burada henüz bir şey yok. Oyun için 5. başlık güncellemesi ile 1. ve 2. Uyumluluk Paketleri gerekiyor.</string>
+    <string name="dlc_ready">%1$d paket ve başlık güncellemesi burada, oyun kodu da derlendi: oyun başlatıcıdan açılıyor. Buraya eklenen harita paketleri, oyun bir sonraki açılışında kendi menülerinde görünür; bunlar için yeniden bir şey derlenmez.</string>
+    <string name="dlc_code_missing">%1$d paket ve başlık güncellemesi burada, ama oyun kodu henüz yok. Bu kod, diskinden ve güncellemeden bu cihazda derlenir: aşağıdaki \"Şimdi oluştur\" düğmesine dokun (birkaç dakika sürer, arka planda çalışır).</string>
+    <string name="dlc_building">%1$d paket ve başlık güncellemesi burada, oyun kodu da bu cihazda derleniyor: %2$s. Bu ekrandan çıkabilirsin; iş bitince oyun başlatıcıdan açılır.</string>
+    <string name="dlc_build_failed">%1$d paket ve başlık güncellemesi burada, ama oyun kodu derlenemedi: %2$s</string>
+    <string name="dlc_update_missing">%1$d paket burada, ama oyunun temeli olan 5. başlık güncellemesi yok: bu, konsolun sabit diskindeki Content\\0000000000000000\\4156091D\\000B0000 içindeki dosya.</string>
+    <string name="dlc_packs_missing">Hâlâ eksik: %1$s. Oyun ikisine de ihtiyaç duyuyor: biri olmazsa oyun sadece gerekli içeriğin indirilmesi gerektiğini söyler ve burada hiçbir şey indirilmez. Ücretsizler ve konsolunun sabit diskinde harita paketlerinin yanında, Content\\0000000000000000\\4156091D\\00000002 içinde duruyorlar (konsol bunları başlık güncellemesiyle birlikte indirdi); onları da buraya aynı şekilde ekle.</string>
+    <string name="dlc_nothing_found_update">Bu dosyaların hiçbiri bir Black Ops III paketi değil. Paketler, konsolun sabit diskindeki Content\\0000000000000000\\4156091D içinde bulunan, uzantısız ve adları harf ile rakamlardan oluşan dosyalardır.</string>
+    <string name="disclaimer">RESMİ DEĞİLDİR. ACTIVISION, TREYARCH VEYA MICROSOFT İLE BAĞLANTISI YOKTUR.</string>
+</resources>

@@ -1655,7 +1655,7 @@ PPC_FUNC(__imp__XamEnumerate)
     ctx.r3.u64 = count ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
 }
 
-// XamGetSystemVersion, XGetLanguage and XGetAVPack are in misc.cpp.
+// XamGetSystemVersion, XGetLanguage, XamGetLanguage and XGetAVPack are in misc.cpp.
 
 PPC_FUNC(__imp__XamAlloc)
 {
@@ -1685,6 +1685,7 @@ PPC_FUNC(__imp__ExGetXConfigSetting)
         case 0x0001: value = 0;  width = 1; break;   // timezone-ish
         case 0x0002: value = 1;  width = 4; break;   // language: English
         case 0x0003: value = 0;  width = 4; break;   // video flags
+        case 0x0009: value = kernel::ConsoleLanguage(); width = 4; break;   // XCONFIG_USER_LANGUAGE, which XGetLanguage reads
         default: break;
         }
     }

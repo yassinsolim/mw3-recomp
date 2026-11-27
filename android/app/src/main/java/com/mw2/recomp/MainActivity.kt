@@ -1189,7 +1189,7 @@ class MainActivity : AppCompatActivity() {
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val request = DownloadManager.Request(Uri.parse(apkUrl))
                 .setTitle(getString(R.string.app_name))
-                .setDescription("Downloading APK")
+                .setDescription(getString(R.string.update_download_description))
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,

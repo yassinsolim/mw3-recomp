@@ -126,11 +126,13 @@ PPC_FUNC(__imp__XamShowFriendRequestUI)
 PPC_FUNC(__imp__XamVoiceIsActiveProcess) { ctx.r3.u64 = 0; }
 
 // XamGetLocaleEx(highest country, highest locale): the console's locale, one
-// of XC_LOCALE_*. The United States (36), as XGetLanguage says English.
+// of XC_LOCALE_* (kernel::ConsoleLocale), or the United States (36) where
+// the title knows no locale that high, as the console falls back.
 PPC_FUNC(__imp__XamGetLocaleEx)
 {
     constexpr uint32_t kUnitedStates = 36;
-    ctx.r3.u64 = std::min(kUnitedStates, ctx.r4.u32);
+    const uint32_t locale = ConsoleLocale();
+    ctx.r3.u64 = locale <= ctx.r4.u32 ? locale : std::min(kUnitedStates, ctx.r4.u32);
 }
 
 // XamBackgroundDownloadSetMode: how eagerly the dashboard downloads behind the

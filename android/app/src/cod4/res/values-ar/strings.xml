@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arabic (Modern Standard), translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">الحملة</string>
+    <string name="game_code_refused">شيفرة اللعبة على هذا الجهاز لا تتوافق مع هذا الإصدار من التطبيق: %1$s.\n\nأعِد بناءها: على حاسوبك، حدّث مجلد المشروع (git pull) وشغّل setup\\setup.cmd -Game cod4 -GameOnly وهذا الجهاز موصول عبر USB. إذا بنيتها عبر الإنترنت: في مستودعك الخاص، افتح Actions ثم Build my game package ثم Run workflow. ستبقى ملفات اللعبة والحفظ كما هي.</string>
+</resources>

@@ -7,8 +7,8 @@
          executables, and their zones are in the update and Compatibility
          Pack 1, so the steps are three and Add DLC is one of them. Setup on a
          PC does not build this game, so nothing here names a setup command. -->
-    <string name="wordmark">BLACK OPS III</string>
-    <string name="wordmark_recompiled">BO3 RECOMPILED</string>
+    <string name="wordmark" translatable="false">BLACK OPS III</string>
+    <string name="wordmark_recompiled" translatable="false">BO3 RECOMPILED</string>
     <string name="title_campaign">MULTIPLAYER</string>
     <string name="title_multiplayer">ZOMBIES</string>
     <string name="game_code_missing">The game code is not on this device. It is made here from your own disc and title update 5: Add DLC takes the update and builds it.</string>

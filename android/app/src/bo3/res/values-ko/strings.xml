@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Korean, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">멀티플레이</string>
+    <string name="title_multiplayer">좀비</string>
+    <string name="game_code_missing">이 기기에 게임 코드가 없어요. 게임 코드는 직접 가진 디스크와 타이틀 업데이트 5로 이 기기에서 만들어요. DLC 추가에서 업데이트를 넣으면 빌드해요.</string>
+    <string name="build_code_missing">아직 이 기기에 게임 코드가 없어요. 게임 코드는 직접 가진 디스크와 타이틀 업데이트 5로 만들어요.\nDLC 추가에서 빌드하며 진행 상황을 보여 줘요. 몇 분 걸리고 백그라운드에서 계속 진행돼요.</string>
+    <string name="status_update_needed">이 콘솔용 Black Ops III는 타이틀 업데이트 5와 Compatibility Pack 1, 2가 있어야 완성돼요. 디스크만으로는 맵이 없어요.\nDLC 추가를 선택하고, Xbox 360 하드 디스크에서 복사한 Content\\0000000000000000\\4156091D 폴더를 지정해 주세요. 그러면 디스크와 업데이트로 이 기기에서 게임 코드를 빌드해요.</string>
+    <string name="build_update_missing">게임 코드는 디스크와 타이틀 업데이트 5로 만드는데, DLC 폴더에 업데이트가 없어요. 먼저 DLC 추가에서 업데이트를 추가해 주세요.</string>
+    <string name="build_name_campaign">멀티플레이</string>
+    <string name="build_name_multiplayer">좀비</string>
+    <string name="install_mode_copy_hint">기기 내부 저장공간에 약 4 GB가 필요하고 1~2분 정도 걸려요. 복사가 끝나면 이미지나 폴더는 더 이상 필요 없어요.</string>
+    <string name="dlc_detail_update">Xbox 360 하드 디스크에서 직접 복사한 타이틀 업데이트, Compatibility Pack, 맵 팩이에요. 앱에는 아무것도 들어 있지 않고 다운로드하지도 않아요.</string>
+    <string name="dlc_hint_update">콘솔 하드 디스크(Xbox 360 USB 드라이브 또는 PC에 연결한 디스크)에서 Content\\0000000000000000\\4156091D 폴더를 복사한 뒤 여기서 선택하거나, 폴더 안의 파일을 선택하세요. 타이틀 업데이트 5는 000B0000에 있고, 게임에 함께 필요한 Compatibility Pack 1, 2는 맵 팩(The Giant, Awakening)과 함께 00000002에 있어요. 파일은 사용자의 것으로 남으며 읽기만 해요. 항목을 길게 누르면 삭제할 수 있어요.</string>
+    <string name="dlc_none">아직 아무것도 없어요. 게임을 실행하려면 타이틀 업데이트 5와 호환성 팩 1, 2가 필요해요.</string>
+    <string name="dlc_ready">패키지 %1$d개와 타이틀 업데이트가 준비됐고 게임 코드도 빌드됐어요. 런처에서 게임을 시작할 수 있어요. 여기에 추가한 맵 팩은 다음에 게임을 시작할 때 게임 메뉴에 나타나요. 맵 팩 때문에 다시 빌드할 필요는 없어요.</string>
+    <string name="dlc_code_missing">패키지 %1$d개와 타이틀 업데이트는 준비됐지만 게임 코드는 아직 없어요. 게임 코드는 디스크와 업데이트로 이 기기에서 빌드해요. 아래의 \"지금 빌드하기\"를 눌러 주세요(백그라운드에서 몇 분 걸려요).</string>
+    <string name="dlc_building">패키지 %1$d개와 타이틀 업데이트가 준비됐고, 이 기기에서 게임 코드를 빌드하는 중이에요: %2$s. 이 화면을 나가도 괜찮아요. 빌드가 끝나면 런처에서 게임을 시작할 수 있어요.</string>
+    <string name="dlc_build_failed">패키지 %1$d개와 타이틀 업데이트는 준비됐지만 게임 코드를 빌드하지 못했어요: %2$s</string>
+    <string name="dlc_update_missing">패키지 %1$d개는 있지만, 게임을 만드는 데 필요한 타이틀 업데이트 5가 없어요. 콘솔 하드 디스크의 Content\\0000000000000000\\4156091D\\000B0000에 있는 파일이에요.</string>
+    <string name="dlc_packs_missing">아직 없는 항목: %1$s. 게임에는 둘 다 필요해요. 하나라도 없으면 필수 콘텐츠를 다운로드해야 한다는 메시지만 나오는데, 여기서는 아무것도 다운로드되지 않아요. 둘 다 무료이고 콘솔 하드 디스크의 맵 팩 옆, Content\\0000000000000000\\4156091D\\00000002에 있어요(콘솔이 타이틀 업데이트와 함께 받아 둔 파일이에요). 같은 방법으로 여기에 추가해 주세요.</string>
+    <string name="dlc_nothing_found_update">선택한 파일 중에 Black Ops III 패키지가 없어요. 패키지는 확장자가 없고 이름이 영문자와 숫자로 된 파일로, 콘솔 하드 디스크의 Content\\0000000000000000\\4156091D에 있어요.</string>
+    <string name="disclaimer">비공식 앱입니다. ACTIVISION, TREYARCH, MICROSOFT와 관련이 없습니다.</string>
+</resources>

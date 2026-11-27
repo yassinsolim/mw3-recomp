@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Japanese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">キャンペーン</string>
+    <string name="game_code_refused">このデバイスのゲームコードは、このバージョンのアプリと一致しません：%1$s。\n\n再ビルドしてください：PCでプロジェクトフォルダーを更新し（git pull）、このデバイスをUSBで接続したまま setup\\setup.cmd -Game cod4 -GameOnly を実行します。オンラインでビルドした場合：プライベートリポジトリで Actions → Build my game package → Run workflow を選びます。ゲームファイルとセーブデータはそのまま残ります。</string>
+</resources>

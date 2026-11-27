@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Zusätzliche Tarnungen, in Klasse erstellen unter Gold neben denen des Spiels aufgeführt: Kein Paket ersetzt eine Tarnung des Spiels oder eines anderen Pakets. Schalte ein Paket aus, um es aus der Liste zu nehmen; halte eins gedrückt, um es zu entfernen. Änderungen gelten ab dem nächsten Spielstart.</string>
+    <string name="camo_packs_none">Noch kein Tarnungspaket installiert.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d Paket, %2$d Tarnungen im Spiel aufgeführt</item>
+        <item quantity="other">%1$d Pakete, %2$d Tarnungen im Spiel aufgeführt</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d Tarnung, von %2$s</item>
+        <item quantity="other">%1$d Tarnungen, von %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">einem unbekannten Autor</string>
+    <string name="camo_pack_add">Paket aus Datei hinzufügen</string>
+    <string name="camo_pack_fetch">Pakete des Projekts holen</string>
+    <string name="camo_pack_fetching">Wird heruntergeladen …</string>
+    <string name="camo_pack_fetched">%1$s von %2$s: installiert</string>
+    <string name="camo_pack_checksum">der Download ist nicht die Datei, die die App erwartet</string>
+    <string name="camo_pack_converting">Wird konvertiert …</string>
+    <string name="camo_pack_name">Name des Pakets</string>
+    <string name="camo_pack_default_name">Meine Tarnungen</string>
+    <string name="camo_pack_rar">%1$s: Eine .rar- oder .7z-Datei wird auf dem Handy nicht geöffnet. Entpacke sie und wähle ihre .iwi-Dateien, packe sie neu als .zip oder lass sie vom Setup auf einem PC importieren (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Wähle eine PC-Tarnungsmod: eine .zip oder .iwd oder ihre .iwi-Bilder (mehrere auf einmal).</string>
+    <string name="camo_pack_nothing">%1$s: keine Tarnung darin gefunden</string>
+    <string name="camo_pack_failed">%1$s: nicht hinzugefügt (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s: %2$d Tarnung hinzugefügt</item>
+        <item quantity="other">%1$s: %2$d Tarnungen hinzugefügt</item>
+    </plurals>
+    <string name="camo_pack_animate">Animieren</string>
+    <string name="camo_pack_listed">Im Spiel aufgeführt</string>
+    <string name="camo_pack_remove">Entfernen</string>
+    <string name="camo_pack_remove_hint">Dieses Paket vom Handy entfernen? Eine Klasse, die eine seiner Tarnungen nutzt, zeigt Gold, bis das Paket wieder hinzugefügt wird.</string>
+    <string name="camo_pack_bundled">Dieses Paket gehört zur App und wäre beim nächsten Start wieder da. Schalte es aus, um es aus der Liste des Spiels zu nehmen.</string>
+    <string name="camo_animate_gold">Gold-Tarnungen animieren (Sloths Stil)</string>
+    <string name="camo_animate_gold_hint">Tarnungen, die eine PC-Mod für Gold erstellt hat, laufen über die Waffe, im Look von Sloths Animated Camos Mod für PC, hier vom Port selbst gezeichnet. \"Animieren\" bei einem Paket macht dasselbe für jede statische Tarnung dieses Pakets.</string>
+</resources>

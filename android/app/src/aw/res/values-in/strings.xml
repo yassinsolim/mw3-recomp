@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Indonesian, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">KAMPANYE</string>
+    <string name="game_code_refused">Kode game di perangkat ini tidak cocok dengan versi aplikasi ini: %1$s.\n\nBuild ulang: di PC Anda, perbarui folder proyek (git pull) lalu jalankan setup\\setup.cmd -Game aw -GameOnly dengan perangkat ini terhubung lewat USB. File game dan simpanan Anda tetap aman.</string>
+    <string name="install_hint">Game ini punya dua disc, disc game dan disc instal, dan butuh keduanya. Arahkan ke image-nya (.iso), di perangkat ini atau kartu memorinya: ketuk salah satu dan yang lain akan ditemukan di sebelahnya, pilih folder tempat keduanya berada, atau pilih keduanya di aplikasi Files. Game dimainkan langsung dari image di tempatnya tanpa disalin; atau keduanya bisa disalin ke aplikasi, sekitar 12 GB.</string>
+    <string name="install_mode_link_hint">Tidak ada yang disalin dan siap dalam sekejap. Kedua image harus tetap di tempatnya: game membaca filenya dari sana. Simpanan, pengaturan, dan mod tetap disimpan di aplikasi seperti biasa.</string>
+    <string name="install_mode_copy_hint">Sekitar 7 GB dari disc game dan 4 GB dari disc instal, di penyimpanan internal perangkat; masing-masing satu atau dua menit. Setelah itu image tidak diperlukan lagi.</string>
+    <string name="install_done_link">Game diatur untuk dimainkan dari dua image disc. Biarkan keduanya tetap di tempatnya.</string>
+    <string name="change_source_hint">Membuka layar instal: mainkan dari dua image disc alih-alih file salinan (dan kosongkan 12 GB-nya), salin filenya ke aplikasi, atau arahkan ke image yang sudah dipindah.</string>
+    <string name="disclaimer">TIDAK RESMI. TIDAK BERAFILIASI DENGAN ACTIVISION, SLEDGEHAMMER GAMES, ATAU MICROSOFT.</string>
+    <string name="build_hint">Kode game dibuat dari salinan game milik Anda sendiri, di perangkat ini. Diperlukan image disc game Anda (.iso), yang hanya dibaca, paket toolchain (compiler, dipasang sekali, unduhan sekitar 45 MB), dan ruang kosong sekitar 1 GB selama proses. Build memakan waktu sekitar 13 menit di Retroid Pocket Flip 2 (Snapdragon 865), satu-satunya perangkat yang diukur, dan lebih lama di perangkat yang lebih lambat atau panas; proses tetap berjalan saat Anda memakai aplikasi lain, dan dilanjutkan dari titik terakhir jika terputus.</string>
+</resources>

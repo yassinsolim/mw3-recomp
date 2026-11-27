@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">战役</string>
+    <string name="game_code_refused">此设备上的游戏代码与当前版本的应用不匹配：%1$s。\n\n请重新构建：在电脑上更新项目文件夹（git pull），用 USB 连接此设备后运行 setup\\setup.cmd -Game aw -GameOnly。你的游戏文件和存档会保留。</string>
+    <string name="install_hint">这款游戏有两张光盘：游戏盘和安装盘，两张都需要。请选择它们的镜像（.iso），可以在此设备或其存储卡上：点选其中一个，旁边的另一个会被自动找到；也可以选择两者所在的文件夹，或在“文件”应用中同时选中两个。游戏可直接从镜像原位置运行，无需复制；也可以将两者都复制到应用中，约 12 GB。</string>
+    <string name="install_mode_link_hint">无需复制，一秒即可就绪。两个镜像都必须留在原位置：游戏会从中读取文件。存档、设置和模组照常保存在应用中。</string>
+    <string name="install_mode_copy_hint">游戏盘约 7 GB，安装盘约 4 GB，存放在设备自身存储中；每张需要一两分钟。之后就不再需要镜像了。</string>
+    <string name="install_done_link">游戏已设置为从两个光盘镜像运行。请将两者保留在原位置。</string>
+    <string name="change_source_hint">打开安装界面：改为从两个光盘镜像运行而不用已复制的文件（并释放 12 GB 空间），或改为复制文件，或重新指定已移动的镜像。</string>
+    <string name="disclaimer">非官方作品。与 ACTIVISION、SLEDGEHAMMER GAMES 及 MICROSOFT 无关。</string>
+    <string name="build_hint">游戏代码是在此设备上用你自己的游戏副本生成的。需要你的游戏光盘镜像（.iso，仅读取）、工具链包（即编译器，只需安装一次，下载约 45 MB），以及构建期间约 1 GB 的可用空间。在 Retroid Pocket Flip 2（Snapdragon 865，唯一实测过的设备）上构建约需 13 分钟，在较慢或发热的设备上会更久；你使用其他应用时构建会继续进行，中断后也会从中断处继续。</string>
+</resources>

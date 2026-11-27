@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Japanese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">マルチプレイヤー</string>
+    <string name="title_multiplayer">ゾンビ</string>
+    <string name="game_code_missing">このデバイスにゲームコードがありません。お持ちのディスクとタイトルアップデート5からここで作成します：「DLCを追加」でアップデートを読み込み、ビルドします。</string>
+    <string name="build_code_missing">このデバイスにはまだゲームコードがありません。お持ちのディスクとタイトルアップデート5から作成します。\n「DLCを追加」でビルドし、進行状況を表示します。数分かかり、バックグラウンドで続行します。</string>
+    <string name="status_update_needed">このゲーム機版の Black Ops III は、タイトルアップデート5と Compatibility Pack 1・2 で完成します。ディスクだけではマップがありません。\n「DLCを追加」を選び、Xbox 360 のハードディスクからコピーした Content\\0000000000000000\\4156091D フォルダーを指定してください。その後、ディスクとアップデートからこのデバイス上でゲームコードをビルドします。</string>
+    <string name="build_update_missing">ゲームコードはディスクとタイトルアップデート5から作成しますが、DLCフォルダーにアップデートがありません。先に「DLCを追加」で追加してください。</string>
+    <string name="build_name_campaign">マルチプレイヤー</string>
+    <string name="build_name_multiplayer">ゾンビ</string>
+    <string name="install_mode_copy_hint">デバイス本体のストレージに約4 GB、1～2分かかります。コピー後はイメージやフォルダーは不要です。</string>
+    <string name="dlc_detail_update">Xbox 360 のハードディスクからコピーした、お持ちのタイトルアップデート、Compatibility Pack、マップパックです。アプリには含まれておらず、ダウンロードもしません。</string>
+    <string name="dlc_hint_update">本体のハードディスク（Xbox 360 のUSBドライブ、またはPCに接続したディスク）から Content\\0000000000000000\\4156091D フォルダーをコピーしてここで選ぶか、中のファイルを選んでください。タイトルアップデート5は 000B0000 に、ゲームに必要な Compatibility Pack 1・2 はマップパック（The Giant、Awakening）と一緒に 00000002 にあります。ファイルはお客様のもので、読み取りのみ行います。項目を長押しすると削除できます。</string>
+    <string name="dlc_none">まだ何もありません。このゲームにはタイトルアップデート5と互換パック1・2が必要です。</string>
+    <string name="dlc_ready">%1$d個のパッケージとタイトルアップデートがそろい、ゲームコードもビルド済みです。ランチャーからゲームを起動できます。ここで追加したマップパックは、次回起動時にゲーム内メニューに表示されます。再ビルドは不要です。</string>
+    <string name="dlc_code_missing">%1$d個のパッケージとタイトルアップデートはそろっていますが、ゲームコードがまだありません。ゲームコードはディスクとアップデートからこの端末でビルドします。下の\"今すぐビルド\"を押してください（数分かかります。バックグラウンドで実行されます）。</string>
+    <string name="dlc_building">%1$d個のパッケージとタイトルアップデートがそろい、この端末でゲームコードをビルド中です：%2$s。この画面を離れても大丈夫です。完了後、ランチャーからゲームを起動できます。</string>
+    <string name="dlc_build_failed">%1$d個のパッケージとタイトルアップデートはそろっていますが、ゲームコードをビルドできませんでした：%2$s</string>
+    <string name="dlc_update_missing">%1$d個のパッケージはありますが、ゲームの元になるタイトルアップデート5がありません。本体ハードディスクの Content\\0000000000000000\\4156091D\\000B0000 にあるファイルです。</string>
+    <string name="dlc_packs_missing">まだ足りないもの：%1$s。両方とも必要です。片方でも欠けると、必要なコンテンツのダウンロードを求められるだけで、ここではダウンロードできません。どちらも無料で、本体ハードディスクのマップパックと同じ場所、Content\\0000000000000000\\4156091D\\00000002 にあります（タイトルアップデートと一緒に本体が取得済みです）。同じ方法でここに追加してください。</string>
+    <string name="dlc_nothing_found_update">選択したファイルに Black Ops III のパッケージはありません。パッケージは拡張子のない英数字の名前のファイルで、本体ハードディスクの Content\\0000000000000000\\4156091D にあります。</string>
+    <string name="disclaimer">非公式アプリです。ACTIVISION、TREYARCH、MICROSOFTとは一切関係ありません。</string>
+</resources>

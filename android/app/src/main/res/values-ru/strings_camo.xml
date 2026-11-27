@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Russian, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Дополнительные камуфляжи появляются под золотым в «Создать класс» рядом с камуфляжами игры: ни один набор не заменяет камуфляж игры или другого набора. Выключите набор, чтобы убрать его из списка; удерживайте набор, чтобы удалить его. Изменения вступят в силу при следующем запуске игры.</string>
+    <string name="camo_packs_none">Пакеты камуфляжей пока не установлены.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d набор, %2$d камуфл. в игре</item>
+        <item quantity="few">%1$d набора, %2$d камуфл. в игре</item>
+        <item quantity="many">%1$d наборов, %2$d камуфл. в игре</item>
+        <item quantity="other">%1$d набора, %2$d камуфл. в игре</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d камуфляж, автор: %2$s</item>
+        <item quantity="few">%1$d камуфляжа, автор: %2$s</item>
+        <item quantity="many">%1$d камуфляжей, автор: %2$s</item>
+        <item quantity="other">%1$d камуфляжа, автор: %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">неизвестный автор</string>
+    <string name="camo_pack_add">Добавить пакет из файла</string>
+    <string name="camo_pack_fetch">Скачать пакеты проекта</string>
+    <string name="camo_pack_fetching">Загрузка…</string>
+    <string name="camo_pack_fetched">%1$s (автор: %2$s): установлено</string>
+    <string name="camo_pack_checksum">загруженный файл не тот, который ожидает приложение</string>
+    <string name="camo_pack_converting">Конвертация…</string>
+    <string name="camo_pack_name">Название пакета</string>
+    <string name="camo_pack_default_name">Мои камуфляжи</string>
+    <string name="camo_pack_rar">%1$s: файлы .rar и .7z на телефоне не открываются. Распакуйте архив и выберите его файлы .iwi, запакуйте заново в zip или импортируйте через setup на ПК (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Выберите мод камуфляжа для ПК: .zip или .iwd либо его изображения .iwi (можно несколько сразу).</string>
+    <string name="camo_pack_nothing">%1$s: камуфляжи не найдены</string>
+    <string name="camo_pack_failed">%1$s: не добавлено (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s: добавлен %2$d камуфляж</item>
+        <item quantity="few">%1$s: добавлено %2$d камуфляжа</item>
+        <item quantity="many">%1$s: добавлено %2$d камуфляжей</item>
+        <item quantity="other">%1$s: добавлено %2$d камуфляжа</item>
+    </plurals>
+    <string name="camo_pack_animate">Анимировать</string>
+    <string name="camo_pack_listed">Показывать в игре</string>
+    <string name="camo_pack_remove">Удалить</string>
+    <string name="camo_pack_remove_hint">Удалить этот набор с телефона? Классы с его камуфляжами будут показывать золотой, пока набор не добавят снова.</string>
+    <string name="camo_pack_bundled">Этот набор входит в приложение, поэтому при следующем запуске он вернётся. Выключите его, чтобы убрать из списка игры.</string>
+    <string name="camo_animate_gold">Анимировать золотые камуфляжи (в стиле Sloth)</string>
+    <string name="camo_animate_gold_hint">Камуфляжи, которые мод для ПК сделал вместо золотого, движутся по оружию, как в Animated Camos Mod от Sloth для ПК, — здесь их рисует сам порт. Кнопка \"Анимировать\" у набора делает то же для всех статичных камуфляжей этого набора.</string>
+</resources>

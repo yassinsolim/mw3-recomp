@@ -157,6 +157,16 @@ namespace kernel
     // so has none of English's; empty otherwise. Whether it has a fastfile.
     const std::string& UpdateLanguage();
     bool UpdateHasZone(const std::string& zone);
+    // The dashboard's language (XC_LANGUAGE_*: 1 English, 3 German, 4 French,
+    // 5 Spanish, 6 Italian, 9 Portuguese, 11 Polish, 12 Russian...) and locale
+    // (XC_LOCALE_*: 36 the United States, 31 Spain, 22 Mexico, 4 Brazil...)
+    // the title is told: MW2_LANGUAGE and MW2_LOCALE, which the app sets
+    // from the phone's for a title whose disc holds the phone's language
+    // (Black Ops III; docs/languages.md), English and the United States
+    // otherwise. XGetLanguage, XamGetLanguage, the XConfig setting both read
+    // and XamGetLocaleEx answer with them.
+    uint32_t ConsoleLanguage();
+    uint32_t ConsoleLocale();
     // What is kept under a player's number -- his rank, offline and Live, and
     // the settings of a profile at the second to fourth controllers -- renamed
     // to another number, where that one has none yet (kernel/xam.cpp).

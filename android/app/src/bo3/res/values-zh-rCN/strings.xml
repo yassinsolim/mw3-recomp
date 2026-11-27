@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">多人游戏</string>
+    <string name="title_multiplayer">僵尸模式</string>
+    <string name="game_code_missing">此设备上没有游戏代码。它需要在这里用你自己的光盘和第 5 版游戏更新生成：通过“添加 DLC”导入更新并进行构建。</string>
+    <string name="build_code_missing">此设备上还没有游戏代码：它需要用你自己的光盘和第 5 版游戏更新生成。\n“添加 DLC”会进行构建并显示进度；需要几分钟，可在后台进行。</string>
+    <string name="status_update_needed">在这台主机上，Black Ops III 需要第 5 版游戏更新以及兼容包 1 和 2 才完整：仅有光盘是没有地图的。\n请选择“添加 DLC”，并指向从你的 Xbox 360 硬盘中复制出来的文件夹 Content\\0000000000000000\\4156091D。随后游戏代码会在此设备上用你的光盘和更新构建。</string>
+    <string name="build_update_missing">游戏代码需要用你的光盘和第 5 版游戏更新生成，但 DLC 文件夹中没有该更新：请先通过“添加 DLC”添加它。</string>
+    <string name="build_name_campaign">多人游戏</string>
+    <string name="build_name_multiplayer">僵尸模式</string>
+    <string name="install_mode_copy_hint">在设备自身存储中占用约 4 GB，需要一两分钟。之后就不再需要该镜像或文件夹了。</string>
+    <string name="dlc_detail_update">你自己从 Xbox 360 硬盘中复制出来的游戏更新、兼容包和地图包。应用本身不包含也不会下载任何内容。</string>
+    <string name="dlc_hint_update">从主机硬盘（Xbox 360 U 盘，或装在电脑上的硬盘）中复制文件夹 Content\\0000000000000000\\4156091D，然后在这里选择它，或选择其中的文件：第 5 版游戏更新位于 000B0000，游戏同样需要的兼容包 1 和 2 与地图包（The Giant、Awakening）一起位于 00000002。这些文件仍归你所有，仅会被读取。长按条目可将其移除。</string>
+    <string name="dlc_none">这里还什么都没有。游戏需要第 5 版标题更新以及兼容包 1 和 2。</string>
+    <string name="dlc_ready">%1$d 个内容包和标题更新都已就位，游戏代码也已构建完成：可以从启动器启动游戏。在这里添加的地图包会在游戏下次启动时出现在游戏自带的菜单中，无需为它们重新构建。</string>
+    <string name="dlc_code_missing">%1$d 个内容包和标题更新都已就位，但还缺游戏代码，它需要用你的光盘和更新在本设备上构建：点下方的\"立即构建\"（需要几分钟，在后台进行）。</string>
+    <string name="dlc_building">%1$d 个内容包和标题更新都已就位，游戏代码正在本设备上构建：%2$s。你可以离开此页面，构建完成后即可从启动器启动游戏。</string>
+    <string name="dlc_build_failed">%1$d 个内容包和标题更新都已就位，但游戏代码构建失败：%2$s</string>
+    <string name="dlc_update_missing">%1$d 个内容包已就位，但缺少第 5 版标题更新，游戏要靠它构建：它是主机硬盘上 Content\\0000000000000000\\4156091D\\000B0000 中的文件。</string>
+    <string name="dlc_packs_missing">仍然缺少：%1$s。这两个游戏都需要：缺少任何一个，游戏只会提示你需要下载必要内容，而这里无法下载任何东西。它们是免费的，就在主机硬盘上地图包旁边的 Content\\0000000000000000\\4156091D\\00000002 中（主机下载标题更新时一并获取了它们）；用同样的方法添加到这里即可。</string>
+    <string name="dlc_nothing_found_update">这些文件都不是 Black Ops III 的内容包。内容包是没有扩展名、名称由字母和数字组成的文件，位于主机硬盘上的 Content\\0000000000000000\\4156091D 中。</string>
+    <string name="disclaimer">非官方。与 ACTIVISION、TREYARCH 或 MICROSOFT 无关。</string>
+</resources>

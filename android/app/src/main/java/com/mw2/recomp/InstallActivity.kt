@@ -532,7 +532,7 @@ class InstallActivity : AppCompatActivity() {
                         if (it == null && link) left += NativeBridge.nativeCopiedFiles(from, target.absolutePath, false)
                     }
                 } catch (failure: Throwable) {
-                    failure.message ?: "unexpected failure"
+                    failure.message ?: getString(R.string.unknown_reason)
                 }
                 // The game's own process opens the image for itself.
                 DiscImage.close(from)
@@ -718,7 +718,7 @@ class InstallActivity : AppCompatActivity() {
         }
         val url = BuildConfig.MW2_TU6_URL
         if (url.isEmpty()) {
-            progressText.text = getString(R.string.install_failed, "This TU6 build knows no update URL.")
+            progressText.text = getString(R.string.install_failed, getString(R.string.tu6_no_url))
             return
         }
         try {
@@ -727,8 +727,8 @@ class InstallActivity : AppCompatActivity() {
             progress.isIndeterminate = true
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val request = DownloadManager.Request(Uri.parse(url))
-                .setTitle("Title update 6")
-                .setDescription("Downloading update")
+                .setTitle(getString(R.string.tu6_download_title))
+                .setDescription(getString(R.string.tu6_download_description))
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
                 .setDestinationInExternalFilesDir(this, null, "tu6.pkg")
                 .setAllowedOverMetered(true)
@@ -736,7 +736,7 @@ class InstallActivity : AppCompatActivity() {
         } catch (failure: Throwable) {
             progress.isIndeterminate = false
             setBusy(false)
-            progressText.text = getString(R.string.install_failed, failure.message ?: "download failed")
+            progressText.text = getString(R.string.install_failed, failure.message ?: getString(R.string.unknown_reason))
         }
     }
 
@@ -748,7 +748,7 @@ class InstallActivity : AppCompatActivity() {
         // A failed download leaves no package: say so instead of applying half a file.
         val pkg = tuPackageFile()
         if (!pkg.exists() || pkg.length() <= 100_000L) {
-            progressText.text = getString(R.string.install_failed, "Title update 6 did not download.")
+            progressText.text = getString(R.string.install_failed, getString(R.string.tu6_not_downloaded))
             return
         }
         applyTuPackage(pkg, target)
@@ -761,10 +761,10 @@ class InstallActivity : AppCompatActivity() {
         progressText.text = getString(R.string.tu6_applying)
         thread(name = "tu6-apply") {
             val error = try {
-                if (!NativeBridge.isLoaded()) "The runtime is not loaded."
+                if (!NativeBridge.isLoaded()) getString(R.string.runtime_not_loaded)
                 else NativeBridge.nativeApplyTu6(pkg.absolutePath, target.absolutePath)
             } catch (failure: Throwable) {
-                failure.message ?: "unexpected failure"
+                failure.message ?: getString(R.string.unknown_reason)
             }
             handler.post {
                 running = false

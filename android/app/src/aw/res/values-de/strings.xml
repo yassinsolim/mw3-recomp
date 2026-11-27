@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">KAMPAGNE</string>
+    <string name="game_code_refused">Der Spielcode auf diesem Gerät passt nicht zu dieser App-Version: %1$s.\n\nErstelle ihn neu: Aktualisiere am PC den Projektordner (git pull) und führe setup\\setup.cmd -Game aw -GameOnly aus, während dieses Gerät per USB verbunden ist. Deine Spieldateien und Spielstände bleiben erhalten.</string>
+    <string name="install_hint">Dieses Spiel hat zwei Discs, die Spiel-Disc und die Installations-Disc, und braucht beide. Wähle ihre Images (.iso) auf diesem Gerät oder seiner Speicherkarte aus: Tippe auf eines, dann wird das andere daneben gefunden, wähle den Ordner, in dem beide liegen, oder markiere beide in der Dateien-App. Das Spiel läuft direkt aus den Images, ohne etwas zu kopieren; alternativ können beide in die App kopiert werden, etwa 12 GB.</string>
+    <string name="install_mode_link_hint">Es wird nichts kopiert, und alles ist in einer Sekunde bereit. Beide Images müssen bleiben, wo sie sind: Das Spiel liest seine Dateien direkt daraus. Spielstände, Einstellungen und Mods bleiben wie immer in der App.</string>
+    <string name="install_mode_copy_hint">Etwa 7 GB von der Spiel-Disc und 4 GB von der Installations-Disc im internen Speicher des Geräts; jeweils ein bis zwei Minuten. Die Images werden danach nicht mehr gebraucht.</string>
+    <string name="install_done_link">Das Spiel läuft aus den beiden Disc-Images. Lass beide, wo sie sind.</string>
+    <string name="change_source_hint">Öffnet den Installationsbildschirm: Spiele aus den beiden Disc-Images statt aus den kopierten Dateien (und gib ihre 12 GB frei), kopiere die Dateien stattdessen hinein oder wähle ein verschobenes Image neu aus.</string>
+    <string name="disclaimer">INOFFIZIELL. KEINE VERBINDUNG ZU ACTIVISION, SLEDGEHAMMER GAMES ODER MICROSOFT.</string>
+    <string name="build_hint">Der Spielcode wird aus deiner eigenen Kopie des Spiels erstellt, hier auf diesem Gerät. Dafür brauchst du das Image deiner Spiel-Disc (.iso), das nur gelesen wird, das Toolchain-Paket (den Compiler, einmalig installiert, ein Download von etwa 45 MB) und etwa 1 GB freien Speicher während des Vorgangs. Auf einem Retroid Pocket Flip 2 (Snapdragon 865), dem einzigen gemessenen Gerät, dauerte es etwa 13 Minuten; auf langsameren oder heißen Geräten länger. Es läuft weiter, während du andere Apps nutzt, und setzt nach einer Unterbrechung dort fort, wo es war.</string>
+</resources>

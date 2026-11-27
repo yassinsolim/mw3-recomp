@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Japanese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">キャンペーン</string>
+    <string name="game_code_refused">このデバイスのゲームコードは、このバージョンのアプリと一致しません：%1$s。\n\n再ビルドしてください：PCでプロジェクトフォルダーを更新し（git pull）、このデバイスをUSBで接続したまま setup\\setup.cmd -Game aw -GameOnly を実行します。ゲームファイルとセーブデータはそのまま残ります。</string>
+    <string name="install_hint">このゲームはゲームディスクとインストールディスクの2枚組で、両方が必要です。このデバイスまたはメモリーカード上の両方のイメージ（.iso）を指定してください：片方をタップするともう片方は隣から自動で見つかります。両方が入ったフォルダーを選ぶか、ファイルアプリで両方を選択することもできます。ゲームはイメージをその場所のままプレイし、何もコピーしません。両方をアプリにコピーすることもできます（約12 GB）。</string>
+    <string name="install_mode_link_hint">何もコピーせず、すぐに準備できます。ゲームはイメージから直接ファイルを読み込むため、両方のイメージを今の場所から動かさないでください。セーブデータ、設定、MODはこれまで通りアプリ内に保存されます。</string>
+    <string name="install_mode_copy_hint">デバイス本体のストレージに、ゲームディスクから約7 GB、インストールディスクから約4 GBをコピーします。それぞれ1～2分かかります。コピー後はイメージは不要です。</string>
+    <string name="install_done_link">2つのディスクイメージからプレイするよう設定されています。両方とも今の場所から動かさないでください。</string>
+    <string name="change_source_hint">インストール画面を開きます：コピーしたファイルの代わりに2つのディスクイメージからプレイする（12 GBを解放）、ファイルをコピーする、または移動したイメージを指定し直すことができます。</string>
+    <string name="disclaimer">非公式アプリです。ACTIVISION、SLEDGEHAMMER GAMES、MICROSOFTとは一切関係ありません。</string>
+    <string name="build_hint">ゲームコードは、お持ちのゲームからこのデバイス上で作成されます。必要なのは、ゲームディスクのイメージ（.iso、読み取りのみ）、ツールチェーンパッケージ（コンパイラー、初回のみインストール、約45 MBのダウンロード）、作業中の約1 GBの空き容量です。ビルド時間は、計測した唯一のデバイスである Retroid Pocket Flip 2（Snapdragon 865）で約13分でした。遅いデバイスや本体が熱いときはさらに時間がかかります。他のアプリを使っている間も続行し、中断しても途中から再開します。</string>
+</resources>

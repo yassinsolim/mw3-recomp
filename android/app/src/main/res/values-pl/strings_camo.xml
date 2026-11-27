@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Polish, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Dodatkowe kamuflaże, widoczne pod Złotym w Create a Class obok kamuflaży z gry: żaden pakiet nie zastępuje kamuflażu z gry ani z innego pakietu. Wyłącz pakiet, aby pominąć go na liście; przytrzymaj go, aby go usunąć. Zmiany zadziałają przy następnym uruchomieniu gry.</string>
+    <string name="camo_packs_none">Nie zainstalowano jeszcze żadnej paczki kamuflaży.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d pakiet, %2$d kamuflaży widocznych w grze</item>
+        <item quantity="few">%1$d pakiety, %2$d kamuflaży widocznych w grze</item>
+        <item quantity="many">%1$d pakietów, %2$d kamuflaży widocznych w grze</item>
+        <item quantity="other">%1$d pakietu, %2$d kamuflaży widocznych w grze</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d kamuflaż, autor: %2$s</item>
+        <item quantity="few">%1$d kamuflaże, autor: %2$s</item>
+        <item quantity="many">%1$d kamuflaży, autor: %2$s</item>
+        <item quantity="other">%1$d kamuflażu, autor: %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">nieznany autor</string>
+    <string name="camo_pack_add">Dodaj paczkę z pliku</string>
+    <string name="camo_pack_fetch">Pobierz paczki projektu</string>
+    <string name="camo_pack_fetching">Pobieranie…</string>
+    <string name="camo_pack_fetched">%1$s (autor: %2$s): zainstalowano</string>
+    <string name="camo_pack_checksum">pobrany plik nie jest tym, którego oczekuje aplikacja</string>
+    <string name="camo_pack_converting">Konwertowanie…</string>
+    <string name="camo_pack_name">Nazwa paczki</string>
+    <string name="camo_pack_default_name">Moje kamuflaże</string>
+    <string name="camo_pack_rar">%1$s: plików .rar i .7z nie da się otworzyć na telefonie. Rozpakuj archiwum i wybierz jego pliki .iwi, spakuj je ponownie do .zip albo zaimportuj je przez setup na PC (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Wybierz mod kamuflaży z PC: plik .zip lub .iwd albo jego obrazy .iwi (kilka naraz).</string>
+    <string name="camo_pack_nothing">%1$s: nie znaleziono w nim kamuflażu</string>
+    <string name="camo_pack_failed">%1$s: nie dodano (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s: dodano %2$d kamuflaż</item>
+        <item quantity="few">%1$s: dodano %2$d kamuflaże</item>
+        <item quantity="many">%1$s: dodano %2$d kamuflaży</item>
+        <item quantity="other">%1$s: dodano %2$d kamuflażu</item>
+    </plurals>
+    <string name="camo_pack_animate">Animuj</string>
+    <string name="camo_pack_listed">Widoczne w grze</string>
+    <string name="camo_pack_remove">Usuń</string>
+    <string name="camo_pack_remove_hint">Usunąć ten pakiet z telefonu? Klasa używająca jednego z jego kamuflaży będzie pokazywać Złoty, dopóki pakiet nie zostanie dodany ponownie.</string>
+    <string name="camo_pack_bundled">Ten pakiet jest dołączony do aplikacji, więc wróciłby przy następnym uruchomieniu. Wyłącz go, aby pominąć go na liście w grze.</string>
+    <string name="camo_animate_gold">Animuj kamuflaże typu Gold (w stylu Slotha)</string>
+    <string name="camo_animate_gold_hint">Kamuflaże, które mod z PC przygotował dla Złotego, przesuwają się po broni, jak w Animated Camos Mod autorstwa Sloth na PC – tutaj rysuje je sam port. \"Animuj\" przy pakiecie robi to samo dla każdego statycznego kamuflażu z tego pakietu.</string>
+</resources>

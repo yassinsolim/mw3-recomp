@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Japanese, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">追加の迷彩です。クリエイトクラスでゲーム本来の迷彩と並んでゴールドの下に表示されます。ゲームや他のパックの迷彩を置き換えることはありません。パックをオフにするとリストから外れ、長押しで削除できます。変更は次回ゲーム起動時に反映されます。</string>
+    <string name="camo_packs_none">迷彩パックはまだインストールされていません。</string>
+    <plurals name="camo_pack_count">
+        <item quantity="other">%1$d個のパック、ゲーム内に表示される迷彩%2$d個</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="other">迷彩%1$d個、作者：%2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">作者不明</string>
+    <string name="camo_pack_add">ファイルからパックを追加</string>
+    <string name="camo_pack_fetch">プロジェクトのパックを入手</string>
+    <string name="camo_pack_fetching">ダウンロード中…</string>
+    <string name="camo_pack_fetched">%1$s（作者：%2$s）：インストール完了</string>
+    <string name="camo_pack_checksum">ダウンロードしたファイルが想定と異なります</string>
+    <string name="camo_pack_converting">変換中…</string>
+    <string name="camo_pack_name">パック名</string>
+    <string name="camo_pack_default_name">マイ迷彩</string>
+    <string name="camo_pack_rar">%1$s：.rarや.7zはスマホでは開けません。展開して.iwiファイルを選ぶか、zipに圧縮し直すか、PCのsetupでインポートしてください（setup -CamoPacks）。</string>
+    <string name="camo_pack_no_pictures">PC用の迷彩Modを選んでください：.zipか.iwd、または.iwi画像（複数選択可）。</string>
+    <string name="camo_pack_nothing">%1$s：迷彩が見つかりません</string>
+    <string name="camo_pack_failed">%1$s：追加できませんでした（%2$s）</string>
+    <plurals name="camo_pack_added">
+        <item quantity="other">%1$s：迷彩を%2$d個追加しました</item>
+    </plurals>
+    <string name="camo_pack_animate">アニメーション</string>
+    <string name="camo_pack_listed">ゲーム内に表示</string>
+    <string name="camo_pack_remove">削除</string>
+    <string name="camo_pack_remove_hint">このパックをスマホから削除しますか？このパックの迷彩を使うクラスは、パックを再度追加するまでゴールドで表示されます。</string>
+    <string name="camo_pack_bundled">このパックはアプリに含まれているため、次回起動時に戻ります。ゲームのリストから外すにはオフにしてください。</string>
+    <string name="camo_animate_gold">ゴールド系迷彩をアニメーション化（Slothスタイル）</string>
+    <string name="camo_animate_gold_hint">PC Modがゴールド用に作った迷彩は、SlothのPC用Animated Camos Modのように武器上を流れて表示されます。描画はこのポート自身が行います。パックの「アニメーション」は、そのパックの静止した迷彩すべてに同じ効果を付けます。</string>
+</resources>

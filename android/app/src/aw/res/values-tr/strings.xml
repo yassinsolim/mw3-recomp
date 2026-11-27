@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Turkish, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">HİKÂYE</string>
+    <string name="game_code_refused">Bu cihazdaki oyun kodu uygulamanın bu sürümüyle eşleşmiyor: %1$s.\n\nYeniden derle: bilgisayarında proje klasörünü güncelle (git pull) ve bu cihaz USB ile bağlıyken setup\\setup.cmd -Game aw -GameOnly komutunu çalıştır. Oyun dosyaların ve kayıtların korunur.</string>
+    <string name="install_hint">Bu oyunun iki diski var, oyun diski ve kurulum diski, ve ikisi de gerekli. Bu cihazda ya da hafıza kartında bulunan kalıplarını (.iso) göster: birine dokun, diğeri yanında bulunur; ya da ikisinin de bulunduğu klasörü seç veya Dosyalar uygulamasında ikisini birden seç. Oyun, kalıplar olduğu yerdeyken onlardan oynanır, hiçbir şey kopyalanmaz; ya da ikisi de uygulamaya kopyalanabilir, yaklaşık 12 GB.</string>
+    <string name="install_mode_link_hint">Hiçbir şey kopyalanmaz ve bir saniyede hazır olur. İki kalıp da olduğu yerde kalmalı: oyun dosyalarını onlardan okur. Kayıtlar, ayarlar ve modlar her zamanki gibi uygulamada tutulur.</string>
+    <string name="install_mode_copy_hint">Cihazın kendi depolama alanında oyun diskinden yaklaşık 7 GB, kurulum diskinden 4 GB; her biri bir iki dakika sürer. Sonrasında kalıplara gerek kalmaz.</string>
+    <string name="install_done_link">Oyun iki disk kalıbından oynanacak şekilde ayarlandı. İkisini de olduğu yerde tut.</string>
+    <string name="change_source_hint">Kurulum ekranını açar: kopyalanan dosyalar yerine iki disk kalıbından oyna (ve 12 GB yer aç), dosyaları kopyala ya da yeri değişmiş bir kalıbı göster.</string>
+    <string name="disclaimer">RESMİ DEĞİLDİR. ACTIVISION, SLEDGEHAMMER GAMES VEYA MICROSOFT İLE BAĞLANTISI YOKTUR.</string>
+    <string name="build_hint">Oyun kodu, kendi oyun kopyandan burada, bu cihazda oluşturulur. Bunun için yalnızca okunan oyun diski kalıbın (.iso), araç zinciri paketi (derleyici, bir kez yüklenir, yaklaşık 45 MB indirme) ve çalışırken yaklaşık 1 GB boş alan gerekir. Derleme, ölçüldüğü tek cihaz olan Retroid Pocket Flip 2\'de (Snapdragon 865) yaklaşık 13 dakika sürdü; daha yavaş ya da ısınmış bir cihazda daha uzun sürer. Sen başka uygulamaları kullanırken devam eder, kesilirse kaldığı yerden sürer.</string>
+</resources>

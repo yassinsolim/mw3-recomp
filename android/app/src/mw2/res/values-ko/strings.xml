@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Korean, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="game_code_refused">이 기기의 게임 코드가 현재 앱 버전과 맞지 않아요: %1$s.\n\n다시 빌드해 주세요. PC에서 프로젝트 폴더를 업데이트(git pull)한 뒤, 이 기기를 USB로 연결한 상태에서 setup\\setup.cmd -Game mw2 -GameOnly를 실행하세요. 온라인으로 빌드했다면 비공개 저장소에서 Actions, Build my game package, Run workflow를 차례로 선택하세요. 게임 파일과 저장 데이터는 그대로 유지돼요.</string>
+</resources>

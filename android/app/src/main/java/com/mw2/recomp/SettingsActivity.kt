@@ -745,8 +745,8 @@ class SettingsActivity : AppCompatActivity() {
                             val why =
                                 if (lower.endsWith(".xex") || lower.endsWith(".exe") ||
                                     lower.endsWith(".dll") || lower.endsWith(".so")
-                                ) "executables are never taken from a mod"
-                                else "needs the CoD Xe plugin, which this port does not run"
+                                ) getString(R.string.mods_skip_executable)
+                                else getString(R.string.mods_skip_plugin)
                             skipped.add("${file.name} ($why)")
                             return@forEach
                         }

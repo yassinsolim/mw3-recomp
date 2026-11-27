@@ -381,57 +381,59 @@ class GameActivity : AppCompatActivity(), NativeListener {
                     val temp = getDeviceTemp()
                     val (appMb, totalMb) = getMemoryStats()
                     val (battTemp, isCharging, battPct) = getBatteryStats()
-                    val cpuStr = if (cpuUsagePercent >= 0f) String.format(Locale.US, "%.0f%%", cpuUsagePercent) else "N/A"
+                    val notKnown = getString(R.string.hud_not_known)
+                    val cpuStr = if (cpuUsagePercent >= 0f) String.format(Locale.US, "%.0f%%", cpuUsagePercent) else notKnown
                     val parts = cachedRendererInfo.split("|")
                     val devName = if (parts.isNotEmpty() && parts[0].isNotEmpty()) parts[0] else "Vulkan Device"
                     val renderMode = if (parts.size > 1) parts[1] else "Vulkan 1.1 Legacy RenderPass"
                     val tcMode = if (parts.size > 2) parts[2] else "CPU Decompress Fallback"
 
                     val battStr = if (battTemp > 0f) {
-                        val chg = if (isCharging) " (Chg $battPct%)" else if (battPct >= 0) " ($battPct%)" else ""
+                        val chg = if (isCharging) getString(R.string.hud_battery_charging, battPct)
+                        else if (battPct >= 0) " ($battPct%)" else ""
                         String.format(Locale.US, "%.1f°C%s", battTemp, chg)
-                    } else "N/A"
+                    } else notKnown
 
-                    val ramStr = if (totalMb > 0) String.format(Locale.US, "%d MB (App) / %d MB (Total)", appMb, totalMb)
-                                 else if (appMb > 0) "$appMb MB" else "N/A"
-                    val cpuTempStr = if (temp > 0f) String.format(Locale.US, "%.0f°C", temp) else "N/A"
+                    val ramStr = if (totalMb > 0) getString(R.string.hud_ram_value, appMb, totalMb)
+                                 else if (appMb > 0) "$appMb MB" else notKnown
+                    val cpuTempStr = if (temp > 0f) String.format(Locale.US, "%.0f°C", temp) else notKnown
 
                     hudExpandedText.text = buildString {
-                        append("FPS / FRAME TIME\n")
+                        fun line(text: String) = append("  ").append(text).append('\n')
+                        append(getString(R.string.hud_section_fps)).append('\n')
                         append(String.format(Locale.US, "  ▶ %d FPS   (%.1f ms)\n", fps, frameTimeMs))
                         // TU0 plays only with TU0, TU6 with TU6.
-                        append(String.format(
-                            Locale.US, "  Presented: %,d frames  ·  %s\n\n", framesPresented, BuildConfig.MW2_TU.uppercase(),
-                        ))
+                        line(getString(R.string.hud_presented, String.format("%,d", framesPresented), BuildConfig.MW2_TU.uppercase()))
+                        append('\n')
 
-                        append("CPU & SYSTEM\n")
-                        append("  Utilization: $cpuStr (${Runtime.getRuntime().availableProcessors()} Cores)\n")
-                        append("  SoC/Thermal: $cpuTempStr  ·  Battery: $battStr\n\n")
+                        append(getString(R.string.hud_section_cpu)).append('\n')
+                        line(getString(R.string.hud_cpu, cpuStr, Runtime.getRuntime().availableProcessors()))
+                        line(getString(R.string.hud_thermal, cpuTempStr, battStr))
+                        append('\n')
 
-                        append("GPU & VULKAN\n")
-                        append("  Device: $devName\n")
-                        append("  Backend: $renderMode\n")
-                        append("  Textures: $texMb MB  ·  $tcMode\n")
+                        append(getString(R.string.hud_section_gpu)).append('\n')
+                        line(getString(R.string.hud_device, devName))
+                        line(getString(R.string.hud_backend, renderMode))
+                        line(getString(R.string.hud_textures, texMb, tcMode))
                         if (warmupQueued > 0) {
                             val pct = (warmupCompleted * 100) / warmupQueued
-                            append("  Prewarm: $warmupCompleted / $warmupQueued ($pct%)  ·  Last: ${warmupLastMs}ms\n\n")
-                        } else {
-                            append("\n")
+                            line(getString(R.string.hud_prewarm, warmupCompleted, warmupQueued, pct, warmupLastMs))
                         }
+                        append('\n')
 
-                        append("MEMORY & VIEWPORT\n")
-                        append("  App / System Total RAM: $ramStr\n")
-                        append("  Internal Render: ${resW}×${resH}  •  Refresh: ${refreshHz().roundToInt()} Hz\n")
+                        append(getString(R.string.hud_section_memory)).append('\n')
+                        line(getString(R.string.hud_ram, ramStr))
+                        line(getString(R.string.hud_render, resW, resH, refreshHz().roundToInt()))
                         val gpuMs = statsValues[10]
-                        append("  Held to: ${statsValues[9].roundToInt()} FPS")
-                        if (statsValues[12] > 0f) append(" (auto)")
-                        if (gpuMs >= 0f) append(String.format(Locale.US, "  •  GPU: %.1f ms", gpuMs))
-                        append("  •  Scene: ${statsValues[11].roundToInt()}%\n")
+                        append("  ").append(getString(R.string.hud_held, statsValues[9].roundToInt()))
+                        if (statsValues[12] > 0f) append(getString(R.string.hud_held_auto))
+                        if (gpuMs >= 0f) append("  •  ").append(getString(R.string.hud_gpu, String.format(Locale.US, "%.1f", gpuMs)))
+                        append("  •  ").append(getString(R.string.hud_scene, statsValues[11].roundToInt())).append('\n')
                         val limit = limitText()
-                        if (limit.isNotEmpty()) append("  Limit: $limit\n")
+                        if (limit.isNotEmpty()) line(getString(R.string.hud_limit, limit))
                         if (isMultiplayer) {
-                            append("\nNETWORK\n")
-                            append("  Players heard on LAN: $lanPeers\n")
+                            append('\n').append(getString(R.string.hud_section_network)).append('\n')
+                            line(getString(R.string.hud_lan, lanPeers))
                         }
                     }
                 }
@@ -891,13 +893,13 @@ class GameActivity : AppCompatActivity(), NativeListener {
             gravity = Gravity.CENTER_VERTICAL
         }
         val hudTitle = TextView(this).apply {
-            text = "MW2 ANDROID · PERFORMANCE"
+            text = getString(R.string.hud_title)
             setTextColor(Color.argb(255, 255, 122, 26))
             textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
         }
         val hudCollapseBtn = TextView(this).apply {
-            text = "  [▲ Close]"
+            text = "  " + getString(R.string.hud_close)
             setTextColor(Color.argb(200, 148, 163, 184))
             textSize = 10f
             typeface = Typeface.MONOSPACE
@@ -908,7 +910,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             }
         }
         val hudConsoleBtn = TextView(this).apply {
-            text = " [⚡ CMD]"
+            text = " " + getString(R.string.hud_console)
             setTextColor(Color.argb(230, 245, 158, 11))
             textSize = 10f
             typeface = Typeface.MONOSPACE
@@ -994,7 +996,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
 
         val input = EditText(this).apply {
-            hint = "e.g. god, give all, cg_fov 85, cg_drawFPS 1..."
+            hint = getString(R.string.console_hint)
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
             setPadding(pad(12), pad(10), pad(12), pad(10))
@@ -1010,14 +1012,14 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
 
         val presets = listOf(
-            "cg_fov 85" to "Ultrawide (85°)",
-            "cg_fov 65" to "Default (65°)",
-            "cg_drawFPS 1" to "Show FPS",
-            "god" to "God Mode",
-            "give all" to "All Weapons",
-            "ufo" to "UFO / Fly",
-            "r_fullbright 1" to "Full Bright",
-            "cg_drawGun 0" to "Hide Gun",
+            "cg_fov 85" to getString(R.string.console_fov_wide),
+            "cg_fov 65" to getString(R.string.console_fov_default),
+            "cg_drawFPS 1" to getString(R.string.console_show_fps),
+            "god" to getString(R.string.console_god),
+            "give all" to getString(R.string.console_all_weapons),
+            "ufo" to getString(R.string.console_ufo),
+            "r_fullbright 1" to getString(R.string.console_full_bright),
+            "cg_drawGun 0" to getString(R.string.console_hide_gun),
         )
 
         for ((cmd, label) in presets) {
@@ -1041,9 +1043,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
         container.addView(scroll)
 
         AlertDialog.Builder(this)
-            .setTitle("IW4 Console Command")
+            .setTitle(R.string.console_title)
             .setView(container)
-            .setPositiveButton("Run") { _, _ ->
+            .setPositiveButton(R.string.console_run) { _, _ ->
                 val cmd = input.text.toString().trim()
                 if (cmd.isNotEmpty()) {
                     NativeBridge.nativeRunConsoleCommand(cmd)
@@ -1117,6 +1119,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
         // Everything here is one of the runtime's own switches
         // (docs/switches.md); the app just fills them in.
         NativeBridge.nativeSetOption("MW2_FULLSCREEN", "1")
+        // The game in the phone's language where its disc has it (Black Ops III).
+        val (language, locale) = GameLanguage.forThisGame() ?: (null to null)
+        NativeBridge.nativeSetOption("MW2_LANGUAGE", language?.toString().orEmpty())
+        NativeBridge.nativeSetOption("MW2_LOCALE", locale?.toString().orEmpty())
         // MP refuses to start matches without a link; runtime defaults to up
         // for MP and down for SP (kernel/net.cpp), but be explicit so a
         // misbuilt lib still reports a link in the MP app.

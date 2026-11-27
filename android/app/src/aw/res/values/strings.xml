@@ -4,10 +4,10 @@
          game's name, which game setup is told to build, the campaign's
          entry without Special Ops, which this game does not have, and what
          is different about a game of two discs that takes longer to build. -->
-    <string name="wordmark">ADVANCED WARFARE</string>
-    <string name="wordmark_recompiled">AW RECOMPILED</string>
+    <string name="wordmark" translatable="false">ADVANCED WARFARE</string>
+    <string name="wordmark_recompiled" translatable="false">AW RECOMPILED</string>
     <string name="title_campaign">CAMPAIGN</string>
-    <string name="setup_command">setup\\setup.cmd -Game aw</string>
+    <string name="setup_command" translatable="false">setup\\setup.cmd -Game aw</string>
     <string name="game_code_refused">The game code on this device does not match this version of the app: %1$s.\n\nBuild it again: on your PC, update the project folder (git pull) and run setup\\setup.cmd -Game aw -GameOnly with this device connected over USB. Your game files and saves are kept.</string>
     <string name="install_hint">This game has two discs, the game disc and the install disc, and needs both. Point this at their images (.iso), on this device or its memory card: tap one and the other is found beside it, choose the folder both are in, or select both in the Files app. The game plays from the images where they are, with nothing copied; or both can be copied into the app, about 12 GB.</string>
     <string name="install_mode_link_hint">Nothing is copied and it is ready in a second. Both images have to stay where they are: the game reads its files out of them. Saves, settings and mods are kept in the app as always.</string>

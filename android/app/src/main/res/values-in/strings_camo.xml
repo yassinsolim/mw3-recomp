@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Indonesian, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Kamuflase tambahan, tampil di bawah Gold di Create a Class di samping kamuflase bawaan game: tidak ada paket yang menggantikan kamuflase game atau paket lain. Nonaktifkan paket agar tidak masuk daftar; tahan paket untuk menghapusnya. Perubahan berlaku saat game dimulai berikutnya.</string>
+    <string name="camo_packs_none">Belum ada paket kamo yang terpasang.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="other">%1$d paket, %2$d kamuflase tampil di game</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="other">%1$d kamuflase, oleh %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">pembuat tanpa nama</string>
+    <string name="camo_pack_add">Tambahkan paket dari file</string>
+    <string name="camo_pack_fetch">Dapatkan paket dari proyek</string>
+    <string name="camo_pack_fetching">Mengunduh…</string>
+    <string name="camo_pack_fetched">%1$s oleh %2$s: terpasang</string>
+    <string name="camo_pack_checksum">file yang diunduh bukan file yang diharapkan aplikasi</string>
+    <string name="camo_pack_converting">Mengonversi…</string>
+    <string name="camo_pack_name">Nama paket</string>
+    <string name="camo_pack_default_name">Kamo saya</string>
+    <string name="camo_pack_rar">%1$s: file .rar atau .7z tidak bisa dibuka di ponsel. Ekstrak lalu pilih file .iwi-nya, zip ulang, atau biarkan setup di PC mengimpornya (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Pilih mod kamuflase PC: file .zip atau .iwd, atau gambar .iwi-nya (beberapa sekaligus).</string>
+    <string name="camo_pack_nothing">%1$s: tidak ada kamuflase di dalamnya</string>
+    <string name="camo_pack_failed">%1$s: tidak ditambahkan (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="other">%1$s: %2$d kamuflase ditambahkan</item>
+    </plurals>
+    <string name="camo_pack_animate">Animasikan</string>
+    <string name="camo_pack_listed">Tampil di game</string>
+    <string name="camo_pack_remove">Hapus</string>
+    <string name="camo_pack_remove_hint">Hapus paket ini dari ponsel? Kelas yang memakai salah satu kamuflasenya akan menampilkan Gold sampai paket ditambahkan lagi.</string>
+    <string name="camo_pack_bundled">Paket ini bawaan aplikasi, jadi akan muncul lagi saat mulai berikutnya. Nonaktifkan agar tidak masuk daftar game.</string>
+    <string name="camo_animate_gold">Animasikan kamo jenis Gold (gaya Sloth)</string>
+    <string name="camo_animate_gold_hint">Kamuflase yang dibuat mod PC untuk Gold bergulir di sepanjang senjata, seperti tampilan Sloth\'s Animated Camos Mod untuk PC, yang di sini digambar oleh port sendiri. \"Animasikan\" pada paket melakukan hal yang sama untuk setiap kamuflase diam di paket itu.</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Turkish, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">HİKÂYE</string>
+    <string name="game_code_refused">Bu cihazdaki oyun kodu uygulamanın bu sürümüyle eşleşmiyor: %1$s.\n\nYeniden derle: bilgisayarında proje klasörünü güncelle (git pull) ve bu cihaz USB ile bağlıyken setup\\setup.cmd -Game cod4 -GameOnly komutunu çalıştır. Çevrimiçi derlediysen: özel deponda Actions, Build my game package, Run workflow. Oyun dosyaların ve kayıtların korunur.</string>
+</resources>

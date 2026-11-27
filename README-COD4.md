@@ -100,6 +100,11 @@ graphics are compiled; see [Tips](#tips) and [Troubleshooting](#troubleshooting)
   the G57 up are untested; Mali G52 and G76 (and older) are not supported.
 - **About 8 GB free** for the disc image, on the device or an SD card, plus
   about 1 GB while the game is built.
+- **Languages.** The app follows the phone's language: English, Spanish,
+  Portuguese (Brazil), French, German, Italian, Russian, Polish, Turkish,
+  Arabic, Simplified Chinese, Japanese, Korean and Indonesian. The game is in
+  its disc's language, English on the USA/Europe disc
+  ([docs/languages.md](docs/languages.md)).
 
 ## Supported devices and what to expect
 

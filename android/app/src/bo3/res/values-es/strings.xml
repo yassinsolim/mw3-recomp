@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (Spain and Latin America, neutral), translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">MULTIJUGADOR</string>
+    <string name="title_multiplayer">ZOMBIS</string>
+    <string name="game_code_missing">El código del juego no está en este dispositivo. Se crea aquí a partir de tu propio disco y la actualización 5: Añadir DLC toma la actualización y lo compila.</string>
+    <string name="build_code_missing">El código del juego aún no está en este dispositivo: se crea a partir de tu propio disco y la actualización 5.\nAñadir DLC lo compila y muestra cuánto lleva; tarda unos minutos y sigue en segundo plano.</string>
+    <string name="status_update_needed">Black Ops III en esta consola se completa con su actualización 5 y los Compatibility Packs 1 y 2: el disco solo no tiene ningún mapa.\nElige Añadir DLC e indica la carpeta Content\\0000000000000000\\4156091D copiada del disco duro de tu Xbox 360. Después, el código del juego se compila a partir de tu disco y la actualización, aquí en este dispositivo.</string>
+    <string name="build_update_missing">El código del juego se crea a partir de tu disco y la actualización 5, y la actualización no está en la carpeta de DLC: añádela primero con Añadir DLC.</string>
+    <string name="build_name_campaign">multijugador</string>
+    <string name="build_name_multiplayer">zombis</string>
+    <string name="install_mode_copy_hint">Unos 4 GB en el almacenamiento interno del dispositivo, y uno o dos minutos. Después ya no necesitarás la imagen ni la carpeta.</string>
+    <string name="dlc_detail_update">Tu propia actualización, Compatibility Packs y packs de mapas, copiados del disco duro de tu Xbox 360. La app no incluye ninguno ni descarga ninguno.</string>
+    <string name="dlc_hint_update">Copia la carpeta Content\\0000000000000000\\4156091D del disco duro de tu consola (una unidad USB de Xbox 360, o el disco conectado a un PC) y elígela aquí, o elige los archivos que contiene: la actualización 5 está en 000B0000, y los Compatibility Packs 1 y 2, que el juego también necesita, en 00000002 junto con los packs de mapas (The Giant, Awakening). Los archivos siguen siendo tuyos y solo se leen. Mantén pulsada una entrada para quitarla.</string>
+    <string name="dlc_none">Aún no hay nada. El juego necesita la actualización de título 5 y los Compatibility Packs 1 y 2.</string>
+    <string name="dlc_ready">Ya están aquí %1$d paquetes y la actualización de título, y el código del juego está compilado: el juego se inicia desde el launcher. Los paquetes de mapas que añadas aquí aparecerán en los menús del propio juego la próxima vez que se inicie; no hace falta volver a compilar nada.</string>
+    <string name="dlc_code_missing">Ya están aquí %1$d paquetes y la actualización de título, pero aún falta el código del juego, que se compila en este dispositivo a partir de tu disco y la actualización: pulsa \"Crearlo ahora\" abajo (tarda unos minutos, en segundo plano).</string>
+    <string name="dlc_building">Ya están aquí %1$d paquetes y la actualización de título, y el código del juego se está compilando en este dispositivo: %2$s. Puedes salir de esta pantalla; el juego se iniciará desde el launcher cuando termine.</string>
+    <string name="dlc_build_failed">Ya están aquí %1$d paquetes y la actualización de título, pero no se pudo compilar el código del juego: %2$s</string>
+    <string name="dlc_update_missing">Ya están aquí %1$d paquetes, pero falta la actualización de título 5, a partir de la cual se crea el juego: es el archivo que está en Content\\0000000000000000\\4156091D\\000B0000 en el disco duro de la consola.</string>
+    <string name="dlc_packs_missing">Aún falta: %1$s. El juego necesita ambos: si falta uno, el juego solo te dirá que hay que descargar contenido obligatorio, y aquí no se descarga nada. Son gratuitos y están en el disco duro de tu consola junto a los paquetes de mapas, en Content\\0000000000000000\\4156091D\\00000002 (la consola los descargó con la actualización de título); añádelos aquí de la misma forma.</string>
+    <string name="dlc_nothing_found_update">Ninguno de esos archivos es un paquete de Black Ops III. Son archivos sin extensión, con nombres de letras y números, que están en Content\\0000000000000000\\4156091D en el disco duro de la consola.</string>
+    <string name="disclaimer">NO OFICIAL. SIN AFILIACIÓN CON ACTIVISION, TREYARCH NI MICROSOFT.</string>
+</resources>

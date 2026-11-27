@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Italian, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Mimetiche extra, elencate sotto Oro in Crea una classe accanto a quelle del gioco: nessun pacchetto sostituisce una mimetica del gioco o di un altro pacchetto. Disattiva un pacchetto per escluderlo dall\'elenco; tienine premuto uno per rimuoverlo. Le modifiche avranno effetto al prossimo avvio del gioco.</string>
+    <string name="camo_packs_none">Non hai ancora installato nessun pacchetto di mimetiche.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d pacchetto, %2$d mimetiche visibili nel gioco</item>
+        <item quantity="many">%1$d pacchetti, %2$d mimetiche visibili nel gioco</item>
+        <item quantity="other">%1$d pacchetti, %2$d mimetiche visibili nel gioco</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d mimetica, di %2$s</item>
+        <item quantity="many">%1$d mimetiche, di %2$s</item>
+        <item quantity="other">%1$d mimetiche, di %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">un autore senza nome</string>
+    <string name="camo_pack_add">Aggiungi un pacchetto da file</string>
+    <string name="camo_pack_fetch">Scarica i pacchetti del progetto</string>
+    <string name="camo_pack_fetching">Download in corso…</string>
+    <string name="camo_pack_fetched">%1$s di %2$s: installato</string>
+    <string name="camo_pack_checksum">il file scaricato non è quello previsto dall\'app</string>
+    <string name="camo_pack_converting">Conversione in corso…</string>
+    <string name="camo_pack_name">Nome del pacchetto</string>
+    <string name="camo_pack_default_name">Le mie mimetiche</string>
+    <string name="camo_pack_rar">%1$s: un file .rar o .7z non si può aprire sul telefono. Estrailo e scegli i suoi file .iwi, ricomprimilo in zip, oppure fallo importare da setup su un PC (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Scegli una mod di mimetiche per PC: un file .zip o .iwd, oppure le sue immagini .iwi (anche più di una).</string>
+    <string name="camo_pack_nothing">%1$s: nessuna mimetica trovata</string>
+    <string name="camo_pack_failed">%1$s: non aggiunto (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s: %2$d mimetica aggiunta</item>
+        <item quantity="many">%1$s: %2$d mimetiche aggiunte</item>
+        <item quantity="other">%1$s: %2$d mimetiche aggiunte</item>
+    </plurals>
+    <string name="camo_pack_animate">Anima</string>
+    <string name="camo_pack_listed">Visibile nel gioco</string>
+    <string name="camo_pack_remove">Rimuovi</string>
+    <string name="camo_pack_remove_hint">Rimuovere questo pacchetto dal telefono? Una classe che usa una delle sue mimetiche mostrerà Oro finché il pacchetto non viene aggiunto di nuovo.</string>
+    <string name="camo_pack_bundled">Questo pacchetto è incluso nell\'app, quindi tornerebbe al prossimo avvio. Disattivalo per escluderlo dall\'elenco del gioco.</string>
+    <string name="camo_animate_gold">Anima le mimetiche tipo Oro (stile Sloth)</string>
+    <string name="camo_animate_gold_hint">Le mimetiche che una mod per PC ha creato per Oro scorrono sull\'arma, con l\'effetto dell\'Animated Camos Mod di Sloth per PC, disegnate qui dal port stesso. \"Anima\" su un pacchetto fa lo stesso per ogni mimetica statica di quel pacchetto.</string>
+</resources>

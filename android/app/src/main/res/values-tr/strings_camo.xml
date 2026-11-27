@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Turkish, translated from values/strings_camo.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="camo_packs_screen_hint">Ek kamuflajlar, Create a Class\'ta oyunun kendi kamuflajlarının yanında Gold\'un altında listelenir: hiçbir paket oyunun ya da başka bir paketin kamuflajının yerini almaz. Bir paketi listeden çıkarmak için kapat; kaldırmak için basılı tut. Değişiklikler oyun bir sonraki açılışında geçerli olur.</string>
+    <string name="camo_packs_none">Henüz yüklü kamuflaj paketi yok.</string>
+    <plurals name="camo_pack_count">
+        <item quantity="one">%1$d paket, oyunda listelenen %2$d kamuflaj</item>
+        <item quantity="other">%1$d paket, oyunda listelenen %2$d kamuflaj</item>
+    </plurals>
+    <plurals name="camo_pack_by">
+        <item quantity="one">%1$d kamuflaj, yapan: %2$s</item>
+        <item quantity="other">%1$d kamuflaj, yapan: %2$s</item>
+    </plurals>
+    <string name="camo_pack_unnamed">isimsiz bir yapımcı</string>
+    <string name="camo_pack_add">Dosyadan paket ekle</string>
+    <string name="camo_pack_fetch">Projenin paketlerini indir</string>
+    <string name="camo_pack_fetching">İndiriliyor…</string>
+    <string name="camo_pack_fetched">%1$s (%2$s): yüklendi</string>
+    <string name="camo_pack_checksum">indirilen dosya uygulamanın beklediği dosya değil</string>
+    <string name="camo_pack_converting">Dönüştürülüyor…</string>
+    <string name="camo_pack_name">Paket adı</string>
+    <string name="camo_pack_default_name">Kamuflajlarım</string>
+    <string name="camo_pack_rar">%1$s: .rar veya .7z telefonda açılmaz. Arşivi çıkarıp .iwi dosyalarını seç, yeniden zip\'le ya da PC\'deki setup\'ın içe aktarmasına izin ver (setup -CamoPacks).</string>
+    <string name="camo_pack_no_pictures">Bir PC kamuflaj modu seç: .zip veya .iwd ya da .iwi resimleri (aynı anda birkaç tane).</string>
+    <string name="camo_pack_nothing">%1$s: içinde kamuflaj bulunamadı</string>
+    <string name="camo_pack_failed">%1$s: eklenmedi (%2$s)</string>
+    <plurals name="camo_pack_added">
+        <item quantity="one">%1$s: %2$d kamuflaj eklendi</item>
+        <item quantity="other">%1$s: %2$d kamuflaj eklendi</item>
+    </plurals>
+    <string name="camo_pack_animate">Hareketli</string>
+    <string name="camo_pack_listed">Oyunda listelenir</string>
+    <string name="camo_pack_remove">Kaldır</string>
+    <string name="camo_pack_remove_hint">Bu paket telefondan kaldırılsın mı? Kamuflajlarından birini kullanan sınıf, paket yeniden eklenene kadar Gold gösterir.</string>
+    <string name="camo_pack_bundled">Bu paket uygulamayla birlikte gelir, bu yüzden bir sonraki açılışta geri gelir. Oyunun listesinden çıkarmak için kapat.</string>
+    <string name="camo_animate_gold">Altın türü kamuflajları hareketli yap (Sloth\'un tarzı)</string>
+    <string name="camo_animate_gold_hint">Bir PC modunun Gold için yaptığı kamuflajlar silah üzerinde kayar; Sloth\'un PC için Animated Camos Mod\'unun görünümü, burada portun kendisi tarafından çizilir. Bir pakette \"Hareketli\" seçeneği, o paketteki her sabit kamuflaj için aynısını yapar.</string>
+</resources>

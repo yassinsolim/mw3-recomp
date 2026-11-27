@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brazilian Portuguese, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="game_code_refused">O código do jogo neste aparelho não corresponde a esta versão do app: %1$s.\n\nCompile de novo: no seu PC, atualize a pasta do projeto (git pull) e execute setup\\setup.cmd -Game mw2 -GameOnly com este aparelho conectado por USB. Se você compilou on-line: no seu repositório privado, vá em Actions, Build my game package, Run workflow. Seus arquivos do jogo e jogos salvos são mantidos.</string>
+</resources>

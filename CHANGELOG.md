@@ -5,6 +5,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **The app in thirteen more languages.** All five apps follow the phone's
+  language: Spanish, Portuguese (Brazil), French, German, Italian, Russian,
+  Polish, Turkish, Arabic (right to left), Simplified Chinese, Japanese,
+  Korean and Indonesian, besides English (`values-<locale>/` in main and in
+  each game's flavour). The performance card, the console command dialog,
+  the TU6 download and a few install and driver messages, which were written
+  in code, are string resources now. `LocaleResourcesTest` checks that every
+  translation keeps its English's format placeholders and formats with its
+  arguments. The setup screen's buttons grow with a longer label.
+- **Black Ops III in the phone's language.** Its disc, title update 5 and
+  Compatibility Packs hold nine languages; the runtime now tells the title
+  the dashboard language and locale it is given (`MW2_LANGUAGE`,
+  `MW2_LOCALE`), and the BO3 app gives the phone's: German, French, Italian,
+  Spanish (Spain, or the Americas'), Portuguese (Brazil), Polish and Russian.
+  The other four games' discs hold one language, English
+  ([docs/languages.md](docs/languages.md)).
 - **Our Discord server.** Help, news and requests have a place now:
   [yassin.app/discord](https://yassin.app/discord). Each of the four
   READMEs has a Discord badge at the top and a line under Official

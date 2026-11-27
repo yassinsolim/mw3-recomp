@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- What the mw3 flavour says in place of the MW2 app's wording. -->
-    <string name="wordmark">MODERN WARFARE 3</string>
-    <string name="wordmark_recompiled">MW3 RECOMPILED</string>
+    <string name="wordmark" translatable="false">MODERN WARFARE 3</string>
+    <string name="wordmark_recompiled" translatable="false">MW3 RECOMPILED</string>
 </resources>

@@ -2,10 +2,10 @@
 <resources>
     <!-- app_name comes from the product flavour (campaign or multiplayer). -->
     <string name="subtitle">A recompilation, running natively</string>
-    <string name="wordmark">MODERN WARFARE 2</string>
-    <string name="wordmark_recompiled">MW2 RECOMPILED</string>
+    <string name="wordmark" translatable="false">MODERN WARFARE 2</string>
+    <string name="wordmark_recompiled" translatable="false">MW2 RECOMPILED</string>
     <!-- The same for both games: what the port stands on. Who wrote each is in the README's credits. -->
-    <string name="credit_line">Built on mw2-recompiled · mw2-android · XenonRecomp</string>
+    <string name="credit_line" translatable="false">Built on mw2-recompiled · mw2-android · XenonRecomp</string>
     <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, INFINITY WARD OR MICROSOFT.</string>
     <string name="hint_choose">TAP TO CHOOSE</string>
     <string name="entry_settings">SETTINGS</string>
@@ -171,6 +171,7 @@
     <string name="driver_imported">Imported %1$s.</string>
     <string name="driver_bad_zip">That archive does not look like a driver: it has no meta.json naming the library inside it.</string>
     <string name="driver_not_arm64">That driver is not for this phone (arm64 is needed).</string>
+    <string name="driver_needs_api">This driver needs Android API %1$d; this device has %2$d.</string>
     <string name="driver_remove">Remove</string>
     <string name="driver_removed">Removed.</string>
     <string name="driver_api">Vulkan %1$s, for Android API %2$d and later</string>
@@ -498,7 +499,7 @@
     <string name="build_online_done">%1$s and %2$s are now in this device\'s Download folder. They are your game\'s executables: keep them to yourself.\n\nNext, in your browser, signed in to GitHub:\n\n1. Open github.com/yassinsolim/recomp-builder, tap Use this template, Create a new repository, and choose Private.\n2. In your new repository: Add file, Upload files, choose the two files from Download, Commit changes.\n3. The build starts by itself and takes an hour or two (Actions shows it). Then open Releases, tap the .apk in the draft at the top and install it.\n\nNever make that repository public: it holds your copy of the game\'s code.</string>
     <string name="build_online_guide">Open the full guide</string>
     <!-- what setup on a PC is run as: said where a PC is the other way to build the game code -->
-    <string name="setup_command">setup\\setup.cmd</string>
+    <string name="setup_command" translatable="false">setup\\setup.cmd</string>
     <string name="setup_build_here">Build on this device</string>
     <string name="setup_guide">Open the guide</string>
     <string name="stats_line">%1$.0f fps   %2$d MB textures   %3$d×%4$d</string>
@@ -707,4 +708,50 @@
     <string name="report_problem_detail">Opens the report form in your browser, with the game, the app\'s version and your device filled in.</string>
     <string name="report_problem_explained">The report needs the log file.\n\n1. Tap Share the log file and save it (Files, Drive) or email it to yourself.\n2. Come back and tap Open the form.\n3. In the form, attach that file in the Log box.</string>
     <string name="report_problem_open">Open the form</string>
+    <!-- Text the app built in code before (GameActivity's performance card and console, the installer, Settings' mods). -->
+    <string name="hud_title">PERFORMANCE</string>
+    <string name="hud_close">[▲ Close]</string>
+    <string name="hud_console">[⚡ CMD]</string>
+    <string name="hud_not_known">N/A</string>
+    <string name="hud_battery_charging">" (charging, %1$d%%)"</string>
+    <string name="hud_ram_value">%1$d MB (app) / %2$d MB (total)</string>
+    <string name="hud_section_fps">FPS / FRAME TIME</string>
+    <string name="hud_presented">Presented: %1$s frames  ·  %2$s</string>
+    <string name="hud_section_cpu">CPU &amp; SYSTEM</string>
+    <string name="hud_cpu">Use: %1$s (%2$d cores)</string>
+    <string name="hud_thermal">Chip: %1$s  ·  Battery: %2$s</string>
+    <string name="hud_section_gpu">GPU &amp; VULKAN</string>
+    <string name="hud_device">Device: %1$s</string>
+    <string name="hud_backend">Backend: %1$s</string>
+    <string name="hud_textures">Textures: %1$d MB  ·  %2$s</string>
+    <string name="hud_prewarm">Shaders: %1$d / %2$d (%3$d%%)  ·  last: %4$d ms</string>
+    <string name="hud_section_memory">MEMORY &amp; PICTURE</string>
+    <string name="hud_ram">App / device RAM: %1$s</string>
+    <string name="hud_render">Drawn at: %1$d×%2$d  •  Screen: %3$d Hz</string>
+    <string name="hud_held">Held to: %1$d FPS</string>
+    <string name="hud_held_auto">" (auto)"</string>
+    <string name="hud_gpu">GPU: %1$s ms</string>
+    <string name="hud_scene">Scene: %1$d%%</string>
+    <string name="hud_limit">Limit: %1$s</string>
+    <string name="hud_section_network">NETWORK</string>
+    <string name="hud_lan">Players heard on the local network: %1$d</string>
+    <string name="console_title">Console command</string>
+    <string name="console_run">Run</string>
+    <string name="console_hint">e.g. god, give all, cg_fov 85, cg_drawFPS 1…</string>
+    <string name="console_fov_wide">Wide view (85°)</string>
+    <string name="console_fov_default">Default view (65°)</string>
+    <string name="console_show_fps">Show FPS</string>
+    <string name="console_god">God mode</string>
+    <string name="console_all_weapons">All weapons</string>
+    <string name="console_ufo">Fly (UFO)</string>
+    <string name="console_full_bright">Full bright</string>
+    <string name="console_hide_gun">Hide the gun</string>
+    <string name="tu6_no_url">This TU6 build knows no address to download the update from.</string>
+    <string name="tu6_download_title">Title update 6</string>
+    <string name="tu6_download_description">Downloading the update</string>
+    <string name="tu6_not_downloaded">Title update 6 did not download.</string>
+    <string name="runtime_not_loaded">The runtime is not loaded.</string>
+    <string name="update_download_description">Downloading the new version</string>
+    <string name="mods_skip_executable">executables are never taken from a mod</string>
+    <string name="mods_skip_plugin">needs the CoD Xe plugin, which this port does not run</string>
 </resources>

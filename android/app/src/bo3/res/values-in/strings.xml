@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Indonesian, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">MULTIPLAYER</string>
+    <string name="title_multiplayer">ZOMBIES</string>
+    <string name="game_code_missing">Kode game belum ada di perangkat ini. Kode dibuat di sini dari disc Anda sendiri dan title update 5: Tambah DLC mengambil update tersebut lalu mem-build-nya.</string>
+    <string name="build_code_missing">Kode game belum ada di perangkat ini: kode dibuat dari disc Anda sendiri dan title update 5.\nTambah DLC akan mem-build-nya dan menampilkan progresnya; butuh beberapa menit dan berjalan di latar belakang.</string>
+    <string name="status_update_needed">Black Ops III di konsol ini dilengkapi oleh title update 5 dan Compatibility Pack 1 dan 2: disc saja tidak berisi map.\nPilih Tambah DLC dan arahkan ke folder Content\\0000000000000000\\4156091D yang disalin dari hard disk Xbox 360 Anda. Kode game lalu di-build dari disc dan update tersebut, di perangkat ini.</string>
+    <string name="build_update_missing">Kode game dibuat dari disc Anda dan title update 5, tetapi update tersebut tidak ada di folder DLC: tambahkan dulu lewat Tambah DLC.</string>
+    <string name="build_name_campaign">multiplayer</string>
+    <string name="build_name_multiplayer">zombies</string>
+    <string name="install_mode_copy_hint">Sekitar 4 GB di penyimpanan internal perangkat, dan satu atau dua menit. Setelah itu image atau folder tidak diperlukan lagi.</string>
+    <string name="dlc_detail_update">Title update, Compatibility Pack, dan map pack milik Anda sendiri, disalin dari hard disk Xbox 360 Anda. Aplikasi ini tidak menyertakan dan tidak mengunduh apa pun.</string>
+    <string name="dlc_hint_update">Salin folder Content\\0000000000000000\\4156091D dari hard disk konsol Anda (drive USB Xbox 360, atau disk yang dipasang di PC) lalu pilih di sini, atau pilih file di dalamnya: title update 5 ada di 000B0000, dan Compatibility Pack 1 dan 2, yang juga dibutuhkan game, ada di 00000002 bersama map pack (The Giant, Awakening). File tetap milik Anda dan hanya dibaca. Tahan entri untuk menghapusnya.</string>
+    <string name="dlc_none">Belum ada apa-apa di sini. Game ini memerlukan title update 5 serta Compatibility Pack 1 dan 2.</string>
+    <string name="dlc_ready">%1$d paket dan title update sudah ada, dan kode game sudah dibuat: game dimulai dari launcher. Map pack yang ditambahkan di sini akan muncul di menu game saat dimulai berikutnya; tidak ada yang perlu dibuat ulang.</string>
+    <string name="dlc_code_missing">%1$d paket dan title update sudah ada, tetapi kode game belum. Kode ini dibuat dari disk dan update Anda di perangkat ini: \"Buat sekarang\" di bawah (beberapa menit, di latar belakang).</string>
+    <string name="dlc_building">%1$d paket dan title update sudah ada, dan kode game sedang dibuat di perangkat ini: %2$s. Anda boleh meninggalkan layar ini; game dimulai dari launcher setelah selesai.</string>
+    <string name="dlc_build_failed">%1$d paket dan title update sudah ada, tetapi kode game gagal dibuat: %2$s</string>
+    <string name="dlc_update_missing">%1$d paket sudah ada, tetapi title update 5 belum. Game dibuat dari update ini: file-nya ada di Content\\0000000000000000\\4156091D\\000B0000 di hard disk konsol.</string>
+    <string name="dlc_packs_missing">Masih kurang: %1$s. Game memerlukan keduanya: tanpa salah satunya, game hanya memberi tahu bahwa konten wajib harus diunduh, dan di sini tidak ada yang bisa diunduh. Keduanya gratis dan ada di hard disk konsol Anda di samping map pack, di Content\\0000000000000000\\4156091D\\00000002 (konsol mengunduhnya bersama title update); tambahkan di sini dengan cara yang sama.</string>
+    <string name="dlc_nothing_found_update">Tidak ada satu pun file tersebut yang merupakan paket Black Ops III. Paket berupa file tanpa ekstensi, dengan nama dari huruf dan angka, di Content\\0000000000000000\\4156091D di hard disk konsol.</string>
+    <string name="disclaimer">TIDAK RESMI. TIDAK BERAFILIASI DENGAN ACTIVISION, TREYARCH, ATAU MICROSOFT.</string>
+</resources>

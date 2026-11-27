@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">MULTIJOUEUR</string>
+    <string name="title_multiplayer">ZOMBIES</string>
+    <string name="game_code_missing">Le code du jeu n\'est pas sur cet appareil. Il est créé ici à partir de votre propre disque et de la mise à jour 5 : Ajouter des DLC récupère la mise à jour et le compile.</string>
+    <string name="build_code_missing">Le code du jeu n\'est pas encore sur cet appareil : il est créé à partir de votre propre disque et de la mise à jour 5.\nAjouter des DLC le compile et affiche la progression ; cela prend quelques minutes et continue en arrière-plan.</string>
+    <string name="status_update_needed">Sur cette console, Black Ops III est complété par sa mise à jour 5 et les Compatibility Packs 1 et 2 : le disque seul n\'a aucune carte.\nChoisissez Ajouter des DLC et indiquez le dossier Content\\0000000000000000\\4156091D copié depuis le disque dur de votre Xbox 360. Le code du jeu est ensuite compilé à partir de votre disque et de la mise à jour, ici sur cet appareil.</string>
+    <string name="build_update_missing">Le code du jeu est créé à partir de votre disque et de la mise à jour 5, et la mise à jour n\'est pas dans le dossier des DLC : ajoutez-la d\'abord avec Ajouter des DLC.</string>
+    <string name="build_name_campaign">multijoueur</string>
+    <string name="build_name_multiplayer">zombies</string>
+    <string name="install_mode_copy_hint">Environ 4 GB sur le stockage interne de l\'appareil, et une minute ou deux. L\'image ou le dossier n\'est plus nécessaire ensuite.</string>
+    <string name="dlc_detail_update">Votre propre mise à jour, vos Compatibility Packs et vos packs de cartes, copiés depuis le disque dur de votre Xbox 360. L\'application n\'en contient aucun et n\'en télécharge aucun.</string>
+    <string name="dlc_hint_update">Copiez le dossier Content\\0000000000000000\\4156091D depuis le disque dur de votre console (une clé USB Xbox 360, ou le disque branché sur un PC) et choisissez-le ici, ou choisissez les fichiers qu\'il contient : la mise à jour 5 est dans 000B0000, et les Compatibility Packs 1 et 2, dont le jeu a aussi besoin, dans 00000002 avec les packs de cartes (The Giant, Awakening). Les fichiers restent les vôtres et sont seulement lus. Appuyez longuement sur une entrée pour la supprimer.</string>
+    <string name="dlc_none">Rien ici pour l\'instant. Le jeu a besoin de la mise à jour 5 et des packs de compatibilité 1 et 2.</string>
+    <string name="dlc_ready">%1$d paquets et la mise à jour sont présents, et le code du jeu est compilé : le jeu se lance depuis le launcher. Les packs de cartes ajoutés ici apparaîtront dans les menus du jeu au prochain lancement ; rien n\'est recompilé pour eux.</string>
+    <string name="dlc_code_missing">%1$d paquets et la mise à jour sont présents, mais pas encore le code du jeu, qui est compilé sur cet appareil à partir de votre disque et de la mise à jour : touchez \"Le compiler maintenant\" ci-dessous (quelques minutes, en arrière-plan).</string>
+    <string name="dlc_building">%1$d paquets et la mise à jour sont présents, et le code du jeu est en cours de compilation sur cet appareil : %2$s. Vous pouvez quitter cet écran ; le jeu se lancera depuis le launcher une fois terminé.</string>
+    <string name="dlc_build_failed">%1$d paquets et la mise à jour sont présents, mais le code du jeu n\'a pas pu être compilé : %2$s</string>
+    <string name="dlc_update_missing">%1$d paquets sont présents, mais pas la mise à jour 5, à partir de laquelle le jeu est construit : c\'est le fichier dans Content\\0000000000000000\\4156091D\\000B0000 sur le disque dur de la console.</string>
+    <string name="dlc_packs_missing">Il manque encore : %1$s. Le jeu a besoin des deux : sans l\'un d\'eux, il vous indique seulement qu\'un contenu requis doit être téléchargé, et rien ne se télécharge ici. Ils sont gratuits et se trouvent sur le disque dur de votre console à côté des packs de cartes, dans Content\\0000000000000000\\4156091D\\00000002 (la console les a récupérés avec la mise à jour) ; ajoutez-les ici de la même façon.</string>
+    <string name="dlc_nothing_found_update">Aucun de ces fichiers n\'est un paquet Black Ops III. Ce sont des fichiers sans extension, dont le nom est composé de lettres et de chiffres, dans Content\\0000000000000000\\4156091D sur le disque dur de la console.</string>
+    <string name="disclaimer">NON OFFICIEL. NON AFFILIÉ À ACTIVISION, TREYARCH OU MICROSOFT.</string>
+</resources>

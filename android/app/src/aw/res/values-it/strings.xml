@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Italian, translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">CAMPAGNA</string>
+    <string name="game_code_refused">Il codice di gioco su questo dispositivo non corrisponde a questa versione dell\'app: %1$s.\n\nCompilalo di nuovo: sul PC aggiorna la cartella del progetto (git pull) ed esegui setup\\setup.cmd -Game aw -GameOnly con questo dispositivo collegato via USB. I file di gioco e i salvataggi restano.</string>
+    <string name="install_hint">Questo gioco ha due dischi, il disco di gioco e il disco di installazione, e servono entrambi. Indica le loro immagini (.iso), su questo dispositivo o sulla sua scheda di memoria: tocca una e l\'altra viene trovata accanto, scegli la cartella che le contiene o selezionale entrambe nell\'app File. Il gioco parte dalle immagini dove sono, senza copiare nulla; oppure puoi copiarle entrambe nell\'app, circa 12 GB.</string>
+    <string name="install_mode_link_hint">Non viene copiato nulla ed è pronto in un attimo. Entrambe le immagini devono restare dove sono: il gioco legge i file da lì. Salvataggi, impostazioni e mod restano nell\'app come sempre.</string>
+    <string name="install_mode_copy_hint">Circa 7 GB dal disco di gioco e 4 GB dal disco di installazione, nella memoria interna del dispositivo; un paio di minuti ciascuno. Dopo, le immagini non servono più.</string>
+    <string name="install_done_link">Il gioco è configurato per partire dalle due immagini disco. Lasciale entrambe dove sono.</string>
+    <string name="change_source_hint">Apre la schermata di installazione: gioca dalle due immagini disco invece che dai file copiati (e libera i loro 12 GB), copia invece i file, oppure indica un\'immagine che è stata spostata.</string>
+    <string name="disclaimer">NON UFFICIALE. NON AFFILIATO AD ACTIVISION, SLEDGEHAMMER GAMES O MICROSOFT.</string>
+    <string name="build_hint">Il codice di gioco viene creato dalla tua copia del gioco, qui su questo dispositivo. Servono l\'immagine del tuo disco di gioco (.iso), che viene solo letta, il pacchetto toolchain (il compilatore, da installare una volta, circa 45 MB da scaricare) e circa 1 GB di spazio libero durante il lavoro. La compilazione ha richiesto circa 13 minuti su un Retroid Pocket Flip 2 (Snapdragon 865), l\'unico dispositivo su cui è stata misurata, e ci mette di più su uno più lento o caldo; prosegue mentre usi altre app e, se viene interrotta, riprende da dove era rimasta.</string>
+</resources>

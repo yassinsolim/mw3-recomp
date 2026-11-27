@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (Spain and Latin America, neutral), translated from values/strings.xml: the same names, format placeholders and escapes (LocaleResourcesTest checks them). -->
+<resources>
+    <string name="title_campaign">CAMPAÑA</string>
+    <string name="game_code_refused">El código del juego de este dispositivo no coincide con esta versión de la app: %1$s.\n\nVuelve a compilarlo: en tu PC, actualiza la carpeta del proyecto (git pull) y ejecuta setup\\setup.cmd -Game cod4 -GameOnly con este dispositivo conectado por USB. Si lo compilaste en línea: en tu repositorio privado, Actions, Build my game package, Run workflow. Tus archivos del juego y partidas guardadas se conservan.</string>
+</resources>
