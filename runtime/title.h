@@ -215,6 +215,9 @@
 // The streamed images' move, as the multiplayer's: the same function with
 // the registers in another order (the one place `oris r8,r8,0x4b02` stands).
 #define T_Image_FlushMove      824871A8
+// The vsync dvar's pointer, read by the swap callback (sub_824A18E0) as the
+// multiplayer's.
+#define T_DATA_VsyncDvar       0x83858360u
 
 // the kernel's data imports, found as the multiplayer's
 #define T_DATA_TimeStampBundlePtr 0x820008E0u   // the KeTimeStampBundle import record
@@ -280,6 +283,11 @@
 // Warfare's sub_820D82E8 does, at its offsets.
 #define T_DEV_PresentInterval  14000u
 #define T_DEV_ProgressBlock    11024u
+// The pointer to the title's vsync dvar (a bool): the swap callback it gives
+// D3D (sub_824A2848, the one function sub_826F7E78 is called with) holds a
+// frame to the blank after the last one's while it is on, and Com_Frame
+// (sub_8264DFD0) reads com_maxfps only then (d3d_hooks.cpp, TitleVsync).
+#define T_DATA_VsyncDvar       0x83820150u
 
 // the kernel's data imports: the image's own import records, found by their
 // (library, ordinal) words 0x000100AD, 0x00010059 and 0x00010193, each present once

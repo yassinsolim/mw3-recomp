@@ -252,9 +252,8 @@ look at each frame it named).
 | Flip, Shadows of Evil | 57.8 | the far end of the street drawn as flat rectangles for a second as the zombies arrive: open |
 | Thor, multiplayer on Combine, first run | 56.5 | the scene whole in every frame, the chip at work 33% of the time |
 
-- **The Thor's scene keeps its size.** The rule that draws it smaller held a
-  frame against the display's 8.3 ms; the title makes 60 a second at most
-  (`renderer_scene.cpp`).
+- **The Thor's scene kept its size** at the time: the title then made 60 a
+  second at most (see "Past 60 frames a second" below, which ended that).
 - **Models lit wrongly for one frame** (the teleporter's door and pad, the
   held weapon, a zombie's arm; the "panel's texture" above). The model
   lighting table, a 512x256x4 volume as Modern Warfare 2's, was read again at
@@ -335,9 +334,8 @@ match.
   files*, then *Add DLC*, then *PLAY*: Black Ops III keeps the install
   screen and is not in the guided setup, whose order is disc, build, packs
   (`Setup.guided`).
-- **The rate's steps stop at 60** (`adaptive.cpp`): the title makes 60 at
-  most, and a step of 120 on the Thor would be missed, given up and tried
-  again for as long as the chip has room.
+- **The rate's steps stopped at 60** (`adaptive.cpp`) while the title made
+  60 at most; since "Past 60 frames a second" they are the other games'.
 - The Flip's scene is at 58% of its width in three quarters of the frames
   (70% before the merge of `android`, whose floor is lower).
 
@@ -384,6 +382,64 @@ Open on Android:
   Windows (above).
 - The copied install was not run on a device.
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
+
+## Past 60 frames a second (27 November 2026)
+
+**What held it at 60.** Not the present interval (the runtime asks D3D for
+an immediate flip, as for the other games) and not the guest's blank (a
+blank at 120 Hz left a match at 60.0): the title's vsync dvar, a bool whose
+pointer is at 0x83820150 (zombies 0x83858360). The swap callback the title
+gives D3D (sub_824A2848, D3DDevice_SetSwapCallback's one caller) sets each
+flip's blank to the last one's plus one while it is on, and the render
+thread waits for the flip before the next frame (sub_82478270 polling
+D3D's pending-swap count), so frames came at the guest's 60 whatever the
+limit. Its com_maxfps is read by Com_Frame (sub_8264DFD0) only while vsync
+is on. The console cannot be asked for either (the dvars go by hashes), so
+the runtime writes the dvar's value at every present while the title is
+off the console's pacing and puts the title's own back on it
+(`d3d_hooks.cpp`, `TitleVsync`, `T_DATA_VsyncDvar`), and holds a limit under
+the display's rate itself (`HoldToLimit`, as Call of Duty 4's). The 60 caps
+in `adaptive.cpp`'s steps and the scene rule's frame time are gone.
+
+**Windows** (RTX 5080, 240 Hz, a match on Combine, frames counted between
+dumps 10 s apart): no limit 60.0 before, 237 with the dvar off; a limit of
+120 holds 119.4 to 119.5; 60 is the console's 59.6 to 59.9.
+
+**The game's timing at 120 against 60** (Windows, the same build, the
+scripted player):
+
+| | 60 | 120 |
+|---|---|---|
+| match clock, 70 s of wall time | | 9:40 to 8:30, 70 s |
+| server frame (sv thread, sub_8267F438), multiplayer | 50.1 ms | 50.0 ms |
+| server frame, Shadows of Evil | 50.0 ms | 50.0 ms |
+| KN-44, trigger held 2 s | 21 rounds, 10.0 a second | 21 rounds, 10.3 a second |
+| reload, press to a full magazine | 1.50 to 1.77 s | 1.37 to 1.64 s |
+| walk 1 s forward, back, left, right (the minimap's shift) | 14, 15, 15, 14 px | 15, 14, 14, 14 px |
+| mixer frames, xma errors (no sound device) | 25,085, 0 | 25,082, 0 |
+
+The rates and times agree within a frame dump's 0.27 s; the server, which
+runs the zombies, the rounds and the scripts, keeps its 20 frames a second
+on its own thread at either rate. No `Com_Error` or `[E]` in the runs.
+
+**AYN Thor** (debug app, Turnip, `MW2_REPORT_SECONDS`, the mean of the
+seconds of play after the first ten, the slowest second in brackets):
+
+| | limit 60 (before) | limit 120 |
+|---|---|---|
+| Shadows of Evil | 59.0 (51) | 105.7 (60) |
+| The Giant | | 107.0 (62) |
+| multiplayer, Combine | | 110.6 (70) |
+
+On the Retroid Pocket Flip 2 (60 Hz) the limit is 60 and the pacing the
+console's, as before: Shadows of Evil 57.5 (43) on a first run that compiled
+its pipelines in play and 59.4 (50) on the second (58.3 and 58.4 in the
+round of 26 November). At 120 on the Thor the processor is what the late
+frames wait for (19 to 63% of the time; the chip 4.6 to 6.0 ms a frame).
+Open: the scene rule draws the scene smaller where the processor is late
+(The Giant at 58 to 70% of its width, Shadows of Evil 76 to 100%), which
+does not help a frame the chip is not late for; a second multiplayer map
+and the Thor's 1% low over single frames were not measured.
 
 ## Open
 

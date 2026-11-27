@@ -30,10 +30,43 @@ namespace
     // so three frames pass in that time wherever in it they fall. A limit of
     // 45 let 136 a second through, which the display then paced: 119 on a
     // 120 Hz panel. The console never asks it for less than its blank's rate.
-#if defined(COD4_TITLE)
+#if defined(COD4_TITLE) || defined(T_DATA_VsyncDvar)
     constexpr bool kTitleLimits = false;
 #else
     constexpr bool kTitleLimits = true;
+#endif
+
+#if defined(T_DATA_VsyncDvar)
+    // Black Ops III's r_vsync, which its console cannot be asked for (its
+    // dvars go by hashes): the title keeps a pointer to the dvar at
+    // T_DATA_VsyncDvar, and a bool dvar (type 1 at +6) has its value in the
+    // byte at +8. On, the swap callback it gives D3D (sub_824A2848 in the
+    // multiplayer) holds every frame to the blank after the last one's, so
+    // the frames come at the guest's 60 whatever the present interval asks:
+    // 60.0 a second in a match on a 240 Hz display with no limit, and 237
+    // with it off. Its com_maxfps is read only while it is on (Com_Frame,
+    // sub_8264DFD0), so the runtime holds a limit under the display's rate
+    // itself (HoldToLimit), as Call of Duty 4's. Written at every present
+    // while the title is off the console's pacing, so a dvar the title sets
+    // again (a map's or the settings' load) does not bring the blank back;
+    // its own value again on the console's pacing.
+    void TitleVsync(bool off)
+    {
+        static int own = -1;   // the title's value before the first write, or -1
+        const uint32_t dvar = *GuestPtr<be32>(T_DATA_VsyncDvar);
+        if (!dvar || *GuestPtr<uint8_t>(dvar + 6) != 1) return;
+        uint8_t& value = *GuestPtr<uint8_t>(dvar + 8);
+        if (off)
+        {
+            if (own < 0) own = value;
+            value = 0;
+        }
+        else if (own >= 0)
+        {
+            value = uint8_t(own);
+            own = -1;
+        }
+    }
 #endif
 
     // Where the title's limiter does not hold, the limit is held here: the
@@ -89,6 +122,9 @@ namespace
                                   : frame_rate::ConsoleBlanks() == 2 ? kIntervalTwo : own;
         if (interval != own) written = true;
         if (written) *GuestPtr<be32>(device + kPresentInterval) = interval;
+#if defined(T_DATA_VsyncDvar)
+        TitleVsync(pacing != frame_rate::kByConsole);
+#endif
 
         static uint32_t told = ~0u;
         static bool limited = false;   // com_maxfps and r_vsync are not the title's own
@@ -104,8 +140,10 @@ namespace
         {
             if (limited)
             {
+#if !defined(T_DATA_VsyncDvar)
                 console::RunNow("reset com_maxfps");
                 console::RunNow("reset r_vsync");
+#endif
                 limited = false;
             }
             std::snprintf(how, sizeof how, frame_rate::ConsoleBlanks() == 2
@@ -114,10 +152,12 @@ namespace
         }
         else
         {
+#if !defined(T_DATA_VsyncDvar)
             char command[32];
             std::snprintf(command, sizeof command, "com_maxfps %u", maxFps);
             console::RunNow(command);
             console::RunNow("r_vsync 0");
+#endif
             limited = true;
             if (pacing == frame_rate::kByDisplay)
                 std::snprintf(how, sizeof how, "the display's: com_maxfps 0, every frame shown, one a blank");

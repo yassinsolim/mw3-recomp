@@ -114,14 +114,6 @@ namespace
         }
         if (steps.empty())
             for (uint32_t rate = frame_rate::Limit(); rate >= 30; rate /= 2) steps.push_back(rate);
-#if defined(BO3_TITLE)
-        // Black Ops III makes 60 frames a second at most whatever the limit
-        // (renderer_scene.cpp): a faster step is missed in every window,
-        // given up after ten seconds and tried again for as long as the
-        // chip has room, the display changing its mode each time.
-        std::erase_if(steps, [](uint32_t rate) { return rate > frame_rate::kConsole; });
-        if (steps.empty()) steps.push_back(frame_rate::kConsole);
-#endif
         return steps;
     }
 
