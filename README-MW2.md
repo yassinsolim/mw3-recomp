@@ -316,7 +316,8 @@ building on a PC instead.
 <summary><b>Other ways to install</b></summary>
 
 - **Windows PC**: get the code (`git clone https://github.com/yassinsolim/mw2-recomp.git C:\mw2`,
-  a short path without spaces), connect the phone over USB with USB debugging
+  a short path without spaces; no Git yet? `winget install --id Git.Git -e`,
+  then a new window), connect the phone over USB with USB debugging
   on, and run
 
   ```
@@ -327,7 +328,13 @@ building on a PC instead.
   Tools are installed system-wide, with your leave), builds `out\mw2-game.apk`
   and installs it with the app. After an app update that needs new game code:
   `git pull`, then `setup\setup.cmd -Game mw2 -GameOnly`. `-Check` lists what
-  it would do and changes nothing.
+  it would do and changes nothing. For the Windows game instead (no phone
+  needed): `setup\setup.cmd -Game mw2 -Iso "D:\Games\MW2.iso" -Build pc`
+  (`-Build both` for both). It is built into `out\pc-mw2`: start
+  `Campaign.cmd` or `Multiplayer.cmd` there (settings in `out\pc-mw2\.env`,
+  all of them in [docs/switches.md](docs/switches.md)). Split screen needs two
+  controllers (the keyboard and mouse are the first one's): in
+  `Multiplayer.cmd`'s menu choose SPLIT SCREEN and press A at each.
 - **Linux PC** (tested on Ubuntu 24.04, WSL2 included), with the phone
   connected over USB:
 

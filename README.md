@@ -316,12 +316,16 @@ building on a PC instead, and for the Windows game.
 <summary><b>Other ways to install</b></summary>
 
 - **Windows PC**: get the code (`git clone https://github.com/yassinsolim/mw3-recomp.git C:\mw3`,
-  a short path without spaces), double-click `setup\setup.cmd` and answer its
+  a short path without spaces; no Git yet? `winget install --id Git.Git -e`,
+  then a new window), double-click `setup\setup.cmd` and answer its
   questions (Android and/or PC, where your `.iso` is). It downloads what it
   needs into `.toolchain\`, builds `out\mw3-game.apk` and installs it with the
   app on a phone connected over USB with USB debugging on. For the Windows game
   too, choose PC: start `out\pc\Campaign.cmd` or `out\pc\Multiplayer.cmd`
   (settings in `out\pc\.env`, all of them in [docs/switches.md](docs/switches.md)).
+  Split screen needs two controllers (the keyboard and mouse are the first
+  one's): in `Multiplayer.cmd`'s menu choose SPLIT SCREEN and press A at each.
+  `setup\setup.cmd -Build pc -Iso "D:\Games\MW3.iso" -Yes` asks nothing.
   Microsoft's C++ Build Tools are needed; setup offers to install them.
   After an app update that needs new game code: `git pull`, then
   `setup\setup.cmd -GameOnly`. `-Check` lists what it would do and changes

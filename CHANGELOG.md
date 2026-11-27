@@ -192,6 +192,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Setup builds Modern Warfare 2's Windows game.** `setup\setup.cmd -Game mw2`
+  refused `-Build pc`, and the configure it would have run could not have
+  built it: the disc's version (`tu0`) was set only in the environment, which
+  CMake does not read, so the desktop default `tu6` refused the disc's tree
+  ("not a TU6 multiplayer tree"), and `-DMW3_LINK_PROBE=ON`, which CMake
+  refuses for Modern Warfare 2, was passed for every game. The configure now
+  gets `-DMW2_VERSION=tu0` for Modern Warfare 2, and `MW3_RECOMP_ONLY` and
+  `MW3_LINK_PROBE` for the other three games only. Modern Warfare 2's Windows
+  game is built into `out\pc-mw2` (`mw2.exe`, `mw2mp.exe`, `Campaign.cmd`,
+  `Multiplayer.cmd`, its log `mw2.log`), apart from Modern Warfare 3's
+  `out\pc`, since two discs in one game folder would mix. `-Dlc` with
+  `-Game mw2` no longer always stops (it compared an undefined `$Version`).
+  The last lines say how split screen is started, and the phone's step only
+  for an Android build. Checked from a fresh clone with
+  `setup\setup.cmd -Game <game> -Iso <disc> -Build pc -Yes`: each game's
+  Campaign.cmd and Multiplayer.cmd reach their menus, and split screen with
+  a second controller reaches a Team Deathmatch in two views.
 - **Imported drivers no longer crash at start on Android 11.** Every app's
   library exported libadrenotools' function pointers under the names of the
   linker's own functions (`android_get_exported_namespace` and three more),

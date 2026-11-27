@@ -1337,11 +1337,12 @@ Step 'done'
 foreach ($item in $Apks) { Note "APK: $($item.Apk)" }
 if ($ForPc) {
     Note "Windows game: $PcFolder (start Campaign.cmd or Multiplayer.cmd; settings in .env)"
+    if ('mp' -in $PcKeys) { Note "Split screen: two controllers (the keyboard and mouse are the first one's), Multiplayer.cmd, then $(if ($Aw) { 'LOCAL PLAY' } else { 'SPLIT SCREEN' }) in its menu and A at each controller." }
     if ('mp17' -in $PcKeys) { Note 'With your map packs: "Multiplayer with map packs.cmd" and "Exo Zombies.cmd" (docs\dlc.md).' }
     elseif ($DlcRoot) { Note 'Your map packs are read from where they are (MW2_DLC_DIR in .env; docs\dlc.md).' }
 }
 if ($GameOnly) { Note 'The game code is built for this state of the folder. If the app on the phone still refuses it, the app is older or newer than this folder: update the app (it offers to) or the folder (git pull).' }
-else {
+elseif ($ForAndroid) {
     # Advanced Warfare's README is the front page of its own repository, where
     # it is README.md; here it lies beside the other games'.
     $guide = if ($Mw2) { 'docs\MW2-ANDROID.md' } elseif ($Cod4) { 'docs\COD4-BRINGUP.md' } elseif ($Aw -and (Test-Path (Join-Path $Repo 'README-AW.md'))) { 'README-AW.md' } else { 'README.md' }
