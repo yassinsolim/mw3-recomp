@@ -539,8 +539,14 @@ Report, which draws no world. The app's FOV setting now reaches BO3 as
 - On Windows The Giant and Shadows of Evil were played to round 1 and
   round 2, Der Eisendrache to round 1; on the phones all three to round 1.
   Zetsubou No Shima, Gorod Krovi and Revelations are not on this PC.
-- The thin streak from a zombie's head (above) is still there; it was not
-  looked into this round.
+- The thin streak from a zombie's head (above) is still there. It can be
+  caught on Windows: one 300 s Shadows of Evil run with `MW2_FLASH_LONE=6
+  MW2_FLASH_FRAMES=5 MW2_FLASH_DRAWS=1` kept it in frame 6741, 118 s in, a
+  yellow line from the nearer zombie's eyes to the left edge, absent in
+  6740 (and, 8 frames later, a black wedge over the sky for one frame).
+  `tools/flash_draws.py` could not name the draw: the mark fell on 6740
+  (the lone frame is the one before the newest), so 6741 was the last frame
+  kept, and the tool needs two on each side. Not fixed.
 - In `android`, and not released: nothing is published for this title, and
   the release script leaves its paths out of every mirror
   (`tools/release/release.py`, `UNRELEASED`).
