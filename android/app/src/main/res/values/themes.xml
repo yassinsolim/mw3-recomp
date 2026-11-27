@@ -8,6 +8,14 @@
         <item name="colorAccent">#FF7A1A</item>
         <item name="android:textColorPrimary">#F0F3F6</item>
         <item name="android:textColorSecondary">#9AA5B1</item>
+        <item name="android:textViewStyle">@style/LocaleText</item>
+    </style>
+
+    <!-- A line's direction follows the app's language, not its first letter:
+         an Arabic line that starts with "30 FPS" or a device name is still
+         right to left and lines up with the others. -->
+    <style name="LocaleText" parent="@android:style/Widget.TextView">
+        <item name="android:textDirection">locale</item>
     </style>
 
     <style name="SectionHeading">
