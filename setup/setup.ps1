@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
 Builds Modern Warfare 3 for Android (APK) and/or Windows from your own disc image;
-with -Game mw2, Modern Warfare 2 for Android from that game's disc image; with
--Game cod4, Call of Duty 4: Modern Warfare for Android and/or Windows from its;
+with -Game mw2, Modern Warfare 2 from that game's disc image; with
+-Game cod4, Call of Duty 4: Modern Warfare from its;
 with -Game aw, Call of Duty: Advanced Warfare from its two (docs/AW-BRINGUP.md).
 
 .DESCRIPTION
@@ -31,9 +31,9 @@ Re-runnable: finished steps are skipped. A first run takes one to several
 hours and about 40 GB of disk (60 GB with the Windows game).
 
 .PARAMETER Game
-mw3 (default), mw2, cod4 or aw. Modern Warfare 2 is built for Android only, as
-Modern Warfare 3 is: the game code from the disc's own executables (no title
-update), and the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
+mw3 (default), mw2, cod4 or aw. Modern Warfare 2 is built for Android and
+Windows as Modern Warfare 3 is: from the disc's own executables (no title
+update), with the published app (com.mw2.recomp); docs/MW2-ANDROID.md.
 Call of Duty 4 (docs/COD4-BRINGUP.md) is built for Android and Windows as
 Modern Warfare 3 is, with the published app (com.cod4.recomp).
 Advanced Warfare (docs/AW-BRINGUP.md) is built for Android and Windows too,
@@ -658,14 +658,7 @@ if ($freeGb -lt 40) { Warn "only $freeGb GB free on ${drive}: about 40 GB is wan
 if ($memGb -lt 16) { Warn "$memGb GB of memory: the recompiled code is large, and the build may run out below 16 GB." }
 
 # ---- 1. what to build --------------------------------------------------------
-if ($Mw2) {
-    # The Windows game of Modern Warfare 2 is build.sh's (docs/building.md).
-    if ($Build -and $Build -ne 'android') { throw '-Game mw2 builds for Android only (-Build android).' }
-    if ($Instance -gt 1) { throw '-Instance is for Modern Warfare 3.' }
-    if ($Title -and $Title -ne 'both') { throw '-Title chooses Windows executables; Modern Warfare 2''s Android app always holds both.' }
-    $Build = 'android'
-    $Title = 'both'
-}
+if ($Mw2 -and $Instance -gt 1) { throw '-Instance is for Modern Warfare 3.' }
 if (-not $Title) { $Title = Choose 'Which part of the game for Windows: both, sp (campaign and Special Ops) or mp (multiplayer)? The Android app always holds both.' @('both', 'sp', 'mp') 'both' }
 if (-not $Build) { $Build = Choose 'Build for android, pc (Windows) or both?' @('android', 'pc', 'both') 'android' }
 if ($Instance -gt 1 -and $Title -ne 'mp') { throw '-Instance is for -Title mp' }
@@ -691,8 +684,9 @@ $Keys = if ($ForAndroid -and -not $TestCopy) { @('sp', 'mp') } else { $PcKeys }
 if ($Dlc -and $Aw -and 'mp' -in $Keys) { $Keys = @($Keys) + 'mp17' }
 if ($Dlc -and $Aw -and 'mp' -in $PcKeys) { $PcKeys = @($PcKeys) + 'mp17' }
 
-# Call of Duty 4's Windows game has a folder of its own beside Modern Warfare 3's.
-$PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } elseif ($Aw) { 'pc-aw' } else { 'pc' })
+# Each game's Windows game has a folder of its own: the disc's files are copied
+# into its game\, and two games' discs there would mix.
+$PcFolder = Join-Path $Out $(if ($Cod4) { 'pc-cod4' } elseif ($Aw) { 'pc-aw' } elseif ($Mw2) { 'pc-mw2' } else { 'pc' })
 $needIso = ($ForPc -and -not (Test-Path (Join-Path $PcFolder 'game\default.xex'))) -or
            @($Keys | Where-Object { -not $Titles[$_].Folder -and -not (Test-Path (Join-Path $Repo "$Disc\$($Titles[$_].Xex).xex")) }).Count -gt 0 -or $PushIso
 while ($needIso -and -not ($Iso -and (Test-Path -LiteralPath $Iso -PathType Leaf))) {
@@ -721,7 +715,6 @@ if ($InstallIso) { $InstallIso = (Resolve-Path -LiteralPath $InstallIso).Path }
 # them), $DlcUpdate the title update's.
 $DlcRoot = $null; $DlcFiles = @(); $DlcUpdate = $null
 if ($Dlc) {
-    if ($Mw2 -and $Version -ne 'tu0') { throw '-Dlc is for the disc''s version of Modern Warfare 2 (-Version tu0), which is the one the app plays.' }
     if ($TestCopy) { throw '-Dlc is not for -Instance.' }
     if (-not (Test-Path -LiteralPath $Dlc -PathType Container)) { throw "-Dlc: no folder at $Dlc" }
     $Dlc = (Resolve-Path -LiteralPath $Dlc).Path
@@ -1184,16 +1177,25 @@ if ($ForPc) {
         $buildDir = Join-Path $Out "build-pc-$($t.Name)"
         Step "build the Windows $($t.Label) (log: out\logs\pc_$($t.Name).log)"
         $env:MW2_TITLE = $t.Name; $env:MW2_VERSION = 'tu0'
+        # The version and the title's kind are options of the configure, which
+        # does not read them from the environment: Modern Warfare 2 is the
+        # disc's executable (tu0, where the desktop default is tu6) with its
+        # own runtime; the other games configure as Modern Warfare 3 does.
+        $titleArgs = if ($Mw2) { @('-DMW2_VERSION=tu0') } else { @('-DMW3_RECOMP_ONLY=ON', '-DMW3_LINK_PROBE=ON') }
         # A diagnostics build, as tested: its log is what a bug report needs.
-        Exec $CMake @('-S', $Repo, '-B', $buildDir, '-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$(& $fwd $Ninja)",
-                      '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_TOOLCHAIN_FILE=$(& $fwd (Join-Path $Repo 'cmake\mingw-w64.cmake'))",
-                      "-DLLVM_MINGW=$(& $fwd $MingwDir)", "-DMW2_TITLE=$($t.Name)", '-DMW3_RECOMP_ONLY=ON', '-DMW3_LINK_PROBE=ON',
-                      '-DMW2_DIAGNOSTICS=ON', '-DMW2_PORTABLE=OFF', '-DMW2_LTO=OFF') -Log "pc_$($t.Name)_configure.log" -Quiet
+        Exec $CMake (@('-S', $Repo, '-B', $buildDir, '-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$(& $fwd $Ninja)",
+                       '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_TOOLCHAIN_FILE=$(& $fwd (Join-Path $Repo 'cmake\mingw-w64.cmake'))",
+                       "-DLLVM_MINGW=$(& $fwd $MingwDir)", "-DMW2_TITLE=$($t.Name)",
+                       '-DMW2_DIAGNOSTICS=ON', '-DMW2_PORTABLE=OFF', '-DMW2_LTO=OFF') + $titleArgs) -Log "pc_$($t.Name)_configure.log" -Quiet
         Exec $CMake @('--build', $buildDir, '--target', 'mw2') -Log "pc_$($t.Name).log" -Quiet
-        Copy-Item (Join-Path $buildDir "$($t.Name).exe") (Join-Path $pc "$($t.Name).exe") -Force
+        # Modern Warfare 2's executable is mw2.exe for either title (CMakeLists.txt,
+        # MW2_LIBRARY_NAME); beside each other they are named as their libraries.
+        $built = if ($Mw2) { 'mw2.exe' } else { "$($t.Name).exe" }
+        $exe = "$($t.Lib).exe"
+        Copy-Item (Join-Path $buildDir $built) (Join-Path $pc $exe) -Force
         $launcher = if ($key -eq 'mp17') { 'Multiplayer with map packs.cmd' } elseif ($key -eq 'mp') { 'Multiplayer.cmd' } else { 'Campaign.cmd' }
         $lines = '@echo off', "rem Settings are in .env beside this file (docs/switches.md); the log is $Game.log.",
-                 'cd /d "%~dp0"', "$($t.Name).exe game\$($t.Xex).xex game"
+                 'cd /d "%~dp0"', "$exe game\$($t.Xex).xex game"
         [IO.File]::WriteAllText((Join-Path $pc $launcher), (($lines -join "`r`n") + "`r`n"))
         if ($key -eq 'mp17') {
             # Exo Zombies is the same executable in another mode, which the
@@ -1201,7 +1203,7 @@ if ($ForPc) {
             # the first word 11 and the mode, 5, at 0x3D8 (docs/AW-BRINGUP.md).
             $data = '0000000b' + ('00' * 0x3D4) + '00000005' + ('00' * 0x1C)
             $lines = '@echo off', 'rem Exo Zombies: the multiplayer with the title update, started in its zombies mode.',
-                     'cd /d "%~dp0"', "set MW2_LAUNCH_DATA=$data", "$($t.Name).exe game\$($t.Xex).xex game"
+                     'cd /d "%~dp0"', "set MW2_LAUNCH_DATA=$data", "$exe game\$($t.Xex).xex game"
             [IO.File]::WriteAllText((Join-Path $pc 'Exo Zombies.cmd'), (($lines -join "`r`n") + "`r`n"))
         }
     }
@@ -1227,6 +1229,7 @@ if ($ForPc) {
         # has a log of its own name.
         $settings = if ($Cod4) { $online + "MW2_LOG_FILE=cod4.log`n" }
                     elseif ($Aw) { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=aw.log`nMW2_DLC_DIR=$InstallFolder`n" }
+                    elseif ($Mw2) { $online + "MW2_LOG_FILE=mw2.log`n" }
                     else { $online + "MW2_UNLOCK_ALL=1`nMW2_LOG_FILE=mw3.log`n" }
         [IO.File]::WriteAllText($envFile, $settings)
     }
