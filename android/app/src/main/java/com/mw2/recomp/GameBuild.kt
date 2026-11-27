@@ -67,12 +67,15 @@ object GameBuild {
 
         /**
          * Made by the player's own title update of the disc's executable of
-         * the same name (Advanced Warfare's multiplayer for the map packs,
-         * docs/dlc.md): its executable is made here, from that one and the
-         * update's package in the dlc folder, and it is built only while
-         * that package is there.
+         * the same name: its executable is made here, from that one and the
+         * update's package in the dlc folder. Advanced Warfare's multiplayer
+         * for the map packs is built only while that package is there
+         * (docs/dlc.md); Black Ops III's two titles are nothing else, and
+         * name the disc's executables they are made from themselves
+         * ([discSha256]), the kit having no title of the disc's own.
          */
         val fromUpdate: Boolean = json.getBoolean("fromUpdate")
+        val discSha256: List<String> = strings(json, "discSha256")
         val toml: String = json.getString("toml")
         val tables: String = json.getString("tables")
         val tree: String = json.getString("tree")
@@ -196,11 +199,23 @@ object GameBuild {
 
     private fun executable(context: Context, title: KitTitle): File = File(File(root(context), title.folder), title.executable)
 
-    /** The titles whose executables are the disc's own. */
-    private fun discTitles(kit: Kit): List<KitTitle> = kit.titles.filterNot { it.fromUpdate }
+    /** An executable the build takes from the player's disc: where it is kept under [root], and the builds of it this app supports. */
+    private class FromDisc(val folder: String, val executable: String, val sha256: List<String>)
 
-    /** Whether this device has a use for [title]'s game code: the app carries it, or the player's title update is here. */
-    private fun needed(context: Context, title: KitTitle): Boolean = if (title.fromUpdate) Dlc.hasUpdate(context) else title.title != null
+    /** The disc's executables: those of the titles that are the disc's own, and those the update-made titles name. */
+    private fun fromDisc(kit: Kit): List<FromDisc> =
+        kit.titles.filterNot { it.fromUpdate }.map { FromDisc(it.folder, it.executable, it.sha256) } +
+            kit.titles.filter { it.fromUpdate && it.discSha256.isNotEmpty() }.map { FromDisc(kit.folder, it.executable, it.discSha256) }
+
+    private fun kept(context: Context, from: FromDisc): File = File(File(root(context), from.folder), from.executable)
+
+    /**
+     * Whether this device has a use for [title]'s game code: the app carries
+     * it, or it is the one a player's title update adds and that update is
+     * here.
+     */
+    private fun needed(context: Context, title: KitTitle): Boolean =
+        if (title.fromUpdate && title.title == null) Dlc.hasUpdate(context) else title.title != null
 
     /**
      * The titles whose game code a build here would make: those with no
@@ -245,7 +260,7 @@ object GameBuild {
     /** Whether the player's executables are here already, each a build this app supports. */
     fun haveExecutables(context: Context): Boolean {
         val kit = kit(context) ?: return false
-        return discTitles(kit).all { title -> executable(context, title).let { it.isFile && sha256(it) in title.sha256 } }
+        return fromDisc(kit).all { from -> kept(context, from).let { it.isFile && sha256(it) in from.sha256 } }
     }
 
     /**
@@ -253,8 +268,8 @@ object GameBuild {
      * keeps it if it is a build this app supports. Throws an [IOException]
      * that says what is wrong with it.
      */
-    private fun take(context: Context, title: KitTitle, source: FileChannel, offset: Long, size: Long) {
-        val target = executable(context, title)
+    private fun take(context: Context, title: FromDisc, source: FileChannel, offset: Long, size: Long) {
+        val target = kept(context, title)
         target.parentFile?.mkdirs()
         val partial = File(target.path + ".part")
         try {
@@ -282,7 +297,7 @@ object GameBuild {
     fun takeFromDiscImage(context: Context, image: FileChannel) {
         val kit = kit(context) ?: throw IOException("this app has no build kit")
         val disc = DiscImage(image)
-        for (title in discTitles(kit)) {
+        for (title in fromDisc(kit)) {
             val (offset, size) = disc.find(title.executable) ?: throw IOException("${title.executable} is not on that disc image")
             take(context, title, image, offset, size)
         }
@@ -291,7 +306,7 @@ object GameBuild {
     /** The executables from the installed game files. Throws an [IOException] that says what went wrong. */
     fun takeFromGameFolder(context: Context, gameDirectory: String) {
         val kit = kit(context) ?: throw IOException("this app has no build kit")
-        for (title in discTitles(kit)) {
+        for (title in fromDisc(kit)) {
             val file = File(gameDirectory, title.executable)
             file.inputStream().channel.use { take(context, title, it, 0, file.length()) }
         }
@@ -299,7 +314,7 @@ object GameBuild {
 
     /** Whether [folder] holds a disc's files extracted: each of the executables is in it. */
     fun inGameFolder(context: Context, folder: File): Boolean =
-        kit(context)?.let { discTitles(it) }.orEmpty().let { titles -> titles.isNotEmpty() && titles.all { File(folder, it.executable).isFile } }
+        kit(context)?.let { fromDisc(it) }.orEmpty().let { titles -> titles.isNotEmpty() && titles.all { File(folder, it.executable).isFile } }
 
     /**
      * The executables out of the disc image named [image] as Prefs names
@@ -368,7 +383,7 @@ object GameBuild {
             false
         }
         if (made) return
-        val disc = executable(context, discTitles(kit).first { it.executable == title.executable })
+        val disc = kept(context, fromDisc(kit).first { it.executable == title.executable })
         // The launcher has loaded the runtime by now, but a build the system
         // started again by itself runs before any screen of the app.
         if (!NativeBridge.load(Title.carried.first())) throw Failure(NativeBridge.loadError().orEmpty())

@@ -293,7 +293,9 @@ class GameBuildService : Service() {
             val title = GameBuild.kit(context)?.titles?.firstOrNull { it.library == progress.library }
             val name = context.getString(
                 when {
-                    title?.fromUpdate == true -> R.string.build_name_update
+                    // The one a title update adds beside the disc's; Black Ops
+                    // III's two are its only ones and go by their own names.
+                    title?.fromUpdate == true && title.title == null -> R.string.build_name_update
                     title?.title == Title.MULTIPLAYER -> R.string.build_name_multiplayer
                     else -> R.string.build_name_campaign
                 },

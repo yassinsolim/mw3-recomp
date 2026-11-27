@@ -254,6 +254,19 @@ namespace vk::renderer::detail
         // of a frame may discard what was there; a later one -- the second
         // shadow cascade -- must keep it.
         uint64_t writtenFrame = UINT64_MAX;
+        // The same texels as a volume, for a title that fetches the copy as
+        // one (MakeResolveVolume): made once a fetch has said so.
+        VkImage volume = VK_NULL_HANDLE;
+        VkDeviceMemory volumeMemory = VK_NULL_HANDLE;
+        VkImageView volumeView = VK_NULL_HANDLE;
+        uint32_t volumeDepth = 0;
+    };
+
+    // The size a fetch gave a resolve's copy it reads as a volume.
+    struct VolumeShape
+    {
+        uint32_t width = 0, height = 0, depth = 0;
+        auto operator<=>(const VolumeShape&) const = default;
     };
 
     // One image per guest address was a race as soon as the frames were let
@@ -269,6 +282,14 @@ namespace vk::renderer::detail
         uint32_t newest = 0;        // the copy the last resolve wrote
         uint64_t frame = UINT64_MAX;  // and the frame it wrote it in
     };
+
+    // A depth copy and a colour copy at one address are two images, each with
+    // its ring. Black Ops III copies its shadow maps out to the memory it
+    // copies its colour table and its bloom to later in the frame; one ring
+    // for the address made the image again twice a frame, each time waiting
+    // for the GPU to finish everything (RetireBeforeDestroy). An address is
+    // of a page, so its lowest bit is free to say which.
+    inline uint32_t ResolveKey(uint32_t address, bool depth) { return address | (depth ? 1u : 0u); }
 
     // The surface each resolve destination is the start of, as
     // RB_COPY_DEST_PITCH describes it. A resolve whose address falls inside
@@ -667,6 +688,9 @@ namespace vk::renderer::detail
         // 256-wide surfaces. A copy is made this wide from the resolve after
         // the first fetch.
         std::unordered_map<uint32_t, uint32_t> fetchedWidth;
+        // The resolve destinations a draw has fetched as a tiled volume, with
+        // the volume's size: the next resolve there fills one as well.
+        std::unordered_map<uint32_t, VolumeShape> fetchedVolume;
         uint64_t resolveEpoch = 0;     // moves on at every resolve: resolvedTo may have changed
 
         // The binding each texture slot got from the last draw that bound it,
@@ -1232,6 +1256,10 @@ namespace vk::renderer::detail
         bool Any() const { return dump || keep; }
     };
     FrameReadBacks PlanReadBacks();
+    ResolveRing* ResolvedAt(const gpu::TextureFetch& fetch);
+    void DestroyResolveVolume(Resolved& resolved);
+    bool DumpingResolves();
+    void DumpResolve(const Resolved& into, uint32_t destination, const TargetKey& from);
     // Copies the finished frame out, inside its own command buffer.
     void RecordReadBack(VkImage present);
     // The dumps and the flash recorder, once the frame has been submitted

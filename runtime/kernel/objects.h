@@ -65,6 +65,10 @@ namespace kernel
         // Return the previous state. Take the dispatcher lock themselves.
         bool Set(const char* thread = nullptr, uint32_t lr = 0);
         bool Reset(const char* thread = nullptr, uint32_t lr = 0);
+        // Lets go the threads waiting on it at this moment (one, for an event
+        // that resets itself) and leaves it not set: NtPulseEvent. A thread
+        // waiting for all of several objects is not let go by it.
+        bool Pulse(const char* thread = nullptr, uint32_t lr = 0);
     };
 
     struct Semaphore : Dispatcher

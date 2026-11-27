@@ -16,7 +16,8 @@ plugins {
 //                             the folder is packaged; setup/setup.ps1 gives it
 //   -Pgame=mw2                Modern Warfare 2's package (com.mw2.recomp.game),
 //   -Pgame=cod4               Call of Duty 4's (com.cod4.recomp.game),
-//   -Pgame=aw                 Advanced Warfare's (com.aw.recomp.game);
+//   -Pgame=aw                 Advanced Warfare's (com.aw.recomp.game),
+//   -Pgame=bo3                Black Ops III's (com.bo3.recomp.game);
 //                             Modern Warfare 3's without it
 //   -PappSuffix=.dev          as android/app/build.gradle.kts: the package a
 //                             development build of the app looks for
@@ -24,7 +25,7 @@ val gameLibraries = (findProperty("gameLibraries") as String?)?.let { file(it) }
 val game = (findProperty("game") as String?) ?: "mw3"
 val gameNames = mapOf(
     "mw3" to "Modern Warfare 3", "mw2" to "Modern Warfare 2", "cod4" to "Modern Warfare (Call of Duty 4)",
-    "aw" to "Advanced Warfare",
+    "aw" to "Advanced Warfare", "bo3" to "Black Ops III",
 )
 if (game !in gameNames) throw GradleException("-Pgame must be one of ${gameNames.keys.joinToString()}, not '$game'")
 val appSuffix = (findProperty("appSuffix") as String?).orEmpty()
@@ -67,8 +68,10 @@ tasks.configureEach {
             val all = gameLibraries?.let { File(it, "arm64-v8a").listFiles() }.orEmpty()
             // Advanced Warfare's may hold a third: its multiplayer as the
             // title update makes it, for a player's own map packs (docs/dlc.md).
-            val own = setOf("lib${game}game.so", "lib${game}mpgame.so") + if (game == "aw") setOf("libawmp17game.so") else emptySet()
-            val needed = setOf("lib${game}game.so", "lib${game}mpgame.so")
+            // Black Ops III's second is its zombies'.
+            val second = if (game == "bo3") "libbo3zmgame.so" else "lib${game}mpgame.so"
+            val own = setOf("lib${game}game.so", second) + if (game == "aw") setOf("libawmp17game.so") else emptySet()
+            val needed = setOf("lib${game}game.so", second)
             if (all.none { it.name in needed }) {
                 throw GradleException(
                     "No game libraries: give -PgameLibraries=<folder holding arm64-v8a/lib${game}game.so>. " +

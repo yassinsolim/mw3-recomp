@@ -218,6 +218,43 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   without a picture and without a word. And the game's menu has **Share
   performance report**: frame rate, the chip's time a frame, device and
   settings as text.
+- **Black Ops III (Xbox 360), started: Windows, and a first boot on
+  Android; not for players yet** ([docs/BO3-BRINGUP.md](docs/BO3-BRINGUP.md)).
+  - Android, with no PC: Install & Play from the disc image, Add DLC for
+    title update 5 and Compatibility Packs 1 and 2 (the multiplayer asks for
+    both), and the game code built on the device from the disc and the
+    update, started by Add DLC: 8 min 49 s on an AYN Thor and 14 min 2 s on
+    a Retroid Pocket Flip 2, the libraries stating what a PC's do. A match
+    on Combine: 52 frames a second on the Thor, 32 to 42 on the Flip, the
+    graphics chip the limit on both.
+  - Both phones on 26 November, the bundled Turnip, every run recorded:
+    Shadows of Evil and The Giant at 58 frames a second and a match on
+    Combine at 56 on the Thor and the Flip alike, the Thor's from the app's
+    own Install & Play and Add DLC. The far end of Shadows of Evil's street
+    was flat rectangles for a second on the Flip as the zombies arrived
+    (100 frames of 4,271): the image pool's chequerboard moves were taken
+    for plain ones and made a frame late, over the neighbouring block
+    (`runtime/image_move.cpp`); none in two runs since. Open: a thin streak
+    from a zombie's head for a single frame, a few times a match.
+  - A thread of this title has the 8,568 bytes of its own the image says,
+    not 512 (`runtime/kernel/kernel.cpp`): the rest lay in another thread's
+    memory, the engine's lock counts among it.
+  - Windows: its multiplayer and zombies executables, as title update 5
+    makes them, reach their menus; a multiplayer match against bots and one
+    between two PCs through Find LAN Game; the zombies' Shadows of Evil into
+    its second round, and The Giant from a player's own pack, read where it
+    lies.
+  - Android (`com.bo3.recomp`, built from source only): on an AYN Thor the
+    menus at 57 to 60 frames a second, a multiplayer match at 43 and Shadows
+    of Evil at 56. The game code is one set, made from the disc and title
+    update 5; Compatibility Pack 1 and the map packs are only read from the
+    `dlc` folder, so no pack ever needs a build. Its game code was built on
+    a PC for these runs: the build on the device is written and has not been
+    run, and the app's installer does not copy this disc yet.
+  - A run under the Vulkan validation layer found a texture slot one shader
+    reads both as a volume and along two axes; it is a volume now. The
+    shader translator gains `getWeights`, so every game's shaders are
+    compiled again once.
 - **Modern Warfare 3: your own map packs, Survival maps and Special Ops
   missions.** Copy `Content\0000000000000000\415608CB\00000002` off your
   Xbox 360's hard disk and pick it with **Add DLC → Choose a folder**:

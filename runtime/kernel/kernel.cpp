@@ -144,7 +144,7 @@ namespace
     }
 #endif
 
-#if defined(AW_TITLE)
+#if defined(AW_TITLE) || defined(BO3_TITLE)
     // The kernel's variables, which an executable imports as it does the
     // kernel's functions: its record for one holds, once loaded, the
     // variable's address. Advanced Warfare's D3D9 (XDK 21256) enters
@@ -290,13 +290,13 @@ void kernel::Initialise(const std::filesystem::path& gameRoot, const std::vector
 #else
     (void)xexHeader;
 #endif
-#if defined(AW_TITLE)
+#if defined(AW_TITLE) || defined(BO3_TITLE)
     InstallKernelVariables();
 #endif
     g_gameRoot = gameRoot;
     LOGI("game root: %s%s", gameRoot.string().c_str(),
          std::filesystem::exists(gameRoot) ? "" : "  (does not exist)");
-#if defined(AW_TITLE_TU17)
+#if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
     MountTitleUpdate();
 #endif
 }
@@ -465,12 +465,26 @@ uint32_t kernel::CreateThreadBlock(uint32_t threadId)
     constexpr uint32_t kPcrSize     = 0x8000;
     constexpr uint32_t kPcrBias     = 0x4000;
     constexpr uint32_t kThreadSize  = 0x1000;
-    constexpr uint32_t kTlsSize     = 0x200;
+    constexpr uint32_t kTlsSmallest = 0x200;
     constexpr uint32_t kTlsPointerOffset    = 0;     // KPCR.TlsData
     constexpr uint32_t kCurrentThreadOffset = 256;   // KPCR.CurrentThread
     constexpr uint32_t kThreadIdOffset      = 332;   // KTHREAD.ThreadId
 
-    const uint32_t total = kPcrSize + kThreadSize + kTlsSize;
+    // The thread's copy is as large as the image says its threads' data is.
+    // The four earlier titles' is 36 to 56 bytes; Black Ops III's is 8,568,
+    // and it keeps there, among much else, how many times the thread has
+    // entered each of the engine's critical sections (sub_82651B80: a count
+    // of zero is what makes it enter; the sections go up to number 137, and
+    // from 106 on the count is past 512 bytes). In a block of 512 bytes the
+    // rest of a thread's data was whatever the heap gave next, another
+    // thread's block among it, and none of it began as the image has it: a
+    // thread could find a count it never made and take a lock for held, and
+    // wrote over what was not its own. Seen as the title reading what
+    // another thread had not finished with, once as "Exceeded limit of 80
+    // 'physpreset' assets", of which a match uses 32 (docs/BO3-BRINGUP.md).
+    const auto& tlsTemplate = ImageTlsTemplate();
+    const uint32_t tlsSize = std::max(kTlsSmallest, (tlsTemplate.size + 0xFu) & ~0xFu);
+    const uint32_t total = kPcrSize + kThreadSize + tlsSize;
     uint32_t block = AllocateGuest(total, 0x1000);
     if (!block) return 0;
     std::memset(guest::Base() + block, 0, total);
@@ -482,8 +496,7 @@ uint32_t kernel::CreateThreadBlock(uint32_t threadId)
     // The CRT hangs its per-thread scratch allocator off a slot in the TLS
     // template, reached as [[r13] + slot], so a null TlsData sends every thread to
     // the same imaginary pool at guest address 0 -- where they corrupt each other.
-    const auto& tlsTemplate = ImageTlsTemplate();
-    if (tlsTemplate.address && tlsTemplate.size && tlsTemplate.size <= kTlsSize)
+    if (tlsTemplate.address && tlsTemplate.size)
         std::memcpy(guest::Base() + tls, guest::Base() + tlsTemplate.address, tlsTemplate.size);
 
     *GuestPtr<be32>(pcr + kTlsPointerOffset)    = tls;

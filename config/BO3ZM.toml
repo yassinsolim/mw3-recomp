@@ -1,0 +1,6172 @@
+# Call of Duty: Black Ops III, the zombies (cod_xenon_zm_Final.pe, Treyarch's engine as built
+# for the Xbox 360): the executable title update 5 makes of the disc's
+# default_zm.xex (XenonRecomp's patcher, tools/xexpatch.cpp, with the update's
+# default_zm.xexp; version 0.0.8.5). The disc's own reads none of the game's
+# downloaded fastfiles (docs/BO3-BRINGUP.md). Every address was found by
+# tools/port_hooks.py --version tu0 from MW2's disc executable: each helper
+# matches once, with MW2's size and bytes but for linker-filled immediates and
+# branch targets.
+# Executable SHA-256: 59554cd7fc42ab53aa8be4515564d1614fe418a05f32d610eaee0869c07a02ea
+
+[main]
+file_path = "../bo3/tu5/default_zm.xex"
+out_directory_path = "../ppc_bo3_zm"
+switch_table_file_path = "bo3zm_switch_tables.toml"
+
+skip_lr = false
+skip_msr = false
+ctr_as_local = true
+xer_as_local = true
+reserved_as_local = true
+cr_as_local = true
+non_argument_as_local = true
+non_volatile_as_local = true
+
+# Functions with an exception handler have two words in front of them: the
+# handler's address and the address of its scope table. They are data, and the
+# recompiler, which takes whatever lies between two functions for code, would
+# make a function of each pair (docs/AW-BRINGUP.md). The handlers are the two
+# addresses of code that stand eight bytes before the most functions .pdata
+# describes (410 times 82A0A150, 64 times 82A8428C).
+invalid_instructions = [
+    { data = 0x82A0A150, size = 8 },
+    { data = 0x82A8428C, size = 8 },
+]
+
+# The C runtime's register save/restore helpers.
+restgprlr_14_address = 0x82A08D00
+savegprlr_14_address = 0x82A08CB0
+restfpr_14_address   = 0x82A097BC
+savefpr_14_address   = 0x82A09770
+restvmx_14_address   = 0x82A09AD8
+savevmx_14_address   = 0x82A09840
+restvmx_64_address   = 0x82A09B6C
+savevmx_64_address   = 0x82A098D4
+
+# The C runtime's setjmp and longjmp (Com_Error leaves an error by longjmp).
+setjmp_address  = 0x82A52740
+longjmp_address = 0x82A03720
+
+# Leaf functions (no stack frame, hence absent from .pdata) that contain jump
+# tables. The analyser ends them early because a table dispatch looks like a
+# tail call. Extents derived by tools/fixbounds.py (MW2_TITLE=bo3zm) from bl
+# targets, padding runs and the tables' own case labels. With them, what
+# tools/ctr_branch_extents.py finds: the functions whose counting branches (a
+# small switch written as a chain of bdz/bdzf) leave them, and a leaf function
+# reached only by another's closing branch.
+functions = [
+    { address = 0x82188740, size = 0xD8 },
+    { address = 0x8223F400, size = 0xF4 },
+    { address = 0x822AD800, size = 0xFC },
+    { address = 0x822EE5D8, size = 0xE0 },
+    { address = 0x822EE64C, size = 0x20 },
+    { address = 0x822EE6AC, size = 0xC },
+    { address = 0x822EE6B0, size = 0x8 },
+    { address = 0x822EE6B8, size = 0xE0 },
+    { address = 0x822EE72C, size = 0x20 },
+    { address = 0x822EE78C, size = 0xC },
+    { address = 0x822EE790, size = 0x8 },
+    { address = 0x822EE798, size = 0x290 },
+    { address = 0x822EE8B8, size = 0x14 },
+    { address = 0x822EE8E4, size = 0x144 },
+    { address = 0x822EE8F0, size = 0x138 },
+    { address = 0x822EE8F8, size = 0x130 },
+    { address = 0x822EE8FC, size = 0x12C },
+    { address = 0x822EE900, size = 0x128 },
+    { address = 0x822EE9A0, size = 0xC },
+    { address = 0x822EE9A4, size = 0x8 },
+    { address = 0x822EEA04, size = 0x24 },
+    { address = 0x822EEA10, size = 0x18 },
+    { address = 0x822EEA20, size = 0x8 },
+    { address = 0x823BF758, size = 0xAC },
+    { address = 0x823BF794, size = 0x10 },
+    { address = 0x824642F0, size = 0x140 },
+    { address = 0x824E96C0, size = 0x200 },
+    { address = 0x824E98B0, size = 0x8 },
+    { address = 0x824E98B8, size = 0x8 },
+    { address = 0x824F43F8, size = 0x924 },
+    { address = 0x8268D3C8, size = 0x14C },
+    { address = 0x8268D46C, size = 0x8 },
+    { address = 0x826ABE90, size = 0x1CC },
+    { address = 0x826ABF18, size = 0x8 },
+    { address = 0x826ABF34, size = 0x128 },
+    { address = 0x826AC044, size = 0x18 },
+    { address = 0x826AC060, size = 0x180 },
+    { address = 0x826AC0A0, size = 0x8 },
+    { address = 0x826AC0DC, size = 0xC },
+    { address = 0x826AC0E0, size = 0x8 },
+    { address = 0x826AC1E0, size = 0x16C },
+    { address = 0x826AC22C, size = 0x10 },
+    { address = 0x826AC234, size = 0x8 },
+    { address = 0x826AC24C, size = 0x10 },
+    { address = 0x826AC254, size = 0x8 },
+    { address = 0x826AC2A8, size = 0x8 },
+    { address = 0x82788ED0, size = 0x270 },
+    { address = 0x82789118, size = 0x8 },
+    { address = 0x82789120, size = 0x8 },
+    { address = 0x82789128, size = 0x8 },
+    { address = 0x82789134, size = 0xC },
+    { address = 0x827BDC88, size = 0x90 },
+    { address = 0x8291A698, size = 0x120 },
+    { address = 0x8291A6D0, size = 0xE8 },
+    { address = 0x8291A7E0, size = 0xD4 },
+    { address = 0x8291ABC0, size = 0xE8 },
+    { address = 0x8291B098, size = 0x194 },
+    { address = 0x8291B670, size = 0x150 },
+    { address = 0x8291B7C0, size = 0x194 },
+    { address = 0x8291B958, size = 0x18C },
+    { address = 0x829F0838, size = 0x150 },
+]
+
+# Instructions the pinned recompiler has no case for (it knows the forms the
+# earlier titles use and no others):
+# bdnzt (2), lvehx (4), rldicl. (6), rlwimi. (2), stvebx (1), vaddsws (55),
+# vavgsw (8), vcmpgtsb (6), vcmpgtsw (91), vcmpgtuw (7), vcmpgtuw. (262),
+# vmaxuh (12), vminsw (332), vminuh (12), vnor128 (22), vpkuhus128 (2),
+# vpkuwus128 (2), vrfip128 (8), vsl (7), vsububm (6), vsubuwm (82), vupkd3d128
+# (77).
+# Each is replaced by a function of the runtime
+# (runtime/recomp/ppc_extra_instructions.cpp) and stepped over, which leaves
+# the recompiler, and with it the other titles' game-library statements, as it
+# is. The recompiler still reports each as unrecognised; nothing is emitted for
+# it. Written by tools/extra_instructions.py from that report.
+# The forms that record (the names with a dot) are not stepped over: the
+# recompiler writes their operation, and the hook after it sets cr0.
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x8232F7E0
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x8232FC94
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x82AB0C78
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x82AB15AC
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x82AB2BC4
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x82AB34F8
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x82AB4C1C
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcRecordCr0"
+address = 0x82AB5608
+registers = ["r11", "cr0", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x82179BE0
+registers = ["v60", "v62"]
+jump_address = 0x82179BE4
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x82179FF0
+registers = ["v56", "v57"]
+jump_address = 0x82179FF4
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x8217A284
+registers = ["v58", "v63"]
+jump_address = 0x8217A288
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x8217A45C
+registers = ["v56", "v57"]
+jump_address = 0x8217A460
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x8217A6E8
+registers = ["v58", "v63"]
+jump_address = 0x8217A6EC
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x8217A8E0
+registers = ["v55", "v56"]
+jump_address = 0x8217A8E4
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x82345328
+registers = ["v58", "v59"]
+jump_address = 0x8234532C
+
+[[midasm_hook]]
+name = "PpcVrfip"
+address = 0x8234532C
+registers = ["v56", "v62"]
+jump_address = 0x82345330
+
+[[midasm_hook]]
+name = "PpcVpkuwus_aaa"
+address = 0x82347638
+registers = ["v63"]
+jump_address = 0x8234763C
+
+[[midasm_hook]]
+name = "PpcVpkuhus_aaa"
+address = 0x8234763C
+registers = ["v63"]
+jump_address = 0x82347640
+
+[[midasm_hook]]
+name = "PpcVpkuwus_aaa"
+address = 0x82349EF4
+registers = ["v63"]
+jump_address = 0x82349EF8
+
+[[midasm_hook]]
+name = "PpcVpkuhus_aaa"
+address = 0x82349EF8
+registers = ["v63"]
+jump_address = 0x82349EFC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x8251BAE0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x8251BAE4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x825259B0
+registers = ["v0", "v10", "cr6"]
+jump_address = 0x825259B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x825271B0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x825271B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x825279F0
+registers = ["v0", "v10", "cr6"]
+jump_address = 0x825279F4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C67A8
+registers = ["v10", "v9"]
+jump_address = 0x826C67AC
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C67B8
+registers = ["v13", "v8", "v2"]
+jump_address = 0x826C67BC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C6890
+registers = ["v10", "v9"]
+jump_address = 0x826C6894
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C68A0
+registers = ["v13", "v8", "v2"]
+jump_address = 0x826C68A4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C6C40
+registers = ["v11", "v9"]
+jump_address = 0x826C6C44
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C6C50
+registers = ["v0", "v9", "v2"]
+jump_address = 0x826C6C54
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C8CA4
+registers = ["v11", "v9"]
+jump_address = 0x826C8CA8
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C8CB4
+registers = ["v0", "v8", "v31"]
+jump_address = 0x826C8CB8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C8FF0
+registers = ["v11", "v9"]
+jump_address = 0x826C8FF4
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C9000
+registers = ["v0", "v9", "v31"]
+jump_address = 0x826C9004
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C99DC
+registers = ["v11", "v9"]
+jump_address = 0x826C99E0
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C99EC
+registers = ["v0", "v8", "v31"]
+jump_address = 0x826C99F0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuw_aba"
+address = 0x826C9D28
+registers = ["v11", "v9"]
+jump_address = 0x826C9D2C
+
+[[midasm_hook]]
+name = "PpcVsl"
+address = 0x826C9D38
+registers = ["v0", "v9", "v31"]
+jump_address = 0x826C9D3C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8270D4A8
+registers = ["v63", "v0"]
+jump_address = 0x8270D4AC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8270D5CC
+registers = ["v63", "v0"]
+jump_address = 0x8270D5D0
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82710E98
+registers = ["v8", "v12", "v10"]
+jump_address = 0x82710E9C
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x82710EAC
+registers = ["v12", "v11"]
+jump_address = 0x82710EB0
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82710EB0
+registers = ["v8", "v0"]
+jump_address = 0x82710EB4
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82710EB4
+registers = ["v11", "v10", "v9"]
+jump_address = 0x82710EB8
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82710EC4
+registers = ["v12", "v0"]
+jump_address = 0x82710EC8
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82710EC8
+registers = ["v10", "v0"]
+jump_address = 0x82710ECC
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82710ECC
+registers = ["v11", "v0"]
+jump_address = 0x82710ED0
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82711158
+registers = ["v12", "v10"]
+jump_address = 0x8271115C
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x82711164
+registers = ["v11", "v9"]
+jump_address = 0x82711168
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82711168
+registers = ["v12", "v0"]
+jump_address = 0x8271116C
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82711178
+registers = ["v10", "v0"]
+jump_address = 0x8271117C
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x8271117C
+registers = ["v11", "v0"]
+jump_address = 0x82711180
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x827113C4
+registers = ["v7", "v11", "v9"]
+jump_address = 0x827113C8
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827113D0
+registers = ["v7", "v12"]
+jump_address = 0x827113D4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x827113E0
+registers = ["v11", "v10"]
+jump_address = 0x827113E4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x827113E8
+registers = ["v8", "v9"]
+jump_address = 0x827113EC
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827113EC
+registers = ["v11", "v12"]
+jump_address = 0x827113F0
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827113F0
+registers = ["v9", "v12"]
+jump_address = 0x827113F4
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x827113F4
+registers = ["v10", "v0"]
+jump_address = 0x827113F8
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827113F8
+registers = ["v8", "v12"]
+jump_address = 0x827113FC
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82711418
+registers = ["v11", "v0"]
+jump_address = 0x8271141C
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x8271141C
+registers = ["v9", "v0"]
+jump_address = 0x82711420
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x82711420
+registers = ["v10", "v0"]
+jump_address = 0x82711424
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827116C0
+registers = ["v11", "v9"]
+jump_address = 0x827116C4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827116C8
+registers = ["v11", "v12"]
+jump_address = 0x827116CC
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x827116CC
+registers = ["v10", "v8"]
+jump_address = 0x827116D0
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x827116D4
+registers = ["v9", "v8", "v12"]
+jump_address = 0x827116D8
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827116D8
+registers = ["v10", "v12"]
+jump_address = 0x827116DC
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x827116E8
+registers = ["v11", "v0"]
+jump_address = 0x827116EC
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x827116F8
+registers = ["v9", "v0"]
+jump_address = 0x827116FC
+
+[[midasm_hook]]
+name = "PpcVminsw_aab"
+address = 0x827116FC
+registers = ["v10", "v0"]
+jump_address = 0x82711700
+
+[[midasm_hook]]
+name = "PpcStvebx"
+address = 0x827132C4
+registers = ["v0", "r10"]
+jump_address = 0x827132C8
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x82716490
+registers = ["v5", "v8", "v13"]
+jump_address = 0x82716494
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x8271649C
+registers = ["v3", "v7", "v13"]
+jump_address = 0x827164A0
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827164B0
+registers = ["v12", "v5"]
+jump_address = 0x827164B4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827164C8
+registers = ["v2", "v10"]
+jump_address = 0x827164CC
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827164F0
+registers = ["v30", "v12"]
+jump_address = 0x827164F4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827164F4
+registers = ["v29", "v11"]
+jump_address = 0x827164F8
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x827164F8
+registers = ["v1", "v31", "v5"]
+jump_address = 0x827164FC
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82716508
+registers = ["v27", "v30", "v0"]
+jump_address = 0x8271650C
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x8271650C
+registers = ["v26", "v29", "v0"]
+jump_address = 0x82716510
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x8271652C
+registers = ["v10", "v7", "v27"]
+jump_address = 0x82716530
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x8271653C
+registers = ["v30", "v0", "v13"]
+jump_address = 0x82716540
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x82716540
+registers = ["v28", "v10", "v13"]
+jump_address = 0x82716544
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x8271654C
+registers = ["v31", "v9"]
+jump_address = 0x82716550
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716560
+registers = ["v12", "v30"]
+jump_address = 0x82716564
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82716578
+registers = ["v13", "v12", "v27"]
+jump_address = 0x8271657C
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716584
+registers = ["v5", "v28"]
+jump_address = 0x82716588
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716588
+registers = ["v7", "v11"]
+jump_address = 0x8271658C
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716590
+registers = ["v0", "v12"]
+jump_address = 0x82716594
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827165A0
+registers = ["v3", "v8"]
+jump_address = 0x827165A4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827165D0
+registers = ["v12", "v13"]
+jump_address = 0x827165D4
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827165EC
+registers = ["v11", "v13"]
+jump_address = 0x827165F0
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x827167DC
+registers = ["v10", "v12", "v13"]
+jump_address = 0x827167E0
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716814
+registers = ["v9", "v13"]
+jump_address = 0x82716818
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x82716824
+registers = ["v9", "v10", "v0"]
+jump_address = 0x82716828
+
+[[midasm_hook]]
+name = "PpcVaddsws_abb"
+address = 0x8271682C
+registers = ["v9", "v13"]
+jump_address = 0x82716830
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716830
+registers = ["v9", "v13"]
+jump_address = 0x82716834
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716834
+registers = ["v9", "v12"]
+jump_address = 0x82716838
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x82716840
+registers = ["v9", "v10", "v0"]
+jump_address = 0x82716844
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716848
+registers = ["v13", "v9"]
+jump_address = 0x8271684C
+
+[[midasm_hook]]
+name = "PpcVavgsw"
+address = 0x82716864
+registers = ["v11", "v10", "v0"]
+jump_address = 0x82716868
+
+[[midasm_hook]]
+name = "PpcVaddsws_abb"
+address = 0x8271686C
+registers = ["v11", "v13"]
+jump_address = 0x82716870
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716870
+registers = ["v11", "v13"]
+jump_address = 0x82716874
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x82716874
+registers = ["v11", "v12"]
+jump_address = 0x82716878
+
+[[midasm_hook]]
+name = "PpcVavgsw_aba"
+address = 0x82716880
+registers = ["v0", "v12"]
+jump_address = 0x82716884
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x82716888
+registers = ["v0", "v13"]
+jump_address = 0x8271688C
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82716894
+registers = ["v12", "v8", "v13"]
+jump_address = 0x82716898
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x827168B0
+registers = ["v11", "v13"]
+jump_address = 0x827168B4
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271B9B8
+registers = ["v63", "v0"]
+jump_address = 0x8271B9BC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271B9E4
+registers = ["v63"]
+jump_address = 0x8271B9E8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271B9E8
+registers = ["v62"]
+jump_address = 0x8271B9EC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BA54
+registers = ["v63"]
+jump_address = 0x8271BA58
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BA58
+registers = ["v61"]
+jump_address = 0x8271BA5C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BA70
+registers = ["v62"]
+jump_address = 0x8271BA74
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BA74
+registers = ["v59"]
+jump_address = 0x8271BA78
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BA8C
+registers = ["v60"]
+jump_address = 0x8271BA90
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BA90
+registers = ["v57"]
+jump_address = 0x8271BA94
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BAA8
+registers = ["v58"]
+jump_address = 0x8271BAAC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BAAC
+registers = ["v55"]
+jump_address = 0x8271BAB0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BAC4
+registers = ["v56"]
+jump_address = 0x8271BAC8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BAC8
+registers = ["v53"]
+jump_address = 0x8271BACC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BAE0
+registers = ["v54"]
+jump_address = 0x8271BAE4
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BAE4
+registers = ["v51"]
+jump_address = 0x8271BAE8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BB04
+registers = ["v52"]
+jump_address = 0x8271BB08
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271BB08
+registers = ["v50", "v49"]
+jump_address = 0x8271BB0C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BB18
+registers = ["v61"]
+jump_address = 0x8271BB1C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BB24
+registers = ["v63"]
+jump_address = 0x8271BB28
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BBB4
+registers = ["v63"]
+jump_address = 0x8271BBB8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BBB8
+registers = ["v62"]
+jump_address = 0x8271BBBC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271BBFC
+registers = ["v63", "v0"]
+jump_address = 0x8271BC00
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271BC94
+registers = ["v63", "v0"]
+jump_address = 0x8271BC98
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BCCC
+registers = ["v63"]
+jump_address = 0x8271BCD0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BCD0
+registers = ["v62"]
+jump_address = 0x8271BCD4
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BD70
+registers = ["v63"]
+jump_address = 0x8271BD74
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BD7C
+registers = ["v62"]
+jump_address = 0x8271BD80
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BD84
+registers = ["v61"]
+jump_address = 0x8271BD88
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BD94
+registers = ["v60"]
+jump_address = 0x8271BD98
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BD9C
+registers = ["v58"]
+jump_address = 0x8271BDA0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BDAC
+registers = ["v57"]
+jump_address = 0x8271BDB0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BDB4
+registers = ["v55"]
+jump_address = 0x8271BDB8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BDC4
+registers = ["v54"]
+jump_address = 0x8271BDC8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BDCC
+registers = ["v52"]
+jump_address = 0x8271BDD0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BDDC
+registers = ["v51"]
+jump_address = 0x8271BDE0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271BDE0
+registers = ["v48", "v49"]
+jump_address = 0x8271BDE4
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BE68
+registers = ["v46"]
+jump_address = 0x8271BE6C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BE6C
+registers = ["v42"]
+jump_address = 0x8271BE70
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BE70
+registers = ["v49"]
+jump_address = 0x8271BE74
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BE74
+registers = ["v44"]
+jump_address = 0x8271BE78
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271BE78
+registers = ["v40"]
+jump_address = 0x8271BE7C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C138
+registers = ["v63"]
+jump_address = 0x8271C13C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C13C
+registers = ["v62"]
+jump_address = 0x8271C140
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C1CC
+registers = ["v63", "v0"]
+jump_address = 0x8271C1D0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C26C
+registers = ["v63", "v0"]
+jump_address = 0x8271C270
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C2D4
+registers = ["v63"]
+jump_address = 0x8271C2D8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C2F0
+registers = ["v63"]
+jump_address = 0x8271C2F4
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C608
+registers = ["v61"]
+jump_address = 0x8271C60C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C618
+registers = ["v63"]
+jump_address = 0x8271C61C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C620
+registers = ["v62"]
+jump_address = 0x8271C624
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C6E0
+registers = ["v61"]
+jump_address = 0x8271C6E4
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C6E8
+registers = ["v63"]
+jump_address = 0x8271C6EC
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C6EC
+registers = ["v62", "v60"]
+jump_address = 0x8271C6F0
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C6F4
+registers = ["v60", "v56"]
+jump_address = 0x8271C6F8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C704
+registers = ["v56"]
+jump_address = 0x8271C708
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C71C
+registers = ["v55"]
+jump_address = 0x8271C720
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C720
+registers = ["v63"]
+jump_address = 0x8271C724
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C724
+registers = ["v54"]
+jump_address = 0x8271C728
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C738
+registers = ["v62", "v61"]
+jump_address = 0x8271C73C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C748
+registers = ["v59"]
+jump_address = 0x8271C74C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C750
+registers = ["v61"]
+jump_address = 0x8271C754
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C760
+registers = ["v58"]
+jump_address = 0x8271C764
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C764
+registers = ["v60"]
+jump_address = 0x8271C768
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C80C
+registers = ["v63"]
+jump_address = 0x8271C810
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4_aa"
+address = 0x8271C828
+registers = ["v63"]
+jump_address = 0x8271C82C
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C864
+registers = ["v63", "v0"]
+jump_address = 0x8271C868
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C8A4
+registers = ["v63", "v0"]
+jump_address = 0x8271C8A8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C8B4
+registers = ["v62", "v0"]
+jump_address = 0x8271C8B8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C8C4
+registers = ["v61", "v0"]
+jump_address = 0x8271C8C8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C8D4
+registers = ["v60", "v0"]
+jump_address = 0x8271C8D8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C8E4
+registers = ["v59", "v13"]
+jump_address = 0x8271C8E8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C8F4
+registers = ["v58", "v0"]
+jump_address = 0x8271C8F8
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C90C
+registers = ["v63", "v0"]
+jump_address = 0x8271C910
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C91C
+registers = ["v62", "v0"]
+jump_address = 0x8271C920
+
+[[midasm_hook]]
+name = "PpcVupkd3dHalf4"
+address = 0x8271C968
+registers = ["v63", "v0"]
+jump_address = 0x8271C96C
+
+[[midasm_hook]]
+name = "PpcLvehx"
+address = 0x827515DC
+registers = ["v11", "r6"]
+jump_address = 0x827515E0
+
+[[midasm_hook]]
+name = "PpcLvehx"
+address = 0x827517D4
+registers = ["v12", "r6"]
+jump_address = 0x827517D8
+
+[[midasm_hook]]
+name = "PpcLvehx"
+address = 0x82751A68
+registers = ["v12", "r9"]
+jump_address = 0x82751A6C
+
+[[midasm_hook]]
+name = "PpcLvehx"
+address = 0x82751BD8
+registers = ["v12", "r9"]
+jump_address = 0x82751BDC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827C817C
+registers = ["v10", "v12", "v27", "cr6"]
+jump_address = 0x827C8180
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827C8554
+registers = ["v10", "v12", "v28", "cr6"]
+jump_address = 0x827C8558
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827C8830
+registers = ["v10", "v12", "v28", "cr6"]
+jump_address = 0x827C8834
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827C8C44
+registers = ["v10", "v12", "v27", "cr6"]
+jump_address = 0x827C8C48
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827C9044
+registers = ["v10", "v12", "v28", "cr6"]
+jump_address = 0x827C9048
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x827C9324
+registers = ["v11", "v13", "cr6"]
+jump_address = 0x827C9328
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827C985C
+registers = ["v13", "v0", "v6", "cr6"]
+jump_address = 0x827C9860
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x827CC034
+registers = ["v62", "v63"]
+jump_address = 0x827CC038
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827CC064
+registers = ["v12", "v13", "v5", "cr6"]
+jump_address = 0x827CC068
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x827CC0D8
+registers = ["v44", "v49"]
+jump_address = 0x827CC0DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827CC108
+registers = ["v12", "v13", "v5", "cr6"]
+jump_address = 0x827CC10C
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x827CC1B4
+registers = ["v32", "v33"]
+jump_address = 0x827CC1B8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827CC1E4
+registers = ["v13", "v0", "v5", "cr6"]
+jump_address = 0x827CC1E8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827DFA30
+registers = ["v10", "v12", "v28", "cr6"]
+jump_address = 0x827DFA34
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827DFD34
+registers = ["v10", "v12", "v28", "cr6"]
+jump_address = 0x827DFD38
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827E776C
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x827E7770
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827E856C
+registers = ["v13", "v10", "v0", "cr6"]
+jump_address = 0x827E8570
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827E858C
+registers = ["v11", "v10", "v12", "cr6"]
+jump_address = 0x827E8590
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827E913C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827E9140
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827ED04C
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x827ED050
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827ED2CC
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827ED2D0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF048
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF04C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF05C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF060
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF19C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF1A0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF4B8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF4BC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF518
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF51C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF568
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF56C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF5C0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF5C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF618
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF61C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF6C8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF6CC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF72C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF730
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x827FF77C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x827FF780
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82803290
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82803294
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82805080
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82805084
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828050FC
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82805100
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82805128
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8280512C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82808BA8
+registers = ["v8", "v10", "v9", "cr6"]
+jump_address = 0x82808BAC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828090C8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828090CC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8281593C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82815940
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828194C0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828194C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828194D8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828194DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828270AC
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828270B0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828285C4
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x828285C8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828288B0
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x828288B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82828908
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8282890C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8282A1F8
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8282A1FC
+
+[[midasm_hook]]
+name = "PpcVsubuwm_aab"
+address = 0x82834520
+registers = ["v0", "v10"]
+jump_address = 0x82834524
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82834640
+registers = ["v13", "v11", "v7"]
+jump_address = 0x82834644
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82834770
+registers = ["v13", "v8", "v11"]
+jump_address = 0x82834774
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x828348A4
+registers = ["v13", "v7", "v11"]
+jump_address = 0x828348A8
+
+[[midasm_hook]]
+name = "PpcVsubuwm_aab"
+address = 0x82834A8C
+registers = ["v0", "v10"]
+jump_address = 0x82834A90
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82834BAC
+registers = ["v13", "v11", "v7"]
+jump_address = 0x82834BB0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82834CDC
+registers = ["v13", "v8", "v11"]
+jump_address = 0x82834CE0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82834E10
+registers = ["v13", "v7", "v11"]
+jump_address = 0x82834E14
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82835028
+registers = ["v0", "v7", "v9"]
+jump_address = 0x8283502C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82835254
+registers = ["v0", "v9", "v7"]
+jump_address = 0x82835258
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82835DC4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82835DC8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82835DD4
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x82835DD8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82835E04
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82835E08
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82835E10
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x82835E14
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82837124
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82837128
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8283749C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828374A0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82837770
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82837774
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82837988
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8283798C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82845E18
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82845E1C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828467DC
+registers = ["v13", "v11", "v0", "cr6"]
+jump_address = 0x828467E0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284AA0C
+registers = ["v12", "v30", "v13", "cr6"]
+jump_address = 0x8284AA10
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284AA18
+registers = ["v12", "v30", "v13", "cr6"]
+jump_address = 0x8284AA1C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284AB68
+registers = ["v12", "v30", "v13", "cr6"]
+jump_address = 0x8284AB6C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284B28C
+registers = ["v13", "v31", "v0", "cr6"]
+jump_address = 0x8284B290
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284B39C
+registers = ["v13", "v31", "v0", "cr6"]
+jump_address = 0x8284B3A0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284B3B0
+registers = ["v13", "v31", "v0", "cr6"]
+jump_address = 0x8284B3B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8284B508
+registers = ["v13", "v31", "v0", "cr6"]
+jump_address = 0x8284B50C
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x8284BE1C
+registers = ["v10", "v54"]
+jump_address = 0x8284BE20
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x8284C658
+registers = ["v10", "v58"]
+jump_address = 0x8284C65C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828525E8
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x828525EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82855670
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82855674
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82855684
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82855688
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82856E84
+registers = ["v0", "v4", "cr6"]
+jump_address = 0x82856E88
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x8285DADC
+registers = ["v0", "v4", "cr6"]
+jump_address = 0x8285DAE0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x8285DD80
+registers = ["v13", "v12", "cr6"]
+jump_address = 0x8285DD84
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x8285E04C
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x8285E050
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82862144
+registers = ["v0", "v6", "cr6"]
+jump_address = 0x82862148
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82862210
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82862214
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82863220
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82863224
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828688C0
+registers = ["v0", "v12", "cr6"]
+jump_address = 0x828688C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82868F30
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82868F34
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x82869560
+registers = ["v11", "v52"]
+jump_address = 0x82869564
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82869564
+registers = ["v11", "v2", "cr6"]
+jump_address = 0x82869568
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x82869690
+registers = ["v10", "v52"]
+jump_address = 0x82869694
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82869694
+registers = ["v10", "v2", "cr6"]
+jump_address = 0x82869698
+
+[[midasm_hook]]
+name = "PpcVnor_aaa"
+address = 0x82869A14
+registers = ["v39"]
+jump_address = 0x82869A18
+
+[[midasm_hook]]
+name = "PpcVnor_aaa"
+address = 0x82869A84
+registers = ["v41"]
+jump_address = 0x82869A88
+
+[[midasm_hook]]
+name = "PpcVnor_aaa"
+address = 0x82869B90
+registers = ["v40"]
+jump_address = 0x82869B94
+
+[[midasm_hook]]
+name = "PpcVnor_aaa"
+address = 0x82869C00
+registers = ["v43"]
+jump_address = 0x82869C04
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x8286A28C
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x8286A290
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x8287CDFC
+registers = ["v0", "v10", "cr6"]
+jump_address = 0x8287CE00
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82887A2C
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82887A30
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x8288C8E0
+registers = ["v12", "v9", "cr6"]
+jump_address = 0x8288C8E4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82891D8C
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82891D90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82891D98
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82891D9C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82893638
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x8289363C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82893694
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82893698
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82895960
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82895964
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828959F8
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828959FC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82895A44
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82895A48
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82895A8C
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82895A90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x82895AA0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x82895AA4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82896B14
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82896B18
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82897408
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x8289740C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x8289D184
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x8289D188
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x8289FF1C
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x8289FF20
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828A03FC
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828A0400
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828A07C4
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828A07C8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828AEEEC
+registers = ["v12", "v0", "cr6"]
+jump_address = 0x828AEEF0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828AEF08
+registers = ["v0", "v11", "cr6"]
+jump_address = 0x828AEF0C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828AF2D8
+registers = ["v0", "v11", "cr6"]
+jump_address = 0x828AF2DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828B1808
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B180C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828B37F8
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B37FC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828B77A0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B77A4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828B848C
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x828B8490
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828B84A4
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B84A8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828B9534
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B9538
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828B95A4
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B95A8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828B96C0
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x828B96C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828B96DC
+registers = ["v12", "v13", "cr6"]
+jump_address = 0x828B96E0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828B96F0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B96F4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828B9770
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828B9774
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828C629C
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C62A0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828C6570
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C6574
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828C66D0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C66D4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828C67E4
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C67E8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828C68DC
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C68E0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828C6E74
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C6E78
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828C9A08
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x828C9A0C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828C9A68
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828C9A6C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828CA944
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828CA948
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828CB7E8
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828CB7EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828D14FC
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x828D1500
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828D1510
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828D1514
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828DDC9C
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828DDCA0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x828E26D4
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x828E26D8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828E32B0
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828E32B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aab"
+address = 0x828E33A4
+registers = ["v0", "v13", "cr6"]
+jump_address = 0x828E33A8
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x828EA894
+registers = ["v55", "v58"]
+jump_address = 0x828EA898
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x828EAB9C
+registers = ["v52", "v55"]
+jump_address = 0x828EABA0
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x828EABA0
+registers = ["v51", "v55"]
+jump_address = 0x828EABA4
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x828EB1BC
+registers = ["v55", "v63"]
+jump_address = 0x828EB1C0
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x828EB1FC
+registers = ["v50", "v63"]
+jump_address = 0x828EB200
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828F2144
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828F2148
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828F74A0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828F74A4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828F9688
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828F968C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828F96A8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828F96AC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828F96CC
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828F96D0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828F9744
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828F9748
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828FA994
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828FA998
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828FB390
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828FB394
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828FD758
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828FD75C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x828FD7FC
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x828FD800
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82915160
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82915164
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82915184
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82915188
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829239C0
+registers = ["v0", "v13"]
+jump_address = 0x829239C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923A28
+registers = ["v0", "v13"]
+jump_address = 0x82923A2C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923AA0
+registers = ["v0", "v13"]
+jump_address = 0x82923AA4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923B18
+registers = ["v0", "v13"]
+jump_address = 0x82923B1C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923B90
+registers = ["v0", "v13"]
+jump_address = 0x82923B94
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923C08
+registers = ["v0", "v13"]
+jump_address = 0x82923C0C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923C80
+registers = ["v0", "v13"]
+jump_address = 0x82923C84
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923E3C
+registers = ["v0", "v13"]
+jump_address = 0x82923E40
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923EA8
+registers = ["v0", "v13"]
+jump_address = 0x82923EAC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923F20
+registers = ["v0", "v13"]
+jump_address = 0x82923F24
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82923F98
+registers = ["v0", "v13"]
+jump_address = 0x82923F9C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82925E38
+registers = ["v0", "v13"]
+jump_address = 0x82925E3C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82925EB0
+registers = ["v0", "v13"]
+jump_address = 0x82925EB4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82925F28
+registers = ["v0", "v13"]
+jump_address = 0x82925F2C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82929B88
+registers = ["v11", "v13", "v0"]
+jump_address = 0x82929B8C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82929B8C
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82929B90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8292C7A4
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8292C7A8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8292C7D0
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8292C7D4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8292C7FC
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8292C800
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8292C828
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8292C82C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8292D7AC
+registers = ["v13", "v0", "v12"]
+jump_address = 0x8292D7B0
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8292E548
+registers = ["v13", "v0", "v12"]
+jump_address = 0x8292E54C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292F8D8
+registers = ["v0", "v13"]
+jump_address = 0x8292F8DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292F940
+registers = ["v0", "v13"]
+jump_address = 0x8292F944
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292F9B8
+registers = ["v0", "v13"]
+jump_address = 0x8292F9BC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FA30
+registers = ["v0", "v13"]
+jump_address = 0x8292FA34
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FAA8
+registers = ["v0", "v13"]
+jump_address = 0x8292FAAC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FB20
+registers = ["v0", "v13"]
+jump_address = 0x8292FB24
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FB98
+registers = ["v0", "v13"]
+jump_address = 0x8292FB9C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FD74
+registers = ["v0", "v13"]
+jump_address = 0x8292FD78
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FDE0
+registers = ["v0", "v13"]
+jump_address = 0x8292FDE4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FE58
+registers = ["v0", "v13"]
+jump_address = 0x8292FE5C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8292FED0
+registers = ["v0", "v13"]
+jump_address = 0x8292FED4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82930AC8
+registers = ["v0", "v13"]
+jump_address = 0x82930ACC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82930B40
+registers = ["v0", "v13"]
+jump_address = 0x82930B44
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82930BB8
+registers = ["v0", "v13"]
+jump_address = 0x82930BBC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8293B760
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8293B764
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8293B7C0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8293B7C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8293B820
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8293B824
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8293E06C
+registers = ["v12", "v10", "v11"]
+jump_address = 0x8293E070
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8293E084
+registers = ["v12", "v8", "v9"]
+jump_address = 0x8293E088
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8293E09C
+registers = ["v12", "v6", "v7"]
+jump_address = 0x8293E0A0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8293F00C
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8293F010
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F390
+registers = ["v0", "v13"]
+jump_address = 0x8293F394
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F3F8
+registers = ["v0", "v13"]
+jump_address = 0x8293F3FC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F470
+registers = ["v0", "v13"]
+jump_address = 0x8293F474
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F4E8
+registers = ["v0", "v13"]
+jump_address = 0x8293F4EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F560
+registers = ["v0", "v13"]
+jump_address = 0x8293F564
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F5D8
+registers = ["v0", "v13"]
+jump_address = 0x8293F5DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293F650
+registers = ["v0", "v13"]
+jump_address = 0x8293F654
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x8293F844
+registers = ["v11", "v13", "v0"]
+jump_address = 0x8293F848
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x8293F84C
+registers = ["v10", "v11", "v12"]
+jump_address = 0x8293F850
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FC48
+registers = ["v0", "v13"]
+jump_address = 0x8293FC4C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FCB0
+registers = ["v0", "v13"]
+jump_address = 0x8293FCB4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FD28
+registers = ["v0", "v13"]
+jump_address = 0x8293FD2C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FDA0
+registers = ["v0", "v13"]
+jump_address = 0x8293FDA4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FE18
+registers = ["v0", "v13"]
+jump_address = 0x8293FE1C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FE90
+registers = ["v0", "v13"]
+jump_address = 0x8293FE94
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FF08
+registers = ["v0", "v13"]
+jump_address = 0x8293FF0C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FF7C
+registers = ["v0", "v13"]
+jump_address = 0x8293FF80
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8293FFE8
+registers = ["v0", "v13"]
+jump_address = 0x8293FFEC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82940060
+registers = ["v0", "v13"]
+jump_address = 0x82940064
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829400D8
+registers = ["v0", "v13"]
+jump_address = 0x829400DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829403C0
+registers = ["v0", "v13"]
+jump_address = 0x829403C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82940438
+registers = ["v0", "v13"]
+jump_address = 0x8294043C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829404B0
+registers = ["v0", "v13"]
+jump_address = 0x829404B4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x829407AC
+registers = ["v11", "v13", "v0"]
+jump_address = 0x829407B0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x829407B0
+registers = ["v10", "v11", "v12"]
+jump_address = 0x829407B4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941220
+registers = ["v11", "v13", "v0"]
+jump_address = 0x82941224
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941224
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82941228
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941690
+registers = ["v11", "v13", "v0"]
+jump_address = 0x82941694
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941694
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82941698
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941AAC
+registers = ["v11", "v13", "v0"]
+jump_address = 0x82941AB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941AB0
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82941AB4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941EA8
+registers = ["v11", "v13", "v0"]
+jump_address = 0x82941EAC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82941EAC
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82941EB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x8294229C
+registers = ["v11", "v13", "v0"]
+jump_address = 0x829422A0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x829422A0
+registers = ["v10", "v11", "v12"]
+jump_address = 0x829422A4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x8294268C
+registers = ["v11", "v13", "v0"]
+jump_address = 0x82942690
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82942690
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82942694
+
+[[midasm_hook]]
+name = "PpcVaddsws_aba"
+address = 0x82942968
+registers = ["v0", "v13"]
+jump_address = 0x8294296C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x829431AC
+registers = ["v11", "v13", "v0"]
+jump_address = 0x829431B0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x829431B4
+registers = ["v10", "v11", "v12"]
+jump_address = 0x829431B8
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945B60
+registers = ["v0", "v13"]
+jump_address = 0x82945B64
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945BC8
+registers = ["v0", "v13"]
+jump_address = 0x82945BCC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945C40
+registers = ["v0", "v13"]
+jump_address = 0x82945C44
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945CB8
+registers = ["v0", "v13"]
+jump_address = 0x82945CBC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945D30
+registers = ["v0", "v13"]
+jump_address = 0x82945D34
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945DA8
+registers = ["v0", "v13"]
+jump_address = 0x82945DAC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82945E20
+registers = ["v0", "v13"]
+jump_address = 0x82945E24
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82945FE4
+registers = ["v12", "v13", "v0"]
+jump_address = 0x82945FE8
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82946004
+registers = ["v0", "v13"]
+jump_address = 0x82946008
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82946070
+registers = ["v0", "v13"]
+jump_address = 0x82946074
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829460E8
+registers = ["v0", "v13"]
+jump_address = 0x829460EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82946160
+registers = ["v0", "v13"]
+jump_address = 0x82946164
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829461D8
+registers = ["v0", "v13"]
+jump_address = 0x829461DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82946250
+registers = ["v0", "v13"]
+jump_address = 0x82946254
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829462C8
+registers = ["v0", "v13"]
+jump_address = 0x829462CC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294DB14
+registers = ["v0", "v13"]
+jump_address = 0x8294DB18
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8294DBB0
+registers = ["v12", "v0", "v13"]
+jump_address = 0x8294DBB4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8294DC0C
+registers = ["v12", "v13", "v0"]
+jump_address = 0x8294DC10
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294E018
+registers = ["v0", "v13"]
+jump_address = 0x8294E01C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294EAC8
+registers = ["v0", "v13"]
+jump_address = 0x8294EACC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294EB30
+registers = ["v0", "v13"]
+jump_address = 0x8294EB34
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294EBA8
+registers = ["v0", "v13"]
+jump_address = 0x8294EBAC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294EC20
+registers = ["v0", "v13"]
+jump_address = 0x8294EC24
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294EC98
+registers = ["v0", "v13"]
+jump_address = 0x8294EC9C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294ED10
+registers = ["v0", "v13"]
+jump_address = 0x8294ED14
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294ED88
+registers = ["v0", "v13"]
+jump_address = 0x8294ED8C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294F874
+registers = ["v0", "v13"]
+jump_address = 0x8294F878
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294F8E0
+registers = ["v0", "v13"]
+jump_address = 0x8294F8E4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294F958
+registers = ["v0", "v13"]
+jump_address = 0x8294F95C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8294F9D0
+registers = ["v0", "v13"]
+jump_address = 0x8294F9D4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829514D8
+registers = ["v0", "v13"]
+jump_address = 0x829514DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x82951550
+registers = ["v0", "v13"]
+jump_address = 0x82951554
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x829515C8
+registers = ["v0", "v13"]
+jump_address = 0x829515CC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295CF24
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295CF28
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295D348
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295D34C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295DF78
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295DF7C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295DFF4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295DFF8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E020
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295E024
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E314
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295E318
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E3D4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295E3D8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E510
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295E514
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E528
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x8295E52C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E540
+registers = ["v8", "v0", "v9", "cr6"]
+jump_address = 0x8295E544
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E558
+registers = ["v6", "v0", "v7", "cr6"]
+jump_address = 0x8295E55C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E6B4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295E6B8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E6CC
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x8295E6D0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E7C0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295E7C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295E7D8
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x8295E7DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295EF98
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295EF9C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295F71C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295F720
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295F790
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8295F794
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8295F7A4
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x8295F7A8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82962DCC
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82962DD0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82962F6C
+registers = ["v11", "v12", "v0", "cr6"]
+jump_address = 0x82962F70
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x82963220
+registers = ["v39", "v42"]
+jump_address = 0x82963224
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82963530
+registers = ["v12", "v1", "v13", "cr6"]
+jump_address = 0x82963534
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82964248
+registers = ["v11", "v6", "v0", "cr6"]
+jump_address = 0x8296424C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829643BC
+registers = ["v13", "v6", "v0", "cr6"]
+jump_address = 0x829643C0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829643E8
+registers = ["v13", "v6", "v0", "cr6"]
+jump_address = 0x829643EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8296508C
+registers = ["v11", "v8", "v0", "cr6"]
+jump_address = 0x82965090
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829651F8
+registers = ["v1", "v8", "v2", "cr6"]
+jump_address = 0x829651FC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8296520C
+registers = ["v30", "v8", "v31", "cr6"]
+jump_address = 0x82965210
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829654D8
+registers = ["v8", "v10", "v9", "cr6"]
+jump_address = 0x829654DC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965684
+registers = ["v13", "v10", "v0", "cr6"]
+jump_address = 0x82965688
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965978
+registers = ["v1", "v10", "v2", "cr6"]
+jump_address = 0x8296597C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965990
+registers = ["v30", "v10", "v31", "cr6"]
+jump_address = 0x82965994
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829659A8
+registers = ["v28", "v10", "v29", "cr6"]
+jump_address = 0x829659AC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829659C0
+registers = ["v26", "v10", "v27", "cr6"]
+jump_address = 0x829659C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965B8C
+registers = ["v13", "v10", "v0", "cr6"]
+jump_address = 0x82965B90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965BA4
+registers = ["v11", "v10", "v12", "cr6"]
+jump_address = 0x82965BA8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965D8C
+registers = ["v30", "v10", "v31", "cr6"]
+jump_address = 0x82965D90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82965DA4
+registers = ["v28", "v10", "v29", "cr6"]
+jump_address = 0x82965DA8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829684BC
+registers = ["v11", "v13", "v12", "cr6"]
+jump_address = 0x829684C0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82968B64
+registers = ["v11", "v13", "v12", "cr6"]
+jump_address = 0x82968B68
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x829698A8
+registers = ["v63", "v127"]
+jump_address = 0x829698AC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829698B0
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x829698B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829698D0
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x829698D4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829698F0
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x829698F4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82969958
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8296995C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82969978
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8296997C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82969998
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8296999C
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x82969B7C
+registers = ["v0", "v44"]
+jump_address = 0x82969B80
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82969B80
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82969B84
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x82969B8C
+registers = ["v0", "v43"]
+jump_address = 0x82969B90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82969B90
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82969B94
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x82969CBC
+registers = ["v12", "v13", "v0"]
+jump_address = 0x82969CC0
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8296A6B8
+registers = ["v0", "v12"]
+jump_address = 0x8296A6BC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8296A6C0
+registers = ["v11", "v0", "v13", "cr6"]
+jump_address = 0x8296A6C4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8296A93C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8296A940
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aab"
+address = 0x8296AEC4
+registers = ["v0", "v13"]
+jump_address = 0x8296AEC8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8296AEC8
+registers = ["v9", "v11", "v10", "cr6"]
+jump_address = 0x8296AECC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8296B204
+registers = ["v11", "v13", "v12", "cr6"]
+jump_address = 0x8296B208
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829769A8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829769AC
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x8297AEF0
+registers = ["v10", "v7"]
+jump_address = 0x8297AEF4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297BE7C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297BE80
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297BFF4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297BFF8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297C020
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297C024
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297C21C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297C220
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297C24C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297C250
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297C478
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297C47C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297C4A8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297C4AC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297DBB4
+registers = ["v10", "v12", "v11", "cr6"]
+jump_address = 0x8297DBB8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297DCCC
+registers = ["v12", "v0", "v3", "cr6"]
+jump_address = 0x8297DCD0
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x8297E730
+registers = ["v0", "v12", "v7"]
+jump_address = 0x8297E734
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw"
+address = 0x8297E760
+registers = ["v0", "v11", "v6"]
+jump_address = 0x8297E764
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297E788
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x8297E78C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8297F62C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8297F630
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829829E8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829829EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82982A74
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82982A78
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82982AA0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82982AA4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82985F8C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82985F90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82985FA0
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x82985FA4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82986200
+registers = ["v13", "v0", "v11", "cr6"]
+jump_address = 0x82986204
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82987480
+registers = ["v10", "v0", "v11"]
+jump_address = 0x82987484
+
+[[midasm_hook]]
+name = "PpcVaddsws_aab"
+address = 0x8298774C
+registers = ["v8", "v6"]
+jump_address = 0x82987750
+
+[[midasm_hook]]
+name = "PpcVcmpgtsw_aba"
+address = 0x8298777C
+registers = ["v13", "v12"]
+jump_address = 0x82987780
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82987ED8
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x82987EDC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8298E080
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8298E084
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x8298E214
+registers = ["v13", "v11", "v8"]
+jump_address = 0x8298E218
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8298EE74
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8298EE78
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8299345C
+registers = ["v11", "v12", "v0", "cr6"]
+jump_address = 0x82993460
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82993468
+registers = ["v9", "v10", "v0", "cr6"]
+jump_address = 0x8299346C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82993574
+registers = ["v12", "v13", "v0", "cr6"]
+jump_address = 0x82993578
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82993590
+registers = ["v10", "v11", "v0", "cr6"]
+jump_address = 0x82993594
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x8299B80C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x8299B810
+
+[[midasm_hook]]
+name = "PpcVnor_abb"
+address = 0x829A18F8
+registers = ["v54", "v58"]
+jump_address = 0x829A18FC
+
+[[midasm_hook]]
+name = "PpcVnor_aaa"
+address = 0x829A3194
+registers = ["v63"]
+jump_address = 0x829A3198
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AA4C4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AA4C8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829ACAC0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829ACAC4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829ACB40
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829ACB44
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829ACB6C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829ACB70
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AD5E4
+registers = ["v11", "v25", "v13", "cr6"]
+jump_address = 0x829AD5E8
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AD9B8
+registers = ["v12", "v25", "v13", "cr6"]
+jump_address = 0x829AD9BC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AEA5C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AEA60
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AEA9C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AEAA0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF1E8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AF1EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF2A8
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AF2AC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF3B0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AF3B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF3C8
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x829AF3CC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF3E0
+registers = ["v8", "v0", "v9", "cr6"]
+jump_address = 0x829AF3E4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF3F8
+registers = ["v6", "v0", "v7", "cr6"]
+jump_address = 0x829AF3FC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF554
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AF558
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF56C
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x829AF570
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF660
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AF664
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AF678
+registers = ["v10", "v0", "v11", "cr6"]
+jump_address = 0x829AF67C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AFAE0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AFAE4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AFB5C
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AFB60
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AFB88
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AFB8C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AFD98
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AFD9C
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AFE14
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AFE18
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x829AFE40
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x829AFE44
+
+[[midasm_hook]]
+name = "PpcBdnzt_eq"
+address = 0x82A09DA0
+registers = ["ctr", "cr0"]
+jump_address_on_true = 0x82A09D94
+jump_address_on_false = 0x82A09DA4
+
+[[midasm_hook]]
+name = "PpcBdnzt_eq"
+address = 0x82A09DEC
+registers = ["ctr", "cr0"]
+jump_address_on_true = 0x82A09DE0
+jump_address_on_false = 0x82A09DF0
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A3B6E8
+registers = ["v12", "v8", "v13", "cr6"]
+jump_address = 0x82A3B6EC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A43E8C
+registers = ["v13", "v10", "v0", "cr6"]
+jump_address = 0x82A43E90
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A43F1C
+registers = ["v13", "v10", "v0", "cr6"]
+jump_address = 0x82A43F20
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A44510
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82A44514
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A44524
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82A44528
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A44BE0
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82A44BE4
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A45360
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82A45364
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A46CF4
+registers = ["v12", "v0", "v13", "cr6"]
+jump_address = 0x82A46CF8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A46FE8
+registers = ["v13", "v7", "v0"]
+jump_address = 0x82A46FEC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A47454
+registers = ["v10", "v11", "v12"]
+jump_address = 0x82A47458
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc_aba"
+address = 0x82A4F080
+registers = ["v13", "v0", "cr6"]
+jump_address = 0x82A4F084
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A4FF64
+registers = ["v9", "v4", "v13", "cr6"]
+jump_address = 0x82A4FF68
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A50380
+registers = ["v13", "v8", "v0", "cr6"]
+jump_address = 0x82A50384
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A510B8
+registers = ["v13", "v0", "v4", "cr6"]
+jump_address = 0x82A510BC
+
+[[midasm_hook]]
+name = "PpcVcmpgtuwRc"
+address = 0x82A51484
+registers = ["v13", "v0", "v4", "cr6"]
+jump_address = 0x82A51488
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A8AC60
+registers = ["v5", "v11", "v10"]
+jump_address = 0x82A8AC64
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A8AC64
+registers = ["v4", "v11", "v10"]
+jump_address = 0x82A8AC68
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A8AC6C
+registers = ["v3", "v11", "v9"]
+jump_address = 0x82A8AC70
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A8AC70
+registers = ["v2", "v11", "v9"]
+jump_address = 0x82A8AC74
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A8AF60
+registers = ["v5", "v11", "v10"]
+jump_address = 0x82A8AF64
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A8AF64
+registers = ["v4", "v11", "v10"]
+jump_address = 0x82A8AF68
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A8AF6C
+registers = ["v3", "v11", "v9"]
+jump_address = 0x82A8AF70
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A8AF70
+registers = ["v2", "v11", "v9"]
+jump_address = 0x82A8AF74
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A8B250
+registers = ["v6", "v11", "v10"]
+jump_address = 0x82A8B254
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A8B254
+registers = ["v3", "v11", "v10"]
+jump_address = 0x82A8B258
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A8B25C
+registers = ["v2", "v11", "v9"]
+jump_address = 0x82A8B260
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A8B260
+registers = ["v1", "v11", "v9"]
+jump_address = 0x82A8B264
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F88C
+registers = ["v13", "v9", "v11"]
+jump_address = 0x82A8F890
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8F894
+registers = ["v8", "v13"]
+jump_address = 0x82A8F898
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F8B0
+registers = ["v0", "v3", "v11"]
+jump_address = 0x82A8F8B4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F8B4
+registers = ["v2", "v8", "v0"]
+jump_address = 0x82A8F8B8
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8F8BC
+registers = ["v1", "v7", "v0"]
+jump_address = 0x82A8F8C0
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8F8C4
+registers = ["v30", "v0"]
+jump_address = 0x82A8F8C8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F8DC
+registers = ["v25", "v28", "v31"]
+jump_address = 0x82A8F8E0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F8E8
+registers = ["v10", "v23", "v11"]
+jump_address = 0x82A8F8EC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F8EC
+registers = ["v22", "v0", "v10"]
+jump_address = 0x82A8F8F0
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8F8FC
+registers = ["v19", "v10"]
+jump_address = 0x82A8F900
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F900
+registers = ["v18", "v22", "v13"]
+jump_address = 0x82A8F904
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8F904
+registers = ["v17", "v21", "v13"]
+jump_address = 0x82A8F908
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F91C
+registers = ["v9", "v13", "v16"]
+jump_address = 0x82A8F920
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F928
+registers = ["v13", "v7", "v11"]
+jump_address = 0x82A8F92C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F92C
+registers = ["v6", "v30", "v13"]
+jump_address = 0x82A8F930
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8F934
+registers = ["v5", "v29", "v13"]
+jump_address = 0x82A8F938
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F948
+registers = ["v1", "v3", "v4"]
+jump_address = 0x82A8F94C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F954
+registers = ["v8", "v30", "v11"]
+jump_address = 0x82A8F958
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F960
+registers = ["v28", "v8", "v13"]
+jump_address = 0x82A8F964
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F96C
+registers = ["v25", "v28", "v0"]
+jump_address = 0x82A8F970
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F980
+registers = ["v7", "v22", "v11"]
+jump_address = 0x82A8F984
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8F990
+registers = ["v20", "v27", "v0"]
+jump_address = 0x82A8F994
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8F998
+registers = ["v16", "v15", "v13"]
+jump_address = 0x82A8F99C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F9A0
+registers = ["v17", "v19", "v13"]
+jump_address = 0x82A8F9A4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F9CC
+registers = ["v9", "v15", "v26"]
+jump_address = 0x82A8F9D0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F9DC
+registers = ["v6", "v0", "v14"]
+jump_address = 0x82A8F9E0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F9E8
+registers = ["v9", "v4", "v11"]
+jump_address = 0x82A8F9EC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F9EC
+registers = ["v3", "v7", "v9"]
+jump_address = 0x82A8F9F0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8F9FC
+registers = ["v31", "v3", "v8"]
+jump_address = 0x82A8FA00
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FA00
+registers = ["v30", "v2", "v8"]
+jump_address = 0x82A8FA04
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA14
+registers = ["v26", "v27", "v29"]
+jump_address = 0x82A8FA18
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA20
+registers = ["v8", "v24", "v11"]
+jump_address = 0x82A8FA24
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA38
+registers = ["v0", "v21", "v11"]
+jump_address = 0x82A8FA3C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA3C
+registers = ["v20", "v13", "v0"]
+jump_address = 0x82A8FA40
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8FA4C
+registers = ["v17", "v0"]
+jump_address = 0x82A8FA50
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA50
+registers = ["v16", "v20", "v10"]
+jump_address = 0x82A8FA54
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FA54
+registers = ["v15", "v19", "v10"]
+jump_address = 0x82A8FA58
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA70
+registers = ["v3", "v4", "v14"]
+jump_address = 0x82A8FA74
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA7C
+registers = ["v10", "v1", "v11"]
+jump_address = 0x82A8FA80
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA80
+registers = ["v31", "v17", "v10"]
+jump_address = 0x82A8FA84
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FA88
+registers = ["v30", "v7", "v10"]
+jump_address = 0x82A8FA8C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FA90
+registers = ["v28", "v9", "v10"]
+jump_address = 0x82A8FA94
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FAA0
+registers = ["v25", "v27", "v29"]
+jump_address = 0x82A8FAA4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FAAC
+registers = ["v7", "v23", "v11"]
+jump_address = 0x82A8FAB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FAB4
+registers = ["v22", "v10", "v7"]
+jump_address = 0x82A8FAB8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FAC0
+registers = ["v19", "v22", "v0"]
+jump_address = 0x82A8FAC4
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FAC4
+registers = ["v18", "v21", "v0"]
+jump_address = 0x82A8FAC8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FAEC
+registers = ["v7", "v28", "v13"]
+jump_address = 0x82A8FAF0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FAF4
+registers = ["v6", "v15", "v17"]
+jump_address = 0x82A8FAF8
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FAF8
+registers = ["v5", "v14", "v13"]
+jump_address = 0x82A8FAFC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB0C
+registers = ["v31", "v2", "v4"]
+jump_address = 0x82A8FB10
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB10
+registers = ["v13", "v1", "v11"]
+jump_address = 0x82A8FB14
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB28
+registers = ["v0", "v28", "v11"]
+jump_address = 0x82A8FB2C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB2C
+registers = ["v27", "v8", "v0"]
+jump_address = 0x82A8FB30
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB3C
+registers = ["v24", "v0", "v13"]
+jump_address = 0x82A8FB40
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB40
+registers = ["v23", "v27", "v9"]
+jump_address = 0x82A8FB44
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FB44
+registers = ["v22", "v26", "v9"]
+jump_address = 0x82A8FB48
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB60
+registers = ["v16", "v24", "v10"]
+jump_address = 0x82A8FB64
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FB64
+registers = ["v15", "v20", "v10"]
+jump_address = 0x82A8FB68
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB6C
+registers = ["v13", "v17", "v21"]
+jump_address = 0x82A8FB70
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB7C
+registers = ["v7", "v10", "v14"]
+jump_address = 0x82A8FB80
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB80
+registers = ["v13", "v8", "v11"]
+jump_address = 0x82A8FB84
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FB98
+registers = ["v10", "v4", "v11"]
+jump_address = 0x82A8FB9C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FBA0
+registers = ["v3", "v13", "v10"]
+jump_address = 0x82A8FBA4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FBAC
+registers = ["v31", "v3", "v0"]
+jump_address = 0x82A8FBB0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FBB0
+registers = ["v30", "v2", "v0"]
+jump_address = 0x82A8FBB4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FBC0
+registers = ["v26", "v27", "v29"]
+jump_address = 0x82A8FBC4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FBD0
+registers = ["v23", "v24", "v11"]
+jump_address = 0x82A8FBD4
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8FBE8
+registers = ["v0", "v11"]
+jump_address = 0x82A8FBEC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC0C
+registers = ["v10", "v0", "v9"]
+jump_address = 0x82A8FC10
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FC14
+registers = ["v7", "v13", "v9"]
+jump_address = 0x82A8FC18
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC40
+registers = ["v4", "v5", "v6"]
+jump_address = 0x82A8FC44
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC4C
+registers = ["v12", "v2", "v13"]
+jump_address = 0x82A8FC50
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC50
+registers = ["v1", "v9", "v12"]
+jump_address = 0x82A8FC54
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8FC60
+registers = ["v29", "v12"]
+jump_address = 0x82A8FC64
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC64
+registers = ["v28", "v1", "v11"]
+jump_address = 0x82A8FC68
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FC68
+registers = ["v27", "v31", "v11"]
+jump_address = 0x82A8FC6C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC84
+registers = ["v21", "v22", "v26"]
+jump_address = 0x82A8FC88
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC90
+registers = ["v11", "v19", "v13"]
+jump_address = 0x82A8FC94
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FC94
+registers = ["v18", "v29", "v11"]
+jump_address = 0x82A8FC98
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FC9C
+registers = ["v17", "v25", "v11"]
+jump_address = 0x82A8FCA0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FCB0
+registers = ["v10", "v15", "v16"]
+jump_address = 0x82A8FCB4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FCBC
+registers = ["v10", "v7", "v13"]
+jump_address = 0x82A8FCC0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FCC4
+registers = ["v6", "v11", "v10"]
+jump_address = 0x82A8FCC8
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8FCD0
+registers = ["v3", "v10"]
+jump_address = 0x82A8FCD4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FCD4
+registers = ["v2", "v6", "v12"]
+jump_address = 0x82A8FCD8
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FCD8
+registers = ["v1", "v5", "v12"]
+jump_address = 0x82A8FCDC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FCE8
+registers = ["v29", "v30", "v31"]
+jump_address = 0x82A8FCEC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FCF8
+registers = ["v12", "v26", "v13"]
+jump_address = 0x82A8FCFC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD0C
+registers = ["v23", "v8", "v11"]
+jump_address = 0x82A8FD10
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD1C
+registers = ["v20", "v23", "v9"]
+jump_address = 0x82A8FD20
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FD20
+registers = ["v19", "v22", "v9"]
+jump_address = 0x82A8FD24
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD34
+registers = ["v15", "v3", "v12"]
+jump_address = 0x82A8FD38
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD44
+registers = ["v14", "v18", "v21"]
+jump_address = 0x82A8FD48
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FD4C
+registers = ["v9", "v17", "v12"]
+jump_address = 0x82A8FD50
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD80
+registers = ["v3", "v5", "v7"]
+jump_address = 0x82A8FD84
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD84
+registers = ["v9", "v4", "v13"]
+jump_address = 0x82A8FD88
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD8C
+registers = ["v2", "v9", "v12"]
+jump_address = 0x82A8FD90
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FD98
+registers = ["v30", "v2", "v11"]
+jump_address = 0x82A8FD9C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FD9C
+registers = ["v29", "v1", "v11"]
+jump_address = 0x82A8FDA0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDAC
+registers = ["v26", "v11", "v9"]
+jump_address = 0x82A8FDB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDBC
+registers = ["v23", "v26", "v8"]
+jump_address = 0x82A8FDC0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FDC4
+registers = ["v21", "v25", "v8"]
+jump_address = 0x82A8FDC8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDCC
+registers = ["v19", "v22", "v28"]
+jump_address = 0x82A8FDD0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDD4
+registers = ["v17", "v18", "v20"]
+jump_address = 0x82A8FDD8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDE0
+registers = ["v11", "v15", "v13"]
+jump_address = 0x82A8FDE4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDF8
+registers = ["v8", "v7", "v13"]
+jump_address = 0x82A8FDFC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FDFC
+registers = ["v6", "v11", "v8"]
+jump_address = 0x82A8FE00
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE0C
+registers = ["v2", "v6", "v9"]
+jump_address = 0x82A8FE10
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FE10
+registers = ["v1", "v5", "v9"]
+jump_address = 0x82A8FE14
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE24
+registers = ["v28", "v29", "v31"]
+jump_address = 0x82A8FE28
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE30
+registers = ["v9", "v26", "v13"]
+jump_address = 0x82A8FE34
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE48
+registers = ["v11", "v23", "v13"]
+jump_address = 0x82A8FE4C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE4C
+registers = ["v22", "v12", "v11"]
+jump_address = 0x82A8FE50
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A8FE5C
+registers = ["v19", "v11"]
+jump_address = 0x82A8FE60
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE60
+registers = ["v18", "v22", "v10"]
+jump_address = 0x82A8FE64
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FE64
+registers = ["v17", "v21", "v10"]
+jump_address = 0x82A8FE68
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FE8C
+registers = ["v5", "v15", "v16"]
+jump_address = 0x82A8FE90
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEA0
+registers = ["v10", "v3", "v13"]
+jump_address = 0x82A8FEA4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEA4
+registers = ["v2", "v19", "v10"]
+jump_address = 0x82A8FEA8
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FEAC
+registers = ["v1", "v7", "v10"]
+jump_address = 0x82A8FEB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEB4
+registers = ["v30", "v8", "v10"]
+jump_address = 0x82A8FEB8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEC8
+registers = ["v26", "v30", "v12"]
+jump_address = 0x82A8FECC
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FED0
+registers = ["v24", "v29", "v12"]
+jump_address = 0x82A8FED4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FED4
+registers = ["v23", "v28", "v31"]
+jump_address = 0x82A8FED8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEE8
+registers = ["v18", "v21", "v22"]
+jump_address = 0x82A8FEEC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEEC
+registers = ["v12", "v19", "v13"]
+jump_address = 0x82A8FEF0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FEF0
+registers = ["v17", "v10", "v12"]
+jump_address = 0x82A8FEF4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF00
+registers = ["v14", "v17", "v11"]
+jump_address = 0x82A8FF04
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FF04
+registers = ["v12", "v16", "v11"]
+jump_address = 0x82A8FF08
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF18
+registers = ["v6", "v7", "v11"]
+jump_address = 0x82A8FF1C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF24
+registers = ["v11", "v3", "v13"]
+jump_address = 0x82A8FF28
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF3C
+registers = ["v12", "v31", "v13"]
+jump_address = 0x82A8FF40
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF44
+registers = ["v30", "v9", "v12"]
+jump_address = 0x82A8FF48
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF50
+registers = ["v27", "v12", "v11"]
+jump_address = 0x82A8FF54
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF54
+registers = ["v26", "v30", "v8"]
+jump_address = 0x82A8FF58
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FF58
+registers = ["v25", "v29", "v8"]
+jump_address = 0x82A8FF5C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF70
+registers = ["v20", "v27", "v10"]
+jump_address = 0x82A8FF74
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FF74
+registers = ["v19", "v23", "v10"]
+jump_address = 0x82A8FF78
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF7C
+registers = ["v17", "v21", "v24"]
+jump_address = 0x82A8FF80
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF84
+registers = ["v15", "v16", "v18"]
+jump_address = 0x82A8FF88
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FF94
+registers = ["v11", "v10", "v13"]
+jump_address = 0x82A8FF98
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FFAC
+registers = ["v10", "v7", "v13"]
+jump_address = 0x82A8FFB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FFB0
+registers = ["v6", "v11", "v10"]
+jump_address = 0x82A8FFB4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FFC0
+registers = ["v3", "v6", "v12"]
+jump_address = 0x82A8FFC4
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A8FFC4
+registers = ["v2", "v5", "v12"]
+jump_address = 0x82A8FFC8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FFD8
+registers = ["v29", "v30", "v1"]
+jump_address = 0x82A8FFDC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A8FFE4
+registers = ["v26", "v27", "v13"]
+jump_address = 0x82A8FFE8
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A90018
+registers = ["v11", "v12"]
+jump_address = 0x82A9001C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90038
+registers = ["v6", "v11", "v9"]
+jump_address = 0x82A9003C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90040
+registers = ["v5", "v10", "v9"]
+jump_address = 0x82A90044
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90060
+registers = ["v2", "v3", "v4"]
+jump_address = 0x82A90064
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9006C
+registers = ["v11", "v31", "v13"]
+jump_address = 0x82A90070
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90074
+registers = ["v30", "v11", "v9"]
+jump_address = 0x82A90078
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90080
+registers = ["v27", "v30", "v12"]
+jump_address = 0x82A90084
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90084
+registers = ["v26", "v29", "v12"]
+jump_address = 0x82A90088
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A900A0
+registers = ["v12", "v22", "v13"]
+jump_address = 0x82A900A4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A900A4
+registers = ["v20", "v21", "v25"]
+jump_address = 0x82A900A8
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A900AC
+registers = ["v19", "v12"]
+jump_address = 0x82A900B0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A900C8
+registers = ["v10", "v14", "v13"]
+jump_address = 0x82A900CC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A900CC
+registers = ["v8", "v12", "v10"]
+jump_address = 0x82A900D0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A900DC
+registers = ["v5", "v8", "v11"]
+jump_address = 0x82A900E0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A900E0
+registers = ["v4", "v7", "v11"]
+jump_address = 0x82A900E4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A900F4
+registers = ["v31", "v1", "v3"]
+jump_address = 0x82A900F8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90100
+registers = ["v11", "v29", "v13"]
+jump_address = 0x82A90104
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90104
+registers = ["v28", "v19", "v11"]
+jump_address = 0x82A90108
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A9010C
+registers = ["v27", "v18", "v11"]
+jump_address = 0x82A90110
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90120
+registers = ["v24", "v25", "v26"]
+jump_address = 0x82A90124
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9012C
+registers = ["v8", "v21", "v13"]
+jump_address = 0x82A90130
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90134
+registers = ["v20", "v8", "v11"]
+jump_address = 0x82A90138
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90144
+registers = ["v14", "v20", "v12"]
+jump_address = 0x82A90148
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90150
+registers = ["v6", "v19", "v12"]
+jump_address = 0x82A90154
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90180
+registers = ["v7", "v15", "v13"]
+jump_address = 0x82A90184
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90188
+registers = ["v3", "v4", "v5"]
+jump_address = 0x82A9018C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901A4
+registers = ["v12", "v31", "v13"]
+jump_address = 0x82A901A8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901A8
+registers = ["v30", "v7", "v12"]
+jump_address = 0x82A901AC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901B8
+registers = ["v27", "v30", "v8"]
+jump_address = 0x82A901BC
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A901BC
+registers = ["v26", "v29", "v8"]
+jump_address = 0x82A901C0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901D0
+registers = ["v23", "v24", "v25"]
+jump_address = 0x82A901D4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901DC
+registers = ["v7", "v20", "v13"]
+jump_address = 0x82A901E0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901F4
+registers = ["v18", "v10", "v8"]
+jump_address = 0x82A901F8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A901FC
+registers = ["v15", "v18", "v9"]
+jump_address = 0x82A90200
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90204
+registers = ["v14", "v17", "v9"]
+jump_address = 0x82A90208
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90210
+registers = ["v5", "v6", "v9"]
+jump_address = 0x82A90214
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9021C
+registers = ["v9", "v3", "v13"]
+jump_address = 0x82A90220
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90224
+registers = ["v2", "v11", "v9"]
+jump_address = 0x82A90228
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90230
+registers = ["v30", "v2", "v10"]
+jump_address = 0x82A90234
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90234
+registers = ["v29", "v1", "v10"]
+jump_address = 0x82A90238
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90244
+registers = ["v25", "v26", "v28"]
+jump_address = 0x82A90248
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90254
+registers = ["v10", "v23", "v13"]
+jump_address = 0x82A90258
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9025C
+registers = ["v22", "v12", "v10"]
+jump_address = 0x82A90260
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90268
+registers = ["v19", "v22", "v11"]
+jump_address = 0x82A9026C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A9026C
+registers = ["v18", "v21", "v11"]
+jump_address = 0x82A90270
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90278
+registers = ["v17", "v9", "v6"]
+jump_address = 0x82A9027C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9028C
+registers = ["v6", "v17", "v8"]
+jump_address = 0x82A90290
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90294
+registers = ["v4", "v15", "v8"]
+jump_address = 0x82A90298
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A902B8
+registers = ["v31", "v2", "v5"]
+jump_address = 0x82A902BC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A902BC
+registers = ["v30", "v1", "v3"]
+jump_address = 0x82A902C0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A902C8
+registers = ["v11", "v28", "v13"]
+jump_address = 0x82A902CC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A902CC
+registers = ["v27", "v10", "v11"]
+jump_address = 0x82A902D0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A902DC
+registers = ["v24", "v27", "v9"]
+jump_address = 0x82A902E0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A902E0
+registers = ["v23", "v26", "v9"]
+jump_address = 0x82A902E4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A902F4
+registers = ["v20", "v21", "v22"]
+jump_address = 0x82A902F8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90300
+registers = ["v9", "v17", "v13"]
+jump_address = 0x82A90304
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90318
+registers = ["v11", "v14", "v13"]
+jump_address = 0x82A9031C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9031C
+registers = ["v8", "v7", "v11"]
+jump_address = 0x82A90320
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9032C
+registers = ["v4", "v11", "v9"]
+jump_address = 0x82A90330
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90330
+registers = ["v3", "v8", "v12"]
+jump_address = 0x82A90334
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90334
+registers = ["v2", "v6", "v12"]
+jump_address = 0x82A90338
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90348
+registers = ["v29", "v4", "v10"]
+jump_address = 0x82A9034C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90354
+registers = ["v26", "v31", "v10"]
+jump_address = 0x82A90358
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90358
+registers = ["v25", "v28", "v1"]
+jump_address = 0x82A9035C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9036C
+registers = ["v20", "v23", "v24"]
+jump_address = 0x82A90370
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90370
+registers = ["v12", "v21", "v13"]
+jump_address = 0x82A90374
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90388
+registers = ["v10", "v17", "v13"]
+jump_address = 0x82A9038C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9038C
+registers = ["v16", "v12", "v10"]
+jump_address = 0x82A90390
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9039C
+registers = ["v12", "v16", "v11"]
+jump_address = 0x82A903A0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A903A0
+registers = ["v10", "v15", "v11"]
+jump_address = 0x82A903A4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A903B4
+registers = ["v7", "v8", "v9"]
+jump_address = 0x82A903B8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A903C0
+registers = ["v3", "v4", "v13"]
+jump_address = 0x82A903C4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A903F0
+registers = ["v9", "v10", "v11"]
+jump_address = 0x82A903F4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90410
+registers = ["v4", "v9", "v12"]
+jump_address = 0x82A90414
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90418
+registers = ["v3", "v7", "v12"]
+jump_address = 0x82A9041C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90444
+registers = ["v31", "v1", "v2"]
+jump_address = 0x82A90448
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90454
+registers = ["v12", "v29", "v13"]
+jump_address = 0x82A90458
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9045C
+registers = ["v28", "v12", "v8"]
+jump_address = 0x82A90460
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90468
+registers = ["v25", "v28", "v11"]
+jump_address = 0x82A9046C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A9046C
+registers = ["v24", "v27", "v11"]
+jump_address = 0x82A90470
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9047C
+registers = ["v21", "v22", "v23"]
+jump_address = 0x82A90480
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90484
+registers = ["v20", "v9", "v12"]
+jump_address = 0x82A90488
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90494
+registers = ["v16", "v20", "v10"]
+jump_address = 0x82A90498
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90498
+registers = ["v15", "v18", "v10"]
+jump_address = 0x82A9049C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A904A4
+registers = ["v10", "v11", "v14"]
+jump_address = 0x82A904A8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A904B0
+registers = ["v11", "v6", "v13"]
+jump_address = 0x82A904B4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A904C8
+registers = ["v10", "v3", "v13"]
+jump_address = 0x82A904CC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A904CC
+registers = ["v2", "v11", "v10"]
+jump_address = 0x82A904D0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A904DC
+registers = ["v30", "v2", "v12"]
+jump_address = 0x82A904E0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A904E0
+registers = ["v29", "v1", "v12"]
+jump_address = 0x82A904E4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A904F4
+registers = ["v25", "v26", "v28"]
+jump_address = 0x82A904F8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90500
+registers = ["v12", "v23", "v13"]
+jump_address = 0x82A90504
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9051C
+registers = ["v21", "v7", "v11"]
+jump_address = 0x82A90520
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90538
+registers = ["v18", "v21", "v9"]
+jump_address = 0x82A9053C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90540
+registers = ["v17", "v20", "v9"]
+jump_address = 0x82A90544
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9055C
+registers = ["v14", "v15", "v16"]
+jump_address = 0x82A90560
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90568
+registers = ["v9", "v6", "v13"]
+jump_address = 0x82A9056C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90570
+registers = ["v5", "v9", "v12"]
+jump_address = 0x82A90574
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9057C
+registers = ["v2", "v5", "v11"]
+jump_address = 0x82A90580
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90580
+registers = ["v1", "v4", "v11"]
+jump_address = 0x82A90584
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90594
+registers = ["v29", "v11", "v9"]
+jump_address = 0x82A90598
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9059C
+registers = ["v26", "v29", "v7"]
+jump_address = 0x82A905A0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A905A8
+registers = ["v24", "v28", "v7"]
+jump_address = 0x82A905AC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A905B0
+registers = ["v22", "v25", "v31"]
+jump_address = 0x82A905B4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A905B8
+registers = ["v20", "v21", "v23"]
+jump_address = 0x82A905BC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A905C4
+registers = ["v7", "v18", "v13"]
+jump_address = 0x82A905C8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A905DC
+registers = ["v11", "v15", "v13"]
+jump_address = 0x82A905E0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A905E8
+registers = ["v14", "v7", "v11"]
+jump_address = 0x82A905EC
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A905F0
+registers = ["v3", "v6", "v9"]
+jump_address = 0x82A905F4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A905F4
+registers = ["v4", "v14", "v9"]
+jump_address = 0x82A905F8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90608
+registers = ["v31", "v1", "v2"]
+jump_address = 0x82A9060C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90618
+registers = ["v6", "v28", "v13"]
+jump_address = 0x82A9061C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9062C
+registers = ["v26", "v10", "v7"]
+jump_address = 0x82A90630
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90638
+registers = ["v23", "v26", "v8"]
+jump_address = 0x82A9063C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A9063C
+registers = ["v22", "v25", "v8"]
+jump_address = 0x82A90640
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90648
+registers = ["v19", "v20", "v21"]
+jump_address = 0x82A9064C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90654
+registers = ["v9", "v17", "v13"]
+jump_address = 0x82A90658
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90658
+registers = ["v16", "v12", "v9"]
+jump_address = 0x82A9065C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90674
+registers = ["v8", "v16", "v10"]
+jump_address = 0x82A90678
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A9067C
+registers = ["v5", "v15", "v10"]
+jump_address = 0x82A90680
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90690
+registers = ["v1", "v2", "v4"]
+jump_address = 0x82A90694
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9069C
+registers = ["v10", "v30", "v13"]
+jump_address = 0x82A906A0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906A4
+registers = ["v29", "v11", "v10"]
+jump_address = 0x82A906A8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906B0
+registers = ["v26", "v29", "v12"]
+jump_address = 0x82A906B4
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A906B4
+registers = ["v25", "v28", "v12"]
+jump_address = 0x82A906B8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906C4
+registers = ["v21", "v9", "v12"]
+jump_address = 0x82A906C8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906D4
+registers = ["v17", "v21", "v7"]
+jump_address = 0x82A906D8
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A906DC
+registers = ["v16", "v20", "v7"]
+jump_address = 0x82A906E0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906E4
+registers = ["v22", "v23", "v24"]
+jump_address = 0x82A906E8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906EC
+registers = ["v12", "v14", "v15"]
+jump_address = 0x82A906F0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A906F8
+registers = ["v12", "v7", "v13"]
+jump_address = 0x82A906FC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90700
+registers = ["v5", "v10", "v12"]
+jump_address = 0x82A90704
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9070C
+registers = ["v2", "v5", "v9"]
+jump_address = 0x82A90710
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90710
+registers = ["v1", "v4", "v9"]
+jump_address = 0x82A90714
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90720
+registers = ["v28", "v29", "v31"]
+jump_address = 0x82A90724
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90730
+registers = ["v9", "v26", "v13"]
+jump_address = 0x82A90734
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90748
+registers = ["v12", "v23", "v13"]
+jump_address = 0x82A9074C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90750
+registers = ["v22", "v6", "v12"]
+jump_address = 0x82A90754
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9075C
+registers = ["v19", "v12", "v9"]
+jump_address = 0x82A90760
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90760
+registers = ["v18", "v22", "v11"]
+jump_address = 0x82A90764
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90764
+registers = ["v17", "v21", "v11"]
+jump_address = 0x82A90768
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9077C
+registers = ["v8", "v19", "v10"]
+jump_address = 0x82A90780
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90780
+registers = ["v7", "v15", "v10"]
+jump_address = 0x82A90784
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90788
+registers = ["v5", "v9", "v16"]
+jump_address = 0x82A9078C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A9079C
+registers = ["v11", "v2", "v13"]
+jump_address = 0x82A907A0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A907A0
+registers = ["v1", "v4", "v6"]
+jump_address = 0x82A907A4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A907B8
+registers = ["v10", "v29", "v13"]
+jump_address = 0x82A907BC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A907C0
+registers = ["v28", "v11", "v10"]
+jump_address = 0x82A907C4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A907CC
+registers = ["v25", "v28", "v12"]
+jump_address = 0x82A907D0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A907D0
+registers = ["v24", "v27", "v12"]
+jump_address = 0x82A907D4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A907E0
+registers = ["v20", "v21", "v23"]
+jump_address = 0x82A907E4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A907F0
+registers = ["v17", "v18", "v13"]
+jump_address = 0x82A907F4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A24
+registers = ["v0", "v9", "v10"]
+jump_address = 0x82A90A28
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A90A2C
+registers = ["v8", "v0"]
+jump_address = 0x82A90A30
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A48
+registers = ["v13", "v3", "v10"]
+jump_address = 0x82A90A4C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A4C
+registers = ["v2", "v8", "v13"]
+jump_address = 0x82A90A50
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90A54
+registers = ["v1", "v7", "v13"]
+jump_address = 0x82A90A58
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A68
+registers = ["v28", "v30", "v31"]
+jump_address = 0x82A90A6C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A74
+registers = ["v12", "v26", "v10"]
+jump_address = 0x82A90A78
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A78
+registers = ["v25", "v13", "v12"]
+jump_address = 0x82A90A7C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90A88
+registers = ["v22", "v25", "v0"]
+jump_address = 0x82A90A8C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90A8C
+registers = ["v21", "v24", "v0"]
+jump_address = 0x82A90A90
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90AA0
+registers = ["v17", "v18", "v20"]
+jump_address = 0x82A90AA4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90AAC
+registers = ["v14", "v15", "v10"]
+jump_address = 0x82A90AB0
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A90AC4
+registers = ["v0", "v13"]
+jump_address = 0x82A90AC8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90AE8
+registers = ["v9", "v0", "v12"]
+jump_address = 0x82A90AEC
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90AF0
+registers = ["v7", "v11", "v12"]
+jump_address = 0x82A90AF4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B08
+registers = ["v4", "v5", "v6"]
+jump_address = 0x82A90B0C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B14
+registers = ["v0", "v2", "v10"]
+jump_address = 0x82A90B18
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B18
+registers = ["v1", "v12", "v0"]
+jump_address = 0x82A90B1C
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A90B28
+registers = ["v29", "v0"]
+jump_address = 0x82A90B2C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B2C
+registers = ["v28", "v1", "v13"]
+jump_address = 0x82A90B30
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90B30
+registers = ["v27", "v31", "v13"]
+jump_address = 0x82A90B34
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B4C
+registers = ["v21", "v22", "v26"]
+jump_address = 0x82A90B50
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B58
+registers = ["v13", "v19", "v10"]
+jump_address = 0x82A90B5C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B5C
+registers = ["v18", "v29", "v13"]
+jump_address = 0x82A90B60
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90B64
+registers = ["v17", "v25", "v13"]
+jump_address = 0x82A90B68
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B78
+registers = ["v12", "v15", "v16"]
+jump_address = 0x82A90B7C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B84
+registers = ["v12", "v8", "v10"]
+jump_address = 0x82A90B88
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B88
+registers = ["v7", "v13", "v12"]
+jump_address = 0x82A90B8C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90B98
+registers = ["v4", "v7", "v0"]
+jump_address = 0x82A90B9C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90B9C
+registers = ["v3", "v6", "v0"]
+jump_address = 0x82A90BA0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90BB0
+registers = ["v30", "v31", "v2"]
+jump_address = 0x82A90BB4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90BBC
+registers = ["v27", "v28", "v10"]
+jump_address = 0x82A90BC0
+
+[[midasm_hook]]
+name = "PpcVminsw_abb"
+address = 0x82A90BE8
+registers = ["v13", "v0"]
+jump_address = 0x82A90BEC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C08
+registers = ["v6", "v13", "v12"]
+jump_address = 0x82A90C0C
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90C10
+registers = ["v5", "v9", "v12"]
+jump_address = 0x82A90C14
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C24
+registers = ["v2", "v3", "v4"]
+jump_address = 0x82A90C28
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C30
+registers = ["v13", "v31", "v10"]
+jump_address = 0x82A90C34
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C38
+registers = ["v30", "v13", "v12"]
+jump_address = 0x82A90C3C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C44
+registers = ["v27", "v30", "v0"]
+jump_address = 0x82A90C48
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90C48
+registers = ["v26", "v29", "v0"]
+jump_address = 0x82A90C4C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C64
+registers = ["v0", "v22", "v10"]
+jump_address = 0x82A90C68
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C68
+registers = ["v20", "v21", "v25"]
+jump_address = 0x82A90C6C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C80
+registers = ["v12", "v17", "v10"]
+jump_address = 0x82A90C84
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C84
+registers = ["v16", "v0", "v12"]
+jump_address = 0x82A90C88
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90C94
+registers = ["v0", "v16", "v13"]
+jump_address = 0x82A90C98
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90C98
+registers = ["v12", "v15", "v13"]
+jump_address = 0x82A90C9C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90CAC
+registers = ["v6", "v7", "v9"]
+jump_address = 0x82A90CB0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90CB8
+registers = ["v3", "v4", "v10"]
+jump_address = 0x82A90CBC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90CD8
+registers = ["v9", "v12", "v13"]
+jump_address = 0x82A90CDC
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90CF8
+registers = ["v5", "v9", "v0"]
+jump_address = 0x82A90CFC
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90D00
+registers = ["v4", "v7", "v0"]
+jump_address = 0x82A90D04
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D10
+registers = ["v1", "v2", "v3"]
+jump_address = 0x82A90D14
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D1C
+registers = ["v0", "v30", "v10"]
+jump_address = 0x82A90D20
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D30
+registers = ["v29", "v9", "v0"]
+jump_address = 0x82A90D34
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D3C
+registers = ["v25", "v29", "v12"]
+jump_address = 0x82A90D40
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90D40
+registers = ["v24", "v28", "v12"]
+jump_address = 0x82A90D44
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D4C
+registers = ["v21", "v22", "v23"]
+jump_address = 0x82A90D50
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D58
+registers = ["v12", "v19", "v10"]
+jump_address = 0x82A90D5C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D70
+registers = ["v18", "v0", "v9"]
+jump_address = 0x82A90D74
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D7C
+registers = ["v15", "v18", "v13"]
+jump_address = 0x82A90D80
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90D80
+registers = ["v9", "v17", "v13"]
+jump_address = 0x82A90D84
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D8C
+registers = ["v6", "v7", "v8"]
+jump_address = 0x82A90D90
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D98
+registers = ["v13", "v4", "v10"]
+jump_address = 0x82A90D9C
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90D9C
+registers = ["v3", "v12", "v13"]
+jump_address = 0x82A90DA0
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90DAC
+registers = ["v31", "v3", "v0"]
+jump_address = 0x82A90DB0
+
+[[midasm_hook]]
+name = "PpcVsubuwm"
+address = 0x82A90DB0
+registers = ["v30", "v2", "v0"]
+jump_address = 0x82A90DB4
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90DC4
+registers = ["v26", "v27", "v29"]
+jump_address = 0x82A90DC8
+
+[[midasm_hook]]
+name = "PpcVminsw"
+address = 0x82A90DD0
+registers = ["v23", "v24", "v10"]
+jump_address = 0x82A90DD4
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A928FC
+registers = ["v8", "v13", "v12"]
+jump_address = 0x82A92900
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A92904
+registers = ["v7", "v13", "v12"]
+jump_address = 0x82A92908
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A92914
+registers = ["v5", "v13", "v11"]
+jump_address = 0x82A92918
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A92918
+registers = ["v4", "v13", "v11"]
+jump_address = 0x82A9291C
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A92E80
+registers = ["v8", "v13", "v12"]
+jump_address = 0x82A92E84
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A92E88
+registers = ["v7", "v13", "v12"]
+jump_address = 0x82A92E8C
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A92E98
+registers = ["v5", "v13", "v11"]
+jump_address = 0x82A92E9C
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A92E9C
+registers = ["v4", "v13", "v11"]
+jump_address = 0x82A92EA0
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A93410
+registers = ["v8", "v0", "v13"]
+jump_address = 0x82A93414
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A93414
+registers = ["v7", "v0", "v13"]
+jump_address = 0x82A93418
+
+[[midasm_hook]]
+name = "PpcVminuh"
+address = 0x82A9341C
+registers = ["v5", "v0", "v11"]
+jump_address = 0x82A93420
+
+[[midasm_hook]]
+name = "PpcVmaxuh"
+address = 0x82A93420
+registers = ["v4", "v0", "v11"]
+jump_address = 0x82A93424
+
+[[midasm_hook]]
+name = "PpcVcmpgtsb"
+address = 0x82A9B294
+registers = ["v9", "v0", "v12"]
+jump_address = 0x82A9B298
+
+[[midasm_hook]]
+name = "PpcVcmpgtsb"
+address = 0x82A9B2AC
+registers = ["v8", "v0", "v12"]
+jump_address = 0x82A9B2B0
+
+[[midasm_hook]]
+name = "PpcVsububm"
+address = 0x82A9B2B0
+registers = ["v7", "v11", "v9"]
+jump_address = 0x82A9B2B4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsb"
+address = 0x82A9B2C4
+registers = ["v6", "v0", "v12"]
+jump_address = 0x82A9B2C8
+
+[[midasm_hook]]
+name = "PpcVsububm"
+address = 0x82A9B2CC
+registers = ["v5", "v7", "v8"]
+jump_address = 0x82A9B2D0
+
+[[midasm_hook]]
+name = "PpcVsububm"
+address = 0x82A9B2E0
+registers = ["v4", "v5", "v6"]
+jump_address = 0x82A9B2E4
+
+[[midasm_hook]]
+name = "PpcVcmpgtsb"
+address = 0x82AA1178
+registers = ["v10", "v0", "v13"]
+jump_address = 0x82AA117C
+
+[[midasm_hook]]
+name = "PpcVsububm"
+address = 0x82AA1184
+registers = ["v9", "v12", "v10"]
+jump_address = 0x82AA1188
+
+[[midasm_hook]]
+name = "PpcVcmpgtsb"
+address = 0x82AA1188
+registers = ["v8", "v0", "v13"]
+jump_address = 0x82AA118C
+
+[[midasm_hook]]
+name = "PpcVcmpgtsb"
+address = 0x82AA1190
+registers = ["v7", "v0", "v13"]
+jump_address = 0x82AA1194
+
+[[midasm_hook]]
+name = "PpcVsububm"
+address = 0x82AA11A8
+registers = ["v5", "v9", "v8"]
+jump_address = 0x82AA11AC
+
+[[midasm_hook]]
+name = "PpcVsububm"
+address = 0x82AA11BC
+registers = ["v4", "v5", "v7"]
+jump_address = 0x82AA11C0
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82AA324C
+registers = ["v3", "v5", "v7"]
+jump_address = 0x82AA3250
+
+[[midasm_hook]]
+name = "PpcVaddsws"
+address = 0x82AA3250
+registers = ["v2", "v4", "v6"]
+jump_address = 0x82AA3254

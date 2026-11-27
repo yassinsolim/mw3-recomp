@@ -19,7 +19,12 @@ namespace render
     };
 
     constexpr Size kConsoleFrame{ 1280, 720 };
+#if defined(BO3_TITLE)
+    // Black Ops III's scene is as tall as its frame and 880 wide.
+    constexpr Size kConsoleScene{ 880, 720 };
+#else
     constexpr Size kConsoleScene{ 1024, 600 };
+#endif
 
     // The title draws into EDRAM: 2048 tiles of 80x16 samples. A surface is a
     // whole number of tiles wide, and as many rows of samples tall as its

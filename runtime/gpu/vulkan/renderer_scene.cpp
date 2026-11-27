@@ -68,7 +68,15 @@ namespace vk::renderer::detail
         {
             const double hz = frame_rate::DisplayHz();
             const double limit = double(frame_rate::Limit());
-            const double rate = limit > 0 && (hz <= 0 || limit < hz) ? limit : hz;
+            double rate = limit > 0 && (hz <= 0 || limit < hz) ? limit : hz;
+#if defined(BO3_TITLE)
+            // Black Ops III makes 60 frames a second at most whatever the
+            // limit (its console is not reached, so com_maxfps stays its
+            // own): on an AYN Thor at 120 Hz a frame of 5.5 ms was held
+            // against 8.3 and the scene drawn smaller in half the frames,
+            // with the chip idle two thirds of the time.
+            rate = std::min(rate, double(frame_rate::kConsole));
+#endif
             return 1e9 / (rate > 0 ? rate : double(frame_rate::kConsole));
         }
 

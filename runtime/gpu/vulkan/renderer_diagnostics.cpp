@@ -10,11 +10,13 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <deque>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <thread>
+#include <utility>
 
 #ifdef MW2_HAVE_VULKAN
 
@@ -169,17 +171,93 @@ namespace vk::renderer::detail
         return grey;
     }
 
+    uint32_t TexelBytes(VkFormat format)
+    {
+        switch (format)
+        {
+        case VK_FORMAT_R16G16B16A16_SFLOAT: case VK_FORMAT_R16G16B16A16_SNORM:
+        case VK_FORMAT_R32G32_SFLOAT:
+            return 8;
+        default:
+            return 4;
+        }
+    }
+
+    float HalfAsFloat(uint16_t half)
+    {
+        const uint32_t exponent = (half >> 10) & 31, mantissa = half & 1023;
+        float value;
+        if (exponent == 0) value = std::ldexp(float(mantissa), -24);
+        else if (exponent == 31) value = mantissa ? 0.0f : 65504.0f;
+        else value = std::ldexp(float(mantissa | 1024), int(exponent) - 25);
+        return (half & 0x8000) ? -value : value;
+    }
+
+    // A colour image that is not four bytes a texel, as something to look at:
+    // ten bits and floats are cut to 0..1, and the log says what range the
+    // floats really span (a light accumulation is mostly above one).
+    std::vector<uint8_t> ColourAsBytes(const uint8_t* texels, uint32_t width, uint32_t height,
+                                       VkFormat format, const char* name)
+    {
+        const size_t pixels = size_t(width) * height;
+        std::vector<uint8_t> out(pixels * 4, 255);
+        float lo = 1e30f, hi = -1e30f;
+        const auto put = [&](size_t i, int channel, float value) {
+            lo = std::min(lo, value);
+            hi = std::max(hi, value);
+            out[i * 4 + channel] = uint8_t(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+        };
+        for (size_t i = 0; i < pixels; i++)
+        {
+            if (format == VK_FORMAT_A2B10G10R10_UNORM_PACK32)
+            {
+                uint32_t bits;
+                std::memcpy(&bits, texels + i * 4, 4);
+                for (int c = 0; c < 3; c++) put(i, c, float((bits >> (10 * c)) & 1023) / 1023.0f);
+            }
+            else if (format == VK_FORMAT_R16G16B16A16_SFLOAT)
+            {
+                uint16_t half[4];
+                std::memcpy(half, texels + i * 8, 8);
+                for (int c = 0; c < 3; c++) put(i, c, HalfAsFloat(half[c]));
+            }
+            else if (format == VK_FORMAT_R32_SFLOAT)
+            {
+                float value;
+                std::memcpy(&value, texels + i * 4, 4);
+                for (int c = 0; c < 3; c++) put(i, c, value);
+            }
+            else if (format == VK_FORMAT_R16G16_SFLOAT)
+            {
+                uint16_t half[2];
+                std::memcpy(half, texels + i * 4, 4);
+                for (int c = 0; c < 2; c++) put(i, c, HalfAsFloat(half[c]));
+                out[i * 4 + 2] = 0;
+            }
+            else std::memcpy(&out[i * 4], texels + i * 4, 4);
+        }
+        if (hi >= lo) LOGI("renderer: %s spans %.4f..%.4f", name, lo, hi);
+        return out;
+    }
+
     // Copies an image out and writes it, waiting for the copy. For the target
     // dumps, which are rare; the frame itself is copied inside its own command
     // buffer (RecordReadBack). `layout` is what the image is in and is left
     // in. A depth resolve is a depth/stencil image, and the colour aspect a
     // plain dump asks for does not exist on one: `aspect` says which to read
     // and `sourceFormat` how to turn what comes back into something to look at.
+    //
+    // The format also says how many bytes a texel is. The buffer was four
+    // bytes a texel whatever the image: a copy out of Black Ops III's
+    // 16_16_16_16_FLOAT surfaces wrote twice the buffer, the driver logged a
+    // GPU error at the run's end (nvlddmkm, event 153), and the next start
+    // of any build then hung in the driver before the renderer was ready,
+    // in a process that could not be ended.
     void DumpImage(VkImage image, VkImageLayout layout, uint32_t width, uint32_t height,
                    const char* name, VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT,
                    VkFormat sourceFormat = VK_FORMAT_UNDEFINED)
     {
-        const uint32_t bytes = width * height * 4;
+        const uint32_t bytes = width * height * (aspect == VK_IMAGE_ASPECT_COLOR_BIT ? TexelBytes(sourceFormat) : 4);
         VkBuffer buffer = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
         VkBufferCreateInfo info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -241,8 +319,10 @@ namespace vk::renderer::detail
             if (aspect == VK_IMAGE_ASPECT_DEPTH_BIT)
                 WriteDump(name, DepthAsGrey(texels, width, height, sourceFormat, name).data(),
                           width, height);
-            else
+            else if (sourceFormat == VK_FORMAT_UNDEFINED || sourceFormat == VK_FORMAT_R8G8B8A8_UNORM)
                 WriteDump(name, texels, width, height);
+            else
+                WriteDump(name, ColourAsBytes(texels, width, height, sourceFormat, name).data(), width, height);
             vkUnmapMemory(g.device, memory);
         }
         vkDestroyBuffer(g.device, buffer, nullptr);
@@ -350,6 +430,37 @@ namespace vk::renderer::detail
         kept.frame = frame;
         kept.textureFrame = vk::textures::FrameNumber();
         std::snprintf(kept.stamp, sizeof kept.stamp, "%s", mw2log::Stamp());
+    }
+
+    // MW2_FLASH_LONE=<percent>: a mark nobody pressed, at a frame unlike both
+    // the one before it and the one after it over that share of the picture
+    // (and those two alike there). A single wrong frame in several thousand
+    // is found by no one watching, and its draws are gone a frame later.
+    // Every eighth pixel of every eighth row is looked at.
+    bool LoneFrameKept()
+    {
+        static const double share = diag::Real("MW2_FLASH_LONE", 0.0) / 100.0;
+        const FlashRecorder& f = g_flashes;
+        const size_t kept = f.ring.size();
+        if (share <= 0.0 || kept < 3) return false;
+        const uint8_t* after = f.ring[(f.next + kept - 1) % kept].pixels.data();
+        const uint8_t* lone = f.ring[(f.next + kept - 2) % kept].pixels.data();
+        const uint8_t* before = f.ring[(f.next + kept - 3) % kept].pixels.data();
+        size_t looked = 0, unlike = 0;
+        for (uint32_t y = 0; y < f.height; y += 8)
+            for (uint32_t x = 0; x < f.width; x += 8, looked++)
+            {
+                const size_t at = (size_t(y) * f.width + x) * 4;
+                int odd = 0, still = 0;
+                for (int c = 0; c < 3; c++)
+                {
+                    odd = std::max(odd, std::min(std::abs(lone[at + c] - before[at + c]),
+                                                 std::abs(lone[at + c] - after[at + c])));
+                    still = std::max(still, std::abs(after[at + c] - before[at + c]));
+                }
+                unlike += odd > 24 && odd > 3 * still + 8;
+            }
+        return looked && double(unlike) / double(looked) >= share;
     }
 
 
@@ -544,7 +655,8 @@ namespace vk::renderer::detail
                           (unsigned long long)g.frames, key.baseTile, target.guestFormat,
                           target.width, target.height, 1u << key.samples);
             DumpImage(target.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                      target.width * target.scale, std::min(target.height, 1024u) * target.scale, name);
+                      target.width * target.scale, std::min(target.height, 1024u) * target.scale, name,
+                      VK_IMAGE_ASPECT_COLOR_BIT, target.format);
         }
 
         // A multisampled image cannot be copied out, so it is resolved into its
@@ -576,7 +688,7 @@ namespace vk::renderer::detail
             DumpImage(shot.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target.width * target.scale,
                       tall * target.scale, name,
                       target.depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
-                      target.depth ? g.depthFormat : VK_FORMAT_UNDEFINED);
+                      target.depth ? g.depthFormat : target.format);
         }
         for (const Shot& shot : shots)
             if (shot.target->depth && BeginFrame()) EndReadingDepth(*shot.target);
@@ -586,13 +698,41 @@ namespace vk::renderer::detail
             const Resolved& resolved = ring.copies[ring.newest];
             if (!resolved.image) continue;
             std::snprintf(name, sizeof name, "frame_%06llu_resolve_%08X%s",
-                          (unsigned long long)g.frames, address,
+                          (unsigned long long)g.frames, address & ~1u,
                           resolved.depth ? "_depth" : "");
             DumpImage(resolved.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                       resolved.width * resolved.scale, resolved.height * resolved.scale, name,
                       resolved.depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
                       resolved.format);
         }
+    }
+
+    // MW2_DUMP_RESOLVES: in a frame that is dumped, what every resolve copied
+    // out, in the frame's order, before the clear the resolve asks for. Black
+    // Ops III's resolves clear what they read, so the surfaces at the frame's
+    // end (MW2_DUMP_TARGETS) are all empty and say nothing of which pass
+    // lost the picture. The frame is submitted and waited for at each.
+    bool DumpingResolves()
+    {
+        if constexpr (!diag::kOn) return false;
+        static const bool on = diag::Flag("MW2_DUMP_RESOLVES");
+        return on && FrameDumpDirectory() && ((g.frames + 1) % FrameDumpEvery()) == 0 && FrameDumpDue();
+    }
+
+    void DumpResolve(const Resolved& into, uint32_t destination, const TargetKey& from)
+    {
+        static uint64_t frame = UINT64_MAX;
+        static uint32_t ordinal = 0;
+        if (std::exchange(frame, g.frames) != g.frames) ordinal = 0;
+        if (!Submit(true)) return;
+        char name[112];
+        std::snprintf(name, sizeof name, "frame_%06llu_r%02u_%08X_%s_tile%u_pitch%u_%ux",
+                      (unsigned long long)g.frames, ordinal++, destination, into.depth ? "depth" : "colour",
+                      from.baseTile, from.pitch, 1u << from.samples);
+        DumpImage(into.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                  into.width * into.scale, into.height * into.scale, name,
+                  into.depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT, into.format);
+        BeginFrame();
     }
 
     FrameReadBacks PlanReadBacks()
@@ -644,7 +784,10 @@ namespace vk::renderer::detail
             if (targetsToo) DumpTargets();
         }
         if (plan.keep && !frame.empty())
+        {
             KeepFlashFrame(std::move(frame), g.presentWidth, g.presentHeight, g.frames);
+            if (LoneFrameKept()) vk::renderer::FlashSeen("MW2_FLASH_LONE");
+        }
         // MW2_FLASH_MARK_AT=<seconds>: a mark nobody pressed, to test the
         // recorder in a run with no one watching.
         static const double markAt = diag::Real("MW2_FLASH_MARK_AT", 0.0);

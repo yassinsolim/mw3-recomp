@@ -92,6 +92,7 @@ namespace
         Id JumpTaken(const ControlFlow& cf);
         void EmitSequencerState();
         void EmitControlFlow(const ControlFlow& cf, uint32_t self);
+        void EmitLoopSpan(uint32_t first, uint32_t end);
         void UpdateAddressRegister(Id depth, Id iterator);
         void StorePredicate(Id value);
         Id PredicateIs(bool value);
@@ -238,10 +239,24 @@ namespace
         Id m_pixelConstants = 0;      // a pixel program's 256 float constants as a uniform block
         bool m_linear = false;        // true if control flow has no loops, jumps or calls
         bool m_forwardJumpsOnly = false; // true if control flow has only forward jumps (acyclic, no loops)
+        // True if its only jumps are backward ones, each on a condition and
+        // each span inside or clear of every other: loops, lowered to loops.
+        // m_loopEnd[i] is then the jump that closes the loop opening at
+        // control flow instruction i, or 0.
+        bool m_loopsOnly = false;
+        std::vector<uint32_t> m_loopEnd;
+        // True if its jumps all go forward and some span crosses another's:
+        // the title's if/else, a jump over the first arm and one out of it
+        // over the second. m_jumpTaken[i] is then a variable for the jump at
+        // control flow instruction i: whether it was reached and taken.
+        bool m_forwardCrossing = false;
+        std::vector<Id> m_jumpTaken;
+        void EmitCrossingJumps();
+        bool Structured() const { return m_forwardJumpsOnly || m_loopsOnly || m_forwardCrossing; }
         // The blocks the forward jumps open when they are lowered to
-        // selections (block kInCase + its place here): the block that
-        // dominates it, how deep it is under the entry block, and for one
-        // that branches on, the place ahead of that branch.
+        // selections, and the loops theirs (block kInCase + its place here):
+        // a block that dominates it, how deep it is under the entry block,
+        // and for one that branches on, the place ahead of that branch.
         struct JumpBlock { uint32_t parent; uint32_t depth; size_t end; };
         std::vector<JumpBlock> m_jumpBlocks;
 
@@ -350,6 +365,7 @@ namespace
         m_linear = true;
         m_forwardJumpsOnly = true;
         uint32_t jumps = 0;
+        bool allForward = true, jumpsAlone = true;
         // Where the last forward jump lands: a jump from inside its span would
         // need a selection that is not nested in the first one's.
         uint32_t jumpEnd = 0;
@@ -373,6 +389,7 @@ namespace
             case ControlFlowOpcode::CondJmp:
                 m_linear = false;
                 jumps++;
+                if (cf.Target() <= i) allForward = false;
                 if (cf.Target() <= i || i < jumpEnd)
                     m_forwardJumpsOnly = false; // backward jump, self-loop or overlapping jump
                 jumpEnd = cf.Target();
@@ -380,11 +397,57 @@ namespace
             default:
                 m_linear = false;
                 m_forwardJumpsOnly = false;
+                jumpsAlone = false;
                 break;
             }
         }
         if (jumps == 0 && m_linear)
             m_forwardJumpsOnly = false;
+        // Forward jumps that cross. Black Ops III's lit surfaces are full of
+        // them: 30 of the 295 shaders of a match on Shadows of Evil, in 65
+        // draws of the scene a frame, which through the dispatcher were 26 of
+        // an Adreno 650's 39 ms a frame (23 frames a second; 58 with those
+        // draws left out).
+        m_forwardCrossing = jumps != 0 && allForward && jumpsAlone && !m_forwardJumpsOnly;
+
+        // Backward jumps alone. A loop of the title's own (Black Ops III's
+        // glow behind the weapon in the zombies' HUD is two, 11 by 11 turns
+        // of 26 control flow instructions) went 3,200 times round the
+        // dispatcher for each pixel: 32 ms of an Adreno 650's frame for two
+        // quads of 40 by 34 pixels, and half an RTX 5080's.
+        m_loopsOnly = jumps != 0;
+        m_loopEnd.assign(m_flow.size(), 0);
+        for (uint32_t i = 0; i < m_flow.size() && m_loopsOnly; i++)
+        {
+            const ControlFlow& cf = m_flow[i];
+            switch (cf.Opcode())
+            {
+            case ControlFlowOpcode::Nop:
+            case ControlFlowOpcode::Alloc:
+            case ControlFlowOpcode::MarkVsFetchDone:
+            case ControlFlowOpcode::Exec:
+            case ControlFlowOpcode::ExecEnd:
+            case ControlFlowOpcode::CondExec:
+            case ControlFlowOpcode::CondExecEnd:
+            case ControlFlowOpcode::CondExecPred:
+            case ControlFlowOpcode::CondExecPredEnd:
+            case ControlFlowOpcode::CondExecPredClean:
+            case ControlFlowOpcode::CondExecPredCleanEnd:
+                break;
+            case ControlFlowOpcode::CondJmp:
+                // One loop to an opening, and a condition to leave it by.
+                if (cf.Target() >= i || cf.IsUnconditional() || m_loopEnd[cf.Target()]) m_loopsOnly = false;
+                else m_loopEnd[cf.Target()] = i;
+                break;
+            default:
+                m_loopsOnly = false;
+                break;
+            }
+        }
+        // A loop that opens inside another closes inside it.
+        for (uint32_t outer = 0; outer < m_flow.size() && m_loopsOnly; outer++)
+            for (uint32_t inner = outer + 1; inner < m_loopEnd[outer]; inner++)
+                if (m_loopEnd[inner] > m_loopEnd[outer]) m_loopsOnly = false;
 
         uint32_t lastSlot = bindings::kFetchSlots;
         uint32_t offTexels[3]{};
@@ -403,11 +466,17 @@ namespace
                     // below: often the only read of that interpolator.
                     if (m_type == shader::Type::Pixel && f.SourceRegister() < kInterpolatorCount)
                         m_result.interpolatorMask |= 1u << f.SourceRegister();
-                    if (f.Opcode() == FetchOpcode::TextureFetch)
+                    if (f.Opcode() == FetchOpcode::TextureFetch || f.Opcode() == FetchOpcode::GetWeights)
                     {
                         const uint32_t slot = f.ConstantIndex() & 31;
                         m_result.textureMask |= 1u << slot;
-                        m_textureDimensions[slot] = f.Dimension();
+                        // A slot is one image type for the whole program. Where
+                        // one fetch reads it as a volume and another along two
+                        // axes (Black Ops III asks a volume for its weights so),
+                        // it is a volume: the last fetch used to decide, and the
+                        // other fetch's code was not valid SPIR-V for the image.
+                        if (m_textureDimensions[slot] != FetchDimension::D3)
+                            m_textureDimensions[slot] = f.Dimension();
                     }
                     else if (f.Opcode() == FetchOpcode::VertexFetch)
                     {
@@ -899,21 +968,22 @@ namespace
         // which dominates the dispatch block and the block after the loop;
         // the dispatch block dominates the cases.
         // When forward jumps were lowered to selections instead, each block
-        // one opened says which block dominates it (m_jumpBlocks).
+        // one opened says which block dominates it (m_jumpBlocks), and so
+        // does each a loop opened.
         const auto parent = [this](uint32_t block) -> uint32_t {
-            if (m_forwardJumpsOnly) return block >= kInCase ? m_jumpBlocks[block - kInCase].parent : kInEntry;
+            if (Structured()) return block >= kInCase ? m_jumpBlocks[block - kInCase].parent : kInEntry;
             if (block >= kInCase) return kInDispatch;
             if (block == kInDispatch || block == kAfterLoop) return kInLoopHeader;
             return kInEntry;
         };
         const auto depth = [this](uint32_t block) -> uint32_t {
-            if (m_forwardJumpsOnly) return block >= kInCase ? m_jumpBlocks[block - kInCase].depth : 0;
+            if (Structured()) return block >= kInCase ? m_jumpBlocks[block - kInCase].depth : 0;
             if (block >= kInCase) return 3;
             if (block == kInDispatch || block == kAfterLoop) return 2;
             return block == kInLoopHeader ? 1 : 0;
         };
         const auto end = [this](uint32_t block) -> size_t {
-            return m_forwardJumpsOnly && block >= kInCase ? m_jumpBlocks[block - kInCase].end : m_blockEnd[block];
+            return Structured() && block >= kInCase ? m_jumpBlocks[block - kInCase].end : m_blockEnd[block];
         };
         struct Load { size_t at; uint32_t index; };
         std::vector<Load> loads;
@@ -2076,7 +2146,9 @@ namespace
         Id size = 0;
         if (!texels)
         {
-            const uint32_t sizeCount = dimension == FetchDimension::D3 ? 3 : 2;
+            // The image's own count, which is the fetch's except for a
+            // volume read along two axes.
+            const uint32_t sizeCount = m_result.textureKinds[slot] == 2 ? 3 : 2;
             size = Emit(Op::ConvertSToF, sizeCount == 3 ? m_module.Float3() : m_module.Float2(),
                         { Emit(Op::ImageQuerySizeLod, m_module.IntVector(sizeCount),
                                { bare, m_module.ConstantS(0) }) });
@@ -2088,11 +2160,14 @@ namespace
         // texel, and a point sample exactly between two texels has to land on
         // the one the console's rounding picks, not wherever float arithmetic
         // does. The sliver is Xenia's, 1.5/1024 of a texel (BSD-3).
-        constexpr float kRounding = 1.5f / 1024.0f;
+        // getWeights asks where between texels the same coordinates fall, and
+        // is given them without the sliver.
+        const bool weights = op.Opcode() == FetchOpcode::GetWeights;
+        const float rounding = weights ? 0.0f : 1.5f / 1024.0f;
         const int32_t offsets[3] = { op.OffsetX(), op.OffsetY(), op.OffsetZ() };
         for (uint32_t i = 0; i < axes; i++)
         {
-            Id offset = m_module.ConstantF(float(offsets[i]) * 0.5f + kRounding);
+            Id offset = m_module.ConstantF(float(offsets[i]) * 0.5f + rounding);
             if (texels)
                 c[i] = op.CoordinatesUnnormalised()
                     ? Emit(Op::FMul, m_float, { Emit(Op::FAdd, m_float, { c[i], offset }), perTexel[i] })
@@ -2106,6 +2181,27 @@ namespace
             }
         }
 
+        if (weights)
+        {
+            // getWeights: how far the coordinates are from the first of the
+            // texels a linear filter would blend, along each axis: the
+            // fraction of the place in texels, half a texel back, since a
+            // texel's centre is at its half. Forty-one of Black Ops III's
+            // pixel shaders have it, and none of them was usable without.
+            // The fourth component is how far the level lies between two
+            // mips, and is given as none.
+            const Id zero = m_module.ConstantF(0.0f);
+            Id components[4] = { zero, zero, zero, zero };
+            for (uint32_t i = 0; i < axes; i++)
+            {
+                const Id texel = texels ? Emit(Op::FDiv, m_float, { c[i], perTexel[i] })
+                                        : Emit(Op::FMul, m_float, { c[i], Component(size, i) });
+                components[i] = Glsl450(Glsl::Fract, m_float, { Emit(Op::FSub, m_float, { texel, m_module.ConstantF(0.5f) }) });
+            }
+            WriteFetchResult(op, components, 4);
+            return;
+        }
+
         Id coordinates;
         if (dimension == FetchDimension::Cube)
         {
@@ -2116,6 +2212,10 @@ namespace
         }
         else if (axes == 3)
             coordinates = Emit(Op::CompositeConstruct, m_module.Float3(), { c[0], c[1], c[2] });
+        else if (m_result.textureKinds[slot] == 2)
+            // Two axes of a volume: its first slice.
+            coordinates = Emit(Op::CompositeConstruct, m_module.Float3(),
+                               { c[0], c[1], m_module.ConstantF(0.0f) });
         else
             coordinates = Emit(Op::CompositeConstruct, m_module.Float2(), { c[0], c[1] });
 
@@ -2156,7 +2256,8 @@ namespace
         switch (op.Opcode())
         {
         case FetchOpcode::VertexFetch:  TranslateVertexFetch(op); break;
-        case FetchOpcode::TextureFetch: TranslateTextureFetch(op); break;
+        case FetchOpcode::TextureFetch:
+        case FetchOpcode::GetWeights:   TranslateTextureFetch(op); break;
         case FetchOpcode::GetGradients: TranslateGetGradients(op); break;
         case FetchOpcode::SetLod:       TranslateSetLod(op); break;
         case FetchOpcode::GetBorderColourFrac:
@@ -2256,7 +2357,7 @@ namespace
                          { uintPointer, slot, uint32_t(StorageClass::Function), zero });
             Module::EmitString(m_module.Debug(), Op::Name, { slot }, name);
         };
-        const bool needsSequencer = !m_linear && !m_forwardJumpsOnly;
+        const bool needsSequencer = !m_linear && !Structured();
         if (needsSequencer) scalar(m_pc, "pc");
         scalar(m_lastFetchBase, "vertex_fetch_address");
         if (m_exchange) scalar(m_lastFetchEndian, "vertex_fetch_endian");
@@ -2297,6 +2398,19 @@ namespace
                      { boolPointer2, m_killed, uint32_t(StorageClass::Function),
                        m_module.ConstantFalseValue() });
         Module::EmitString(m_module.Debug(), Op::Name, { m_killed }, "killed");
+        if (m_forwardCrossing)
+        {
+            m_jumpTaken.assign(m_flow.size(), 0);
+            for (uint32_t i = 0; i < m_flow.size(); i++)
+            {
+                if (m_flow[i].Opcode() != ControlFlowOpcode::CondJmp) continue;
+                m_jumpTaken[i] = m_module.Allocate();
+                Module::Emit(m_module.Code(), Op::Variable,
+                             { boolPointer2, m_jumpTaken[i], uint32_t(StorageClass::Function),
+                               m_module.ConstantFalseValue() });
+                Module::EmitString(m_module.Debug(), Op::Name, { m_jumpTaken[i] }, "jump_taken");
+            }
+        }
 
         if (needsSequencer)
         {
@@ -2488,6 +2602,120 @@ namespace
         }
         m_condition = 0;
         SetPcTo(cf.IsEnd() ? stop : next);
+    }
+
+
+    // Control flow instructions first up to end of a program whose jumps are
+    // loops (Analyze): each loop's instructions once, then again while its
+    // jump is taken, as the sequencer runs them.
+    void Translator::EmitLoopSpan(uint32_t first, uint32_t end)
+    {
+        auto& code = m_module.Code();
+        for (uint32_t i = first; i < end; i++)
+        {
+            const uint32_t jump = m_loopEnd[i];
+            if (!jump)
+            {
+                EmitControlFlow(m_flow[i], i);
+                if (!m_result.error.empty()) return;
+                continue;
+            }
+            const Id header = m_module.Allocate(), body = m_module.Allocate();
+            const Id continueTarget = m_module.Allocate(), merge = m_module.Allocate();
+
+            // The block that branches here dominates the loop and what comes
+            // after it (PlaceRecordLoads).
+            const uint32_t from = m_block;
+            const uint32_t depth = from >= kInCase ? m_jumpBlocks[from - kInCase].depth + 1 : 1;
+            (from >= kInCase ? m_jumpBlocks[from - kInCase].end : m_blockEnd[kInEntry]) = code.size();
+            Module::Emit(code, Op::Branch, { header });
+            Module::Emit(code, Op::Label, { header });
+            Module::Emit(code, Op::LoopMerge, { merge, continueTarget, kLoopControlNone });
+            Module::Emit(code, Op::Branch, { body });
+
+            Module::Emit(code, Op::Label, { body });
+            m_block = kInCase + uint32_t(m_jumpBlocks.size());
+            m_jumpBlocks.push_back({ from, depth, 0 });
+            // The opening is this span's own from here on.
+            m_loopEnd[i] = 0;
+            EmitLoopSpan(i, jump);
+            if (!m_result.error.empty()) return;
+            const Id taken = JumpTaken(m_flow[jump]);
+            Module::Emit(code, Op::Branch, { continueTarget });
+            Module::Emit(code, Op::Label, { continueTarget });
+            Module::Emit(code, Op::BranchConditional, { taken, header, merge });
+
+            Module::Emit(code, Op::Label, { merge });
+            m_block = kInCase + uint32_t(m_jumpBlocks.size());
+            m_jumpBlocks.push_back({ from, depth, 0 });
+            i = jump;
+        }
+    }
+
+
+    // A program whose forward jumps cross (Analyze), without the dispatcher:
+    // each jump has a flag, set where the jump is reached and taken, and a
+    // run of control flow instructions that the same jumps pass over is a
+    // selection on none of their flags being set. No loop and no counter: a
+    // jump only ever leaves out what comes after it.
+    void Translator::EmitCrossingJumps()
+    {
+        auto& code = m_module.Code();
+        const uint32_t caseCount = uint32_t(m_flow.size());
+        // The jumps that pass over an instruction: before it, landing after it.
+        const auto over = [this](uint32_t at) {
+            std::vector<uint32_t> jumps;
+            for (uint32_t i = 0; i < at; i++)
+                if (m_flow[i].Opcode() == ControlFlowOpcode::CondJmp && m_flow[i].Target() > at) jumps.push_back(i);
+            return jumps;
+        };
+        for (uint32_t first = 0; first < caseCount;)
+        {
+            const std::vector<uint32_t> jumps = over(first);
+            uint32_t end = first + 1;
+            while (end < caseCount && over(end) == jumps) end++;
+
+            Id merge = 0;
+            const uint32_t from = m_block;
+            const uint32_t depth = from >= kInCase ? m_jumpBlocks[from - kInCase].depth + 1 : 1;
+            if (!jumps.empty())
+            {
+                Id skipped = Emit(Op::Load, m_bool, { m_jumpTaken[jumps[0]] });
+                for (size_t i = 1; i < jumps.size(); i++)
+                    skipped = Emit(Op::LogicalOr, m_bool, { skipped, Emit(Op::Load, m_bool, { m_jumpTaken[jumps[i]] }) });
+                const Id reached = Emit(Op::LogicalNot, m_bool, { skipped });
+                merge = m_module.Allocate();
+                const Id run = m_module.Allocate();
+                // Both blocks are dominated by the one that branches here.
+                (from >= kInCase ? m_jumpBlocks[from - kInCase].end : m_blockEnd[kInEntry]) = code.size();
+                Module::Emit(code, Op::SelectionMerge, { merge, kSelectionControlNone });
+                Module::Emit(code, Op::BranchConditional, { reached, run, merge });
+                Module::Emit(code, Op::Label, { run });
+                m_block = kInCase + uint32_t(m_jumpBlocks.size());
+                m_jumpBlocks.push_back({ from, depth, 0 });
+            }
+            for (uint32_t i = first; i < end; i++)
+            {
+                const ControlFlow& cf = m_flow[i];
+                if (cf.Opcode() != ControlFlowOpcode::CondJmp)
+                {
+                    EmitControlFlow(cf, i);
+                    if (!m_result.error.empty()) return;
+                    continue;
+                }
+                Id taken = JumpTaken(cf);
+                if (!taken) taken = Emit(Op::LogicalNot, m_bool, { m_module.ConstantFalseValue() });
+                Module::Emit(code, Op::Store, { m_jumpTaken[i], taken });
+            }
+            if (merge)
+            {
+                Module::Emit(code, Op::Branch, { merge });
+                Module::Emit(code, Op::Label, { merge });
+                m_block = kInCase + uint32_t(m_jumpBlocks.size());
+                m_jumpBlocks.push_back({ from, depth, 0 });
+            }
+            first = end;
+        }
     }
 
 
@@ -2745,6 +2973,16 @@ namespace
                 }
                 i = target;
             }
+        }
+        else if (m_forwardCrossing)
+        {
+            EmitCrossingJumps();
+            if (!m_result.error.empty()) return;
+        }
+        else if (m_loopsOnly)
+        {
+            EmitLoopSpan(0, caseCount);
+            if (!m_result.error.empty()) return;
         }
         else
         {

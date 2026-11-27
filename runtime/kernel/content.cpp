@@ -202,7 +202,7 @@ namespace
         }
         if (header.contentType == kTitleUpdate)
         {
-#if defined(AW_TITLE_TU17)
+#if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
             packages.updates.push_back(volume);
 #else
             LOGI("content: %s is a title update, whose files are for the executable it makes; this is the disc's",
@@ -325,9 +325,11 @@ namespace
         uint32_t pack = 0;
     };
 
-// Modern Warfare 3 itself: Call of Duty 4 and Advanced Warfare are built with
-// MW3_TITLE as well, and take their packages as they are.
-#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE)
+// Modern Warfare 3 itself: Call of Duty 4, Advanced Warfare and Black Ops III
+// are built with MW3_TITLE as well, and take their packages as they are
+// (Black Ops III's are told by dlccompat<n>.id and dlc0zm.id: with this
+// rule none of them was used and the multiplayer asked for its content).
+#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(BO3_TITLE)
     // Modern Warfare 3's disc executables tell a pack by the marker in it,
     // dlc1.id to dlc6.id (a package with none of the six is closed again),
     // and keep the packs in a table of six with the disc's own maps as its
@@ -475,7 +477,7 @@ namespace
     }
 #endif
 
-#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(MW3_TITLE_MP)
+#if defined(MW3_TITLE) && !defined(COD4_TITLE) && !defined(AW_TITLE) && !defined(BO3_TITLE) && !defined(MW3_TITLE_MP)
     // MW2_CONTENT_LEVEL=<level>: a Special Ops mission or Survival map of
     // the player's packages, started as the game starts. The disc's campaign
     // executable loads one (so_survival_mp_italy and the pack's map with it)
@@ -520,6 +522,57 @@ namespace
 #endif
 }
 
+#if defined(AW_TITLE_TU17) || defined(BO3_TITLE)
+// The executable is made from the disc's and the update's patch before the
+// kernel starts (install.cpp), so the packages are looked for then, beside
+// the game folder it names. No disc image is mounted yet: this title is not
+// played from one.
+bool kernel::ReadTitleUpdateFile(const fs::path& gameRoot, const std::string& name, std::vector<uint8_t>& bytes)
+{
+    const auto& update = InstalledPackages(&gameRoot).Update();
+    const ReadVolume::Entry* entry = update ? update->Find(name) : nullptr;
+    if (!entry || entry->directory) return false;
+    bytes.resize(size_t(entry->size));
+    const int descriptor = update->Acquire();
+    const size_t read = update->Read(descriptor, *entry, 0, bytes.data(), bytes.size());
+    update->Release(descriptor);
+    return read == bytes.size();
+}
+
+bool kernel::NextTitleUpdate(const fs::path& gameRoot)
+{
+    Packages& packages = InstalledPackages(&gameRoot);
+    if (packages.inUse < packages.updates.size())
+    {
+        LOGW("content: the title update %s does not fit this disc's executable (it is for another pressing of the"
+             " disc, or is not the update this build is for); it is not used",
+             packages.updates[packages.inUse]->Name().c_str());
+        packages.inUse++;
+    }
+    return packages.inUse < packages.updates.size();
+}
+
+#endif
+
+#if defined(BO3_TITLE)
+// The title update's package as the drive `update:`, where the console has it
+// for a title whose update brings files besides the executable's patch. Black
+// Ops III's brings the menus' fastfiles and newer ones of the disc's own, and
+// the title reads each from `update:` before the disc. It is the player's
+// own file, read where it lies, as the downloadable content is.
+void kernel::MountTitleUpdate()
+{
+    const auto& update = InstalledPackages().Update();
+    if (!update)
+    {
+        LOGW("content: no title update package for %08X in the dlc folder: the title has no menus without it", T_TITLE_ID);
+        return;
+    }
+    MountVolume("update", update);
+    LOGI("content: mounted update: on the title update's package");
+}
+#endif
+
 #if defined(AW_TITLE_TU17)
 namespace
 {
@@ -548,34 +601,6 @@ namespace
         }();
         return found;
     }
-}
-
-// The executable is made from the disc's and the update's patch before the
-// kernel starts (install.cpp), so the packages are looked for then, beside
-// the game folder it names. No disc image is mounted yet: this title is not
-// played from one.
-bool kernel::ReadTitleUpdateFile(const fs::path& gameRoot, const std::string& name, std::vector<uint8_t>& bytes)
-{
-    const auto& update = InstalledPackages(&gameRoot).Update();
-    const ReadVolume::Entry* entry = update ? update->Find(name) : nullptr;
-    if (!entry || entry->directory) return false;
-    bytes.resize(size_t(entry->size));
-    const int descriptor = update->Acquire();
-    const size_t read = update->Read(descriptor, *entry, 0, bytes.data(), bytes.size());
-    update->Release(descriptor);
-    return read == bytes.size();
-}
-
-bool kernel::NextTitleUpdate(const fs::path& gameRoot)
-{
-    Packages& packages = InstalledPackages(&gameRoot);
-    if (packages.inUse < packages.updates.size())
-    {
-        LOGW("content: the title update %s does not fit this disc's executable (it is for another pressing of the"
-             " disc, or is not title update 17); it is not used", packages.updates[packages.inUse]->Name().c_str());
-        packages.inUse++;
-    }
-    return packages.inUse < packages.updates.size();
 }
 
 const std::string& kernel::UpdateLanguage() { return ForeignFolder().letters; }
@@ -763,7 +788,20 @@ PPC_FUNC(__imp__XamContentCreateEx)
         }
         else LOGK("content: there is no downloadable content named %s (%s: asked to open it)", file.c_str(), drive.c_str());
         if (auto* d = GuestPtr<be32>(dispositionOut)) *d = 2u;      // XCONTENT_EXISTING
-        if (auto* l = GuestPtr<be32>(licenseOut)) *l = volume ? volume->Header().licenceBits : 0u;
+        uint32_t licence = volume ? volume->Header().licenceBits : 0u;
+#if defined(BO3_TITLE)
+        // Treyarch's engine takes a licence of bit 0 alone for a trial: what
+        // such a package holds counts only while the console is signed in to
+        // Xbox Live (sub_826528F8 asks the session's network mode), and the
+        // packages a player has on a drive are licensed so: Compatibility
+        // Pack 1, without which the title asks to download it, The Giant and
+        // Awakening. They are the player's own, so the title is told every
+        // bit, as Compatibility Pack 2's header says of itself. Black Ops
+        // II's does the same, which is where this was read
+        // (spartansprm/BO2-Android-xbox360, android/game/dlc_license.h).
+        if (licence == 1) licence = 0xFFFFFFFFu;
+#endif
+        if (auto* l = GuestPtr<be32>(licenseOut)) *l = licence;
         CompleteOverlapped(overlapped, result);
         ctx.r3.u64 = result;
         return;

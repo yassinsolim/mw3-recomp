@@ -1,7 +1,7 @@
 // Instructions a title's executables use and the pinned recompiler has no
 // case for: it knows what Modern Warfare 2 and 3 have. The recompiler's
 // configuration replaces each one by a call here and steps over it
-// (config/COD4.toml and config/AW.toml, [[midasm_hook]]). Adding the cases to
+// (config/COD4.toml, config/AW.toml and config/BO3.toml, [[midasm_hook]]). Adding the cases to
 // patches/xenonrecomp-mw2.patch instead would change what every title's game
 // library says it was built against (cmake/game_abi.cmake), and the published
 // apps would refuse the game code players have already built.
@@ -40,8 +40,8 @@ void PpcVctuxsInPlace(PPCVRegister& d)
     simde_mm_store_si128((simde__m128i*)d.u32, simde_mm_vctuxs(simde_mm_load_ps(d.f32)));
 }
 
-#elif defined(AW_TITLE)
-// Advanced Warfare: twelve instructions, most of them integer AltiVec
+#elif defined(AW_TITLE) || defined(BO3_TITLE)
+// Advanced Warfare, and Black Ops III with six more (at the end): twelve instructions, most of them integer AltiVec
 // (config/AW.toml lists how many of each; tools/extra_instructions.py wrote
 // the hooks). A vector register holds its sixteen bytes in reverse, as the
 // recompiler's own code keeps them, so what works element by element is the
@@ -166,6 +166,83 @@ bool PpcBdnzt_eq(PPCRegister& ctr, PPCCRRegister& cr)
     --ctr.u64;
     return ctr.u32 != 0 && cr.eq;
 }
+
+#if defined(BO3_TITLE)
+// Black Ops III (config/BO3.toml, config/BO3ZM.toml): the instructions above
+// in forms Advanced Warfare does not have, and eight instructions more.
+
+// vaddsws, vsubuwm and vminsw with the result in vA's register, vaddsws in
+// vB's, and vaddsws of a register with itself.
+void PpcVaddsws_aab(PPCVRegister& d, PPCVRegister& b) { PpcVaddsws(d, d, b); }
+void PpcVaddsws_aba(PPCVRegister& d, PPCVRegister& a) { PpcVaddsws(d, a, d); }
+void PpcVaddsws_abb(PPCVRegister& d, PPCVRegister& a) { PpcVaddsws(d, a, a); }
+void PpcVsubuwm_aab(PPCVRegister& d, PPCVRegister& b) { PpcVsubuwm(d, d, b); }
+void PpcVminsw_aab(PPCVRegister& d, PPCVRegister& b) { PpcVminsw(d, d, b); }
+
+// vcmpgtsw vD,vA,vB: all ones in each word where vA's is the greater, signed.
+void PpcVcmpgtsw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b) { Store(d, simde_mm_cmpgt_epi32(Load(a), Load(b))); }
+void PpcVcmpgtsw_aab(PPCVRegister& d, PPCVRegister& b) { PpcVcmpgtsw(d, d, b); }
+void PpcVcmpgtsw_aba(PPCVRegister& d, PPCVRegister& a) { PpcVcmpgtsw(d, a, d); }
+
+// vcmpgtuw vD,vA,vB: the same, unsigned. The host compares signed words, and
+// an unsigned order is the signed one with each top bit turned over.
+void PpcVcmpgtuw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b)
+{
+    const simde__m128i top = simde_mm_set1_epi32(int32_t(0x80000000u));
+    Store(d, simde_mm_cmpgt_epi32(simde_mm_xor_si128(Load(a), top), simde_mm_xor_si128(Load(b), top)));
+}
+void PpcVcmpgtuw_aba(PPCVRegister& d, PPCVRegister& a) { PpcVcmpgtuw(d, a, d); }
+
+// vcmpgtuw. vD,vA,vB: and cr6 says whether every word was greater (lt) or
+// none was (eq), as the recompiler sets it for the compares it has.
+void PpcVcmpgtuwRc(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b, PPCCRRegister& cr6)
+{
+    PpcVcmpgtuw(d, a, b);
+    cr6.setFromMask(Load(d), 0xFFFF);
+}
+void PpcVcmpgtuwRc_aab(PPCVRegister& d, PPCVRegister& b, PPCCRRegister& cr6) { PpcVcmpgtuwRc(d, d, b, cr6); }
+void PpcVcmpgtuwRc_aba(PPCVRegister& d, PPCVRegister& a, PPCCRRegister& cr6) { PpcVcmpgtuwRc(d, a, d, cr6); }
+
+// vnor128 vD,vA,vA, which is "not": every use has one register for both
+// operands, and five of them the result's too.
+void PpcVnor_abb(PPCVRegister& d, PPCVRegister& a) { Store(d, simde_mm_xor_si128(Load(a), simde_mm_set1_epi32(-1))); }
+void PpcVnor_aaa(PPCVRegister& d) { PpcVnor_abb(d, d); }
+
+// vrfip128 vD,vB: each float rounded up to a whole number, as the recompiler
+// writes vrfim128 with the other direction.
+void PpcVrfip(PPCVRegister& d, PPCVRegister& b)
+{
+    simde_mm_store_ps(d.f32, simde_mm_round_ps(simde_mm_load_ps(b.f32), SIMDE_MM_FROUND_TO_POS_INF | SIMDE_MM_FROUND_NO_EXC));
+}
+
+// vsl vD,vA,vB: the whole of vA shifted left by the count in the last three
+// bits of vB (0 to 7; the definition wants every byte of vB to carry the same
+// count and leaves the result open otherwise, so the last byte's is used).
+// The register's sixteen bytes in reverse are the vector as one number, low
+// half first.
+void PpcVsl(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b)
+{
+    const unsigned count = b.u8[0] & 7;
+    const uint64_t low = a.u64[0], high = a.u64[1];
+    d.u64[1] = count ? (high << count) | (low >> (64 - count)) : high;
+    d.u64[0] = low << count;
+}
+
+// vavgsw vD,vA,vB: the mean of each pair of signed words, halves rounded up.
+// The host has the unsigned one of bytes and halfwords only.
+void PpcVavgsw(PPCVRegister& d, PPCVRegister& a, PPCVRegister& b)
+{
+    for (int i = 0; i < 4; i++) d.s32[i] = int32_t((int64_t(a.s32[i]) + int64_t(b.s32[i]) + 1) >> 1);
+}
+void PpcVavgsw_aba(PPCVRegister& d, PPCVRegister& a) { PpcVavgsw(d, a, d); }
+
+// stvebx vS,0,rB: the one byte of vS that lies where rB points within its
+// sixteen, to that address. A register keeps the vector's bytes in reverse.
+void PpcStvebx(PPCVRegister& s, PPCRegister& b)
+{
+    mw2_guest_base()[b.u32] = s.u8[15 - (b.u32 & 0xF)];
+}
+#endif
 
 // rlwimi. and rldicl., the forms that record (title update 17's multiplayer:
 // two and six places; the six are the interpreter's test of a boolean, the

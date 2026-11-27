@@ -638,8 +638,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * The launcher of an app of one title (the older apps, and title update
-     * 6's): Play, or the install screen until the game's files are there.
-     * True when the game can be played.
+     * 6's) and of Black Ops III: Play, or the install screen until the
+     * game's files are there. True when the game can be played.
      */
     private fun refreshOneTitle(installed: Boolean): Boolean {
         // A disc to install from is looked for only while the game is not
@@ -647,15 +647,35 @@ class MainActivity : AppCompatActivity() {
         // comes first: it is known to be this game's.
         detectedImage = if (installed) null else chosenImage() ?: findDisc()?.absolutePath
         val lost = Setup.lostDisc(this)
+        // Black Ops III is no game until its title update and Compatibility
+        // Packs are in the dlc folder, and its game code is built from that
+        // update: the status says which is still to come, the update first,
+        // and the large button is Add DLC, which takes the one and builds
+        // the other (launch).
+        val addDlc = installed && lost == null && dlcComesFirst()
         play.isEnabled = lost == null
-        play.text = getString(if (installed) R.string.play_large else R.string.install_game)
+        play.text = getString(
+            when {
+                !installed -> R.string.install_game
+                addDlc -> R.string.dlc_title
+                else -> R.string.play_large
+            },
+        )
         status.text = when {
             !installed -> getString(R.string.status_setup_disc)
             lost != null -> getString(R.string.status_disc_lost, DiscImage.label(this, lost).substringAfterLast('/'))
+            addDlc && updateNeeded() -> getString(R.string.status_update_needed)
+            addDlc -> getString(if (GameBuild.offered(this)) R.string.build_code_missing else R.string.game_code_missing)
             else -> getString(R.string.status_ready_one)
         }
-        return installed && lost == null
+        return installed && lost == null && !addDlc
     }
+
+    /** Its title update or a Compatibility Pack is not in the dlc folder, for a game that is none without them (TitleUpdate.required). */
+    private fun updateNeeded(): Boolean = TitleUpdate.required && (TitleUpdate.updateMissing || TitleUpdate.missingPacks.isNotEmpty())
+
+    /** Add DLC is what such a game needs next: the update and the packs, or the game code built from them. */
+    private fun dlcComesFirst(): Boolean = TitleUpdate.required && (updateNeeded() || !Setup.codeReady(this))
 
     /** The install screen of an app of one title, from the disc image found on the device when there is one. */
     private fun install(title: Title) {
@@ -704,7 +724,13 @@ class MainActivity : AppCompatActivity() {
         // a multiplayer install. SP accepts either, preferring lean.
         // (TU6 installs from the same disc; the update applies after.)
         val isMp = Title.MULTIPLAYER.carried
-        val candidateIsos = if (Title.isMw3) {
+        val candidateIsos = if (Title.isBo3) {
+            listOf(
+                File("/sdcard/Download/bo3.iso"),
+                File("/sdcard/Download/Call of Duty - Black Ops III (USA, Europe) (En,Fr,De,Es,It,Pt,Pl,Ru).iso"),
+                File(getExternalFilesDir(null) ?: filesDir, "bo3.iso"),
+            )
+        } else if (Title.isMw3) {
             listOf(
                 File("/sdcard/Download/mw3.iso"),
                 File("/sdcard/Download/Call of Duty - Modern Warfare 3.iso"),
@@ -744,8 +770,10 @@ class MainActivity : AppCompatActivity() {
      * when there is one.
      */
     private fun launch(title: Title) {
+        val installed = title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory, prefs.installDiscImage)
         when {
-            title.installed(prefs.gameDirectory) && !Title.installDiscMissing(prefs.gameDirectory, prefs.installDiscImage) -> startGame(title)
+            installed && dlcComesFirst() -> startActivity(Intent(this, DlcActivity::class.java))
+            installed -> startGame(title)
             Setup.guided -> openSetup()
             else -> install(title)
         }

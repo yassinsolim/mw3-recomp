@@ -22,7 +22,7 @@ namespace
     struct Args
     {
         const PPCContext& ctx;
-        int next = 5;                       // r5 is the first vararg
+        int next = 5;                       // the first vararg: r5 after (code, format)
         uint64_t Next()
         {
             switch (next++)
@@ -39,11 +39,11 @@ namespace
         bool Exhausted() const { return next > 10; }
     };
 
-    std::string Format(const PPCContext& ctx, uint32_t formatAddress)
+    std::string Format(const PPCContext& ctx, uint32_t formatAddress, int firstArgument = 5)
     {
         if (!formatAddress) return "(null format)";
         const char* f = reinterpret_cast<const char*>(guest::Base() + formatAddress);
-        Args args{ ctx };
+        Args args{ ctx, firstArgument };
         std::string out;
         char scratch[64];
 
@@ -81,8 +81,27 @@ GUEST_HOOK(T_Com_Error)
 {
     // The caller's address: the same message is raised from several places, and
     // which one gave up is half the answer.
+#ifdef T_COM_ERROR_TREYARCH
+    // Treyarch's is (file, line, code, format, ...).
+    LOGE("Com_Error(%u) at %s:%u from %08X: %s", ctx.r5.u32, ctx.r3.u32 ? GuestAnsi(ctx.r3.u32).c_str() : "?",
+         ctx.r4.u32, (uint32_t)ctx.lr, Format(ctx, ctx.r6.u32, 7).c_str());
+#ifdef T_DATA_AssetPools
+    // "Exceeded limit of N assets" is raised when a pool's list of free
+    // entries is empty, not when its count reaches N: said with the count,
+    // it tells a pool that really ran out from a list that lost its entries.
+    if (ctx.r4.u32 == T_DB_POOL_EXHAUSTED_LINE)
+        for (uint32_t type = 0; type < T_DB_ASSET_TYPES; type++)
+        {
+            const uint32_t pool = T_DATA_AssetPools + type * 24;
+            if (PPC_LOAD_U8(pool + 12) == 0 && PPC_LOAD_U32(pool + 20) == 0 && PPC_LOAD_U32(pool + 8) != 0)
+                LOGE("  asset pool %u: %u of %u entries in use, and no free entry", type, PPC_LOAD_U32(pool + 16),
+                     PPC_LOAD_U32(pool + 8));
+        }
+#endif
+#else
     LOGE("Com_Error(%u) from %08X: %s", ctx.r3.u32, (uint32_t)ctx.lr,
          Format(ctx, ctx.r4.u32).c_str());
+#endif
     static const bool stack = diag::Flag("MW2_TRACE_ERRORS");
     if (stack)
     {
@@ -100,6 +119,26 @@ GUEST_HOOK(T_Lua_Error)
 {
     LOGE("Lua error from %08X: %s", (uint32_t)ctx.lr, Format(ctx, ctx.r4.u32).c_str());
     GUEST_ORIG(T_Lua_Error)(ctx, base);
+}
+#endif
+
+#ifdef T_Lua_Require
+// Black Ops III's `require`, (state): the module's name is the first value on
+// the state's stack (a value is a pointer and a type, 4 for a string, whose
+// characters start 12 bytes into what the pointer names). The menus are made
+// of hundreds of modules, each in some fastfile, and a menu that fails says
+// only "attempt to index a nil value": MW2_TRACE_LUA shows which module was
+// being asked for.
+GUEST_HOOK(T_Lua_Require)
+{
+    static const bool traced = diag::Flag("MW2_TRACE_LUA");
+    if (traced)
+    {
+        const uint32_t value = PPC_LOAD_U32(ctx.r3.u32 + 40);
+        const bool string = value && (PPC_LOAD_U32(value + 4) & 0xF) == 4;
+        LOGI("lua: require %s from %08X", string ? GuestAnsi(PPC_LOAD_U32(value) + 12).c_str() : "(not a string)", (uint32_t)ctx.lr);
+    }
+    GUEST_ORIG(T_Lua_Require)(ctx, base);
 }
 #endif
 

@@ -64,6 +64,7 @@ namespace
     constexpr uint32_t XNET_GET_XNADDR_ONLINE   = 0x00000080;
 
     constexpr uint32_t X_WSAENETDOWN = 10050;
+    constexpr uint32_t X_WSAEFAULT   = 10014;
 
     // The title's default net_port is 1000, and ports below 1024 need privileges
     // this process lacks. Everything it sends stays on the loopback, so shifting
@@ -360,7 +361,8 @@ PPC_FUNC(__imp__NetDll_WSAStartup)
 // answer the menu says why nobody is there. Advanced Warfare's multiplayer
 // asks before it opens System Link or Xbox LIVE ("You must have an active
 // network connection to play Xbox Live or System Link matches") and is
-// answered as MW3's is. MW2_NET_LINK=0|1 overrides any.
+// answered as MW3's is, and so is Black Ops III, which asks before Find LAN
+// Game ("No network connection detected"). MW2_NET_LINK=0|1 overrides any.
 namespace
 {
     bool EthernetLinkUp()
@@ -369,7 +371,7 @@ namespace
 #if defined(MW2_TITLE_MP) || defined(COD4_TITLE_MP)
             // Call of Duty 4's multiplayer says the same without a link.
             bool value = true;
-#elif defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
+#elif defined(MW3_TITLE_MP) || defined(AW_TITLE_MP) || defined(BO3_TITLE)
             bool value = online::Get() != nullptr;
 #else
             bool value = false;
@@ -467,6 +469,22 @@ PPC_FUNC(__imp__NetDll_XNetConnect)
 }
 PPC_FUNC(__imp__NetDll_XNetGetConnectStatus)  { ctx.r3.u64 = 2; }   // XNET_CONNECT_STATUS_CONNECTED
 PPC_FUNC(__imp__NetDll_XNetUnregisterInAddr)  { ctx.r3.u64 = 0; }
+
+// (xnet, XNKID*, XNKEY*). Treyarch's engine registers a session's key itself
+// before it talks to the host (the other titles leave it to XSessionCreate).
+// Nothing here is encrypted with it; the session it names is the one this
+// machine is in, which XNetInAddrToXnAddr answers with for a peer that named
+// none.
+PPC_FUNC(__imp__NetDll_XNetRegisterKey)
+{
+    const auto* kid = GuestPtr<uint8_t>(ctx.r4.u32);
+    if (kid) kernel::NoteSessionId(kid);
+    if (kid && online::Trace())
+        LOGI("net-trace: XNetRegisterKey %02x%02x%02x%02x%02x%02x%02x%02x", kid[0], kid[1], kid[2], kid[3],
+             kid[4], kid[5], kid[6], kid[7]);
+    ctx.r3.u64 = kid ? 0 : X_WSAEFAULT;
+}
+PPC_FUNC(__imp__NetDll_XNetUnregisterKey)     { ctx.r3.u64 = 0; }
 
 // (xnet, IN_ADDR server, service, IN_ADDR* out). Xbox Live's own servers,
 // which nothing here stands in for but one: the title server XAM lists for

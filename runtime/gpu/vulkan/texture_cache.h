@@ -67,8 +67,10 @@ namespace vk::textures
     // A render target the title resolved out to memory and samples back. The
     // image belongs to the caller, so the entry only borrows its view, of an
     // image `width` by `height`; `key` names the copy, so an id survives
-    // across frames, and so does its entry in the set.
-    uint64_t Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch, uint32_t width, uint32_t height);
+    // across frames, and so does its entry in the set. `depth` is that of a
+    // volume's view, and 0 for a 2D image's.
+    uint64_t Adopt(uint64_t key, void* view, const gpu::TextureFetch& fetch, uint32_t width, uint32_t height,
+                   uint32_t depth = 0);
 
     // The caller is destroying views it lent to Adopt, with the GPU idle. Each
     // adopted entry is written again at its next Adopt, because a replacement

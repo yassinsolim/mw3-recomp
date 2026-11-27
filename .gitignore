@@ -8,6 +8,7 @@
 /mw3/
 /cod4/
 /aw/
+/bo3/
 /mw2-iso/
 *.xex
 *.xexp
@@ -34,6 +35,8 @@
 /ppc_cod4_mp/
 /ppc_aw/
 /ppc_aw_mp/
+/ppc_bo3/
+/ppc_bo3_zm/
 /ppc_aw_mp_tu17/
 
 # ---- generated switch tables (XenonAnalyse output, rebuilt by build.sh) ----
@@ -44,6 +47,8 @@ config/cod4_switch_tables.toml
 config/cod4mp_switch_tables.toml
 config/aw_switch_tables.toml
 config/awmp_switch_tables.toml
+config/bo3_switch_tables.toml
+config/bo3zm_switch_tables.toml
 config/awmp_switch_tables.tu17.toml
 mw3_candidates.h
 

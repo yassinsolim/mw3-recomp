@@ -18,6 +18,9 @@ namespace kernel
     struct WaitBlock
     {
         std::condition_variable wake;
+        // The event that was pulsed while this thread waited on it: the wait
+        // is over though the event is not left set (Event::Pulse).
+        const Dispatcher* pulsed = nullptr;
     };
 }
 
@@ -214,6 +217,28 @@ bool kernel::Event::Set(const char* thread, uint32_t lr)
     return was;
 }
 
+bool kernel::Event::Pulse(const char* thread, uint32_t lr)
+{
+    std::lock_guard held(g_dispatcher);
+    const bool was = signalled;
+    signalled = false;
+    setCounter++;
+    resetCounter++;
+    lastSignalerThread = thread ? thread : crash::CurrentThreadName();
+    lastSignalerLr = lr;
+    if (guestHeader) *GuestPtr<be32>(guestHeader + 4) = 0;
+    // Every thread waiting now is let go, or the first of them for an event
+    // that resets itself; one that waits later finds the event not set.
+    for (WaitBlock* waiter : waiters)
+    {
+        if (waiter->pulsed) continue;
+        waiter->pulsed = this;
+        waiter->wake.notify_one();
+        if (!manualReset) break;
+    }
+    return was;
+}
+
 bool kernel::Event::Reset(const char* thread, uint32_t lr)
 {
     std::lock_guard held(g_dispatcher);
@@ -294,6 +319,14 @@ uint32_t kernel::Wait(Dispatcher* const* objects, uint32_t count, bool all,
                 objects[i]->Satisfy(me);
                 result = i;   // STATUS_WAIT_0 + i
                 break;
+            }
+            // A pulse ends the wait for one of several objects as a set
+            // would, and leaves nothing to take.
+            if (block.pulsed)
+            {
+                i = 0;
+                while (i < count && objects[i] != block.pulsed) i++;
+                if (i < count) { result = i; break; }
             }
         }
         if (timed && Clock::now() >= deadline) break;

@@ -152,6 +152,46 @@ namespace
         assert(Clock::now() - start >= std::chrono::milliseconds(30));
     }
 
+    // A pulse lets go whoever waits at that moment and leaves the event not
+    // set: every waiter of a notification event, one of a synchronization
+    // event's, and nobody who comes later.
+    void Pulses()
+    {
+        auto idle = std::make_shared<Event>();
+        assert(!idle->Pulse());
+        assert(WaitOne(*idle, kPoll) == X_STATUS_TIMEOUT);          // nobody waited: nothing is kept
+        idle->Set();
+        assert(idle->Pulse());                                      // it was set, and is not any more
+        assert(WaitOne(*idle, kPoll) == X_STATUS_TIMEOUT);
+
+        for (const bool manual : { true, false })
+        {
+            auto e = std::make_shared<Event>();
+            e->manualReset = manual;
+            auto other = std::make_shared<Event>();
+            std::atomic<int> waiting{ 0 }, released{ 0 };
+            std::atomic<uint32_t> index{ 99 };
+            std::vector<std::thread> waiters;
+            for (int i = 0; i < 3; i++)
+                waiters.emplace_back([&] {
+                    // The pulsed event is the second of two: the answer names it.
+                    Dispatcher* list[] = { other.get(), e.get() };
+                    waiting++;
+                    const int64_t timeout = Ms(400);
+                    const uint32_t result = Wait(list, 2, false, &timeout);
+                    if (result != X_STATUS_TIMEOUT) { index = result; released++; }
+                });
+            while (waiting < 3) std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            assert(released == 0);
+            e->Pulse();
+            for (auto& t : waiters) t.join();
+            assert(released == (manual ? 3 : 1));
+            assert(index == 1);
+            assert(WaitOne(*e, kPoll) == X_STATUS_TIMEOUT);
+        }
+    }
+
     void Handles()
     {
         auto e = std::make_shared<Event>();
@@ -242,6 +282,7 @@ int main()
     Mutants();
     WaitAnyAndAll();
     BlockedWaitIsWoken();
+    Pulses();
     Handles();
     GuestHeaders();
     Timers();

@@ -46,11 +46,17 @@ namespace
         // or one for each piece of a move down onto its own source (Pieces).
         uint32_t drawsLeft = 1;
         bool made = false;                                 // at the first of them
+        // One draw of Black Ops III's second copy (Asked): the first kStripe
+        // bytes of every two, within `size` from the two addresses on.
+        bool striped = false;
     };
+    constexpr uint32_t kStripe = 128;
     std::mutex g_pendingLock;
     std::vector<PendingCopy> g_pending;
     std::atomic<uint32_t> g_pendingCount{ 0 };
-    uint64_t g_copyShader = 0;          // the copy draw's vertex shader, once seen
+    // The copy draw's vertex shader, once seen: the plain copy's, and the
+    // striped one's.
+    uint64_t g_copyShader[2]{};
 
     // What the pool has moved lately, for the flash hunt's log lines
     // (diagnostics only).
@@ -72,22 +78,27 @@ namespace
     // `inStream` when the copy is made where the command stream makes it, on
     // the thread that parses the stream: the renderer then orders it against
     // the draws before it.
-    void Copy(uint32_t destination, uint32_t source, uint32_t size, bool inStream)
+    void Copy(const PendingCopy& copy, bool inStream)
     {
-        if (inStream) vk::renderer::BeforeStreamWrite(kernel::ToPhysical(destination), size);
-        // The pool never asks for a move that overlaps; memmove says so for free.
+        if (inStream) vk::renderer::BeforeStreamWrite(kernel::ToPhysical(copy.destination), copy.size);
         watchpoint::Suspend();
-        gpu::watch::WillWrite(destination, size);
-        std::memmove(guest::Base() + destination, guest::Base() + source, size);
+        gpu::watch::WillWrite(copy.destination, copy.size);
+        uint8_t* to = guest::Base() + copy.destination;
+        const uint8_t* from = guest::Base() + copy.source;
+        // The pool never asks for a move that overlaps; memmove says so for free.
+        if (!copy.striped) std::memmove(to, from, copy.size);
+        else
+            for (uint32_t at = 0; at < copy.size; at += 2 * kStripe)
+                std::memmove(to + at, from + at, kStripe);
         watchpoint::Resume();
         if constexpr (diag::kOn)
         {
             std::lock_guard held(g_moveLock);
             g_moveCount++;
-            g_moves[g_moveCount % kMoves] = { destination, source, size, gpu::FrameCount(),
-                                              g_moveCount };
+            g_moves[g_moveCount % kMoves] = { copy.destination, copy.source, copy.size,
+                                              gpu::FrameCount(), g_moveCount };
         }
-        vk::textures::MemoryWritten(kernel::ToPhysical(destination), size);
+        vk::textures::MemoryWritten(kernel::ToPhysical(copy.destination), copy.size);
     }
 
     // How many draws the title makes of one move. Advanced Warfare's function
@@ -108,6 +119,57 @@ namespace
         return 1;
 #endif
     }
+
+    // The copies one call of the title's function draws, in its order.
+    //
+    // Black Ops III's (the zombies' sub_824871A8, the multiplayer's
+    // sub_824880D0) takes a fourth argument, and with any of its bits 3 to 8
+    // set the block is not the bytes from its address on: it is every other
+    // 128 bytes of a 4 KB piece (bit 3) or an 8 KB one, then the other 128s
+    // of the next piece, and so on -- a chequerboard, the rest of which is
+    // another block's, that starts a piece later (the pool's sources come in
+    // such pairs, 4 KB apart). The function draws a piece at a time with a
+    // second vertex shader (128 bytes fetched and exported of every 256),
+    // each draw with a stream constant of its own and every other one 128
+    // bytes further on at both ends. Each draw's stream and vertex buffer
+    // are declared a piece long, and what its later vertices would write
+    // past that is not written: it is the neighbour's.
+    //
+    // Taken for the plain copy, such a move matched no draw, the second
+    // shader being "another shader", and was made at the end of the frame
+    // after, all of it: its image was drawn for two frames from whatever lay
+    // at the new place, and the other block's 128s at the new place were
+    // written over with what lay beside the source (4,517 of 22,309 moves in
+    // a hundred seconds of Shadows of Evil; its far street as flat
+    // rectangles while the first zombies' images come in).
+    template <typename Each>
+    void Asked(uint32_t destination, uint32_t source, uint32_t size,
+               [[maybe_unused]] uint32_t flags, Each&& each)
+    {
+        const uint64_t frame = gpu::FrameCount();
+        const auto constant = [](uint32_t address)
+        { return 0x40000000u | (kernel::ToPhysical(address) >> 2); };
+#ifdef BO3_TITLE
+        if (flags & 0x1F8)
+        {
+            const uint32_t most = flags & 8 ? 4096 : 8192;
+            uint32_t shift = kStripe;
+            for (uint32_t left = size; left;)
+            {
+                const uint32_t piece = std::min(left, most);
+                each(PendingCopy{ destination, source, piece, constant(destination), frame, 1,
+                                  false, true });
+                left -= piece;
+                destination += piece + shift;
+                source += piece + shift;
+                shift = 0u - shift;
+            }
+            return;
+        }
+#endif
+        each(PendingCopy{ destination, source, size, constant(destination), frame,
+                          Pieces(destination, source, size) });
+    }
 }
 
 #ifdef T_Image_FlushMove
@@ -117,23 +179,24 @@ GUEST_HOOK(T_Image_FlushMove)
     const uint32_t physical = kernel::ToPhysical(destination);
     // Queued before the title's own call writes the copy draw, so the parse
     // never meets the draw before it knows what the draw copies.
-    const bool atItsDraw = destination && source && size && physical && !(physical & 3) &&
-                           gpu::Consuming();
+    const bool wanted = destination && source && size;
+    const bool atItsDraw = wanted && physical && !(physical & 3) && gpu::Consuming();
+    const uint32_t flags = ctx.r6.u32;
     if (atItsDraw)
     {
         std::lock_guard held(g_pendingLock);
-        g_pending.push_back({ destination, source, size, 0x40000000u | (physical >> 2),
-                              gpu::FrameCount(), Pieces(destination, source, size) });
+        Asked(destination, source, size, flags,
+              [](const PendingCopy& copy) { g_pending.push_back(copy); });
         g_pendingCount.store(uint32_t(g_pending.size()), std::memory_order_relaxed);
     }
     GUEST_ORIG(T_Image_FlushMove)(ctx, base);
-    if (!destination || !source || !size) return;
+    if (!wanted) return;
     g_asked.fetch_add(1, std::memory_order_relaxed);
     g_bytes.fetch_add(size, std::memory_order_relaxed);
     if (atItsDraw) return;
     // Nothing is consuming the command stream to order the copy against.
     g_immediate++;
-    Copy(destination, source, size, false);
+    Asked(destination, source, size, flags, [](const PendingCopy& copy) { Copy(copy, false); });
 }
 
 #endif
@@ -151,8 +214,9 @@ void imagepool::AtDraw(uint32_t streamConstant, uint64_t vertexShader)
         if (it == g_pending.end()) return;
         // c0 outlives the draw that set it. Once the copy shader is known, an
         // old stream constant under some other draw is not a copy.
-        if (g_copyShader && vertexShader != g_copyShader) { g_otherShader++; return; }
-        g_copyShader = vertexShader;
+        uint64_t& shader = g_copyShader[it->striped];
+        if (shader && vertexShader != shader) { g_otherShader++; return; }
+        shader = vertexShader;
         copy = *it;
         // A move drawn in pieces stays until its last: the pool moves blocks
         // to one destination again and again, and a later piece's draw named
@@ -170,7 +234,7 @@ void imagepool::AtDraw(uint32_t streamConstant, uint64_t vertexShader)
         g_pendingCount.store(uint32_t(g_pending.size()), std::memory_order_relaxed);
     }
     if (copy.made) return;
-    Copy(copy.destination, copy.source, copy.size, true);
+    Copy(copy, true);
     g_atDraw++;
 }
 
@@ -190,7 +254,7 @@ void imagepool::AtFrameEnd(uint64_t parsedFrames)
     // One made at its first draw was only waiting for draws that never came.
     size_t late = 0;
     for (const PendingCopy& c : overdue)
-        if (!c.made) { Copy(c.destination, c.source, c.size, true); late++; }
+        if (!c.made) { Copy(c, true); late++; }
     g_atFrameEnd += late;
 }
 

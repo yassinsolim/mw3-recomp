@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What the bo3 flavour says in place of the MW2 app's wording: the
+         game's name, and its two halves, which on this console are the
+         multiplayer and the zombies (it has no campaign). The disc alone is
+         no game: both halves are what title update 5 makes of the disc's
+         executables, and their zones are in the update and Compatibility
+         Pack 1, so the steps are three and Add DLC is one of them. Setup on a
+         PC does not build this game, so nothing here names a setup command. -->
+    <string name="wordmark">BLACK OPS III</string>
+    <string name="wordmark_recompiled">BO3 RECOMPILED</string>
+    <string name="title_campaign">MULTIPLAYER</string>
+    <string name="title_multiplayer">ZOMBIES</string>
+    <string name="game_code_missing">The game code is not on this device. It is made here from your own disc and title update 5: Add DLC takes the update and builds it.</string>
+    <string name="build_code_missing">The game code is not on this device yet: it is made from your own disc and title update 5.\nAdd DLC builds it and says how far it is; it takes some minutes and goes on in the background.</string>
+    <string name="status_update_needed">Black Ops III on this console is completed by its title update 5 and Compatibility Packs 1 and 2: the disc alone has no map.\nChoose Add DLC and point it at the folder Content\\0000000000000000\\4156091D copied off your Xbox 360\'s hard disk. The game code is then built from your disc and the update, here on this device.</string>
+    <string name="build_update_missing">The game code is made from your disc and title update 5, and the update is not in the DLC folder: add it with Add DLC first.</string>
+    <string name="build_name_campaign">multiplayer</string>
+    <string name="build_name_multiplayer">zombies</string>
+    <string name="install_mode_copy_hint">About 4 GB on the device\'s own storage, and a minute or two. The image or folder is not needed afterwards.</string>
+    <string name="dlc_detail_update">Your own title update, Compatibility Packs and map packs, copied off your Xbox 360\'s hard disk. The app has none and downloads none.</string>
+    <string name="dlc_hint_update">Copy the folder Content\\0000000000000000\\4156091D off your console\'s hard disk (an Xbox 360 USB drive, or the disk in a PC) and choose it here, or choose the files in it: title update 5 is in 000B0000, and Compatibility Packs 1 and 2, which the game needs as well, in 00000002 with the map packs (The Giant, Awakening). The files stay yours and are only read. Hold an entry to remove it.</string>
+    <string name="dlc_none">Nothing here yet. The game needs title update 5 and Compatibility Packs 1 and 2.</string>
+    <string name="dlc_ready">%1$d packages and the title update are here, and the game code is built: the game starts from the launcher. Map packs added here are in the game\'s own menus the next time it starts; nothing is built again for them.</string>
+    <string name="dlc_code_missing">%1$d packages and the title update are here, but not yet the game code, which is built from your disc and the update on this device: \"Build it now\" below (some minutes, in the background).</string>
+    <string name="dlc_building">%1$d packages and the title update are here, and the game code is being built on this device: %2$s. You can leave this screen; the game starts from the launcher once it is done.</string>
+    <string name="dlc_build_failed">%1$d packages and the title update are here, but the game code could not be built: %2$s</string>
+    <string name="dlc_update_missing">%1$d packages are here, but not title update 5, which the game is made from: it is the file in Content\\0000000000000000\\4156091D\\000B0000 on the console\'s hard disk.</string>
+    <string name="dlc_packs_missing">Still missing: %1$s. The game needs both: without one the title only tells you that required content has to be downloaded, and nothing downloads here. They are free and on your console\'s hard disk beside the map packs, in Content\\0000000000000000\\4156091D\\00000002 (the console fetched them with the title update); add them here the same way.</string>
+    <string name="dlc_nothing_found_update">None of those files is a Black Ops III package. They are files without an extension, with names of letters and digits, in Content\\0000000000000000\\4156091D on the console\'s hard disk.</string>
+    <string name="disclaimer">UNOFFICIAL. NOT AFFILIATED WITH ACTIVISION, TREYARCH OR MICROSOFT.</string>
+</resources>

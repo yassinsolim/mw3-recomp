@@ -154,16 +154,30 @@ namespace vk::renderer::detail
                 g.recentTextures[RecentTexture(fetch.d)] = kept;
             };
 
-            auto found = g.resolvedTo.find(fetch.BaseAddress());
-            const Resolved* newest =
-                found == g.resolvedTo.end() ? nullptr
-                                            : &found->second.copies[found->second.newest];
+            const ResolveRing* const ring = ResolvedAt(fetch);
+            const Resolved* newest = ring ? &ring->copies[ring->newest] : nullptr;
             if (newest && newest->view)
             {
+                // A copy fetched as a tiled volume is given one from its
+                // next resolve on (FillResolveVolume).
+                const bool volume = !newest->depth && fetch.Tiled() &&
+                                    fetch.Dimension() == gpu::TextureDimension::D3;
+                if (volume)
+                {
+                    const VolumeShape shape{ fetch.Width(), fetch.Height(), fetch.Depth() };
+                    VolumeShape& learned = g.fetchedVolume[fetch.BaseAddress()];
+                    if (learned != shape)
+                    {
+                        learned = shape;
+                        LOGI("renderer: the texture at %08X is fetched as a %ux%ux%u volume; its copies are"
+                             " written into one as well from the next resolve", fetch.BaseAddress(),
+                             shape.width, shape.height, shape.depth);
+                    }
+                }
                 // The texture is as wide as the fetch says; the copy was made
                 // as wide as the surface's pitch until a fetch said otherwise
                 // (State::fetchedWidth).
-                if (!newest->depth && fetch.Width() < newest->width)
+                else if (!newest->depth && fetch.Width() < newest->width)
                 {
                     uint32_t& learned = g.fetchedWidth[fetch.BaseAddress()];
                     if (learned != fetch.Width())
@@ -179,13 +193,18 @@ namespace vk::renderer::detail
                 // shared id would change view every frame. The fetch says
                 // whether the sampler linearises, and the two views of one copy
                 // are different entries, so that is part of the key too.
-                const bool linearise = !newest->depth && fetch.Linearises() && newest->gammaView;
-                const uint64_t key = fetch.BaseAddress() |
-                                     (uint64_t(found->second.newest + 1) << 32) |
-                                     (uint64_t(linearise ? 1 : 0) << 34);
-                ids[slot] = vk::textures::Adopt(
-                    key, linearise ? newest->gammaView : newest->view, fetch,
-                    newest->width * newest->scale, newest->height * newest->scale);
+                // And so is whether it is the depth's copy or the colour's
+                // (ResolveKey), and the copy's volume.
+                const bool linearise = !volume && !newest->depth && fetch.Linearises() && newest->gammaView;
+                const uint64_t key = ResolveKey(fetch.BaseAddress(), newest->depth) |
+                                     (uint64_t(ring->newest + 1) << 32) |
+                                     (uint64_t(linearise ? 1 : 0) << 34) |
+                                     (uint64_t(volume ? 1 : 0) << 35);
+                ids[slot] = volume
+                    ? vk::textures::Adopt(key, newest->volumeView, fetch, fetch.Width() * newest->scale,
+                                          fetch.Height() * newest->scale, newest->volumeDepth)
+                    : vk::textures::Adopt(key, linearise ? newest->gammaView : newest->view, fetch,
+                                          newest->width * newest->scale, newest->height * newest->scale);
                 if (ids[slot])
                 {
                     note(slot, newest->scale);

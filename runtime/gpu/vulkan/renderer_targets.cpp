@@ -80,8 +80,13 @@ namespace vk::renderer::detail
     {
         switch (format)
         {
-        case 0: case 1: case 10: return VK_FORMAT_R8G8B8A8_UNORM;   // 8_8_8_8 and gamma
-        case 2: case 3: case 12: return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+        case 0: case 1: return VK_FORMAT_R8G8B8A8_UNORM;   // 8_8_8_8 and gamma
+        // 10 is 2_10_10_10 blended at a higher precision: the same tiles and
+        // the same bits. Black Ops III draws its depth and the weapon into
+        // 2 and the world into 10, one surface, and with an image for each
+        // (10 was an 8_8_8_8 one) what a clear named as 2 never reached the
+        // world's.
+        case 2: case 3: case 10: case 12: return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         case 4:  return VK_FORMAT_R16G16_SNORM;
         case 5:  return VK_FORMAT_R16G16B16A16_SNORM;
         case 6:  return VK_FORMAT_R16G16_SFLOAT;

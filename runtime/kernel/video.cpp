@@ -86,6 +86,13 @@ PPC_FUNC(__imp__XGetVideoMode)
     ctx.r3.u64 = 0;
 }
 
+// XGetVideoCapabilities(): no argument and a word of flags for an answer.
+// Black Ops III asks as it fills in its record of the display (sub_8248B338)
+// and reads bit 4 alone, which with XGetDisplaySize's answer is what it knows
+// of a stereoscopic television. None: no flag, and a size of nothing.
+PPC_FUNC(__imp__XGetVideoCapabilities) { ctx.r3.u64 = 0; }
+PPC_FUNC(__imp__XGetDisplaySize)       { ctx.r3.u64 = 0; }
+
 PPC_FUNC(__imp__VdQueryVideoFlags)
 {
     // Widescreen | HiDef; the title only tests individual bits.

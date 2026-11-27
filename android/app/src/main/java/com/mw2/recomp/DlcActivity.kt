@@ -143,7 +143,7 @@ class DlcActivity : AppCompatActivity() {
                 },
                 packs,
             )
-            TitleUpdate.inUse -> getString(R.string.dlc_ready, packs)
+            TitleUpdate.ready -> getString(R.string.dlc_ready, packs)
             building -> getString(
                 R.string.dlc_building, packs,
                 if (ToolchainInstall.confirmation != null) getString(R.string.update_code_confirm)
@@ -151,6 +151,8 @@ class DlcActivity : AppCompatActivity() {
             )
             buildable && state.error.isNotEmpty() -> getString(R.string.dlc_build_failed, packs, state.error)
             TitleUpdate.codeMissing -> getString(R.string.dlc_code_missing, packs, getString(R.string.setup_command))
+            // A game that is nothing without its update counts its packs before the update is here.
+            TitleUpdate.updateMissing -> getString(R.string.dlc_update_missing, packs)
             // Everything but a Compatibility Pack: the note below is the whole of it.
             TitleUpdate.missingPacks.isNotEmpty() -> getString(R.string.dlc_update_here, packs)
             else -> getString(R.string.dlc_update_missing, packs)

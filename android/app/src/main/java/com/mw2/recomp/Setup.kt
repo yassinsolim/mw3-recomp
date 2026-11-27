@@ -37,9 +37,11 @@ object Setup {
     /**
      * The apps with the whole game in them, which are the four that are
      * published: the older apps of one title each (and of title update 6,
-     * which is downloaded after the install) keep their install screen.
+     * which is downloaded after the install) keep their install screen. So
+     * does Black Ops III, whose game code is built from its title update:
+     * its steps are the disc, Add DLC and then the build, not this order.
      */
-    val guided: Boolean = Title.both
+    val guided: Boolean = Title.both && !TitleUpdate.required
 
     /**
      * The game folder: the app's own external folder, which needs no

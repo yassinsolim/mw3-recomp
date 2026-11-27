@@ -41,6 +41,7 @@ val mw3mpLibraries = layout.buildDirectory.dir("mw3mp-jni").get().asFile
 val mw2mpLibraries = layout.buildDirectory.dir("mw2mp-jni").get().asFile
 val cod4mpLibraries = layout.buildDirectory.dir("cod4mp-jni").get().asFile
 val awmpLibraries = layout.buildDirectory.dir("awmp-jni").get().asFile
+val bo3zmLibraries = layout.buildDirectory.dir("bo3zm-jni").get().asFile
 // The app with the whole game (the mw3 and mw2 flavours) is published without
 // the recompiled code, which each player builds from their own disc into a
 // package of its own (android/game, docs/game-library.md) that this app loads
@@ -56,6 +57,7 @@ val mw3ApplicationId = "com.mw3.recomp$appSuffix"
 val mw2ApplicationId = "com.mw2.recomp$appSuffix"
 val cod4ApplicationId = "com.cod4.recomp$appSuffix"
 val awApplicationId = "com.aw.recomp$appSuffix"
+val bo3ApplicationId = "com.bo3.recomp$appSuffix"
 
 // Where the MW2 flavours' copy of the bundled graphics driver is put
 // (bundledDriverAssets, at the end of this file).
@@ -381,6 +383,38 @@ android {
                 }
             }
         }
+        // Call of Duty: Black Ops III, the same shape with other halves: on
+        // this console it has no campaign, so the first library is the
+        // multiplayer's (libbo3.so, default.xex) and the second the zombies'
+        // (libbo3zm.so, default_zm.xex). Both are the executables title
+        // update 5 makes of the disc's, which the runtime makes at every
+        // start from the player's disc and update (docs/BO3-BRINGUP.md). Not
+        // published anywhere: no update repository.
+        create("bo3") {
+            dimension = "title"
+            applicationId = bo3ApplicationId
+            resValue("string", "app_name", "CoD: Black Ops III" + if (appSuffix.isEmpty()) "" else " ($appSuffix)")
+            // Orange, and a diamond in place of the bars and the chevron
+            // (src/bo3/res/drawable), so the five games tell apart on one
+            // home screen.
+            resValue("color", "icon_accent", "#FF8A3D")
+            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            if (gameSplit) buildConfigField("String", "GAME_PACKAGE", "\"$bo3ApplicationId.game\"")
+            manifestPlaceholders["gamePackage"] = "$bo3ApplicationId.game"
+            buildConfigField("String", "LIBRARY_SP", "\"bo3\"")
+            buildConfigField("String", "LIBRARY_MP", "\"bo3zm\"")
+            externalNativeBuild {
+                cmake {
+                    arguments += listOf(
+                        "-DMW2_TITLE=bo3", "-DMW3_RECOMP_ONLY=ON", "-DMW3_LINK_PROBE=ON",
+                        "-DMW2_ONLINE=none", "-DMW2_BOTH_TITLES=ON",
+                        "-DMW2_MP_LIBRARY_DIRECTORY=${File(bo3zmLibraries, "arm64-v8a").invariantSeparatorsPath}",
+                    )
+                    if (gameSplit) arguments += listOf("-DMW2_SPLIT=runtime")
+                    setting("MW2_LTO")?.let { arguments += listOf("-DMW2_LTO=$it") }
+                }
+            }
+        }
         // The multiplayer alone, as an app beside the game: the test harness
         // for two players on one device (-PmpInstance above), not something
         // a player installs.
@@ -431,7 +465,7 @@ android {
     androidComponents {
         beforeVariants { variant ->
             val flavors = variant.productFlavors.toMap()
-            if (flavors["title"] in setOf("mw3", "mw3mp", "mw2", "cod4", "aw") && flavors["tu"] == "tu6") variant.enable = false
+            if (flavors["title"] in setOf("mw3", "mw3mp", "mw2", "cod4", "aw", "bo3") && flavors["tu"] == "tu6") variant.enable = false
             // A second copy is a test harness, never a release.
             if (mpInstance > 1 && flavors["title"] == "mw3mp" && variant.buildType != "debug") variant.enable = false
         }
@@ -459,11 +493,14 @@ android {
         getByName("aw") {
             jniLibs.srcDir(awmpLibraries)
         }
-        // Modern Warfare 2's, Call of Duty 4's and Advanced Warfare's apps
-        // carry the same Turnip driver and nothing else of src/mw3/assets (the
-        // camouflage packs are MW3's): a copy of the drivers folder alone,
-        // made by bundledDriverAssets below.
-        listOf("campaign", "multiplayer", "mw2", "cod4", "aw").forEach { getByName(it) { assets.srcDir(mw2DriverAssets) } }
+        getByName("bo3") {
+            jniLibs.srcDir(bo3zmLibraries)
+        }
+        // Modern Warfare 2's, Call of Duty 4's, Advanced Warfare's and Black
+        // Ops III's apps carry the same Turnip driver and nothing else of
+        // src/mw3/assets (the camouflage packs are MW3's): a copy of the
+        // drivers folder alone, made by bundledDriverAssets below.
+        listOf("campaign", "multiplayer", "mw2", "cod4", "aw", "bo3").forEach { getByName(it) { assets.srcDir(mw2DriverAssets) } }
     }
 
     externalNativeBuild {
@@ -533,7 +570,7 @@ android {
 // run, and Gradle does not know the folder is that build's output: say so, or
 // the packaging could read it first and leave the multiplayer out.
 tasks.configureEach {
-    Regex("merge((?:Mw[23]|Cod4|Aw)Tu0\\w+)JniLibFolders").matchEntire(name)?.let {
+    Regex("merge((?:Mw[23]|Cod4|Aw|Bo3)Tu0\\w+)JniLibFolders").matchEntire(name)?.let {
         dependsOn("externalNativeBuild${it.groupValues[1]}")
     }
 }
@@ -549,7 +586,7 @@ tasks.configureEach {
     // Every task that reads the MW2 flavours' assets: merging them, and in a
     // release build lint's model and analysis, which read the source folders
     // (the v0.1.0 release jobs of the MW2 repo failed on each undeclared one).
-    val forMw2 = listOf("Campaign", "Multiplayer", "Mw2", "Cod4", "Aw").any { name.contains(it) }
+    val forMw2 = listOf("Campaign", "Multiplayer", "Mw2", "Cod4", "Aw", "Bo3").any { name.contains(it) }
     if (forMw2 && (name.contains("Assets") || name.contains("lint", ignoreCase = true))) dependsOn(bundledDriverAssets)
 }
 
@@ -585,6 +622,13 @@ class KitTitle(
      * image (runtime/install/install.cpp).
      */
     val updateFolder: String? = null,
+    /**
+     * For such a title in a kit that has no title of the disc's own (Black
+     * Ops III, whose disc's executables are run nowhere): the SHA-256 of the
+     * disc's executable it is made from, which the build takes from the
+     * player's disc.
+     */
+    val discSha256: List<String> = emptyList(),
 )
 class KitGame(
     val folder: String, val titles: List<KitTitle>, val extraSources: List<String> = emptyList(),
@@ -637,6 +681,26 @@ val kitGames = mapOf(
             KitTitle("awmp17", "default_mp.xex", emptyList(),
                 "AWMP.tu17.toml", "awmp_switch_tables.tu17.toml", "ppc_aw_mp_tu17",
                 listOf("AW_TITLE=1", "AW_TITLE_MP=1", "AW_TITLE_TU17=1", "MW3_TITLE=1"), updateFolder = "aw/tu17"),
+        ),
+        // The instructions the configuration replaces by calls (CMakeLists.txt).
+        listOf("runtime/recomp/ppc_extra_instructions.cpp"),
+        inTextTables = true,
+    ),
+    // Both titles are what title update 5 makes of the disc's executables
+    // (docs/BO3-BRINGUP.md): the build takes those from the disc and the
+    // update from the dlc folder. The hashes are the disc's, as
+    // CMakeLists.txt has them.
+    "bo3" to KitGame(
+        "bo3/tu0",
+        listOf(
+            KitTitle("bo3", "default.xex", emptyList(),
+                "BO3.toml", "bo3_switch_tables.toml", "ppc_bo3", listOf("BO3_TITLE=1", "MW3_TITLE=1"),
+                updateFolder = "bo3/tu5",
+                discSha256 = listOf("e64ed5fa25ca8c97d3970efc9b0d17bc32253cc43dbf9f5f96637aada064d8bb")),
+            KitTitle("bo3zm", "default_zm.xex", emptyList(),
+                "BO3ZM.toml", "bo3zm_switch_tables.toml", "ppc_bo3_zm", listOf("BO3_TITLE=1", "BO3_TITLE_ZM=1", "MW3_TITLE=1"),
+                updateFolder = "bo3/tu5",
+                discSha256 = listOf("d0eb63c97f69cf14ecaf5171429fa4afcce6f0fd5ca3d774c7a0af343f33fe4e")),
         ),
         // The instructions the configuration replaces by calls (CMakeLists.txt).
         listOf("runtime/recomp/ppc_extra_instructions.cpp"),
@@ -702,6 +766,7 @@ kitGames.forEach { (game, kit) ->
                 mapOf(
                     "library" to title.library, "executable" to title.executable, "sha256" to title.sha256,
                     "folder" to (title.updateFolder ?: kit.folder), "fromUpdate" to (title.updateFolder != null),
+                    "discSha256" to title.discSha256,
                     "toml" to title.toml, "tables" to title.tables, "tree" to title.tree,
                     "defines" to listOf("MW2_TRACE_INDIRECT=1") + title.defines,
                     "expectedAbi" to "title ${title.library}\ngenerated-code $code\n" + shares,

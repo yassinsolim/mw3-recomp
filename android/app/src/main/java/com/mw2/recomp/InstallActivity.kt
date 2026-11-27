@@ -666,7 +666,12 @@ class InstallActivity : AppCompatActivity() {
         // The game's files are one half; an app published without the game's
         // code needs that too (GameLibrary.kt), and a run started without it
         // only ends in "The game could not start". Said here instead.
-        val playable = GameLibrary.ready(this, titleToStart())
+        // Black Ops III has a third: its title update and Compatibility Pack
+        // 1, which the game code is built from and the game does not start
+        // without (TitleUpdate.required).
+        TitleUpdate.refresh(this)
+        val updateNeeded = TitleUpdate.required && (TitleUpdate.updateMissing || TitleUpdate.missingPacks.isNotEmpty())
+        val playable = !updateNeeded && GameLibrary.ready(this, titleToStart())
         if (playable && intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
             GameActivity.start(this, titleToStart()) { finish() }
             return
@@ -678,6 +683,12 @@ class InstallActivity : AppCompatActivity() {
             dialog.setMessage(done)
                 .setPositiveButton(R.string.play) { _, _ ->
                     GameActivity.start(this, titleToStart()) { finish() }
+                }
+        } else if (updateNeeded) {
+            dialog.setMessage(done + "\n\n" + getString(R.string.status_update_needed))
+                .setPositiveButton(R.string.dlc_title) { _, _ ->
+                    startActivity(Intent(this, DlcActivity::class.java))
+                    finish()
                 }
         } else {
             // The launcher's large button builds it (the guided setup), or

@@ -13,7 +13,9 @@ import java.io.File
  */
 enum class Title(val library: String, val executable: String) {
     CAMPAIGN(BuildConfig.LIBRARY_SP, "default.xex"),
-    MULTIPLAYER(BuildConfig.LIBRARY_MP, "default_mp.xex");
+    // Black Ops III's second executable is the zombies' (its first is the
+    // multiplayer: this console's game has no campaign).
+    MULTIPLAYER(BuildConfig.LIBRARY_MP, if (BuildConfig.APPLICATION_ID.startsWith("com.bo3.")) "default_zm.xex" else "default_mp.xex");
 
     /**
      * The library a run of this title loads: the multiplayer's is the title
@@ -72,8 +74,16 @@ enum class Title(val library: String, val executable: String) {
         /** com.aw.recomp*, Call of Duty: Advanced Warfare, which goes the same way. */
         val isAw: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.aw.")
 
+        /**
+         * com.bo3.recomp*, Call of Duty: Black Ops III, the same way again,
+         * with its multiplayer where the others have a campaign and its
+         * zombies where they have a multiplayer.
+         */
+        val isBo3: Boolean = BuildConfig.APPLICATION_ID.startsWith("com.bo3.")
+
         /** The title's number, which a disc's executables carry: what tells this game's disc from another's (DiscImage.kind). */
         val titleId: Long = when {
+            isBo3 -> 0x4156091DL
             isAw -> 0x41560914L
             isCod4 -> 0x415607E6L
             isMw3 -> 0x415608CBL
@@ -99,10 +109,10 @@ enum class Title(val library: String, val executable: String) {
          * disc executables of both Modern Warfare games and of Call of Duty 4
          * have, Modern Warfare 2's title update 6 has not.
          */
-        val hasBots: Boolean = MULTIPLAYER.carried && BuildConfig.MW2_TU == "tu0"
+        val hasBots: Boolean = MULTIPLAYER.carried && BuildConfig.MW2_TU == "tu0" && !isBo3
 
         /** Modern Warfare 2, either version of it. */
-        val isMw2: Boolean = !isMw3 && !isCod4 && !isAw
+        val isMw2: Boolean = !isMw3 && !isCod4 && !isAw && !isBo3
 
         /**
          * Detail at distance (MW2_LOD_BIAS): the hook is in Modern Warfare

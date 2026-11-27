@@ -25,6 +25,25 @@ reads `base` (where the dispatch starts), `r` (the index register) and the
 labels; `default` is the first case, there being no guard to read one from.
 Running it again adds nothing.
 
+Black Ops III has dispatches the analyser passes over because nothing bounds
+their index (a switch the compiler knew to be complete: the decompressor's
+state, an enumeration):
+
+    lis    r12,table@h
+    slwi   r0,rN,1          the index, times two         |  (a table of bytes
+    addi   r12,r12,table@l                                |   has neither shift
+    lhzx   r0,r12,r0        the case's distance from the |   and loads with
+    lis    r12,first@h      first, from the table        |   lbzx r0,r12,rN;
+    addi   r12,r12,first@l                                |   its distances may
+    add    r12,r12,r0                                     |   be in words:
+    mtctr  r12                                            |   slwi r0,r0,2
+    bctr                                                  |   after the load)
+
+The table is in .rdata. Its cases are counted off it: every entry that is the
+distance to an instruction of the same function, up to where the next
+dispatch's table starts (what lies between two tables is padding, which reads
+as the first case).
+
     MW2_TITLE=cod4 tools/intext_switch_tables.py      (setup\\setup.ps1 does, for this game)
 
 It also adds the tables of halfwords that have no guard before them (title
@@ -74,6 +93,67 @@ for bctr in (a for TVA, TSZ in SECTIONS for a in range(TVA + 12, TVA + TSZ - 8, 
 # the dispatch.
 bases = {int(x, 16) for x in re.findall(r"^base = 0x([0-9A-F]+)$", text, re.M)}
 functions = title.functions(img)
+
+# Black Ops III's dispatches with no bound on their index, in every form its
+# compiler writes (the module's text). For its two titles alone: the other
+# titles' tables are part of what their game libraries are checked against,
+# and are written by the other searches as they were. What this one takes the
+# next leaves.
+if title.NAME in ("bo3", "bo3zm"):
+    def pair(lis, addi):
+        low = addi & 0xFFFF
+        return (((lis & 0xFFFF) << 16) + (low - 0x10000 if low & 0x8000 else low)) & 0xFFFFFFFF
+
+    # Where every dispatch's table starts: `lis r12; addi r12,r12; l[bhw]zx r0,r12,rN`
+    # with at most the index's shift between them.
+    tables = set()
+    for TVA, TSZ in SECTIONS:
+        for at in range(TVA, TVA + TSZ - 16, 4):
+            if (w(at) & 0xFFFF0000) != 0x3D800000: continue
+            addi = None
+            for after in range(at + 4, at + 16, 4):
+                x = w(after)
+                if addi is None and (x & 0xFFFF0000) == 0x398C0000: addi = x
+                elif addi is not None and (x & 0xFFFF07FF) in (0x7C0C00AE, 0x7C0C022E, 0x7C0C002E):
+                    tables.add(pair(w(at), addi)); break
+
+    for bctr in (a for TVA, TSZ in SECTIONS for a in range(TVA + 40, TVA + TSZ, 4)):
+        if w(bctr) != 0x4E800420 or w(bctr - 4) != 0x7D8903A6 or w(bctr - 8) != 0x7D8C0214: continue
+        # Back over the dispatch: the two lis/addi pairs of r12 around the load,
+        # and the shifts of the index and of what was loaded.
+        pairs, register, entry, shift, start, low = [], None, 0, 0, None, None
+        for at in range(bctr - 12, bctr - 56, -4):
+            x = w(at)
+            if (x & 0xFFFF0000) == 0x398C0000: low = x                               # addi r12,r12,N
+            elif (x & 0xFFFF0000) == 0x3D800000:                                      # lis r12,N
+                if low is None: break
+                pairs.append(pair(x, low))
+                low, start = None, at
+                if len(pairs) == 2: break
+            elif x == 0x7C0C022E: entry = 2                                           # lhzx r0,r12,r0
+            elif (x & 0xFFFF07FF) == 0x7C0C00AE: entry, register = 1, (x >> 11) & 31  # lbzx r0,r12,rN
+            elif x == 0x5400103A: shift = 2                                           # slwi r0,r0,2
+            elif (x & 0xFC1FFFFF) == 0x5400083C: register = (x >> 21) & 31            # slwi r0,rN,1
+            elif x != 0x60000000: break
+        if len(pairs) != 2 or not entry or register is None or start in bases: continue
+        first, table = pairs
+        # A compare of the index within the eight instructions before it bounds
+        # it: that dispatch is the analyser's.
+        if any((w(a) & 0xFC000000) == 0x28000000 and ((w(a) >> 16) & 31) == register for a in range(start - 32, start, 4)): continue
+        function = next((s for s, size in functions.items() if s <= bctr < s + size), None)
+        if function is None:
+            raise SystemExit(f"the unbounded dispatch at {start:08X} is in no function .pdata describes")
+        end, labels = function + functions[function], []
+        while not (labels and table + entry * len(labels) in tables):
+            at = table - BASE + entry * len(labels)
+            distance = (img[at] if entry == 1 else struct.unpack_from(">H", img, at)[0]) << shift
+            if distance % 4 or not first <= first + distance < end: break
+            labels.append(first + distance)
+        if len(labels) < 2:
+            raise SystemExit(f"the unbounded dispatch at {start:08X} has no table at {table:08X}")
+        added.append((start, register, labels))
+        bases.add(start)
+
 for bctr in (a for TVA, TSZ in SECTIONS for a in range(TVA + 36, TVA + TSZ - 8, 4)):
     if w(bctr) != 0x4E800420 or w(bctr - 4) != 0x7D8903A6 or w(bctr - 8) != 0x7D8C0214 or w(bctr - 12) != 0x60000000: continue
     start = bctr - 36

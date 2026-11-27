@@ -136,6 +136,17 @@ PPC_FUNC(__imp__NtClearEvent)
     ctx.r3.u64 = X_STATUS_SUCCESS;
 }
 
+// NtPulseEvent(handle, previous state*): what Black Ops III's job system
+// wakes its workers with (sub_82157E08).
+PPC_FUNC(__imp__NtPulseEvent)
+{
+    auto event = LookupHandleAs<Event>(ctx.r3.u32);
+    if (!event) { ctx.r3.u64 = X_STATUS_INVALID_HANDLE; return; }
+    const bool was = event->Pulse(crash::CurrentThreadName(), uint32_t(ctx.lr));
+    if (auto* previous = GuestPtr<be32>(ctx.r4.u32)) *previous = was ? 1u : 0u;
+    ctx.r3.u64 = X_STATUS_SUCCESS;
+}
+
 PPC_FUNC(__imp__NtCreateMutant)
 {
     // (Handle*, ObjectAttributes, InitialOwner)

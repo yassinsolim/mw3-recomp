@@ -468,6 +468,14 @@ int main()
         assert(volume->Header().titleId == 0x41560817 && volume->Header().contentType == 2);
         assert(volume->Header().licenceBits == 1 && volume->Header().displayName == u"Test Pack");
         assert(volume->RootFiles().size() == 3);
+        // What each folder holds, by the names the package has: the root's
+        // files and its folder, the folder's one file, and nothing for a
+        // folder that is not there.
+        const auto* children = volume->Children("");
+        assert(children && *children == (std::vector<std::string>{ "mappack1.id", "Maps", "odd.bin", "even.bin" }));
+        children = volume->Children("MAPS\\");
+        assert(children && *children == std::vector<std::string>{ "Big.ff" });
+        assert(!volume->Children("sound"));
         MountVolume("mappack1", volume);
 
         Opened o = Create("mappack1:\\mappack1.id", GENERIC_READ, FILE_OPEN);
