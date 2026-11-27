@@ -61,6 +61,8 @@
    "what": "Riot on a Retroid Pocket Flip 2 (43cf741), no fault: pillars passed close while strafing at 161.8 and 164.6 s, at the picture's edge, which local-flicker took for flashes"},
   {"file": "runs/flip_aw-match_pillars_b.mp4", "log": "runs/flip_aw-match_pillars_b.log", "offset": 109.41, "play_from": 125,
    "what": "Riot again, no fault: a pillar passed close at 171.0 s"},
+  {"file": "runs/thor_aw-match_screen.mp4", "log": "runs/thor_aw-match_screen.log", "offset": 109.56, "play_from": 125,
+   "what": "Riot on an AYN Thor (1d97933), no fault: a perforated screen at the picture's right edge, square holes 16 to 18 px a side in rows and columns at 165 to 168 s, which the block check took for a lattice"},
   {"file": "runs/flip_mw3-campaign.mp4", "log": "runs/flip_mw3-campaign.log", "offset": 50.65, "play_from": 95, "combat_from": 95,
    "what": "Black Tuesday: sparks in the overturned vehicle, the street fight"},
   {"file": "runs/flip_mw3-survival.mp4", "log": "runs/flip_mw3-survival.log", "offset": 50.65, "play_from": 70, "combat_from": 70,

@@ -162,6 +162,16 @@ class PictureChecks(unittest.TestCase):
                     cv2.fillPoly(pictures[index], [corners + place], (0, 0, 0))
         self.assertNotIn("blocks", checks(pictures))
 
+    def test_small_square_holes_are_not_a_block_lattice(self):
+        # A perforated screen on Riot: square holes in rows and columns, half a block's side.
+        pictures = drifting(30)
+        for index in range(10, 16):
+            for row in range(10):
+                for column in range(14):
+                    left, top = 300 + column * 12, 100 + row * 12
+                    pictures[index][top:top + 8, left:left + 8] = 0
+        self.assertNotIn("blocks", checks(pictures))
+
     def test_scattered_rectangles_are_not_a_lattice(self):
         picture = scene()
         spots = np.random.default_rng(5).integers(0, 400, (12, 2))

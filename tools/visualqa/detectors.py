@@ -65,7 +65,9 @@ class Thresholds:
     block_count: int = 8
     # The renderer's blocks are 32 pixels of a frame 1920 wide (30 to 36 as
     # measured, in all three recordings); Solar's honeycomb wall is a lattice
-    # of 40 to 46.
+    # of 40 to 46, and the holes of a perforated screen on Riot (16 to 18),
+    # Rust's wire fence (22) and Dome's window grilles (18) are smaller.
+    block_side_least: float = 26.0
     block_side_most: float = 38.0
     block_regular: float = 0.85
     block_frames: int = 3
@@ -249,7 +251,7 @@ def local_flicker(m, context, t, whole_rows=()):
 def blocks(m, context, t):
     """Frames with a lattice of blocks left out or drawn alone."""
     rows = [int(row) for row in np.flatnonzero((m.blocks >= t.block_count) & (m.blocks_regular >= t.block_regular)
-                                             & (m.blocks_side <= t.block_side_most))
+                                             & (m.blocks_side >= t.block_side_least) & (m.blocks_side <= t.block_side_most))
             if context.in_play(m.seconds[row])]
     severity = FAIL if len(rows) >= t.block_frames else WARN
     findings = []
