@@ -1926,6 +1926,18 @@ multiplier 1x, FPS limit 60.
   that at a frame time the console's 60 a second never has. Which constant
   it is was not found, and no Xbox 360 was at hand to compare; nothing is
   changed, and the suite's `flicker` there is this.
+  **Found since:** it is the reading of the textures the title rewrites.
+  The command processor reads a frame's commands while the title already
+  writes the next frame, and a rewritten texture was read again at the end
+  of each segment that bound it, where the title may be writing the next
+  frame's bytes into it. Read where the frame first binds it instead (as
+  Black Ops III's lighting table already was), the frame is gone: on
+  Windows, counting the frames whose mean rises 40 levels above both
+  neighbours (a scratch counter in the flash recorder), 2 and 2 in 150 s
+  with the display at 60 Hz and 14 at 250 frames a second with the old
+  reads, 0 in three runs at each rate with the new; the soldiers lit
+  brightly for a frame later in the descent went with it. The old reads
+  stay behind `MW2_TEXTURES_AT_BIND=0` (docs/textures.md).
 - **The tester's recording of v0.1.4** (multiplayer, Greenband, 110
   degrees): the rectangle is 644 by 362 of 1280 by 720, which is the sprite
   of 9.6 by 5.4 ten units ahead at 110 degrees (645 by 363), and comes with

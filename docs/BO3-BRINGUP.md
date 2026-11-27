@@ -261,7 +261,8 @@ look at each frame it named).
   the end of each segment that binds it and found half written: four or five
   such frames in 46 s of standing still in The Giant on the Flip, none in
   three runs with the table read once, where the frame first binds it
-  (`MW2_TABLE_AT_BIND`, on for this title alone). Not seen on Windows
+  (`MW2_TABLE_AT_BIND`, on for this title alone then; since, every rewritten
+  texture in every title is read so, `MW2_TEXTURES_AT_BIND`). Not seen on Windows
   either way.
 - **The zombies' start.** The launcher's ZOMBIES entry starts the zombies'
   executable with no launch data (`TitleUpdate.zombiesLaunchData` is Advanced
@@ -347,8 +348,8 @@ frames a second, eight passed at once and two did not:
 - `mw3-bots`: the held weapon and the arm drawn black for one frame, 82 s
   into the run; three more runs passed. A model lit by nothing for a frame
   is what this title's lighting table read half written looks like (above);
-  Modern Warfare 3 reads its table at the segments' ends as before
-  (`MW2_TABLE_AT_BIND` is off for it), and no run of `android` by itself was
+  Modern Warfare 3 read its table at the segments' ends then
+  (`MW2_TABLE_AT_BIND` was off for it; since, `MW2_TEXTURES_AT_BIND` reads it where the frame first binds it), and no run of `android` by itself was
   made to say whether it is seen there.
 - `aw-shadows`: the run ended 57 s in, while Solar loaded. The debug
   build's dump of every thread's stack at a `STALL` (`crash.cpp`) faulted

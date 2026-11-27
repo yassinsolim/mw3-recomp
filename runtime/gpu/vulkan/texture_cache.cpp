@@ -1947,29 +1947,27 @@ namespace
         if (!image || !image->image || image->borrowed ||
             (!image->sourceBytes && !image->mipBytes))
             return;
-        // A rewritten one is read again at the end of every segment that binds
-        // it, whatever happens here: the title can write it after this bind,
-        // and a segment only ever sees what was read at its own end.
-        //
-        // Not Black Ops III's model lighting table (a 512x256x4 volume, each
-        // model a patch of it, as Modern Warfare 2's): that one is read where
-        // a frame first binds it and left alone until the next frame does. Its
-        // patches are written while the frame's commands are being read here,
-        // and read at a segment's end a patch was found half made: on a
-        // Retroid Pocket Flip 2 a teleporter's door, its pad, the held weapon
-        // or a zombie's arm was lit as something else or not at all for one
-        // frame, four or five times in 46 s of standing still in The Giant
-        // (378 and 983 such reads found the table changed), and never in two
-        // runs with the table read once. MW2_TABLE_AT_BIND=0 or 1 says which
-        // for any title.
-#if defined(BO3_TITLE)
-        constexpr bool kTableAtBind = true;
-#else
-        constexpr bool kTableAtBind = false;
-#endif
-        static const bool tableAtBind = env::Text("MW2_TABLE_AT_BIND") ? env::Flag("MW2_TABLE_AT_BIND") : kTableAtBind;
+        // A texture the title rewrites is read where a frame first binds it and
+        // left alone until the next frame does. The commands are read here a
+        // frame behind the title, which by then writes the next frame's bytes
+        // into the same texture; read later, at the end of the segment, a
+        // texture was found half made or already the next frame's:
+        // - Black Ops III's model lighting table (a 512x256x4 volume, each
+        //   model a patch of it, as Modern Warfare 2's): a teleporter's door,
+        //   its pad, the held weapon or a zombie's arm lit as something else or
+        //   not at all for one frame, four or five times in 46 s of standing
+        //   still in The Giant on a Retroid Pocket Flip 2, and never in runs
+        //   with the table read once;
+        // - Advanced Warfare's drop pod in Induction: the screens over its
+        //   window gone and the window washed white for one frame, on Windows
+        //   twice in each of two 150 s runs at 60 frames a second and 14 times
+        //   in one at 250, in one run of `aw-campaign` in two on a Retroid
+        //   Pocket Flip 2, and in none of six runs read once (docs/textures.md).
+        // MW2_TEXTURES_AT_BIND=0 reads them again at the end of each segment
+        // that binds them, as before.
+        static const bool atBind = env::Text("MW2_TEXTURES_AT_BIND") ? env::Flag("MW2_TEXTURES_AT_BIND") : true;
         const auto queueForSegment = [&] {
-            if (tableAtBind && image->volume) return;
+            if (atBind) return;
             if (image->queuedSegment == g.segment || g.rewrittenThisSegment.size() >= 256) return;
             image->queuedSegment = g.segment;
             g.rewrittenThisSegment.push_back(id);

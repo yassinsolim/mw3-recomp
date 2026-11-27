@@ -95,6 +95,18 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Advanced Warfare: the drop pod's screens no longer vanish for a frame.**
+  In Induction's pod the screens over the window went and the window showed
+  washed white for one frame, a few times a descent (14 times in 150 s at
+  250 frames a second on Windows, twice at 60, and on the phones). The
+  command processor reads a frame's commands while the title already writes
+  the next frame into the textures it rewrites, and such a texture was read
+  again at the end of each segment that binds it, by then half the next
+  frame's. Every rewritten texture, in every title, is now read where a
+  frame first binds it, as Black Ops III's model lighting table already was
+  (`MW2_TEXTURES_AT_BIND=0` for the old reads; `MW2_TABLE_AT_BIND` is gone):
+  none in six runs on Windows at 60 and 250 frames a second
+  (`runtime/gpu/vulkan/texture_cache.cpp`, docs/textures.md).
 - **Android (Turnip): a frame slot no longer draws from vertex data it
   copied laps ago.** Where there is no shadow of guest memory each of the
   three frame slots keeps its own copy of the vertex data the title has not

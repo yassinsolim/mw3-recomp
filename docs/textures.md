@@ -284,9 +284,16 @@ The console's GPU reads a texture when a draw executes, not when the command
 processor parses it. Two rules follow:
 
 1. **Not too early.** The parse can run while the title is still writing the
-   texture, or before a streamed image's bytes arrive. Textures that have been
-   rewritten, and textures that came up empty, must be read again at the end
-   of each segment that binds them.
+   texture, or before a streamed image's bytes arrive. Textures that came up
+   empty must be read again at the end of each segment that binds them.
+   A texture the title rewrites is read where a frame first binds it, and not
+   again until the next frame does: the parse runs a frame behind the title,
+   which by the end of the segment may be writing the next frame's bytes into
+   it. Read there, Black Ops III's model lighting table was found half written
+   (models lit wrongly for one frame) and Advanced Warfare's drop pod in
+   Induction lost the screens over its window for one frame, the window washed
+   white. `MW2_TEXTURES_AT_BIND=0` reads rewritten textures at each segment's
+   end again.
 2. **Not too late.** The title frees a streamed texture's memory and reuses it
    once the command processor reports the draws before it done. Every read owed
    to a draw must happen before that report.
@@ -297,7 +304,7 @@ dwords another slot was answered for (64 recent answers, by a hash of the
 dwords), until `vk::textures::Epoch` moves: at a new frame or segment, when an image is let go, and at
 `MemoryWritten`. Until then a lookup would answer the same and find nothing
 more to check (the watch is consulted once a frame, and rewritten textures
-once a segment). A resolve also ends it, since it can change which copy an
+once a frame, or once a segment with `MW2_TEXTURES_AT_BIND=0`). A resolve also ends it, since it can change which copy an
 address names.
 
 A submission is therefore cut into **segments** at every point where the
@@ -313,7 +320,7 @@ packet is fetched, ahead of earlier draws, so it tells the title nothing and is
 not a completion point.
 
 At each segment end `vk::textures::EndSegment` re-reads the segment's
-rewritten and empty textures and re-stages any that changed. Each segment's
+empty textures (and with `MW2_TEXTURES_AT_BIND=0` its rewritten ones) and re-stages any that changed. Each segment's
 uploads go into a command buffer of their own, submitted ahead of the
 segment's draws and after the previous segment, so the frame remains one
 submission ordered `uploads 1, draws 1, uploads 2, draws 2, ...`. No image is
