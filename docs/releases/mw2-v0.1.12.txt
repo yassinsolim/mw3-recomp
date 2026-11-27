@@ -1,0 +1,19 @@
+Modern Warfare 2 for Android v0.1.12
+
+Nothing to rebuild: the game code you built for v0.1.11 is used as it is, and your saves and settings are kept.
+
+New
+- Fixed: at high frame rates, a texture the game redraws could show part of the next frame for one frame (found in Advanced Warfare's drop pod). Such textures are now read when first used.
+- Graphics presets (Automatic, Battery saver, Balanced, Best looking, Custom), an Advanced page and an FPS counter.
+- Touch aiming: swipe on the right half of the screen to look, with sensitivity settings. Gyro aiming too, not yet tried on a device.
+- Opt-in anonymous performance reports; the app won't ask, and nothing is collected, until the report server is up.
+- You can uninstall the build tools once the game is built.
+- Our Discord: https://yassin.app/discord
+
+Known issues
+- Automatic settings were measured on two devices only.
+- Shaders are compiled again once after this update, so the first minutes stutter.
+- Map packs are experimental.
+- Multiplayer over the internet needs a relay server; see the README.
+
+Official downloads are only on GitHub Releases. Never share the game code you build: it contains the game. Unofficial fan project, not affiliated with Activision or Microsoft.
