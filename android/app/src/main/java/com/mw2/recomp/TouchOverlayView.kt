@@ -73,9 +73,28 @@ class TouchOverlayView @JvmOverloads constructor(
     private val dpadBits = HashMap<String, Int>()
     private val held = HashSet<String>()
     private val toggled = HashSet<String>()
-    private var lookPointer = -1
-    private var lookLastX = 0f
-    private var lookLastY = 0f
+
+    /**
+     * A finger that turns the view as it moves: one on the look area, or
+     * one that went down on a button beside it and has been dragged off its
+     * resting place -- the thumb on Fire goes on aiming without being
+     * lifted. [turning] is false for that one until it has moved further
+     * than a pressed thumb wobbles, so pressing a button does not jog the
+     * aim.
+     */
+    private class Look(var lastX: Float, var lastY: Float, val downMillis: Long, var turning: Boolean) {
+        val downX = lastX
+        val downY = lastY
+        var travelled = 0f
+    }
+    private val looks = HashMap<Int, Look>()
+
+    // A tap on the look area holds the trigger for a moment (Prefs.tapToFire).
+    private var tapFiring = false
+    private val endTapFire = Runnable {
+        tapFiring = false
+        pushState()
+    }
 
     // ---- editing -----------------------------------------------------------
     private var dragPointer = -1
@@ -130,14 +149,20 @@ class TouchOverlayView @JvmOverloads constructor(
     private fun centreY(element: ControlElement) = element.yFrac * height
     private fun radius(element: ControlElement) = element.sizeDp * density * 0.5f
 
-    /** The look area is a rectangle; everything else is a circle. */
+    /**
+     * The look area is the half of the screen its centre is in, all of it:
+     * wherever a thumb lands beside the buttons, it turns the view.
+     * Everything else is a circle.
+     */
     private fun rectOf(element: ControlElement, into: RectF) {
-        val halfWidth = element.sizeDp * density * 0.5f
-        val halfHeight = halfWidth * 0.62f
-        into.set(
-            centreX(element) - halfWidth, centreY(element) - halfHeight,
-            centreX(element) + halfWidth, centreY(element) + halfHeight,
-        )
+        val left = if (element.xFrac >= 0.5f) width * 0.5f else 0f
+        into.set(left, 0f, left + width * 0.5f, height.toFloat())
+    }
+
+    /** Whether a control is on the look area's side of the screen. */
+    private fun besideLook(element: ControlElement): Boolean {
+        val look = layout.elements.firstOrNull { it.kind == ControlKind.LOOK && it.visible } ?: return false
+        return (element.xFrac >= 0.5f) == (look.xFrac >= 0.5f)
     }
 
     private fun hit(element: ControlElement, x: Float, y: Float): Boolean {
@@ -214,9 +239,10 @@ class TouchOverlayView @JvmOverloads constructor(
                         }
                     }
                 }
-                ControlKind.LOOK -> Unit   // sent as deltas, not as a stick
+                ControlKind.LOOK -> Unit   // sent as movement, not as a state
             }
         }
+        if (tapFiring) rightTrigger = 255
         NativeBridge.nativeTouchState(
             buttons, leftTrigger, rightTrigger,
             leftX.coerceIn(-1f, 1f), leftY.coerceIn(-1f, 1f),
@@ -234,7 +260,9 @@ class TouchOverlayView @JvmOverloads constructor(
         // before the phone rang is still aiming when they come back -- but
         // not the editor, which would otherwise leave a bit stuck down.
         if (editing) toggled.clear()
-        lookPointer = -1
+        looks.clear()
+        removeCallbacks(endTapFire)
+        tapFiring = false
         if (NativeBridge.isLoaded()) {
             NativeBridge.nativeLookEnd()
             pushState()
@@ -255,7 +283,7 @@ class TouchOverlayView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex
-                changed = press(event.getPointerId(index), event.getX(index), event.getY(index))
+                changed = press(event.getPointerId(index), event.getX(index), event.getY(index), event.eventTime)
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -263,14 +291,17 @@ class TouchOverlayView @JvmOverloads constructor(
                     val id = event.getPointerId(index)
                     val x = event.getX(index)
                     val y = event.getY(index)
-                    if (id == lookPointer) {
-                        // Every sample between frames matters for a smooth
-                        // turn, so the batched history is used too.
+                    looks[id]?.let { look ->
+                        // Every sample between frames is sent, with its own
+                        // time: the view then turns by the whole of the
+                        // finger's path, not by its chord.
                         for (h in 0 until event.historySize) {
-                            sendLook(event.getHistoricalX(index, h), event.getHistoricalY(index, h))
+                            sendLook(
+                                look, event.getHistoricalX(index, h), event.getHistoricalY(index, h),
+                                event.getHistoricalEventTime(h),
+                            )
                         }
-                        sendLook(x, y)
-                        continue
+                        sendLook(look, x, y, event.eventTime)
                     }
                     val element = claims[id] ?: continue
                     when (element.kind) {
@@ -283,7 +314,7 @@ class TouchOverlayView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val index = event.actionIndex
-                changed = release(event.getPointerId(index))
+                changed = release(event.getPointerId(index), event.getX(index), event.getY(index), event.eventTime)
             }
 
             MotionEvent.ACTION_CANCEL -> {
@@ -308,12 +339,10 @@ class TouchOverlayView @JvmOverloads constructor(
         } catch (_: Throwable) {}
     }
 
-    private fun press(pointerId: Int, x: Float, y: Float): Boolean {
+    private fun press(pointerId: Int, x: Float, y: Float, millis: Long): Boolean {
         val element = elementAt(x, y) ?: return false
         if (element.kind == ControlKind.LOOK) {
-            lookPointer = pointerId
-            lookLastX = x
-            lookLastY = y
+            looks[pointerId] = Look(x, y, millis, turning = true)
             return false
         }
         triggerHaptic()
@@ -327,33 +356,63 @@ class TouchOverlayView @JvmOverloads constructor(
                 } else {
                     held.add(element.id)
                 }
+                if (besideLook(element)) looks[pointerId] = Look(x, y, millis, turning = false)
             }
             ControlKind.LOOK -> Unit
         }
         return true
     }
 
-    private fun release(pointerId: Int): Boolean {
-        if (pointerId == lookPointer) {
-            lookPointer = -1
-            NativeBridge.nativeLookEnd()
-            return false
+    private fun release(pointerId: Int, x: Float, y: Float, millis: Long): Boolean {
+        var changed = false
+        val look = looks.remove(pointerId)
+        if (look != null) {
+            // Where the finger really came up. Measured with scripted
+            // swipes, a flick of 2 cm turned the view as if it had been
+            // 1.7 to 2.2 and ten swipes there and back left it up to four
+            // degrees aside, though the view turned by exactly the
+            // movements reported: the last of them need not be where the
+            // finger stopped (the system resamples a touch between
+            // frames). With this the turn is from where the finger went
+            // down to where it came up.
+            sendLook(look, x, y, millis)
+            if (looks.isEmpty()) NativeBridge.nativeLookEnd()
         }
-        val element = claims.remove(pointerId) ?: return false
-        when (element.kind) {
-            ControlKind.STICK -> stickPositions.remove(element.id)
-            ControlKind.DPAD -> dpadBits.remove(element.id)
-            else -> held.remove(element.id)
+        val element = claims.remove(pointerId)
+        if (element != null) {
+            when (element.kind) {
+                ControlKind.STICK -> stickPositions.remove(element.id)
+                ControlKind.DPAD -> dpadBits.remove(element.id)
+                else -> held.remove(element.id)
+            }
+            changed = true
+        } else if (look != null && prefs.tapToFire &&
+            TouchLook.isTap(look.downMillis, millis, look.travelled, TAP_SLOP_DP * density)
+        ) {
+            tapFiring = true
+            removeCallbacks(endTapFire)
+            postDelayed(endTapFire, TouchLook.TAP_FIRE_MILLIS)
+            changed = true
         }
-        return true
+        return changed
     }
 
-    private fun sendLook(x: Float, y: Float) {
-        val dx = x - lookLastX
-        val dy = y - lookLastY
-        lookLastX = x
-        lookLastY = y
-        if (dx != 0f || dy != 0f) NativeBridge.nativeLookDelta(dx, dy)
+    private fun sendLook(look: Look, x: Float, y: Float, millis: Long) {
+        look.travelled = max(look.travelled, hypot(x - look.downX, y - look.downY))
+        if (!look.turning) {
+            if (look.travelled <= TAP_SLOP_DP * density) return
+            // From here on, not from where it went down: the wobble that
+            // was let pass is not made up in one jump.
+            look.turning = true
+            look.lastX = x
+            look.lastY = y
+            return
+        }
+        val dx = x - look.lastX
+        val dy = y - look.lastY
+        look.lastX = x
+        look.lastY = y
+        if (dx != 0f || dy != 0f) NativeBridge.nativeLookDelta(dx, dy, millis * NANOS_PER_MILLI)
     }
 
     private fun moveStick(element: ControlElement, x: Float, y: Float) {
@@ -416,9 +475,10 @@ class TouchOverlayView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
-                // Two fingers on the selected control resize it.
+                // Two fingers on the selected control resize it. The look
+                // area has no size of its own: it is half the screen.
                 val element = dragElement ?: selected
-                if (element != null && event.pointerCount == 2) {
+                if (element != null && element.kind != ControlKind.LOOK && event.pointerCount == 2) {
                     pinching = true
                     pinchStartDistance = max(1f, spread(event))
                     pinchStartSize = element.sizeDp
@@ -430,7 +490,7 @@ class TouchOverlayView @JvmOverloads constructor(
                 if (pinching && event.pointerCount >= 2) {
                     val scale = spread(event) / pinchStartDistance
                     element.sizeDp = (pinchStartSize * scale)
-                        .coerceIn(minimumSize(element), maximumSize(element))
+                        .coerceIn(ControlLayout.MIN_SIZE_DP, ControlLayout.MAX_SIZE_DP)
                     dragMoved = true
                     onSelectionChanged?.invoke(element)
                     invalidate()
@@ -469,12 +529,6 @@ class TouchOverlayView @JvmOverloads constructor(
         return true
     }
 
-    private fun minimumSize(element: ControlElement): Float =
-        if (element.kind == ControlKind.LOOK) 120f else 36f
-
-    private fun maximumSize(element: ControlElement): Float =
-        if (element.kind == ControlKind.LOOK) 900f else 200f
-
     private fun spread(event: MotionEvent): Float {
         if (event.pointerCount < 2) return 1f
         return hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
@@ -507,6 +561,10 @@ class TouchOverlayView @JvmOverloads constructor(
         held.contains(element.id) || toggled.contains(element.id)
 
     companion object {
+        /** How far a pressed thumb wobbles without meaning to move. */
+        private const val TAP_SLOP_DP = 8f
+        private const val NANOS_PER_MILLI = 1_000_000L
+
         // Authentic Xbox 360 Color Palette
         private const val COLOR_A = 0xFF107C10.toInt()      // Emerald Green
         private const val COLOR_A_GLOW = 0xFF22C55E.toInt()

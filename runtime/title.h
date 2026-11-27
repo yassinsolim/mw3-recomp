@@ -177,6 +177,13 @@
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
 
+// The view turned by an angle (mouse_look.cpp), as the disc's multiplayer
+// below has it: AimAssist_UpdateGamePadInput is sub_82774568, and the zoom
+// factor its turn rates are scaled by is the one T_AimAssist_FovScale keeps.
+#define T_AimAssist_UpdateInput 82774568   // (input, output)
+#define T_DATA_AimAssistState     0x82928BA0u
+#define T_AIMASSIST_FOV_SCALE     T_AIM_TURN_RATE_SCALE
+
 // Call of Duty: Black Ops III (cod_xenon_mp_Final.pe and cod_xenon_zm_Final.pe,
 // Treyarch's engine as built for this console, which has the multiplayer and
 // the zombies and no campaign; ppc_bo3/ and ppc_bo3_zm/; docs/BO3-BRINGUP.md)
@@ -463,6 +470,17 @@
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
 
+// ---- the view turned by an angle (mouse_look.cpp) ----
+// As Modern Warfare 3's block has it. AimAssist_UpdateGamePadInput
+// (sub_827D1B80, the one function that copies the input's pitch at +8 and
+// yaw at +20 to the output's +0 and +4 before anything else) has the local
+// client at +44 of its input; the first client's aim assist state is at
+// 82986EA0 (4816 bytes a client), and the zoom factor its turn rates are
+// scaled by is the one T_AimAssist_FovScale keeps there.
+#define T_AimAssist_UpdateInput 827D1B80   // (input, output)
+#define T_DATA_AimAssistState     0x82986EA0u
+#define T_AIMASSIST_FOV_SCALE     T_AIM_TURN_RATE_SCALE
+
 #elif defined(AW_TITLE)
 
 #define MW2_TITLE_NAME  "AW campaign"
@@ -579,6 +597,13 @@
 #define T_CLIENT_VALID            0u
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
+
+// The view turned by an angle (mouse_look.cpp), as the multiplayer's block
+// above has it: AimAssist_UpdateGamePadInput is sub_82108970 and the first
+// client's aim assist state is at 828372B0 (4880 bytes a client).
+#define T_AimAssist_UpdateInput 82108970   // (input, output)
+#define T_DATA_AimAssistState     0x828372B0u
+#define T_AIMASSIST_FOV_SCALE     T_AIM_TURN_RATE_SCALE
 
 #elif defined(COD4_TITLE) && defined(COD4_TITLE_MP)
 
@@ -742,6 +767,15 @@
 #define T_USERCMD_WEAPON_SHIFT    24u
 #define T_USERCMD_MOVE            0x16u
 
+// The view turned by an angle (mouse_look.cpp), as the campaign's block
+// below has it: AimAssist_UpdateGamePadInput is sub_82341778, the first
+// client's aim assist state is at 823A7188 and the turn rates are
+// sub_82341480.
+#define T_AimAssist_UpdateInput 82341778   // (input, output)
+#define T_AIM_INPUT_LOCAL_CLIENT  40u
+#define T_DATA_AimAssistState     0x823A7188u
+#define T_AIMASSIST_FOV_SCALE     96u
+
 #elif defined(COD4_TITLE)
 
 #define MW2_TITLE_NAME  "CoD4 campaign"
@@ -799,6 +833,20 @@
 #define T_CLIENT_VALID            0u
 #define T_CLIENT_ORIGIN           0u
 #define T_CLIENT_ANGLES           0u
+
+// ---- the view turned by an angle (mouse_look.cpp) ----
+// As Modern Warfare 3's block has it, in the engine two games earlier.
+// AimAssist_UpdateGamePadInput (sub_8230AEB8, called by CL_GamepadMove,
+// sub_822CDA50) has an input a word shorter: the pitch at +4, the yaw at +16
+// and the local client at +40; the output is the same, the pitch at +0 and
+// the yaw at +4. The first client's aim assist state is at 82373408 (3636
+// bytes a client). Its turn rates (sub_8230ABD8) blend the hip's and the
+// sight's by how far the sight is up (+104) and multiply the result by the
+// zoom factor at +96.
+#define T_AimAssist_UpdateInput 8230AEB8   // (input, output)
+#define T_AIM_INPUT_LOCAL_CLIENT  40u
+#define T_DATA_AimAssistState     0x82373408u
+#define T_AIMASSIST_FOV_SCALE     96u
 
 #elif defined(MW3_TITLE) && defined(MW3_TITLE_MP)
 

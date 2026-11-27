@@ -560,9 +560,15 @@ MW2_NATIVE(void, nativeTouchState)(JNIEnv*, jobject, jint buttons, jint leftTrig
     android::input::SetTouchPad(pad);
 }
 
-MW2_NATIVE(void, nativeLookDelta)(JNIEnv*, jobject, jfloat dx, jfloat dy)
+// The app's times are the system's uptime, which is the steady clock's.
+MW2_NATIVE(void, nativeLookDelta)(JNIEnv*, jobject, jfloat dx, jfloat dy, jlong eventNanos)
 {
-    android::input::AddLook(float(dx), float(dy));
+    android::input::AddLook(float(dx), float(dy), eventNanos);
+}
+
+MW2_NATIVE(void, nativeGyroDelta)(JNIEnv*, jobject, jfloat right, jfloat down, jlong eventNanos)
+{
+    android::input::AddGyro(float(right), float(down), eventNanos);
 }
 
 MW2_NATIVE(void, nativeLookEnd)(JNIEnv*, jobject)
@@ -570,11 +576,10 @@ MW2_NATIVE(void, nativeLookEnd)(JNIEnv*, jobject)
     android::input::ClearLook();
 }
 
-MW2_NATIVE(void, nativeLookSettings)(JNIEnv*, jobject, jfloat sensitivityX, jfloat sensitivityY,
-                                     jfloat smoothing, jboolean invertY, jfloat saturation)
+MW2_NATIVE(void, nativeLookSettings)(JNIEnv*, jobject, jfloat degreesX, jfloat degreesY,
+                                     jfloat sightsFactor, jboolean invertY, jint gyroMode)
 {
-    android::input::SetLookSettings(sensitivityX, sensitivityY, smoothing, invertY == JNI_TRUE,
-                                    saturation);
+    android::input::SetLookSettings(degreesX, degreesY, sightsFactor, invertY == JNI_TRUE, gyroMode);
 }
 
 MW2_NATIVE(void, nativePadState)(JNIEnv*, jobject, jint user, jint buttons, jint leftTrigger,

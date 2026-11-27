@@ -14,10 +14,12 @@ import kotlin.math.roundToInt
 
 /**
  * One screen over the game at the start of a run, until the player asks not
- * to see it again: how to open the menu, where the settings are and how to
- * quit. The game's own screens say none of it, and a player with a
- * controller and the on-screen buttons off has no Menu button to find: the
- * way in is Select and Start together, which nobody guesses.
+ * to see it again: how to open the menu, where the settings are, how the
+ * on-screen controls look around (while they are on) and how to quit. The
+ * game's own screens say none of it: a player with a controller and the
+ * on-screen buttons off has no Menu button to find, the way in being Select
+ * and Start together, which nobody guesses, and nothing on the glass says
+ * that the right half of it turns the view.
  *
  * It is drawn as the menu is (GameMenu.kt) and closed by a touch or by the
  * pad, whose events GameActivity hands it while it is up; the game loads
@@ -71,6 +73,7 @@ class GameHelp(context: Context, private val host: FrameLayout, private val pref
             addView(line(context, R.string.game_help_title, 19f, accent).apply { typeface = Typeface.DEFAULT_BOLD })
             addView(line(context, R.string.game_help_menu, 14.5f, ink))
             addView(line(context, R.string.game_help_settings, 14.5f, ink))
+            if (prefs.touchControls) addView(line(context, R.string.game_help_touch, 14.5f, ink))
             addView(line(context, R.string.game_help_quit, 14.5f, ink))
             addView(
                 LinearLayout(context).apply {

@@ -145,12 +145,18 @@ namespace android::input
     // From the touch controls: an absolute state, recomputed by the overlay
     // on every touch event, so a lost event cannot leave a button held.
     void SetTouchPad(const Pad& pad);
-    // The look area's movement since the last call, in view pixels.
-    void AddLook(float dx, float dy);
-    // The finger left the look area: the stick centres at once.
+    // The look area's movement since the last call, in the view's pixels,
+    // and the gyroscope's turn in degrees to the right and downwards (when
+    // the player has it on, and while aiming if that is the setting). `when`
+    // is when it was made, on the steady clock in nanoseconds.
+    void AddLook(float dx, float dy, long long when);
+    void AddGyro(float right, float down, long long when);
+    // The finger left the look area: nothing is turned after it.
     void ClearLook();
-    void SetLookSettings(float sensitivityX, float sensitivityY, float smoothing,
-                         bool invertY, float saturationPixelsPerSecond);
+    // Degrees a pixel sideways and up and down, the share of them while the
+    // left trigger is held, and the gyroscope: 0 off, 1 always, 2 while
+    // aiming.
+    void SetLookSettings(float degreesX, float degreesY, float sightsFactor, bool invertY, int gyroMode);
 
     // From a physical pad. `user` is 0..3, as the console numbers them.
     void SetHardwarePad(uint32_t user, const Pad& pad);

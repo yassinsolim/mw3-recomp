@@ -48,6 +48,40 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   to install it.
 
 ### Changed
+- **Looking by touch turns the view by your finger, not by a stick (all
+  four games on Android).** A player without a controller wrote that "the
+  screen sensitivity is bad" and that he did not like "relying on a
+  joystick touch control". The look area sent the finger's speed as the
+  right stick, smoothed, and the game then treated it as a stick: measured
+  in Call of Duty 4, a swipe of 2 cm turned the view between nothing and
+  3.4 degrees by how fast it was made, and a slow one not at all. Now the
+  whole right half of the screen, beside the buttons, turns the view by
+  how far the finger moves: 13 degrees for a centimetre to begin with
+  (about half a turn across the screen), the same slow or as a flick and
+  at 30 or 60 frames a second, 26.0 degrees for 2 cm on an AYN Thor and a
+  Retroid Pocket Flip 2 in every one of the four games, with no dead zone
+  and no smoothing. The game takes it as an angle, the way the PC builds
+  take the mouse; a sight's zoom slows it as it slows a controller.
+  - **Settings**, on the app's start screen (**Settings → Controls**) and
+    in a game (**Menu → Touch look and gyroscope**), each felt on the next
+    swipe: the sensitivity in degrees a centimetre, up and down as a share
+    of sideways, a share while Aim is held, inverting up and down.
+  - **Firing while you look**: keep your thumb on **Fire** and drag it; it
+    turns the view as the look area does. So do the other buttons on that
+    side. **Tap the look area to fire** is an option.
+  - **Gyroscope aiming**, off unless you turn it on: turning the phone
+    turns the view, always or only while you aim, with its own
+    sensitivity. Not yet played with a phone in hand.
+  - The right stick that stood in the middle of the look area is hidden
+    (**Edit controls** brings it back; the rest of a layout you arranged
+    is kept), and the buttons on that side no longer lie over one another
+    or run off a 16:9 screen. The look area is the half of the screen it
+    is on; drag it across the middle in **Edit controls** for the left.
+  - The old "Look sensitivity" sliders and "Look smoothing" are gone:
+    they set the stick. Controllers are unchanged. No game code is built
+    again. `MW2_TRACE_LOOK=1` logs the view as it turns and
+    `tools/touch_look.py` measures it on a phone
+    ([docs/android.md](docs/android.md#looking-by-touch)).
 - **A bug report's game-code line lists every library, and what each was
   built for.** It named only the disc's campaign and multiplayer, so a log
   could not show whether Advanced Warfare's title-update multiplayer

@@ -595,37 +595,13 @@
                     android:text="@string/invert_look" />
 
                 <TextView
-                    android:id="@+id/look_x_label"
+                    android:id="@+id/touch_look_label"
                     style="@style/SettingLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
                 <SeekBar
-                    android:id="@+id/look_x"
-                    style="@style/SettingSeek"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <TextView
-                    android:id="@+id/look_y_label"
-                    style="@style/SettingLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <SeekBar
-                    android:id="@+id/look_y"
-                    style="@style/SettingSeek"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <TextView
-                    android:id="@+id/smoothing_label"
-                    style="@style/SettingLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <SeekBar
-                    android:id="@+id/smoothing"
+                    android:id="@+id/touch_look"
                     style="@style/SettingSeek"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
@@ -634,7 +610,81 @@
                     style="@style/SettingHint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/smoothing_hint" />
+                    android:text="@string/touch_look_hint" />
+
+                <TextView
+                    android:id="@+id/touch_look_vertical_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/touch_look_vertical"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/touch_look_aiming_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/touch_look_aiming"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/touch_look_aiming_hint" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/tap_to_fire"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tap_to_fire" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tap_to_fire_hint" />
+
+                <TextView
+                    android:id="@+id/gyro_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/gyro"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/gyro_hint"
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/gyro_hint" />
+
+                <TextView
+                    android:id="@+id/gyro_sensitivity_label"
+                    style="@style/SettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <SeekBar
+                    android:id="@+id/gyro_sensitivity"
+                    style="@style/SettingSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
 
                 <TextView
                     style="@style/SettingHint"

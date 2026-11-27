@@ -145,15 +145,27 @@ object NativeBridge {
         rightY: Float,
     )
 
-    /** A flick of the look area, in pixels; the runtime turns it into a stick. */
-    external fun nativeLookDelta(dx: Float, dy: Float)
+    /**
+     * A finger's movement on the look area, in pixels, which the runtime
+     * turns the view by (runtime/android/input.cpp); [eventNanos] is when
+     * the screen reported it, in the system's uptime.
+     */
+    external fun nativeLookDelta(dx: Float, dy: Float, eventNanos: Long)
+
+    /** The gyroscope's turn of the view, in degrees to the right and downwards. */
+    external fun nativeGyroDelta(right: Float, down: Float, eventNanos: Long)
     external fun nativeLookEnd()
+
+    /**
+     * Degrees a pixel sideways and up and down, the share of them while
+     * aiming, and the gyroscope's setting (Prefs.GYRO_*). Taken at once.
+     */
     external fun nativeLookSettings(
-        sensitivityX: Float,
-        sensitivityY: Float,
-        smoothing: Float,
+        degreesX: Float,
+        degreesY: Float,
+        aimingFactor: Float,
         invertY: Boolean,
-        saturation: Float,
+        gyroMode: Int,
     )
 
     external fun nativePadState(

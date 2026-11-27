@@ -265,10 +265,23 @@
     <string name="gamepad_hint">Turn this off to ignore controllers entirely. Some phones report an accessory, or their own sensors, as a gamepad with a stick that is not centred, which makes the character walk on its own.</string>
     <string name="vibration">Vibration</string>
     <string name="invert_look">Invert looking up and down</string>
-    <string name="look_x">Look sensitivity, sideways: %1$.1f</string>
-    <string name="look_y">Look sensitivity, up and down: %1$.1f</string>
-    <string name="smoothing">Look smoothing: %1$d%%</string>
-    <string name="smoothing_hint">Evens out a finger\'s jitter on glass. Too much and aiming feels like it is on ice.</string>
+    <string name="touch_look">Touch look sensitivity: %1$d° a centimetre, half a turn in %2$.1f screen widths</string>
+    <string name="touch_look_hint">Drag on the right half of the screen to look. The view turns by how far the finger moves, the same however fast it moves and on every phone. A finger that pressed a button there (Fire, the face buttons) and is dragged off it turns the view too, so you can go on aiming while you fire.</string>
+    <string name="touch_look_vertical">Up and down: %1$d%% of sideways</string>
+    <string name="touch_look_aiming">While aiming: %1$d%% of the sensitivity</string>
+    <string name="touch_look_aiming_hint">For as long as Aim is held. A sight\'s zoom slows the turn besides, as the game slows a controller\'s stick.</string>
+    <string name="tap_to_fire">Tap the look area to fire</string>
+    <string name="tap_to_fire_hint">A short tap where you look fires a shot, without reaching for the Fire button.</string>
+    <string name="gyro_aiming">Gyroscope aiming</string>
+    <string name="gyro_label">Gyroscope aiming: %1$s</string>
+    <string-array name="gyro_choices">
+        <item>Off</item>
+        <item>Always</item>
+        <item>While aiming</item>
+    </string-array>
+    <string name="gyro_hint">Turning the phone turns the view, on top of what your finger or a controller\'s stick does: sideways as a compass needle turns, up and down by tipping the top edge. While aiming, only for as long as Aim is held.</string>
+    <string name="gyro_sensitivity">Gyroscope sensitivity: %1$.2f×</string>
+    <string name="gyro_missing">This device has no gyroscope the app can read.</string>
     <string name="edit_controls_where">The on-screen pad is edited in the game: pause and choose “Edit controls”.</string>
     <string name="forget_install">Forget the installed files</string>
     <string name="forget_explained">The files stay on the phone; the app simply stops using them, and the next install can point somewhere else.</string>
@@ -424,6 +437,14 @@
     </string-array>
     <string name="menu_fov">Field of view</string>
     <string name="menu_degrees">%1$d°</string>
+    <string name="menu_look">Touch look and gyroscope</string>
+    <string name="menu_look_sensitivity">Touch look sensitivity</string>
+    <string name="menu_degrees_per_cm">%1$d° a cm</string>
+    <string name="menu_look_vertical">Up and down</string>
+    <string name="menu_look_aiming">While aiming</string>
+    <string name="menu_gyro_sensitivity">Gyroscope sensitivity</string>
+    <string name="menu_factor">%1$.2f×</string>
+    <string name="menu_look_note">Drag on the right half of the screen to look: the view turns by how far the finger moves. Hold Fire and drag to aim while firing. Each setting is felt on the next swipe.</string>
     <string name="menu_detail">Detail at distance</string>
     <string name="menu_texture_budget">Texture memory</string>
     <string name="menu_auto">Auto</string>
@@ -669,6 +690,7 @@
     <string name="game_help_title">Before you play</string>
     <string name="game_help_menu">Menu: tap Menu at the top right of the screen. On a controller, press Select and Start together.</string>
     <string name="game_help_settings">Settings: open the menu. Graphics, the on-screen buttons and controllers are all there.</string>
+    <string name="game_help_touch">Touch: the left stick moves; drag anywhere on the right half of the screen to look. Hold Fire and drag to aim while firing. The menu\'s Touch look and gyroscope sets how fast, and Edit controls moves the buttons.</string>
     <string name="game_help_quit">Quit: open the menu, then choose Quit.</string>
     <string name="game_help_ok">OK</string>
     <string name="game_help_pad">On a controller: A closes this, Y closes it and does not show it again.</string>

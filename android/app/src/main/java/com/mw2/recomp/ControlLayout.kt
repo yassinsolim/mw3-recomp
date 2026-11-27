@@ -19,7 +19,11 @@ enum class ControlKind {
     /** The left stick: a base with a knob that follows the finger. */
     STICK,
 
-    /** The look area: a region where dragging turns the view. */
+    /**
+     * The look area: the half of the screen its centre is in, where
+     * dragging turns the view. It has no size; moved across the middle in
+     * the editor it becomes the other half, for a left-handed player.
+     */
     LOOK,
 }
 
@@ -105,7 +109,11 @@ class ControlLayout private constructor(val elements: MutableList<ControlElement
 
     companion object {
         private const val FILE_NAME = "controls.json"
-        private const val FORMAT_VERSION = 2
+        private const val FORMAT_VERSION = 3
+
+        /** The sizes the editor lets a button, a stick or the D-pad have. */
+        const val MIN_SIZE_DP = 36f
+        const val MAX_SIZE_DP = 200f
 
         fun load(context: Context): ControlLayout {
             val layout = defaults()
@@ -114,7 +122,7 @@ class ControlLayout private constructor(val elements: MutableList<ControlElement
             try {
                 val root = JSONObject(file.readText())
                 val version = root.optInt("version", 1)
-                if (version < FORMAT_VERSION) {
+                if (version < 2) {
                     // Automatically upgrade to authentic dual joystick layout
                     try { file.delete() } catch (_: Throwable) {}
                     return layout
@@ -137,6 +145,12 @@ class ControlLayout private constructor(val elements: MutableList<ControlElement
                     element.visible = item.optBoolean("visible", element.visible)
                     element.toggle = item.optBoolean("toggle", element.toggle)
                 }
+                // A layout from before the look area turned the view by an
+                // angle keeps where the player put everything, but not the
+                // right stick it was saved with: that stick was there
+                // because every layout began with it, in the middle of the
+                // look area. It can be shown again in the editor.
+                if (version < FORMAT_VERSION) layout.find("right_stick")?.visible = false
             } catch (_: Throwable) {
                 return defaults()
             }
@@ -154,30 +168,36 @@ class ControlLayout private constructor(val elements: MutableList<ControlElement
                 // The whole right half is the look area, under the buttons:
                 // it is hit-tested last, so a finger that lands on a button
                 // presses the button and a finger anywhere else turns the view.
-                ControlElement("look", ControlKind.LOOK, 0, "Look", 0.72f, 0.5f, 560f, 0.0f),
+                ControlElement("look", ControlKind.LOOK, 0, "Look", 0.75f, 0.5f, 560f, 0.0f),
 
                 // Left Stick (LS) - Movement
                 ControlElement("stick", ControlKind.STICK, 0, "LS", 0.14f, 0.72f, 150f, 0.40f),
-                // Right Stick (RS) - Camera Look
-                ControlElement("right_stick", ControlKind.STICK, 1, "RS", 0.72f, 0.74f, 145f, 0.40f),
+                // Right Stick (RS) - a stick to look with, for whoever
+                // wants one. Hidden: the look area turns the view by the
+                // finger's own movement, and a stick in the middle of it
+                // took the thumb's place.
+                ControlElement("right_stick", ControlKind.STICK, 1, "RS", 0.72f, 0.74f, 145f, 0.40f, visible = false),
 
                 ControlElement("dpad", ControlKind.DPAD, 0, "D-pad", 0.10f, 0.28f, 120f, 0.40f),
 
-                // Face Buttons (ABXY Diamond above and right of RS)
-                ControlElement("a", ControlKind.BUTTON, NativeBridge.A, "A", 0.905f, 0.78f, 62f),
-                ControlElement("b", ControlKind.BUTTON, NativeBridge.B, "B", 0.965f, 0.63f, 62f),
-                ControlElement("x", ControlKind.BUTTON, NativeBridge.X, "X", 0.845f, 0.63f, 62f),
-                ControlElement("y", ControlKind.BUTTON, NativeBridge.Y, "Y", 0.905f, 0.48f, 62f),
+                // Face buttons, in the diamond, with the look area's side of
+                // the screen kept clear of overlaps: on a 16:9 phone 360 dp
+                // high B ran off the edge, A lay over Melee and Fire over
+                // RB (ControlLayoutTest has the screens).
+                ControlElement("a", ControlKind.BUTTON, NativeBridge.A, "A", 0.888f, 0.78f, 62f),
+                ControlElement("b", ControlKind.BUTTON, NativeBridge.B, "B", 0.948f, 0.63f, 62f),
+                ControlElement("x", ControlKind.BUTTON, NativeBridge.X, "X", 0.828f, 0.63f, 62f),
+                ControlElement("y", ControlKind.BUTTON, NativeBridge.Y, "Y", 0.888f, 0.48f, 62f),
 
                 // Fire and aim, where a phone's index fingers already are.
-                ControlElement("rt", ControlKind.TRIGGER, 1, "Fire", 0.945f, 0.18f, 86f, 0.45f),
+                ControlElement("rt", ControlKind.TRIGGER, 1, "Fire", 0.928f, 0.18f, 86f, 0.45f),
                 ControlElement("lt", ControlKind.TRIGGER, 0, "Aim", 0.055f, 0.18f, 86f, 0.45f, toggle = true),
-                ControlElement("rb", ControlKind.BUTTON, NativeBridge.RB, "RB", 0.845f, 0.18f, 60f),
+                ControlElement("rb", ControlKind.BUTTON, NativeBridge.RB, "RB", 0.805f, 0.18f, 60f),
                 ControlElement("lb", ControlKind.BUTTON, NativeBridge.LB, "LB", 0.155f, 0.18f, 60f),
 
                 // Sprint and melee: the stick clicks
                 ControlElement("l3", ControlKind.BUTTON, NativeBridge.L3, "Run", 0.285f, 0.83f, 56f),
-                ControlElement("r3", ControlKind.BUTTON, NativeBridge.R3, "Melee", 0.885f, 0.92f, 56f),
+                ControlElement("r3", ControlKind.BUTTON, NativeBridge.R3, "Melee", 0.80f, 0.90f, 56f),
 
                 ControlElement("start", ControlKind.BUTTON, NativeBridge.START, "Start", 0.58f, 0.07f, 46f, 0.35f),
                 ControlElement("back", ControlKind.BUTTON, NativeBridge.BACK, "Back", 0.42f, 0.07f, 46f, 0.35f),

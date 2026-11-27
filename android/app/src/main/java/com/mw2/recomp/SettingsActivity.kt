@@ -3,6 +3,7 @@ package com.mw2.recomp
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RadioButton
@@ -97,8 +98,9 @@ class SettingsActivity : AppCompatActivity() {
         prefs = Prefs(this)
         colorValues(
             R.id.resolution_label, R.id.render_scale_label, R.id.detail_label, R.id.fps_limit_label,
-            R.id.sun_shadows_label, R.id.scene_label, R.id.driver_label, R.id.fov_label, R.id.texture_label, R.id.look_x_label,
-            R.id.look_y_label, R.id.smoothing_label, R.id.bot_count_label, R.id.bot_skill_label,
+            R.id.sun_shadows_label, R.id.scene_label, R.id.driver_label, R.id.fov_label, R.id.texture_label,
+            R.id.touch_look_label, R.id.touch_look_vertical_label, R.id.touch_look_aiming_label, R.id.gyro_label,
+            R.id.gyro_sensitivity_label, R.id.bot_count_label, R.id.bot_skill_label,
             R.id.match_gravity_label, R.id.match_speed_label, R.id.match_jump_label,
         )
         title = getString(R.string.settings)
@@ -319,26 +321,58 @@ class SettingsActivity : AppCompatActivity() {
         switch(R.id.vibration, prefs.vibration) { prefs.vibration = it }
         switch(R.id.invert, prefs.invertLook) { prefs.invertLook = it }
 
+        // Looking by touch (TouchLook.kt): degrees for a centimetre of
+        // glass, with what that comes to on this screen beside it.
+        val metrics = resources.displayMetrics
+        val widest = maxOf(metrics.widthPixels, metrics.heightPixels)
+        val slowest = TouchLook.MIN_DEGREES_PER_CM.roundToInt()
         slider(
-            R.id.look_x, R.id.look_x_label, prefs.lookSensitivityX,
-            { getString(R.string.look_x, it) }, { prefs.lookSensitivityX = it },
+            R.id.touch_look, R.id.touch_look_label,
+            TouchLook.MAX_DEGREES_PER_CM.roundToInt() - slowest, prefs.touchLookSensitivity.roundToInt() - slowest,
+            {
+                val degrees = slowest + it
+                getString(
+                    R.string.touch_look, degrees,
+                    TouchLook.halfTurnInScreens(degrees.toFloat(), widest, metrics.densityDpi),
+                )
+            },
+            { prefs.touchLookSensitivity = (slowest + it).toFloat() },
+        )
+        // 25 to 200 percent in steps of five.
+        slider(
+            R.id.touch_look_vertical, R.id.touch_look_vertical_label,
+            35, ((prefs.touchLookVertical * 100f).roundToInt() - 25) / 5,
+            { getString(R.string.touch_look_vertical, 25 + it * 5) },
+            { prefs.touchLookVertical = (25 + it * 5) / 100f },
         )
         slider(
-            R.id.look_y, R.id.look_y_label, prefs.lookSensitivityY,
-            { getString(R.string.look_y, it) }, { prefs.lookSensitivityY = it },
+            R.id.touch_look_aiming, R.id.touch_look_aiming_label,
+            35, ((prefs.touchLookAiming * 100f).roundToInt() - 25) / 5,
+            { getString(R.string.touch_look_aiming, 25 + it * 5) },
+            { prefs.touchLookAiming = (25 + it * 5) / 100f },
         )
+        switch(R.id.tap_to_fire, prefs.tapToFire) { prefs.tapToFire = it }
 
-        val smoothingLabel: TextView = findViewById(R.id.smoothing_label)
-        val smoothing: SeekBar = findViewById(R.id.smoothing)
-        smoothing.max = 90
-        smoothing.progress = (prefs.lookSmoothing * 100f).roundToInt().coerceIn(0, 90)
-        smoothingLabel.text = getString(R.string.smoothing, smoothing.progress)
-        smoothing.setOnSeekBarChangeListener(object : Simple() {
-            override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                smoothingLabel.text = getString(R.string.smoothing, value)
-                if (fromUser) prefs.lookSmoothing = value / 100f
+        // The gyroscope, where the phone has one.
+        if (GyroInput(this).available) {
+            val gyroChoices = resources.getStringArray(R.array.gyro_choices)
+            slider(
+                R.id.gyro, R.id.gyro_label, gyroChoices.size - 1, prefs.gyroMode,
+                { getString(R.string.gyro_label, gyroChoices[it]) }, { prefs.gyroMode = it },
+            )
+            // A quarter to four times, in quarters.
+            slider(
+                R.id.gyro_sensitivity, R.id.gyro_sensitivity_label,
+                15, (prefs.gyroSensitivity * 4f).roundToInt() - 1,
+                { getString(R.string.gyro_sensitivity, (it + 1) / 4f) },
+                { prefs.gyroSensitivity = (it + 1) / 4f },
+            )
+        } else {
+            for (id in intArrayOf(R.id.gyro, R.id.gyro_label, R.id.gyro_sensitivity, R.id.gyro_sensitivity_label)) {
+                findViewById<View>(id).visibility = View.GONE
             }
-        })
+            findViewById<TextView>(R.id.gyro_hint).setText(R.string.gyro_missing)
+        }
 
         // ---- the game files ----
         showPaths()
@@ -892,24 +926,24 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** A 0.2 to 4.0 slider with a label that follows it. */
+    /** A slider of [steps] steps from nothing, with a label that follows it. */
     private fun slider(
         sliderId: Int,
         labelId: Int,
-        initial: Float,
-        label: (Float) -> String,
-        onChange: (Float) -> Unit,
+        steps: Int,
+        initial: Int,
+        label: (Int) -> String,
+        onChange: (Int) -> Unit,
     ) {
         val text: TextView = findViewById(labelId)
         val bar: SeekBar = findViewById(sliderId)
-        bar.max = 38                                     // 0.2 .. 4.0 in tenths
-        bar.progress = ((initial - 0.2f) * 10f).roundToInt().coerceIn(0, 38)
-        text.text = label(initial)
+        bar.max = steps
+        bar.progress = initial.coerceIn(0, steps)
+        text.text = label(bar.progress)
         bar.setOnSeekBarChangeListener(object : Simple() {
             override fun onProgressChanged(view: SeekBar, value: Int, fromUser: Boolean) {
-                val amount = 0.2f + value / 10f
-                text.text = label(amount)
-                if (fromUser) onChange(amount)
+                text.text = label(value)
+                if (fromUser) onChange(value)
             }
         })
     }

@@ -224,6 +224,34 @@ off or on in Settings → Graphics, or in the game's Menu → Graphics.
 - The first visit to a level may stutter while its graphics are compiled;
   later visits reuse what was.
 
+## Touch controls
+
+No controller is needed. The same in all four games:
+
+- **Move** with the stick at the bottom left.
+- **Look** by dragging anywhere on the right half of the screen. The view
+  turns by how far your finger moves: the same swipe is the same turn
+  whether it is slow or a flick, at 30 frames a second or 120. There is no
+  stick to push and no dead zone to get past.
+- **Fire while you aim**: press **Fire** and keep your thumb down; dragging
+  it turns the view as it does on the look area. The other buttons on that
+  side do the same. Or turn on **Tap the look area to fire**.
+- **Aim** is a toggle at the top left: tap to raise the sight, tap again to
+  lower it.
+- **Make it yours.** In a game, **Menu → Touch look and gyroscope** sets how
+  fast the view turns (13° for a centimetre of swipe to begin with, about
+  half a turn across the screen), up and down against sideways, how much
+  slower it is while aiming, and inverts up and down; each is felt on the
+  next swipe. **Menu → Edit controls** moves, resizes or hides any button,
+  and brings back a right stick if you want one. The same settings are
+  under **Settings → Controls** on the app's start screen.
+- **Gyroscope aiming** (off to begin with): turning the phone turns the
+  view, always or only while you aim, on top of your finger or a
+  controller's stick.
+
+How it works and what was measured:
+[docs/android.md](docs/android.md#looking-by-touch).
+
 ## Troubleshooting
 
 | Problem | What to do |

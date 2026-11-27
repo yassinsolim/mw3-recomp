@@ -240,6 +240,8 @@ class Device:
                 rows.append(f'    <boolean name="{name}" value="{str(value).lower()}" />')
             elif isinstance(value, int):
                 rows.append(f'    <int name="{name}" value="{value}" />')
+            elif isinstance(value, float):
+                rows.append(f'    <float name="{name}" value="{value}" />')
             else:
                 rows.append(f'    <string name="{name}">{value}</string>')
         xml = "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n" + "\n".join(rows) + "\n</map>\n"

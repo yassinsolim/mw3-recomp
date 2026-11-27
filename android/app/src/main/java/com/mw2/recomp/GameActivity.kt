@@ -130,6 +130,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var editPanel: EditPanel? = null
 
     private val pads = GamepadInput()
+    private val gyro: GyroInput by lazy { GyroInput(this) }
+    // Between onResume and onPause: the gyroscope is read only then.
+    private var inFront = false
     private val handler = Handler(Looper.getMainLooper())
     private var vibrator: Vibrator? = null
     private var lastRumble = 0
@@ -777,6 +780,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         Trail.clear(this)
         pads.setEnabled(prefs.gamepadEnabled)
         pads.refreshDevices()
+        applyLook()
         startHardwareMonitor()
         watchingSince = SystemClock.elapsedRealtime()
         handler.post(statsTick)
@@ -1260,10 +1264,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 }
             }
         }
-        NativeBridge.nativeLookSettings(
-            prefs.lookSensitivityX, prefs.lookSensitivityY,
-            prefs.lookSmoothing, prefs.invertLook, prefs.lookSaturation,
-        )
+        applyLook()
         NativeBridge.nativePadEnabled(prefs.gamepadEnabled)
     }
 
@@ -1349,6 +1350,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             GameMenu.Entry(getString(R.string.menu_graphics)) { menu.push(graphicsPage()) },
             GameMenu.Choice(getString(R.string.touch_controls), onOff(), if (prefs.touchControls) 1 else 0) { setTouchControls(it == 1) },
             GameMenu.Entry(getString(R.string.edit_controls)) { menu.close(); beginEditing() },
+            GameMenu.Entry(getString(R.string.menu_look)) { menu.push(lookPage()) },
             GameMenu.Choice(getString(R.string.menu_gamepad), onOff(), if (prefs.gamepadEnabled) 1 else 0) { setGamepad(it == 1) },
         )
         // The Live lobby's invitations: MW2's and Call of Duty 4's, and
@@ -1579,6 +1581,78 @@ class GameActivity : AppCompatActivity(), NativeListener {
     }
 
     /**
+     * How a finger and the gyroscope turn the view, as the runtime takes
+     * it: at the start of a run and whenever the menu changes one, so a
+     * setting is felt on the next swipe. The sensitivity is the player's
+     * degrees a centimetre, made degrees a pixel of this screen.
+     */
+    private fun applyLook() {
+        val sideways = TouchLook.degreesPerPixel(prefs.touchLookSensitivity, resources.displayMetrics.densityDpi)
+        NativeBridge.nativeLookSettings(
+            sideways, sideways * prefs.touchLookVertical, prefs.touchLookAiming, prefs.invertLook, prefs.gyroMode,
+        )
+        gyro.sensitivity = prefs.gyroSensitivity
+        gyro.listen(started && inFront && prefs.gyroMode != Prefs.GYRO_OFF)
+    }
+
+    /** The menu's page for looking by touch and by the gyroscope; each row is taken as it is changed. */
+    private fun lookPage(): GameMenu.Page {
+        val rows = mutableListOf<GameMenu.Row>()
+
+        val speeds = (TouchLook.MIN_DEGREES_PER_CM.toInt()..20).toList() +
+            (22..TouchLook.MAX_DEGREES_PER_CM.toInt() step 2).toList()
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_look_sensitivity), speeds.map { getString(R.string.menu_degrees_per_cm, it) },
+            nearest(speeds, prefs.touchLookSensitivity.roundToInt()),
+        ) {
+            prefs.touchLookSensitivity = speeds[it].toFloat()
+            applyLook()
+        })
+
+        val shares = (25..200 step 5).toList()
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_look_vertical), shares.map { getString(R.string.menu_percent, it) },
+            nearest(shares, (prefs.touchLookVertical * 100f).roundToInt()),
+        ) {
+            prefs.touchLookVertical = shares[it] / 100f
+            applyLook()
+        })
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_look_aiming), shares.map { getString(R.string.menu_percent, it) },
+            nearest(shares, (prefs.touchLookAiming * 100f).roundToInt()),
+        ) {
+            prefs.touchLookAiming = shares[it] / 100f
+            applyLook()
+        })
+        rows.add(GameMenu.Choice(getString(R.string.invert_look), onOff(), if (prefs.invertLook) 1 else 0) {
+            prefs.invertLook = it == 1
+            applyLook()
+        })
+        // Read by the on-screen pad as each touch comes up.
+        rows.add(GameMenu.Choice(getString(R.string.tap_to_fire), onOff(), if (prefs.tapToFire) 1 else 0) {
+            prefs.tapToFire = it == 1
+        })
+
+        if (gyro.available) {
+            rows.add(GameMenu.Choice(
+                getString(R.string.gyro_aiming), resources.getStringArray(R.array.gyro_choices).toList(), prefs.gyroMode,
+            ) {
+                prefs.gyroMode = it
+                applyLook()
+            })
+            val quarters = (1..16).toList()
+            rows.add(GameMenu.Choice(
+                getString(R.string.menu_gyro_sensitivity), quarters.map { getString(R.string.menu_factor, it / 4f) },
+                nearest(quarters, (prefs.gyroSensitivity * 4f).roundToInt()),
+            ) {
+                prefs.gyroSensitivity = quarters[it] / 4f
+                applyLook()
+            })
+        }
+        return GameMenu.Page(getString(R.string.menu_look), rows, getString(R.string.menu_look_note))
+    }
+
+    /**
      * The bots, changed without leaving the game: the host's console takes
      * `bots <n>` (runtime/bots.cpp) and the server adds or drops them on its
      * next frame. Kept as the setting too, so the next start has the same.
@@ -1798,9 +1872,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
                     if (!fromUser) return
                     val element = current ?: return
-                    val smallest = if (element.kind == ControlKind.LOOK) 120f else 36f
-                    val largest = if (element.kind == ControlKind.LOOK) 900f else 200f
-                    element.sizeDp = smallest + (largest - smallest) * (value / 100f)
+                    element.sizeDp = ControlLayout.MIN_SIZE_DP +
+                        (ControlLayout.MAX_SIZE_DP - ControlLayout.MIN_SIZE_DP) * (value / 100f)
                     overlay.refresh()
                 }
 
@@ -1887,14 +1960,17 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 return
             }
             title.text = getString(R.string.edit_selected, element.label)
-            size.isEnabled = true
-            opacity.isEnabled = true
+            // The look area is half the screen and is not drawn in play:
+            // it can be moved to the other half, or switched off.
+            val drawn = element.kind != ControlKind.LOOK
+            size.isEnabled = drawn
+            opacity.isEnabled = drawn
             visible.isEnabled = true
             toggle.isEnabled = element.kind == ControlKind.BUTTON || element.kind == ControlKind.TRIGGER
-            val smallest = if (element.kind == ControlKind.LOOK) 120f else 36f
-            val largest = if (element.kind == ControlKind.LOOK) 900f else 200f
-            size.progress = (((element.sizeDp - smallest) / (largest - smallest)) * 100f)
-                .roundToInt().coerceIn(0, 100)
+            size.progress = (
+                (element.sizeDp - ControlLayout.MIN_SIZE_DP) /
+                    (ControlLayout.MAX_SIZE_DP - ControlLayout.MIN_SIZE_DP) * 100f
+                ).roundToInt().coerceIn(0, 100)
             opacity.progress = (element.alpha * 100f).roundToInt().coerceIn(0, 100)
             visible.isChecked = element.visible
             toggle.isChecked = element.toggle
@@ -1959,6 +2035,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     override fun onResume() {
         super.onResume()
+        inFront = true
         goFullscreen()
         if (!started) return
         NativeBridge.nativeSetPaused(false)
@@ -1968,6 +2045,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         NativeBridge.nativeRestoreMemory()
         pads.setEnabled(prefs.gamepadEnabled)
         pads.refreshDevices()
+        applyLook()
         // Time away is not time without a frame.
         watchingSince = SystemClock.elapsedRealtime()
         // onCreate posted it too, before the first onResume: one chain.
@@ -1977,12 +2055,14 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     override fun onPause() {
         super.onPause()
+        inFront = false
         if (!started) return
         // Nothing is presented while the activity is away, the mixer is
         // muted, and the touch pad lets go of whatever was held -- a trigger
         // stuck down through a phone call would empty a magazine into a wall.
         NativeBridge.nativeSetPaused(true)
         overlay.releaseEverything()
+        gyro.listen(false)
         handler.removeCallbacks(statsTick)
         overlay.layout.save(this)
         // A game left in the background may be killed without another word.

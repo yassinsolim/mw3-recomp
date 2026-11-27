@@ -393,27 +393,50 @@ class Prefs(context: Context) {
         get() = store.getBoolean(KEY_VIBRATION, true)
         set(value) = store.edit().putBoolean(KEY_VIBRATION, value).apply()
 
-    var lookSensitivityX: Float
-        get() = store.getFloat(KEY_LOOK_X, 1.0f)
-        set(value) = store.edit().putFloat(KEY_LOOK_X, value.coerceIn(0.2f, 4.0f)).apply()
+    /**
+     * How far a finger on the look area turns the view: degrees for a
+     * centimetre of glass, sideways (TouchLook.kt). The old settings (a
+     * multiple of a stick's speed, sideways and up and down, and a
+     * smoothing) meant something else and are not read.
+     */
+    var touchLookSensitivity: Float
+        get() = store.getFloat(KEY_TOUCH_LOOK, TouchLook.DEFAULT_DEGREES_PER_CM)
+        set(value) = store.edit().putFloat(
+            KEY_TOUCH_LOOK, value.coerceIn(TouchLook.MIN_DEGREES_PER_CM, TouchLook.MAX_DEGREES_PER_CM),
+        ).apply()
 
-    var lookSensitivityY: Float
-        get() = store.getFloat(KEY_LOOK_Y, 1.0f)
-        set(value) = store.edit().putFloat(KEY_LOOK_Y, value.coerceIn(0.2f, 4.0f)).apply()
+    /** Up and down, as a share of sideways: 1 turns the view the same both ways. */
+    var touchLookVertical: Float
+        get() = store.getFloat(KEY_TOUCH_LOOK_VERTICAL, 1.0f)
+        set(value) = store.edit().putFloat(KEY_TOUCH_LOOK_VERTICAL, value.coerceIn(0.25f, 2.0f)).apply()
 
-    /** 0 is raw, 1 is very smooth. A little hides the touchscreen's jitter. */
-    var lookSmoothing: Float
-        get() = store.getFloat(KEY_LOOK_SMOOTH, 0.35f)
-        set(value) = store.edit().putFloat(KEY_LOOK_SMOOTH, value.coerceIn(0f, 0.9f)).apply()
+    /**
+     * The share of the sensitivity a finger has while the Aim button (the
+     * left trigger) is held. The sight's own zoom slows the turn besides,
+     * as it does the stick's.
+     */
+    var touchLookAiming: Float
+        get() = store.getFloat(KEY_TOUCH_LOOK_AIMING, 1.0f)
+        set(value) = store.edit().putFloat(KEY_TOUCH_LOOK_AIMING, value.coerceIn(0.25f, 2.0f)).apply()
 
     var invertLook: Boolean
         get() = store.getBoolean(KEY_LOOK_INVERT, false)
         set(value) = store.edit().putBoolean(KEY_LOOK_INVERT, value).apply()
 
-    /** How far a fast flick pushes the stick: 1.0 reaches the edge readily. */
-    var lookSaturation: Float
-        get() = store.getFloat(KEY_LOOK_SATURATION, 1.0f)
-        set(value) = store.edit().putFloat(KEY_LOOK_SATURATION, value.coerceIn(0.3f, 3.0f)).apply()
+    /** A tap on the look area fires a shot. */
+    var tapToFire: Boolean
+        get() = store.getBoolean(KEY_TAP_TO_FIRE, false)
+        set(value) = store.edit().putBoolean(KEY_TAP_TO_FIRE, value).apply()
+
+    /** The gyroscope turning the view: [GYRO_OFF], [GYRO_ALWAYS] or [GYRO_AIMING]. */
+    var gyroMode: Int
+        get() = store.getInt(KEY_GYRO_MODE, GYRO_OFF).coerceIn(GYRO_OFF, GYRO_AIMING)
+        set(value) = store.edit().putInt(KEY_GYRO_MODE, value.coerceIn(GYRO_OFF, GYRO_AIMING)).apply()
+
+    /** Degrees the view turns for a degree the phone is turned. */
+    var gyroSensitivity: Float
+        get() = store.getFloat(KEY_GYRO_SENSITIVITY, 1.0f)
+        set(value) = store.edit().putFloat(KEY_GYRO_SENSITIVITY, value.coerceIn(0.25f, 4.0f)).apply()
 
     // ---- the graphics driver ------------------------------------------------
 
@@ -806,11 +829,17 @@ class Prefs(context: Context) {
         private const val KEY_TOUCH = "touchControls"
         private const val KEY_GAMEPAD = "gamepad"
         private const val KEY_VIBRATION = "vibration"
-        private const val KEY_LOOK_X = "lookX"
-        private const val KEY_LOOK_Y = "lookY"
-        private const val KEY_LOOK_SMOOTH = "lookSmoothing"
+        private const val KEY_TOUCH_LOOK = "touchLookDegreesPerCm"
+        private const val KEY_TOUCH_LOOK_VERTICAL = "touchLookVertical"
+        private const val KEY_TOUCH_LOOK_AIMING = "touchLookAiming"
         private const val KEY_LOOK_INVERT = "lookInvert"
-        private const val KEY_LOOK_SATURATION = "lookSaturation"
+        private const val KEY_TAP_TO_FIRE = "tapToFire"
+        private const val KEY_GYRO_MODE = "gyroMode"
+        private const val KEY_GYRO_SENSITIVITY = "gyroSensitivity"
+        /** The gyroscope's settings, in the order the runtime numbers them (android/input.cpp). */
+        const val GYRO_OFF = 0
+        const val GYRO_ALWAYS = 1
+        const val GYRO_AIMING = 2
         private const val KEY_DRIVER_DIR = "driverDirectory"
         private const val KEY_DRIVER_LIB = "driverLibrary"
         private const val KEY_DRIVER_CHOICE_MADE = "driverChoiceMade"
