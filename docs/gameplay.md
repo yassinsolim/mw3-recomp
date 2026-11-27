@@ -301,6 +301,8 @@ executable keeps to `cg_fovScale`:
 | `T_CG_CullZoom` | `822174B8` | `8262DEF8` | `825DB658` |
 | `T_CG_SetViewFov` | `82216E88`: the view's two tangents, cg `+0x27010` and `+0x27014` | `8262E608`: the sensitivity scale, cg `+0x44914` | `825DBDD8`: the sensitivity scale, cg `+0x43114` |
 | `T_AimAssist_FovScale` (the turn rate's scale) | `82106710`, state `+276` | `827D0A18`, state `+260` | `827734F0`, state `+260` |
+| `T_FX_PlayOnTag` (an effect played on an entity's tag) | `822F4A80` | `82676CF0` | `8261C648` |
+| `cg_fov`'s pointer | `828FD160` | `829FF390` | `829AAEB4` |
 
 The multiplayer multiplies `cg_fovScale` by a scale of the scripts' for each
 client (the omnvar `fov_scale`, `sub_8262DE80`) wherever it reads it, so the
@@ -311,6 +313,32 @@ after a death and a respawn as before it, where `cg_fov 110` is back to 65.
 The turn rate's scale is 1.0 from the hip at 65 and at 110, and the
 sensitivity scale 1.0 from the hip at both and, down the ASM1's red dot
 sight, 0.57 at 65 and 0.47 at 110.
+
+**The blur of a slide covers a wider view.** The effects the title plays on
+the view for a slide and the other exo moves (`vfx/code/slide_view`,
+`missile_boost_view`) have a sprite whose material blurs the picture towards
+its own edges (`radialblur_sprite_screenedges_slide`, technique set
+`radialblur_sprite_fullscreen`). It is ordinary geometry: a sprite ten units
+ahead of the eye, 9.6 by 5.4 either way, which covers the console's 65
+degrees with an eighth to spare and nothing wider. At 110 it was a blurred
+rectangle some 530 by 300 in the middle of 1280 by 720 with sharp edges,
+which a tester recorded and took for a blur that had not stretched with the
+view; so it was with `cg_fov 110` as with `MW2_FOV=110`, since the title
+never sized it by its view. `T_FX_PlayOnTag`'s hook finds such a sprite in
+the effect it is handed (a sprite of one material whose name starts
+`radialblur_sprite_`) and writes its half sizes as the console's times
+tan(half the view) / tan(32.5 degrees), the view being `cg_fov` times the
+runtime's scale, each time the effect is played; a view of 65 or narrower
+leaves the console's sizes. The sizes are the effect's own data, so the hook
+keeps what it wrote beside the console's value and takes a value it did not
+write for one the title has loaded afresh. The dodges' view effects have no
+such sprite (two lights and smoke), and neither have the slam's or the
+jump's. Seen on Windows on Greenband: the rectangle at `MW2_FOV=110` and at
+`cg_fov 110` before, the edges of the whole picture blurred after, as at 65
+(the update's multiplayer); and on a Retroid Pocket Flip 2 in the disc's
+multiplayer at 110, the slides of two runs without a rectangle at 59.9
+frames a second. The campaign's hook was not seen in play: the Windows runs
+did not get out of Induction's pod to a slide.
 
 The campaign's angle is left the title's. Its `CG_SetViewFov` writes the
 angle it is handed back into `cg_fov` and into the view a script's change

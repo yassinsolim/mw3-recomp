@@ -163,6 +163,11 @@
 #define T_AimAssist_FovScale   827734F0
 #define T_AIM_STATE_REGISTER      r4
 #define T_AIM_TURN_RATE_SCALE     260u
+// As the disc's below: the function that plays an effect on an entity's tag
+// (sub_8261C9C0 hands it the view's effects) and cg_fov's pointer.
+#define T_FX_PlayOnTag         8261C648
+#define T_DATA_CgFovDvar          0x829AAEB4u
+#define T_DVAR_REAL               12u
 
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
@@ -433,6 +438,22 @@
 #define T_AimAssist_FovScale   827D0A18
 #define T_AIM_STATE_REGISTER      r4
 #define T_AIM_TURN_RATE_SCALE     260u
+// The effects a slide and the other exo moves play on the view
+// (vfx/code/slide_view and the like, chosen by sub_82677120) have a sprite
+// that blurs the picture's edges, of a material named "radialblur_sprite_...":
+// ten units ahead of the eye and 9.6 by 5.4 either way, which covers a view
+// of 65 degrees and is a blurred rectangle in the middle of a wider one.
+// T_FX_PlayOnTag (local client, effect, entity, tag) plays an effect on an
+// entity's tag. An effect has its three element counts at +0x10 and the
+// elements at +0x30, 0x120 bytes each: +0xB4 its kind (0 to 2 are sprites),
+// +0xB6 how many visuals, +0xB8 how many
+// intervals the samples span, +0xC0 the samples and +0xC4 the one visual, a
+// material, whose name is its first word. A sample is 0x70 bytes, a base and
+// an amplitude of 0x38 each with the sprite's two half sizes at +0x24. A
+// setting's value is at +12.
+#define T_FX_PlayOnTag         82676CF0
+#define T_DATA_CgFovDvar          0x829FF390u
+#define T_DVAR_REAL               12u
 
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u
@@ -544,6 +565,12 @@
 #define T_AimAssist_FovScale   82106710
 #define T_AIM_STATE_REGISTER      r4
 #define T_AIM_TURN_RATE_SCALE     276u
+// As the multiplayer's: here the function is the effects' own (sub_822F4A80,
+// which sub_821E19E8 hands the view's effects), with the effect in r4 too;
+// cg_fov's pointer is at 828FD160.
+#define T_FX_PlayOnTag         822F4A80
+#define T_DATA_CgFovDvar          0x828FD160u
+#define T_DVAR_REAL               12u
 
 // Not derived for this title: the code that reads each of these checks for zero.
 #define T_DATA_DeviceTable        0u

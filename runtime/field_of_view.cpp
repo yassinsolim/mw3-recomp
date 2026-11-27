@@ -37,6 +37,13 @@
 // at the next frame and the drop into Seoul was drawn at the title's bound
 // of 170 degrees. There the angle stays the title's and T_CG_SetViewFov's
 // hook scales the two tangents the view is drawn with.
+//
+// Advanced Warfare blurs the picture's edges in a slide (and has the same
+// sprite for other moves) with a sprite ten units ahead of the eye, sized to
+// cover a view of 65 degrees and no wider: at 110 it was a blurred rectangle
+// some 530 by 300 in the middle of 1280 by 720, whether the view was the
+// runtime's or the title's own cg_fov. T_FX_PlayOnTag's hook makes such a
+// sprite as much larger as the view is wider, each time its effect is played.
 #include <ppc_recomp_shared.h>
 #include "title.h"
 #include "env.h"
@@ -47,6 +54,8 @@
 #include <atomic>
 #include <cmath>
 #include <cstring>
+#include <mutex>
+#include <vector>
 
 namespace
 {
@@ -181,4 +190,98 @@ GUEST_HOOK(T_AimAssist_FovScale)
     if (!(kept > 0.0) || !(tangent > 0.0)) return;
     Multiply(base, state + T_AIM_TURN_RATE_SCALE, HipRatio(std::atan(tangent / (0.75 * kept))));
 }
+
+#ifdef T_FX_PlayOnTag
+namespace
+{
+    // A sprite's half size the hook has written: where, the console's value
+    // and the one written, by which a value the title has loaded afresh at
+    // the same place is told from this hook's own.
+    struct Fitted
+    {
+        uint32_t address;
+        float console;
+        float written;
+    };
+    std::mutex g_fittedLock;
+    std::vector<Fitted> g_fitted;
+
+    void Store(uint8_t* base, uint32_t address, float value)
+    {
+        uint32_t bits;
+        std::memcpy(&bits, &value, 4);
+        PPC_STORE_U32(address, bits);
+    }
+
+    // The console's value times `wider` at a half size's address.
+    void Fit(uint8_t* base, uint32_t address, float wider)
+    {
+        const float now = Real(base, address);
+        const auto kept = std::find_if(g_fitted.begin(), g_fitted.end(),
+                                       [address](const Fitted& fitted) { return fitted.address == address; });
+        const bool ours = kept != g_fitted.end() && kept->written == now;
+        const float console = ours ? kept->console : now;
+        const float value = console * wider;
+        if (value != now) Store(base, address, value);
+        if (wider == 1.0f)
+        {
+            // The console's own again: nothing of this hook's is left there.
+            if (kept != g_fitted.end()) g_fitted.erase(kept);
+        }
+        else if (kept != g_fitted.end()) *kept = { address, console, value };
+        else g_fitted.push_back({ address, console, value });
+    }
+
+    // The view over the console's as a sprite at a fixed distance sees it:
+    // the ratio of the tangents of half of each. cg_fov is what the hip's
+    // view is made from in the multiplayer and what the campaign's view was
+    // last set to, both before the runtime's scale. Never under 1: a sprite
+    // that covers the console's view covers a narrower one.
+    float Wider(uint8_t* base)
+    {
+        const uint32_t setting = PPC_LOAD_U32(T_DATA_CgFovDvar);
+        if (setting == 0) return 1.0f;
+        const double angle = std::min(double(Real(base, setting + T_DVAR_REAL)) * Scale(), kTitleMost);
+        return float(std::max(1.0, std::tan(angle * 0.5 * kRadians) / std::tan(kConsole * 0.5 * kRadians)));
+    }
+
+    bool BlursTheEdges(uint8_t* base, uint32_t material)
+    {
+        static const char kName[] = "radialblur_sprite_";
+        const uint32_t name = material ? PPC_LOAD_U32(material) : 0;
+        return name != 0 && std::strncmp(reinterpret_cast<const char*>(base + name), kName, sizeof kName - 1) == 0;
+    }
+}
+
+// (.., r4 = the effect, ..)
+GUEST_HOOK(T_FX_PlayOnTag)
+{
+    const uint32_t effect = ctx.r4.u32;
+    const uint32_t elements = effect ? PPC_LOAD_U32(effect + 0x30) : 0;
+    if (elements != 0)
+    {
+        const uint32_t count = PPC_LOAD_U32(effect + 0x10) + PPC_LOAD_U32(effect + 0x14) + PPC_LOAD_U32(effect + 0x18);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const uint32_t element = elements + i * 0x120;
+            // A sprite of one material: the other kinds keep something else
+            // where a sprite keeps its material.
+            if (PPC_LOAD_U8(element + 0xB4) > 2 || PPC_LOAD_U8(element + 0xB6) != 1) continue;
+            if (!BlursTheEdges(base, PPC_LOAD_U32(element + 0xC4))) continue;
+            const uint32_t samples = PPC_LOAD_U32(element + 0xC0);
+            if (samples == 0) continue;
+            const float wider = Wider(base);
+            const std::lock_guard<std::mutex> lock(g_fittedLock);
+            // One sample more than the intervals; the base and the amplitude
+            // of each, so that a size drawn at random keeps its share.
+            for (uint32_t state = 0; state < (PPC_LOAD_U8(element + 0xB8) + 1u) * 2; ++state)
+            {
+                Fit(base, samples + state * 0x38 + 0x24, wider);
+                Fit(base, samples + state * 0x38 + 0x28, wider);
+            }
+        }
+    }
+    GUEST_ORIG(T_FX_PlayOnTag)(ctx, base);
+}
+#endif
 #endif

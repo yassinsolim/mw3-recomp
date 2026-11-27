@@ -70,6 +70,19 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   A tester's Advanced Warfare weapon drawn as dark triangles every third
   frame is what this looks like; his fault itself was not reproduced
   (docs/AW-BRINGUP.md).
+- **Advanced Warfare: a slide's blur covers the picture at any field of
+  view.** A tester at 110 degrees had a blurred rectangle in the middle of
+  the screen after a slide, and guessed the blur had not stretched with the
+  view. So it is: the title blurs the picture's edges in a slide with a
+  sprite ten units ahead of the eye that is sized for its 65 degrees, and at
+  110 the sprite's own edges were inside the picture, some 530 by 300 of
+  1280 by 720. The runtime now makes that sprite as much larger as the view
+  is wider whenever its effect is played (`T_FX_PlayOnTag`,
+  `runtime/field_of_view.cpp`), in both multiplayers (seen on Windows and a
+  Retroid Pocket Flip 2) and in the campaign (not yet seen in play), so the
+  edges of the whole picture are blurred as on the console
+  ([gameplay.md](docs/gameplay.md#field-of-view)). The earlier runs that
+  did not find it looked at dodges, whose effects have no such sprite.
 - **Advanced Warfare: the field of view lasts through a death.** A tester set
   110 in the game menu and had 65 again after every respawn: the app sent
   the title's `cg_fov`, which its scripts put back at each spawn. The

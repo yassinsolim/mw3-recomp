@@ -1880,6 +1880,17 @@ multiplier 1x, FPS limit 60.
   (`vfx/code/dodge_left_view` and the like), whose vertices are dynamic
   geometry of the kind the fault above leaves stale, so the fix may be this
   one's as well; that is a guess until he says.
+  **Found on 27 November: it is a slide, and the view's width.** A slide
+  plays `vfx/code/slide_view` on the view, one sprite of the material
+  `radialblur_sprite_screenedges_slide` that blurs the picture towards the
+  sprite's edges; it stands ten units ahead of the eye and is 9.6 by 5.4
+  either way, enough for 65 degrees and no more, so at 110 its edges are in
+  the picture: his rectangle, on Windows as on the phone, with `cg_fov 110`
+  (his v0.1.2) as with `MW2_FOV=110`, and at 65 the edges of the whole
+  picture blurred (`private-captures\awfeedback6\pc-slide-*`). The runs
+  above looked at the frames after dodges, whose effects are two lights and
+  smoke, and the stale vertices were not it. The sprite is now sized by the
+  view ([gameplay.md](gameplay.md#field-of-view)).
 - **On the Flip 2 with the change** (the update's multiplayer, sun shadows
   On, 110 degrees, ten bots): Drift 60.0 frames a second over two minutes of
   play, as before it (59.9 and 60.0), the view 110 degrees after every
