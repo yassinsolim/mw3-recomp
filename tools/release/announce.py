@@ -30,7 +30,7 @@ from pathlib import Path
 
 OWNER = "yassinsolim"
 GAMES = ("mw3", "mw2", "cod4", "aw")
-INVITE = "https://discord.gg/bTKn3Su3sp"
+DISCORD = "https://yassin.app/discord"  # forwards to the server's invite
 SECRET = "DISCORD_RELEASES_WEBHOOK"
 HEADLINES = 5
 HEADLINE_LIMIT = 230
@@ -95,7 +95,7 @@ def message(game_title, tag, notes, url):
     changes = headlines(notes)
     if changes:
         lines += ["", "What's new:"] + [f"- {change}" for change in changes]
-    lines += ["", f"Get it: {url}", f"Help, news and requests: {INVITE}. For bugs, attach your log (LOG -> SHARE)."]
+    lines += ["", f"Get it: {url}", f"Help, news and requests: {DISCORD}. For bugs, attach your log (LOG -> SHARE)."]
     # Five bullets of at most HEADLINE_LIMIT characters and the introduction stay far below Discord's limit.
     return "\n".join(lines)
 

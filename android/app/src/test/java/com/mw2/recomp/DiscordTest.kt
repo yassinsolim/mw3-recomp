@@ -4,16 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Join our Discord entry opens the project's invite, the one the READMEs and the issue forms give. */
+/** The Join our Discord entry opens the project's Discord link, the one the READMEs and the issue forms give. */
 class DiscordTest {
     @Test
-    fun theUrlIsTheInvite() {
-        assertEquals("https://discord.gg/bTKn3Su3sp", Discord.INVITE)
+    fun theUrlIsTheProjectsDiscordLink() {
+        assertEquals("https://yassin.app/discord", Discord.URL)
     }
 
     @Test
-    fun theInviteIsAHttpsLinkWithoutSpaces() {
-        assertTrue(Discord.INVITE.startsWith("https://discord.gg/"))
-        assertTrue(Discord.INVITE.none { it.isWhitespace() })
+    fun theUrlIsAHttpsLinkWithoutSpaces() {
+        assertTrue(Discord.URL.startsWith("https://yassin.app/"))
+        assertTrue(Discord.URL.none { it.isWhitespace() })
     }
 }

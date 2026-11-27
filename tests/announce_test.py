@@ -30,7 +30,7 @@ class AnnounceTest(unittest.TestCase):
         self.assertTrue(lines[1].startswith("Nothing to rebuild"))
         self.assertEqual(sum(line.startswith("- ") for line in lines), 5)  # six bullets in New: five are kept
         self.assertIn(f"Get it: {item['html_url']}", lines)
-        self.assertIn(announce.INVITE, text)
+        self.assertIn(announce.DISCORD, text)
         self.assertNotIn("relay server", text)  # Known issues are left out
         self.assertNotIn("Official downloads are only", text)
         self.assertLess(len(text), 2000)

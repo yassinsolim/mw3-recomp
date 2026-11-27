@@ -4,14 +4,14 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 
-/** The project's Discord server: help, news and requests. Bugs still go to GitHub, with the log attached. */
+/** The project's Discord server (the address forwards to its invite): help, news and requests. Bugs still go to GitHub, with the log attached. */
 object Discord {
-    const val INVITE = "https://discord.gg/bTKn3Su3sp"
+    const val URL = "https://yassin.app/discord"
 
-    /** Opens the invite in the Discord app or the browser; nothing to do on a device that has neither. */
+    /** Opens the server's link in the Discord app or the browser; nothing to do on a device that has neither. */
     fun open(activity: Activity) {
         try {
-            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(INVITE)))
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(URL)))
         } catch (_: Exception) {
         }
     }

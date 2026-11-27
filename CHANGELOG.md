@@ -6,12 +6,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ### Added
 - **Our Discord server.** Help, news and requests have a place now:
-  [discord.gg/bTKn3Su3sp](https://discord.gg/bTKn3Su3sp). Each of the four
+  [yassin.app/discord](https://yassin.app/discord). Each of the four
   READMEs has a Discord badge at the top and a line under Official
   downloads (bugs still go to GitHub, with the log attached: LOG -> SHARE),
   the issue forms have an "Ask on Discord" link beside the FAQs, and the app
   has **JOIN OUR DISCORD** under Help and settings (all four games), which
-  opens the invite.
+  opens the server's link.
 - **Releases are announced on Discord.** When a release is published, a
   short message goes to the server's Releases channel: the game, the
   version, whether the game code is built again, the headline changes from
