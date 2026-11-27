@@ -82,4 +82,11 @@ class ControlLayoutTest {
             assertTrue("only ${(free * 100).toInt()}% of the look area is free on ${screen.name}", free >= 0.7f)
         }
     }
+
+    @Test
+    fun onlyTheLookAreaHasNoSizeOrOpacityToEdit() {
+        for (element in ControlLayout.defaults().elements) {
+            assertEquals(element.id, element.kind != ControlKind.LOOK, element.adjustable)
+        }
+    }
 }

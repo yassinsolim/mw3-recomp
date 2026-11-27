@@ -46,7 +46,14 @@ data class ControlElement(
     var visible: Boolean = true,
     /** Tap to hold, tap again to let go. For aiming down sights and crouch. */
     var toggle: Boolean = false,
-)
+) {
+    /**
+     * Whether it has a size and an opacity to set. The look area has neither:
+     * it is half the screen and is not drawn in play, so the editor shows
+     * only its outline, at a fixed brightness.
+     */
+    val adjustable: Boolean get() = kind != ControlKind.LOOK
+}
 
 /**
  * The whole on-screen pad: what it is, where it came from, and how it is

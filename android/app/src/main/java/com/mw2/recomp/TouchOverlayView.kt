@@ -478,7 +478,7 @@ class TouchOverlayView @JvmOverloads constructor(
                 // Two fingers on the selected control resize it. The look
                 // area has no size of its own: it is half the screen.
                 val element = dragElement ?: selected
-                if (element != null && element.kind != ControlKind.LOOK && event.pointerCount == 2) {
+                if (element != null && element.adjustable && event.pointerCount == 2) {
                     pinching = true
                     pinchStartDistance = max(1f, spread(event))
                     pinchStartSize = element.sizeDp

@@ -511,6 +511,7 @@
     <!-- editing the pad -->
     <string name="edit_pick_one">Touch a control to pick it up. Drag to move it, pinch to resize.</string>
     <string name="edit_selected">%1$s — drag to move, pinch to resize</string>
+    <string name="edit_selected_fixed">%1$s — drag to move</string>
     <string name="edit_hint">Hidden controls are shown faintly here so they can be turned back on.</string>
     <string name="size">Size</string>
     <string name="opacity">Opacity</string>

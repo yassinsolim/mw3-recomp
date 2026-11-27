@@ -1857,6 +1857,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private inner class EditPanel {
         private val view: View = layoutInflater.inflate(R.layout.edit_panel, root, false)
         private val title: TextView = view.findViewById(R.id.edit_title)
+        private val sizeRow: View = view.findViewById(R.id.edit_size_row)
         private val size: SeekBar = view.findViewById(R.id.edit_size)
         private val opacity: SeekBar = view.findViewById(R.id.edit_opacity)
         private val visible: SwitchCompat = view.findViewById(R.id.edit_visible)
@@ -1953,16 +1954,18 @@ class GameActivity : AppCompatActivity(), NativeListener {
             current = element
             if (element == null) {
                 title.setText(R.string.edit_pick_one)
+                sizeRow.visibility = View.VISIBLE
                 size.isEnabled = false
                 opacity.isEnabled = false
                 visible.isEnabled = false
                 toggle.isEnabled = false
                 return
             }
-            title.text = getString(R.string.edit_selected, element.label)
-            // The look area is half the screen and is not drawn in play:
-            // it can be moved to the other half, or switched off.
-            val drawn = element.kind != ControlKind.LOOK
+            // The look area has no size or opacity: it can be moved to the
+            // other half, or switched off.
+            val drawn = element.adjustable
+            title.text = getString(if (drawn) R.string.edit_selected else R.string.edit_selected_fixed, element.label)
+            sizeRow.visibility = if (drawn) View.VISIBLE else View.GONE
             size.isEnabled = drawn
             opacity.isEnabled = drawn
             visible.isEnabled = true
