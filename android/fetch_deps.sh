@@ -89,6 +89,35 @@ else
     mv "${TURNIP_ASSET}.part" "${TURNIP_ASSET}"
 fi
 
+# The Turnip the apps carry for Android 10, where the one above cannot load
+# (it needs Android 11's libc): the project's own build of Mesa, made here by
+# android/build_turnip.sh, never committed (THIRD_PARTY.md). It needs Linux
+# or WSL with Meson and the NDK; without them the apps are built without it
+# and an Android 10 Snapdragon has no bundled driver (DriverStore.kt). The
+# release workflows set REQUIRE_TURNIP_API29=1, which makes that an error.
+TURNIP29_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_api29.zip"
+TURNIP29_COMMIT="$(sed -n 's/^MESA_COMMIT="\(.*\)"$/\1/p' "${REPOSITORY_ROOT}/android/build_turnip.sh")"
+turnip29_current() {
+    [ -f "${TURNIP29_ASSET}" ] && python3 - "${TURNIP29_ASSET}" "${TURNIP29_COMMIT:0:10}" <<'EOF'
+import json, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    sys.exit(0 if sys.argv[2] in json.loads(z.read("meta.json"))["driverVersion"] else 1)
+EOF
+}
+if turnip29_current; then
+    echo "The Android 10 Turnip driver is already there."
+else
+    echo "Building the Android 10 Turnip driver (Mesa ${TURNIP29_COMMIT:0:10}; a few minutes)"
+    if ! bash "${REPOSITORY_ROOT}/android/build_turnip.sh" "${TURNIP29_ASSET}"; then
+        rm -f "${TURNIP29_ASSET}"
+        if [ "${REQUIRE_TURNIP_API29:-0}" = 1 ]; then
+            echo "The Android 10 Turnip driver could not be built." >&2
+            exit 1
+        fi
+        echo "The Android 10 Turnip driver could not be built: the apps will have no bundled driver on Android 10." >&2
+    fi
+fi
+
 # The camouflage pack the multiplayer app carries (docs/textures.md,
 # "Camouflage packs"): the project's own, drawn here by tools/camo_gen.py and
 # never committed. It needs Python with Pillow and numpy; without them the

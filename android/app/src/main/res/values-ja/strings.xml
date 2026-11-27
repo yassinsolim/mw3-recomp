@@ -435,6 +435,7 @@
     <string name="no_frame">ゲームを起動して %1$d 秒経ちましたが、画面が表示されません。</string>
     <string name="renderer_try_system">対処法：このドライバーの代わりに端末内蔵のドライバーを使ってください（設定 › グラフィックドライバー からも変更できます）。</string>
     <string name="renderer_try_bundled">対処法：端末内蔵のドライバーの代わりにアプリ同梱の Turnip ドライバーを使ってください（設定 › グラフィックドライバー からも変更できます）。</string>
+    <string name="renderer_try_bundled_instead">対処法：インポートしたドライバーの代わりにアプリ同梱の Turnip ドライバーを使ってください（設定 › グラフィックドライバー からも変更できます）。</string>
     <string name="renderer_try_import">対処法：システムアップデートで新しいグラフィックドライバーにしてください。Snapdragon なら、設定 › グラフィックドライバー で Turnip ドライバーをインポートする方法もあります。</string>
     <string name="renderer_use_system">端末のドライバーを使う</string>
     <string name="renderer_use_bundled">Turnip を使う</string>

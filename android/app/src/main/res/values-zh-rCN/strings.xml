@@ -435,6 +435,7 @@
     <string name="no_frame">游戏已运行 %1$d 秒，但屏幕上还没有出现画面。</string>
     <string name="renderer_try_system">可以试试：改用手机自带驱动（也可在“设置 › 图形驱动”中切换）。</string>
     <string name="renderer_try_bundled">可以试试：改用本应用自带的 Turnip 驱动，替代手机自带驱动（也可在“设置 › 图形驱动”中切换）。</string>
+    <string name="renderer_try_bundled_instead">可以试试：改用本应用自带的 Turnip 驱动，替代导入的驱动（也可在“设置 › 图形驱动”中切换）。</string>
     <string name="renderer_try_import">可以试试：更新系统以获得更新的图形驱动；如果是骁龙（Snapdragon）设备，也可以在“设置 › 图形驱动”中导入 Turnip 驱动。</string>
     <string name="renderer_use_system">使用手机自带驱动</string>
     <string name="renderer_use_bundled">使用 Turnip</string>

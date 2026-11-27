@@ -35,13 +35,45 @@ Qualcomm devices.
 - Project: Mesa, <https://gitlab.freedesktop.org/mesa/mesa> (Turnip is its open
   source Vulkan driver for Adreno GPUs)
 - Licence: MIT
-- Build used: Turnip v27.0.0-R2 by StevenMXZ,
+- Build used from Android 11 on: Turnip v27.0.0-R2 by StevenMXZ,
   <https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip>
   (SHA-256 `8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781`)
+- Build used on Android 10: the project's own, of Mesa at commit
+  `483aff363be4d6913017b834123c8eeaada171d9`, unmodified, compiled with NDK
+  r28c for API 29 by `android/build_turnip.sh` (every community build needs
+  Android 11's libc)
 
-The binary is downloaded at build time by `android/fetch_deps.sh` (or
+The first is downloaded at build time by `android/fetch_deps.sh` (or
 `setup/setup.ps1` on Windows), checked against the hash above and packaged
-into the apps' assets. It is not stored in this repository.
+into the apps' assets; the second is built by `android/fetch_deps.sh`, which
+runs the script. Neither is stored in this repository.
+
+Mesa's licence, MIT, as it applies to the Turnip sources both builds are made
+from (each file names its own copyright holders; the few files under other
+permissive licences are listed in Mesa's `licenses/` directory):
+
+```
+Copyright © the Mesa authors
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next
+paragraph) shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
 
 ## libadrenotools
 

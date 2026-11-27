@@ -437,6 +437,7 @@
     <string name="no_frame">Il gioco è in esecuzione da %1$d secondi e sullo schermo non è ancora apparsa nessuna immagine.</string>
     <string name="renderer_try_system">Cosa provare: il driver del telefono al posto di questo (anche da Impostazioni › Driver grafico).</string>
     <string name="renderer_try_bundled">Cosa provare: il driver Turnip incluso nell\'app al posto di quello del telefono (anche da Impostazioni › Driver grafico).</string>
+    <string name="renderer_try_bundled_instead">Cosa provare: il driver Turnip incluso nell\'app al posto di quello importato (anche da Impostazioni › Driver grafico).</string>
     <string name="renderer_try_import">Cosa provare: un aggiornamento di sistema per avere un driver grafico più recente oppure, su Snapdragon, un driver Turnip importato da Impostazioni › Driver grafico.</string>
     <string name="renderer_use_system">Usa il driver del telefono</string>
     <string name="renderer_use_bundled">Usa Turnip</string>

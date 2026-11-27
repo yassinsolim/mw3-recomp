@@ -66,6 +66,18 @@ if(EXISTS "${MW2_ADRENOTOOLS_DIR}/CMakeLists.txt")
     add_subdirectory("${MW2_ADRENOTOOLS_DIR}" adrenotools)
     target_link_libraries(mw2 PRIVATE adrenotools)
     target_compile_definitions(mw2 PRIVATE MW2_HAVE_ADRENOTOOLS=1)
+    # Its archives' symbols stay inside the libraries that link them. Left
+    # to the default visibility above, linkernsbypass's globals -- function
+    # pointers named android_get_exported_namespace, android_link_namespaces
+    # and android_link_namespaces_all_libs, and a wrapper named
+    # android_create_namespace -- are exported under the names of the
+    # linker's own functions, and with -z global (MW2_SPLIT) ahead of them:
+    # on Android 11 a system library loaded with an imported driver bound
+    # android_get_exported_namespace to our variable and jumped into .bss
+    # (docs/android.md, "Older Snapdragons"). hook_impl, the hook library
+    # every imported driver loads, links the same archive.
+    target_link_options(mw2 PRIVATE "-Wl,--exclude-libs,libadrenotools.a:liblinkernsbypass.a")
+    target_link_options(hook_impl PRIVATE "-Wl,--exclude-libs,liblinkernsbypass.a")
     # Its two hook libraries are dlopened by the driver at run time, so they
     # have to be in the apk beside libmw2.so. Building them as part of this
     # build is what puts them there: the Gradle plugin packages every shared

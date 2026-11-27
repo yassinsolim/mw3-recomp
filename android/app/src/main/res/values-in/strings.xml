@@ -435,6 +435,7 @@
     <string name="no_frame">Game sudah berjalan selama %1$d detik, tetapi belum ada gambar yang muncul di layar.</string>
     <string name="renderer_try_system">Coba ini: gunakan driver bawaan ponsel sebagai ganti driver ini (bisa juga di Pengaturan \u203a Driver grafis).</string>
     <string name="renderer_try_bundled">Coba ini: gunakan driver Turnip bawaan aplikasi ini sebagai ganti driver bawaan ponsel (bisa juga di Pengaturan \u203a Driver grafis).</string>
+    <string name="renderer_try_bundled_instead">Coba ini: gunakan driver Turnip bawaan aplikasi ini sebagai ganti driver yang diimpor (bisa juga di Pengaturan \u203a Driver grafis).</string>
     <string name="renderer_try_import">Coba ini: perbarui sistem untuk mendapatkan driver grafis yang lebih baru, atau di Snapdragon, impor driver Turnip di Pengaturan \u203a Driver grafis.</string>
     <string name="renderer_use_system">Gunakan driver ponsel</string>
     <string name="renderer_use_bundled">Gunakan Turnip</string>

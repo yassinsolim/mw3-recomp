@@ -438,6 +438,7 @@
     <string name="no_frame">Gra działa już od %1$d s, a na ekranie nie pojawił się żaden obraz.</string>
     <string name="renderer_try_system">Co możesz zrobić: użyj wbudowanego sterownika telefonu zamiast tego (także Ustawienia › Sterownik grafiki).</string>
     <string name="renderer_try_bundled">Co możesz zrobić: użyj sterownika Turnip dołączonego do aplikacji zamiast wbudowanego sterownika telefonu (także Ustawienia › Sterownik grafiki).</string>
+    <string name="renderer_try_bundled_instead">Co możesz zrobić: użyj sterownika Turnip dołączonego do aplikacji zamiast zaimportowanego (także Ustawienia › Sterownik grafiki).</string>
     <string name="renderer_try_import">Co możesz zrobić: zainstaluj aktualizację systemu z nowszym sterownikiem grafiki albo, na Snapdragonie, zaimportuj sterownik Turnip w Ustawienia › Sterownik grafiki.</string>
     <string name="renderer_use_system">Użyj sterownika telefonu</string>
     <string name="renderer_use_bundled">Użyj Turnip</string>

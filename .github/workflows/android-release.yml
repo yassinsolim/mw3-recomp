@@ -90,7 +90,10 @@ jobs:
         run: |
           # Pillow and numpy draw the project's own camouflage pack.
           python3 -m pip install --quiet pillow numpy
-          bash android/fetch_deps.sh
+          # Mesa's build tools, for the Android 10 Turnip (android/build_turnip.sh).
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build bison flex glslang-tools > /dev/null
+          python3 -m pip install --quiet meson==1.12.1 mako pyyaml packaging
+          REQUIRE_TURNIP_API29=1 bash android/fetch_deps.sh
 
       - name: The release keystore
         env:

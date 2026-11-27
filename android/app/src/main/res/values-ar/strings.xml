@@ -440,6 +440,7 @@
     <string name="no_frame">اللعبة تعمل منذ %1$d ثانية ولم تظهر أي صورة على الشاشة.</string>
     <string name="renderer_try_system">ما يمكنك تجربته: برنامج التشغيل المدمج في الهاتف بدلًا من هذا (أيضًا من الإعدادات › برنامج تشغيل الرسومات).</string>
     <string name="renderer_try_bundled">ما يمكنك تجربته: برنامج تشغيل Turnip المرفق بالتطبيق بدلًا من برنامج الهاتف (أيضًا من الإعدادات › برنامج تشغيل الرسومات).</string>
+    <string name="renderer_try_bundled_instead">ما يمكنك تجربته: برنامج تشغيل Turnip المرفق بالتطبيق بدلًا من البرنامج المستورد (أيضًا من الإعدادات › برنامج تشغيل الرسومات).</string>
     <string name="renderer_try_import">ما يمكنك تجربته: تحديث النظام للحصول على برنامج تشغيل رسومات أحدث، أو على أجهزة Snapdragon استيراد برنامج تشغيل Turnip من الإعدادات › برنامج تشغيل الرسومات.</string>
     <string name="renderer_use_system">استخدام برنامج تشغيل الهاتف</string>
     <string name="renderer_use_bundled">استخدام Turnip</string>

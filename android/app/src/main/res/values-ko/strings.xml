@@ -435,6 +435,7 @@
     <string name="no_frame">게임이 %1$d초째 실행 중이지만 화면에 아무것도 표시되지 않았어요.</string>
     <string name="renderer_try_system">해결 방법: 이 드라이버 대신 휴대폰 기본 드라이버를 사용해 보세요(설정 › 그래픽 드라이버에서도 바꿀 수 있어요).</string>
     <string name="renderer_try_bundled">해결 방법: 휴대폰 기본 드라이버 대신 앱에 포함된 Turnip 드라이버를 사용해 보세요(설정 › 그래픽 드라이버에서도 바꿀 수 있어요).</string>
+    <string name="renderer_try_bundled_instead">해결 방법: 가져온 드라이버 대신 앱에 포함된 Turnip 드라이버를 사용해 보세요(설정 › 그래픽 드라이버에서도 바꿀 수 있어요).</string>
     <string name="renderer_try_import">해결 방법: 시스템 업데이트로 더 새로운 그래픽 드라이버를 받거나, Snapdragon 기기라면 설정 › 그래픽 드라이버에서 Turnip 드라이버를 가져와 보세요.</string>
     <string name="renderer_use_system">휴대폰 드라이버 사용</string>
     <string name="renderer_use_bundled">Turnip 사용</string>

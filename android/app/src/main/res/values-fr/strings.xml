@@ -437,6 +437,7 @@
     <string name="no_frame">Le jeu tourne depuis %1$d secondes et aucune image n\'est apparue à l\'écran.</string>
     <string name="renderer_try_system">À essayer : le pilote du téléphone à la place de celui-ci (aussi dans Paramètres \u203a Pilote graphique).</string>
     <string name="renderer_try_bundled">À essayer : le pilote Turnip fourni avec l\'app à la place de celui du téléphone (aussi dans Paramètres \u203a Pilote graphique).</string>
+    <string name="renderer_try_bundled_instead">À essayer : le pilote Turnip fourni avec l\'app à la place de celui importé (aussi dans Paramètres \u203a Pilote graphique).</string>
     <string name="renderer_try_import">À essayer : une mise à jour système pour un pilote graphique plus récent ou, sur Snapdragon, un pilote Turnip importé dans Paramètres \u203a Pilote graphique.</string>
     <string name="renderer_use_system">Utiliser le pilote du téléphone</string>
     <string name="renderer_use_bundled">Utiliser Turnip</string>

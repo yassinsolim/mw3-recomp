@@ -436,6 +436,7 @@
     <string name="no_frame">Das Spiel läuft seit %1$d Sekunden, aber es ist noch kein Bild auf dem Bildschirm angekommen.</string>
     <string name="renderer_try_system">Probier Folgendes: den eigenen Treiber des Handys statt diesem (auch unter Einstellungen › Grafiktreiber).</string>
     <string name="renderer_try_bundled">Probier Folgendes: den mitgelieferten Turnip-Treiber statt dem eigenen Treiber des Handys (auch unter Einstellungen › Grafiktreiber).</string>
+    <string name="renderer_try_bundled_instead">Probier Folgendes: den mitgelieferten Turnip-Treiber statt des importierten (auch unter Einstellungen › Grafiktreiber).</string>
     <string name="renderer_try_import">Probier Folgendes: ein Systemupdate für einen neueren Grafiktreiber oder, auf einem Snapdragon, einen Turnip-Treiber, den du unter Einstellungen › Grafiktreiber importierst.</string>
     <string name="renderer_use_system">Treiber des Handys verwenden</string>
     <string name="renderer_use_bundled">Turnip verwenden</string>

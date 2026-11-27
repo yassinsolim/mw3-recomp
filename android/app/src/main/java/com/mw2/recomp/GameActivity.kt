@@ -542,12 +542,18 @@ class GameActivity : AppCompatActivity(), NativeListener {
         val bundled = prefs.bundledDriverDirectory.takeIf { it.isNotEmpty() }
             ?.let { path -> DriverStore(this).list().firstOrNull { it.directory.absolutePath == path } }
         val onSystem = prefs.driverDirectory.isEmpty()
+        // A driver the player imported failed: the one the app carries is
+        // the likelier to work than the phone's own, which on the Snapdragons
+        // that need an imported one (Adreno 610-619 on Android 10-11) is
+        // refused for want of descriptor indexing.
+        val onOtherImported = !onSystem && bundled != null && prefs.driverDirectory != bundled.directory.absolutePath
         val driver = try {
             NativeBridge.nativeDriverDescription()
         } catch (_: Throwable) {
             ""
         }
         val advice = when {
+            onOtherImported -> getString(R.string.renderer_try_bundled_instead)
             !onSystem -> getString(R.string.renderer_try_system)
             bundled != null -> getString(R.string.renderer_try_bundled)
             else -> getString(R.string.renderer_try_import)
@@ -561,7 +567,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
             .setMessage(message)
             .setCancelable(false)
             .setNeutralButton(R.string.share_log, null)
-        if (!onSystem) {
+        if (onOtherImported) {
+            builder.setPositiveButton(R.string.renderer_use_bundled) { _, _ -> restartWithDriver(bundled) }
+        } else if (!onSystem) {
             builder.setPositiveButton(R.string.renderer_use_system) { _, _ -> restartWithDriver(null) }
         } else if (bundled != null) {
             builder.setPositiveButton(R.string.renderer_use_bundled) { _, _ -> restartWithDriver(bundled) }

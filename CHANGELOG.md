@@ -180,6 +180,24 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Imported drivers no longer crash at start on Android 11.** Every app's
+  library exported libadrenotools' function pointers under the names of the
+  linker's own functions (`android_get_exported_namespace` and three more),
+  and on a Realme 5 Pro (Adreno 616) a system library called our variable
+  and crashed in `vkCreateInstance` with any driver imported. Those
+  archives are now linked with `--exclude-libs` into every title's library
+  and into `libhook_impl.so` (`cmake/android.cmake`); `readelf` finds none
+  of the names exported any more.
+- **Snapdragons on Android 10 and 11 get the bundled Turnip.** The app knew
+  a Snapdragon only by `Build.SOC_MANUFACTURER`, which Android 12 added;
+  below it `QualcommSoc` reads `Build.HARDWARE`, `Build.BOARD` and the
+  OpenGL ES renderer (`QualcommSocTest`, with real phones' values). Android
+  10 is given a Turnip of its own, Mesa `483aff363be` built for API 29 by
+  `android/build_turnip.sh` (every community build needs Android 11's
+  libc); Android 11 and later keep v27.0.0-R2. A player who had already
+  chosen a driver finds the bundled one in the list, and the black screen's
+  message offers it in place of an imported driver that failed. Untested
+  on an Android 10 or 11 phone (docs/android.md, "Older Snapdragons").
 - **Advanced Warfare: the drop pod's screens no longer vanish for a frame.**
   In Induction's pod the screens over the window went and the window showed
   washed white for one frame, a few times a descent (14 times in 150 s at

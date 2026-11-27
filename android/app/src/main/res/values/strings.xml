@@ -476,6 +476,7 @@
     <string name="no_frame">The game has been running for %1$d seconds and no picture has reached the screen.</string>
     <string name="renderer_try_system">What to try: the phone\'s own driver in place of this one (also Settings \u203a Graphics driver).</string>
     <string name="renderer_try_bundled">What to try: the Turnip driver this app carries in place of the phone\'s own (also Settings \u203a Graphics driver).</string>
+    <string name="renderer_try_bundled_instead">What to try: the Turnip driver this app carries in place of the one imported (also Settings \u203a Graphics driver).</string>
     <string name="renderer_try_import">What to try: a system update for a newer graphics driver, or on a Snapdragon a Turnip driver imported in Settings \u203a Graphics driver.</string>
     <string name="renderer_use_system">Use the phone\'s driver</string>
     <string name="renderer_use_bundled">Use Turnip</string>

@@ -161,15 +161,21 @@ class DriverStore(private val context: Context) {
     }
 
     /**
-     * Makes the driver the build carries (assets/drivers/turnip_v27_r2.zip,
-     * fetched at build time by android/fetch_deps.sh, never committed) the
-     * default on Qualcomm phones, where the stock driver renders this game
-     * slowly and with corrupted textures and Turnip does not.
+     * Makes the driver the build carries the default on Qualcomm phones,
+     * where the stock driver renders this game slowly and with corrupted
+     * textures and Turnip does not. Two packages, both made at build time by
+     * android/fetch_deps.sh and never committed: from Android 11 on the
+     * community Turnip v27.0.0-R2 (assets/drivers/turnip_v27_r2.zip), and on
+     * Android 10 the project's own build of Mesa (turnip_api29.zip,
+     * android/build_turnip.sh), because every community Turnip asks for
+     * Android 11's libc and does not load there.
      *
      * It only ever fills a gap. Once the player has picked anything, the
      * system's driver included (Prefs.driverChoiceMade), it is never
      * selected for them again; a newer bundled package after an app update
-     * is still unpacked over the old one so the list does not go stale.
+     * is still unpacked over the old one so the list does not go stale, and
+     * a player who picked something before this phone was ever given the
+     * package finds it in the list and in the black screen's message.
      * Called from the launcher before the run starts, so the :game process
      * finds the choice already written. A failure here leaves the system's
      * driver in use, which is what the app did before.
@@ -185,7 +191,8 @@ class DriverStore(private val context: Context) {
     private fun installBundled(prefs: Prefs) {
         // A build without the asset (the download was skipped) has nothing
         // to offer, and everything below is then left exactly as it was.
-        val sha = bundledSha() ?: return
+        val asset = bundledAsset()
+        val sha = bundledSha(asset) ?: return
 
         // An install that predates this has a driver the player picked
         // (the default records its hash the moment it is installed, so a
@@ -193,7 +200,7 @@ class DriverStore(private val context: Context) {
         if (!prefs.driverChoiceMade && prefs.driverDirectory.isNotEmpty() && prefs.bundledDriverSha.isEmpty()) {
             prefs.driverChoiceMade = true
         }
-        if (!isQualcomm()) return
+        if (!QualcommSoc.detect { DeviceInfo.gpu(context) }) return
 
         val previousDirectory = prefs.bundledDriverDirectory
         val previous = if (previousDirectory.isNotEmpty()) read(File(previousDirectory)) else null
@@ -202,11 +209,13 @@ class DriverStore(private val context: Context) {
             if (!prefs.driverChoiceMade && prefs.driverDirectory != path) select(prefs, previous)
             return
         }
-        // The player decided against it (or never had it) and nothing
-        // says it should come back.
-        if (prefs.driverChoiceMade && previous == null) return
+        // The player removed it and nothing says it should come back. One
+        // who chose before ever having it -- an Android 10 or 11 Snapdragon,
+        // which the app took for another chip until QualcommSoc -- gets it
+        // unpacked, and not selected.
+        if (prefs.driverChoiceMade && previous == null && prefs.bundledDriverSha.isNotEmpty()) return
 
-        val outcome = context.assets.open(BUNDLED_ASSET).use { import(it, "Turnip") }
+        val outcome = context.assets.open(asset).use { import(it, "Turnip") }
         val driver = (outcome as? Outcome.Imported)?.driver
         if (driver == null) {
             Trail.note(context, "driver: bundled package rejected: ${(outcome as? Outcome.Failed)?.reason}")
@@ -229,10 +238,18 @@ class DriverStore(private val context: Context) {
         prefs.driverLibrary = driver.library
     }
 
+    /**
+     * Which package this phone is given: the community build needs bionic's
+     * LIBC_R (API 30), the project's own only LIBC_P. Below API 30 a build
+     * without the latter has nothing to offer.
+     */
+    private fun bundledAsset(): String =
+        if (Build.VERSION.SDK_INT >= 30) BUNDLED_ASSET else BUNDLED_ASSET_API29
+
     /** The asset's SHA-256, or null when this build does not carry one. */
-    private fun bundledSha(): String? {
+    private fun bundledSha(asset: String): String? {
         val stream = try {
-            context.assets.open(BUNDLED_ASSET)
+            context.assets.open(asset)
         } catch (_: java.io.IOException) {
             return null
         }
@@ -247,10 +264,6 @@ class DriverStore(private val context: Context) {
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
-
-    /** The stock Qualcomm driver is the one that misrenders; others are left alone. */
-    private fun isQualcomm(): Boolean =
-        Build.VERSION.SDK_INT >= 31 && Build.SOC_MANUFACTURER == "QTI"
 
     private fun safeName(name: String): String {
         val cleaned = name
@@ -320,5 +333,6 @@ class DriverStore(private val context: Context) {
 
     private companion object {
         const val BUNDLED_ASSET = "drivers/turnip_v27_r2.zip"
+        const val BUNDLED_ASSET_API29 = "drivers/turnip_api29.zip"
     }
 }

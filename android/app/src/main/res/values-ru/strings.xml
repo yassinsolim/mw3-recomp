@@ -438,6 +438,7 @@
     <string name="no_frame">Игра работает уже %1$d с, но изображение так и не появилось на экране.</string>
     <string name="renderer_try_system">Что попробовать: встроенный драйвер телефона вместо этого (также Настройки › Графический драйвер).</string>
     <string name="renderer_try_bundled">Что попробовать: встроенный в приложение драйвер Turnip вместо драйвера телефона (также Настройки › Графический драйвер).</string>
+    <string name="renderer_try_bundled_instead">Что попробовать: встроенный в приложение драйвер Turnip вместо импортированного (также Настройки › Графический драйвер).</string>
     <string name="renderer_try_import">Что попробовать: обновить систему, чтобы получить более новый графический драйвер, или на Snapdragon импортировать драйвер Turnip в разделе Настройки › Графический драйвер.</string>
     <string name="renderer_use_system">Использовать системный драйвер</string>
     <string name="renderer_use_bundled">Использовать Turnip</string>

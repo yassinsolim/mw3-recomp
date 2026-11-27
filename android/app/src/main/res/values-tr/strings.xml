@@ -436,6 +436,7 @@
     <string name="no_frame">Oyun %1$d saniyedir çalışıyor ama ekrana hiç görüntü gelmedi.</string>
     <string name="renderer_try_system">Şunu dene: bunun yerine telefonun kendi sürücüsü (Ayarlar › Grafik sürücüsü bölümünde de var).</string>
     <string name="renderer_try_bundled">Şunu dene: telefonun kendi sürücüsü yerine uygulamayla gelen Turnip sürücüsü (Ayarlar › Grafik sürücüsü bölümünde de var).</string>
+    <string name="renderer_try_bundled_instead">Şunu dene: içe aktarılan sürücü yerine uygulamayla gelen Turnip sürücüsü (Ayarlar › Grafik sürücüsü bölümünde de var).</string>
     <string name="renderer_try_import">Şunu dene: daha yeni bir grafik sürücüsü için sistem güncellemesi ya da Snapdragon\'da Ayarlar › Grafik sürücüsü bölümünden içe aktarılan bir Turnip sürücüsü.</string>
     <string name="renderer_use_system">Telefonun sürücüsünü kullan</string>
     <string name="renderer_use_bundled">Turnip kullan</string>
