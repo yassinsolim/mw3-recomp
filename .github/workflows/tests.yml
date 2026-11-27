@@ -52,3 +52,6 @@ jobs:
           expected=$(grep -c '^add_test(' tests/CMakeLists.txt)
           echo "registered checks: $registered, expected: $expected"
           [ "$registered" = "$expected" ]
+
+      - name: Test the release announcement
+        run: python3 -B tests/announce_test.py

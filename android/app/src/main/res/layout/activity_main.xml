@@ -235,6 +235,9 @@
                 <Button android:id="@+id/entry_report" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
                     android:text="@string/entry_report" />
+                <Button android:id="@+id/entry_discord" style="@style/MenuEntry"
+                    android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                    android:text="@string/entry_discord" />
                 <Button android:id="@+id/entry_updates" style="@style/MenuEntry"
                     android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
                     android:text="@string/check_updates" />

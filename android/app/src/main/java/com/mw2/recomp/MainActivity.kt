@@ -283,6 +283,12 @@ class MainActivity : AppCompatActivity() {
             showDetail(getString(R.string.report_problem_title), getString(R.string.report_problem_detail))
             LogShare.report(this) { wholeLog() }
         }
+        // Help, news and requests on the project's Discord; bugs go through the form above.
+        findViewById<Button>(R.id.entry_discord).setOnClickListener {
+            select(it as Button)
+            showDetail(getString(R.string.entry_discord), getString(R.string.discord_detail))
+            Discord.open(this)
+        }
         modsButton.setOnClickListener {
             select(modsButton)
             showDetail(getString(R.string.entry_mods), getString(R.string.mods_detail_phone))

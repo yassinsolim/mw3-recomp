@@ -606,6 +606,8 @@
     <string name="share_log_copy">Copy the end of the log (for a chat)</string>
     <string name="share_log_copied">Copied.</string>
     <string name="entry_report">REPORT A PROBLEM</string>
+    <string name="entry_discord">JOIN OUR DISCORD</string>
+    <string name="discord_detail">Opens our Discord server: help, news and requests. For a bug, use Report a problem and attach your log.</string>
     <string name="report_problem_title">Report a problem</string>
     <string name="report_problem_detail">Opens the report form in your browser, with the game, the app\'s version and your device filled in.</string>
     <string name="report_problem_explained">The report needs the log file.\n\n1. Tap Share the log file and save it (Files, Drive) or email it to yourself.\n2. Come back and tap Open the form.\n3. In the form, attach that file in the Log box.</string>

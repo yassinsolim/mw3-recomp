@@ -4,6 +4,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Added
+- **Our Discord server.** Help, news and requests have a place now:
+  [discord.gg/bTKn3Su3sp](https://discord.gg/bTKn3Su3sp). Each of the four
+  READMEs has a Discord badge at the top and a line under Official
+  downloads (bugs still go to GitHub, with the log attached: LOG -> SHARE),
+  the issue forms have an "Ask on Discord" link beside the FAQs, and the app
+  has **JOIN OUR DISCORD** under Help and settings (all four games), which
+  opens the invite.
+- **Releases are announced on Discord.** When a release is published, a
+  short message goes to the server's Releases channel: the game, the
+  version, whether the game code is built again, the headline changes from
+  the notes and the link
+  (`.github/workflows/announce-release.yml`, `tools/release/announce.py`).
+  `release.py announce --dry-run` prints the message and sends nothing
+  ([docs/android-releases.md](docs/android-releases.md#the-discord-announcement)).
+
 ### Changed
 - **A bug report's game-code line lists every library, and what each was
   built for.** It named only the disc's campaign and multiplayer, so a log

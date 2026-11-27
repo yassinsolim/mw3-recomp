@@ -16,3 +16,6 @@ contact_links:
   - name: Read the FAQ first (Advanced Warfare)
     url: https://github.com/yassinsolim/aw-recomp#faq
     about: Setup, the disc image, updating and the common problems are answered in the README's FAQ.
+  - name: Ask on Discord
+    url: https://discord.gg/bTKn3Su3sp
+    about: Help, news and requests. For a bug, use a form here and attach your log (LOG -> SHARE in the app).

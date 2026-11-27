@@ -10,6 +10,7 @@
     python tools/release/release.py device-template
     python tools/release/release.py publish --device-report <report.json>
     python tools/release/release.py verify-public
+    python tools/release/release.py announce [--dry-run]
 
 Each step refuses to go on when a gate fails and says which. Nothing is
 published by anything but `publish`, which runs the gates again on the drafts
@@ -46,6 +47,12 @@ say it would, the game-code line after it).
            downloads the previous published release's APK from GitHub
            Releases (what a player's phone updates from), checks it as gate 2
            does, and prints its path and SHA-256: the old app of gate 6.
+  announce the Discord Releases message of each game's latest published release
+           (tools/release/announce.py): --dry-run prints it and sends nothing.
+           The message is sent by .github/workflows/announce-release.yml when a
+           release is published, so this step is for a look beforehand (on the
+           last release) or a resend; it needs no RELEASE_WORK, and sending
+           takes the webhook from DISCORD_RELEASES_WEBHOOK or --webhook-file.
   publish  toolchain first when it is still a draft, then the games, then
            verify-public: the download addresses answer with the drafts'
            bytes and each repository's latest release is the new tag.
@@ -71,6 +78,9 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY / "tools"))
 import check_runtime_apk  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import announce  # noqa: E402
 
 OWNER = "yassinsolim"
 RELEASE_CERTIFICATE_SHA256 = "3aad5c3b3e4817007c659eb0b03e4480184aff631d13e0badbaa15f47ab36e06"
@@ -638,7 +648,7 @@ class Release:
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("step", choices=("status", "sync", "tag", "withdraw", "gates", "published-apk", "device-template",
-                                         "publish", "verify-public"))
+                                         "publish", "verify-public", "announce"))
     parser.add_argument("--work", help="the folder with the mirrors' clones and the SDK (RELEASE_WORK)")
     parser.add_argument("--branch", default="origin/android", help="the private branch to release")
     parser.add_argument("--games", default=",".join(GAMES))
@@ -646,9 +656,15 @@ def main():
                         help="a tag other than the published one's patch plus one")
     parser.add_argument("--push", action="store_true", help="sync: push each mirror's main")
     parser.add_argument("--wait", action="store_true", help="gates: wait for the workflows to end")
+    parser.add_argument("--dry-run", action="store_true", help="announce: print the messages, send nothing")
+    parser.add_argument("--webhook-file", help="announce: a file holding the webhook, instead of DISCORD_RELEASES_WEBHOOK")
     parser.add_argument("--device-report", help="publish: the filled report of gates 5 and 6")
     args = parser.parse_args()
     try:
+        if args.step == "announce":
+            for game in args.games.split(","):
+                announce.announce(f"{OWNER}/{game}-recomp", None, args.dry_run, args.webhook_file)
+            return 0
         release = Release(args)
         if args.step == "status":
             release.status()
@@ -672,7 +688,7 @@ def main():
             release.publish(args.device_report)
         else:
             release.verify_public()
-    except Refused as refused:
+    except (Refused, announce.Refused) as refused:
         print(f"REFUSED: {refused}", file=sys.stderr)
         return 1
     return 0

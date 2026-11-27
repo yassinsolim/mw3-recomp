@@ -1,0 +1,50 @@
+# Tells the Discord server's Releases channel when a release is published
+# (tools/release/announce.py: the game, the version, the headline changes of
+# the notes and the link). The same file is in all four public repositories.
+#
+# It runs for a published, full release only: the toolchain and the camo packs
+# are pre-releases and are not announced, and nothing runs for a draft. Run by
+# hand with dry_run on, it prints the message in the log and sends nothing.
+#
+# Secret (repository settings, Secrets and variables, Actions):
+#   DISCORD_RELEASES_WEBHOOK   the Releases channel's webhook address
+name: Announce release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release's tag (the latest release when empty)"
+        required: false
+      dry_run:
+        description: "Print the message, send nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    if: endsWith(github.repository, '-recomp') && (github.event_name == 'workflow_dispatch' || !github.event.release.prerelease)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Announce
+        env:
+          DISCORD_RELEASES_WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          args=(--repo "$REPOSITORY")
+          [ -n "$TAG" ] && args+=(--tag "$TAG")
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          python3 tools/release/announce.py "${args[@]}"

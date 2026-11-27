@@ -1,3 +1,5 @@
+[![Join our Discord](https://img.shields.io/badge/Discord-join%20our%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/bTKn3Su3sp) **Help, news and requests: [join our Discord](https://discord.gg/bTKn3Su3sp).**
+
 # CoD4 Recompiled: Call of Duty 4: Modern Warfare on Android
 
 A native Android port of *Call of Duty 4: Modern Warfare*, recompiled from
@@ -52,6 +54,7 @@ GAME**; no disc image is asked for again.
 - APKs re-uploaded elsewhere (file hosts, Reddit, Discord mirrors) are not ours. They may be modified or out of date, so we can't help with problems they cause.
 - The game is never provided. Build it from your own disc image, dumped from a disc you own. We don't link to download sites, and we can't help with downloaded copies.
 - Reporting a problem: [open an issue](https://github.com/yassinsolim/cod4-recomp/issues/new/choose) and attach the log (LOG -> SHARE in the app).
+- Help, news and requests: our Discord [discord.gg/bTKn3Su3sp](https://discord.gg/bTKn3Su3sp). For bugs, attach your log (LOG -> SHARE).
 
 ## FAQ
 

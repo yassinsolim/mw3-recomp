@@ -70,6 +70,7 @@ published by any step but the last.
     python tools/release/release.py device-template > report.json
     python tools/release/release.py publish --device-report report.json
     python tools/release/release.py verify-public   (publish runs it too)
+    python tools/release/release.py announce --dry-run   the Discord message of each game's latest release, printed
 
 `RELEASE_WORK` holds the mirrors' clones (`public-hist`, `mw2-public`,
 `cod4-public`, `aw-public`, each with the remote `public`; cloned when
@@ -152,6 +153,24 @@ addresses the app and setup use (`releases/download/<tag>/` and
 `releases/latest/download/`), the APK's SHA-256 is the one the gates passed,
 each repository's latest release is the new tag, and the build tools'
 download has the SHA-256 named.
+
+### The Discord announcement
+
+Publishing a release posts to the Releases channel of the project's Discord
+server: `.github/workflows/announce-release.yml` (in each public repository)
+runs `tools/release/announce.py` when a full release is published, and
+sends the game, the version, whether the game code is built again, the
+first five bullets of the notes' New section (never Known issues), the
+release's link and where to ask for help. A draft or a pre-release (the
+build tools, the camo packs) is not announced. The channel's webhook is the
+Actions secret `DISCORD_RELEASES_WEBHOOK` on the four public repositories
+and on `yassinsolim/mw3-android`; its address is never printed or committed.
+
+`release.py announce --dry-run` prints what the latest published release's
+message is, from the notes GitHub serves, and sends nothing; without
+`--dry-run` it sends (a resend, with the webhook in
+`DISCORD_RELEASES_WEBHOOK` or in a file named by `--webhook-file`). The
+workflow can also be run by hand, with `dry_run` on by default.
 
 ## The update as a player does it
 
