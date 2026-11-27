@@ -48,6 +48,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   to install it.
 
 ### Changed
+- **The public mirrors take Black Ops III's source.** `release.py sync`
+  refused every mirror once `bo3` was merged into `android`, for any path
+  naming the game. The owner decided Black Ops III goes public, so its code,
+  configuration and docs are now mirrored like Advanced Warfare's were
+  before its first release; its game folders (`bo3/`, `ppc_bo3*`) are
+  dropped by the filter and refused by `tools/check_no_game_files.py` and
+  the history check
+  ([docs/android-releases.md](docs/android-releases.md#what-must-not-reach-the-public-repositories)).
 - **Looking by touch turns the view by your finger, not by a stick (all
   four games on Android).** A player without a controller wrote that "the
   screen sensitivity is bad" and that he did not like "relying on a

@@ -86,10 +86,10 @@ The gates. All of them pass or nothing is published:
 1. **CI.** Every workflow on the mirror's new main (`tests`, `MW3
    validation`) and the tag's release workflow ended well. Before the push,
    in each filtered mirror: `tools/check_no_game_files.py` passes, no blob in
-   the whole history is over 20 MB, no path that the filter drops, no game
-   file and no path of a game that is not released (`bo3`) is anywhere in
-   it, and the public main is an ancestor of the filtered branch, so the
-   push is a fast-forward. It is never forced.
+   the whole history is over 20 MB, no path that the filter drops and no
+   game file (`bo3/`, `ppc_bo3*` and the other games' folders among them)
+   is anywhere in it, and the public main is an ancestor of the filtered
+   branch, so the push is a fast-forward. It is never forced.
 2. **The APK.** `tools/check_runtime_apk.py`: no recompiled function body
    and no game file; signed with the release key
    (`RELEASE_CERTIFICATE_SHA256`); the package and the version code are the
@@ -401,6 +401,14 @@ and refused by `tools/check_no_game_files.py`), and the filter names them
 all the same:
 
     git filter-repo --invert-paths --path aw/ --path-glob 'ppc_aw*'
+
+Black Ops III's source, merged into `android` before its own release, is
+in every mirror as code too (the owner's decision, 27 November 2026, its
+repository `yassinsolim/bo3-recomp` being prepared); its game's own folders
+(`bo3/`, `ppc_bo3/`, `ppc_bo3_zm/`) are git-ignored, refused by
+`tools/check_no_game_files.py` and dropped by the filter:
+
+    git filter-repo --invert-paths --path bo3/ --path-glob 'ppc_bo3*'
 
 ## The camo packs release
 

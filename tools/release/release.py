@@ -24,9 +24,9 @@ say it would, the game-code line after it).
 
   sync     filters the private branch into the four public mirrors' histories
            (the paths docs/android-releases.md names), checks each for game
-           files, for a blob over 20 MB and for anything of a game that is not
-           released, and that the public main is an ancestor of the result;
-           --push then pushes main, never forced.
+           files, for a blob over 20 MB and for a path the filter drops, and
+           that the public main is an ancestor of the result; --push then
+           pushes main, never forced.
   tag      pushes the next version's tag to each mirror: its workflow builds
            the app and drafts the release.
   withdraw takes a tag and its draft back, for a release that is to be cut
@@ -108,7 +108,7 @@ READMES = [game[1] for game in GAMES.values()]
 
 # What the private history has and the public ones must not (docs/android-releases.md).
 DROPPED_FOLDERS = ["ppc/", "iw4L-cpp/", "build-tests/", "pgo/", "android/toolchain/build/",
-                   "android/toolchain-probe/build/", "aw/"]
+                   "android/toolchain-probe/build/", "aw/", "bo3/"]
 DROPPED_FILES = [
     "android/app/src/main/assets/shader_cache.bin",
     "android/app/src/main/res/drawable/banner_mw2.png",
@@ -118,14 +118,12 @@ DROPPED_FILES = [
     "docs/HOMELAB-RELAY-REQUEST.md", "docs/images/multiplayer-menu.png",
     "docs/images/readme/multiplayer-menu.jpg", "docs/images/readme/split-screen.jpg",
 ]
-DROPPED_GLOBS = ["ppc_aw*"]
+DROPPED_GLOBS = ["ppc_aw*", "ppc_bo3*"]
 # Two earlier launcher icons, wherever they were in the tree.
 DROPPED_BLOBS = ["1f2bbd4247228de79269766ed3f5850630b3955d", "acdce15999039b8a20bb8008717f0a126ea1d5d0"]
 # The public copy of this private commit has one more newline at its message's end.
 MESSAGE_WITH_NEWLINE = "be9b1af"
-# No path of a game that is not released may be in a mirror, whatever merged into the branch.
-UNRELEASED = re.compile(r"(?i)(^|[/_.-])bo3([/_.-]|$)")
-GAME_PATH = re.compile(r"(?i)\.(xex|xexp|ff|ffm|iwd|iwi|bik|iso|god|pak|apk|aab|so|pe)$|^(aw|cod4|mw2|mw3|ppc[^/]*)/")
+GAME_PATH = re.compile(r"(?i)\.(xex|xexp|ff|ffm|iwd|iwi|bik|iso|god|pak|apk|aab|so|pe)$|^(aw|bo3|cod4|mw2|mw3|ppc[^/]*)/")
 ADRENOTOOLS_LIBRARIES = ("libhook_impl.so", "libmain_hook.so", "libfile_redirect_hook.so", "libgsl_alloc_hook.so")
 DEVICES = ("thor", "flip")
 DEVICE_CHECKS = ("campaign", "multiplayer", "visual", "turnip", "fps")
@@ -241,11 +239,11 @@ class Release:
 
     # ---- the mirrors --------------------------------------------------------
     def history_problems(self, clone, extra=()):
-        """Game files, dropped paths, unreleased games and large blobs anywhere in refilter's history."""
+        """Game files, dropped paths and large blobs anywhere in refilter's history."""
         paths = set(filter(None, run("git", "log", "--format=", "--name-only", "-m", "--no-renames", "refilter",
                                      cwd=clone).splitlines()))
         bad = sorted(path for path in paths if path.startswith(tuple(DROPPED_FOLDERS)) or path in DROPPED_FILES
-                     or path in extra or GAME_PATH.search(path) or UNRELEASED.search(path))
+                     or path in extra or GAME_PATH.search(path))
         objects = subprocess.run(["git", "rev-list", "--objects", "refilter"], cwd=clone, capture_output=True).stdout
         sizes = subprocess.run(["git", "cat-file", "--batch-check=%(objecttype) %(objectsize) %(objectname) %(rest)"],
                                cwd=clone, input=objects, capture_output=True).stdout.decode("utf-8", "replace")
