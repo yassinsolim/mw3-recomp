@@ -353,14 +353,34 @@ frames a second, eight passed at once and two did not:
 - `aw-shadows`: the run ended 57 s in, while Solar loaded. The debug
   build's dump of every thread's stack at a `STALL` (`crash.cpp`) faulted
   inside the unwinder (`SIGILL` at an `autia1716` of libunwind's
-  `stepWithDwarf`); the run after passed at 118.5. Not this branch's code,
-  and not in a release build, which has no such dump.
+  `stepWithDwarf`); the run after passed at 118.5. Not this branch's code:
+  an app built from `android` alone (`8b7d1a6`) ended the same way in one
+  run of three. Not in a release build, which has no such dump.
+
+**Again with `android` at `8b7d1a6`** (the frame slots' kept vertex data,
+Advanced Warfare's field of view; the branch at `6ddc0ad`), the ten
+scenarios on each phone and Shadows of Evil on the Flip:
+
+- The Flip: ten of ten, 59.7 to 60.4. Shadows of Evil: no flat rectangle,
+  no move made late, and the thin streak in nine single frames of a match
+  of 4,400.
+- The Thor: eight of ten, 117.3 to 118.7, `mw3-bots` among them. The two:
+  `aw-campaign`, the whole frame washed bright for one frame in the drop
+  pod, 94.6 s into the run, in one run of four (a run of another branch
+  without this one's changes had the same at 93.0 s that day); and
+  `aw-shadows`, three runs of three, each a single frame late in the walk
+  where a door post or a wall's edge crosses the left of the picture in a
+  fast turn, or the view passes a dark doorway: the check's own mistake,
+  the picture whole in each. The walk is wider since that merge
+  (`MW2_FOV=85` where the scenario had set `cg_fov`), and the one run of
+  `android` alone that finished passed.
 
 Open on Android:
 
-- A thin streak, white or dark, from a zombie's head across the picture for
-  one frame: one and five such frames in two Shadows of Evil matches of
-  about 3,400 frames on the Flip, two in 12,100 frames on Windows (above).
+- A thin streak, white or yellow, from a zombie's head across the picture
+  for one frame: one, five and nine such frames in three Shadows of Evil
+  matches of 3,400 to 4,400 frames on the Flip, two in 12,100 frames on
+  Windows (above).
 - The copied install was not run on a device.
 - Setup on a PC (`setup.ps1 -Game bo3`) does not exist.
 
