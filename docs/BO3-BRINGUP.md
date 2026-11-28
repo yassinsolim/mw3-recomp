@@ -679,6 +679,52 @@ sub_82A08D60, 2%; the outlined atomics `__aarch64_cas*` 3%). The Giant is
 held by the chip instead: the scene at 77 to 91% of its width and the
 frames waiting for the processor 5 to 24% of the time.
 
+## The cost of the code itself (27 November 2026, evening)
+
+With nothing in the game's logic standing out, these tried to make the same
+code cheaper, or to put it where it waits less. Each was Shadows of Evil,
+warm, on the Thor at 120, interleaved with the plain build in one slot.
+The plain build's seven runs came at 100.4 to 106.7 (103.6 on average) with
+a 1% low of 41 to 59 (53), so a change has to beat that spread to count.
+None did, and none is in the code:
+
+| Tried | runs: mean (1% low) |
+|---|---|
+| A recorded profile for the game library (PGO): an instrumented library on the Thor played Shadows of Evil and The Giant (zombies) and Combine and mp_spire (multiplayer), its counts written every 5 s by a thread of its own (the app's `_exit` writes none), merged with the NDK's `llvm-profdata`, every function of a checked file matched | 105.6 (58), 104.3 (61), 104.0 (60), 101.7 (59) |
+| LSE atomics compiled in (`-march=armv8-a+lse -mno-outline-atomics`) instead of the outlined `__aarch64_cas*` | 102.2 (56) |
+| The title's thread priorities (`KeSetBasePriorityThread`, ignored here) as nice values: -4 - 2 x the increment | 98.7 (54), 103.0 (59) |
+| The command recorder allowed onto the fastest core with the ring consumer | 97.7 (58) |
+
+The profile left each thread's share of a core where it was (Main 62 to
+63%, the busiest workers 58 to 65%, the ring consumer 63 to 67%), which says
+the code was not what limited it: frames still waited on the processor
+about as often, and Main stood ready to run with no core for it 20% of the
+time. Black Ops III sets increments 16 and 17 (saturated) on its audio and
+streaming threads, 0 on the two busiest workers and MAXLONG on its job
+threads, so honouring them only lowered the workers below Main. The game
+library's calls to each other go through the dynamic linker's table on
+purpose (every `sub_X` can be hooked by a newer app, cmake/game_library.cmake);
+`@plt` is 4 to 6% of the guest threads' samples, the price of that.
+
+**The Giant's chip time** (`MW2_TIME_PASSES` from 120 s, 4.7 ms a frame by
+timestamps, the scene at 70 to 76% of its width): the 880x720 2_10_10_10
+scene pass 2.51 ms (53%, 2244 draws a frame), the 1280x720 passes after it
+0.74 ms, copies, resolves and clears between passes 0.42 ms, an 800x800
+depth pass 0.24 ms; nothing else above 0.12 ms. By vertices
+(`MW2_SHADER_STATS`) the heaviest shaders are depth-only (a one-instruction
+pixel shader): the first, 125 instructions and 12 registers a vertex with
+the binning variant just as long, ran 5.9 of 18.1 billion vertices in the
+run (about 350,000 a frame). In this run the frames waited for the chip 10%
+of the time and for the processor 20%: The Giant is now held by the
+processor twice as often as by the chip, which still makes up its time by
+drawing the scene smaller.
+
+**The Flip 2 at 60** with this branch: Shadows of Evil 59.8 (96% of seconds
+at 57 or more, 1% low 21.9, longest 134 ms), The Giant 59.8 (97%, 26.0,
+86 ms), Combine 60.3 (98%, 29.7, 227 ms), no underrun; its `cpu:` line
+`cores 80 the fastest, 70 the title's, 0F the background's (by capacity)`,
+one prime, three performance and four efficiency cores.
+
 ## Open
 
 - The zombies once ended in `Could not load default asset '' for asset type
