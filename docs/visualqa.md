@@ -441,6 +441,10 @@ S.S.D.D.) is the branch's ahead. The Flip 2's long frames are first visits: The 
 play on both apps (the title late, 199 to 740 ms), and Riot's 285 ms was 66
 shaders and 156 textures new at once, not there on the run after it. The
 unlit rifle on Crash is android's app, the branch's run of it clean.
+Black Ops III on the Thor at 120 with the rebased app, a warm-up run per map
+then one measured (mean, the log's 1% low): Shadows of Evil 109.8 (51.6),
+The Giant 116.6 (70.7), Combine 119.0 (63.6), against 101.4, 113.7 and
+119.0 on the branch before (BO3-BRINGUP.md): the gains are kept.
 
 ## Calibration
 
