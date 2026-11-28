@@ -161,7 +161,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     /** Whether the run's first frames are a picture (FrameWatch.kt), and the runtime's last look at one. */
     private val frameWatch = FrameWatch()
-    private val pictureLook = IntArray(4)
+    private val pictureLook = IntArray(7)
     private var pictureSettled = false
 
     /**
@@ -627,30 +627,39 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     /**
      * The run's first frames, looked at twice a second by the runtime
-     * (nativePictureProbe) and judged over time (FrameWatch): a picture
-     * settles it and the driver is written down as one that draws this game
-     * here; noise for twenty seconds or one colour for a minute is put to
-     * the player, who may take the next driver or say the picture is fine.
+     * (nativePictureProbe) and judged over the looks (FrameWatch): a picture
+     * settles it, the driver is written down as one that draws this game
+     * here and neither this run nor a later one on it is looked at again;
+     * speckle for twenty seconds or one colour for a minute is put to the
+     * player, who may take the next driver or say the picture is fine. The
+     * app never switches for it by itself.
      */
     private fun watchPicture() {
         if (pictureSettled || failureShown || isFinishing) return
         NativeBridge.nativePictureProbe(pictureLook)
-        when (val verdict = frameWatch.look(SystemClock.elapsedRealtime(), pictureLook[0], pictureLook[1] != 0, pictureLook[2])) {
+        val look = pictureLook
+        when (val verdict = frameWatch.look(look[0], look[1] != 0, look[2], look[3], look[4], look[6])) {
             FrameWatch.Verdict.WATCHING -> Unit
             FrameWatch.Verdict.GOOD -> {
-                pictureSettled = true
-                if (prefs.driverVerdicts[runDriverId] != "good") prefs.noteDriverVerdict(runDriverId, "good")
-                NativeBridge.nativeLog(false, "driver: the run's first frames are a picture [$runDriverId]")
+                settlePicture()
+                prefs.noteDriverVerdict(runDriverId, "good")
+                NativeBridge.nativeLog(false, "driver: the run's first frames are a picture [$runDriverId] (${frameWatch.counts()})")
             }
             FrameWatch.Verdict.NOISE, FrameWatch.Verdict.FLAT -> showPictureWrong(verdict == FrameWatch.Verdict.NOISE)
         }
     }
 
+    private fun settlePicture() {
+        pictureSettled = true
+        NativeBridge.nativePictureSettled()
+    }
+
     private fun showPictureWrong(noise: Boolean) {
         failureShown = true
-        val why = if (noise) "its frames were noise for 20 s" else "its frames were one colour for 60 s"
+        val why = if (noise) "its frames were speckle for 20 s" else "its frames were one colour for 60 s"
         NativeBridge.nativeLog(true, "driver: the run presents frames that are not a picture [$runDriverId]: $why" +
-            " (last look: ${pictureLook[2]} per thousand samples unlike their neighbours, brightness ${pictureLook[3]})")
+            " (${frameWatch.counts()}; last look: per thousand samples ${pictureLook[2]} unlike their neighbours," +
+            " ${pictureLook[4]} of them as before, ${pictureLook[3]} the ground's colour; brightness ${pictureLook[5]}, ${pictureLook[6]} draws)")
         val next = DriverAuto.nextReady(this, prefs, runDriverId)
         val nextName = next?.let { it.first?.name ?: getString(R.string.driver_system) }
         val driver = try {
@@ -671,7 +680,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             .setNegativeButton(R.string.picture_fine) { _, _ ->
                 // The player's eyes outrank the samples: never asked again on this driver.
                 failureShown = false
-                pictureSettled = true
+                settlePicture()
                 prefs.noteDriverVerdict(runDriverId, "good")
                 NativeBridge.nativeLog(false, "driver: the player says the picture is fine [$runDriverId]")
                 goFullscreen()
@@ -722,6 +731,9 @@ class GameActivity : AppCompatActivity(), NativeListener {
                 "; on this phone so far: ${prefs.driverVerdicts[id] ?: "untested"}",
         )
         prefs.driverResults().forEach { NativeBridge.nativeLog(false, "driver: $it") }
+        // A driver that has shown this game's picture on this phone is not watched again
+        // (the verdicts are forgotten when the app, the catalog or the system changes: DriverAuto.run).
+        if (prefs.driverVerdicts[id] == "good") settlePicture()
         val notice = prefs.driverNotice
         if (notice.isEmpty()) return
         prefs.driverNotice = ""

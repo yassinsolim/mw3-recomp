@@ -3,6 +3,7 @@
 #include "renderer_state.h"
 #include "capture.h"
 #include "gpu_time.h"
+#include "picture_probe.h"
 #include "presenter.h"
 #include "texture_cache.h"
 #include "../../log.h"
@@ -523,6 +524,10 @@ namespace vk::renderer::detail
         }
         pacing::Note(pacing::kFrame, worldDrawn ? 1 : 0);
         stutters::Finished(g.frames, worldDrawn);
+        // What the watch over a run's first frames tells a loading screen by (picture_probe.h).
+        static uint64_t drawsBefore = 0;
+        vk::probe::Drawn(g.draws >= drawsBefore ? g.draws - drawsBefore : g.draws);
+        drawsBefore = g.draws;
         report::Done({ g.draws, g.segments, g.arenaWritten[kArenaConstants],
                        g.arenaWritten[kArenaVertices], g.arenaWritten[kArenaIndices] });
         report::Frame(worldDrawn);

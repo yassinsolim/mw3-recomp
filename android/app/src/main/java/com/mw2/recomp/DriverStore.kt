@@ -211,7 +211,9 @@ class DriverStore(private val context: Context) {
      * (bundledAssetFor).
      *
      * It only ever fills a gap. Once the player has picked anything, the
-     * system's driver included (Prefs.driverChoiceMade), it is never
+     * system's driver included (Prefs.driverChoiceMade), or the app has made
+     * its own choice for the chip (Prefs.driverPicked, DriverAuto: which may
+     * be another driver because this one failed on the phone), it is never
      * selected for them again; a newer bundled package after an app update
      * is still unpacked over the old one so the list does not go stale, and
      * a player who picked something before this phone was ever given the
@@ -246,7 +248,7 @@ class DriverStore(private val context: Context) {
         val previous = if (previousDirectory.isNotEmpty()) read(File(previousDirectory)) else null
         if (prefs.bundledDriverSha == sha && previous != null) {
             val path = previous.directory.absolutePath
-            if (!prefs.driverChoiceMade && prefs.driverDirectory != path) select(prefs, previous)
+            if (!prefs.driverChoiceMade && prefs.driverPicked.isEmpty() && prefs.driverDirectory != path) select(prefs, previous)
             return
         }
         // The player removed it and nothing says it should come back. One
@@ -268,7 +270,7 @@ class DriverStore(private val context: Context) {
         // A package that renamed itself lands in a new folder; the old one
         // is only ours to delete because we made it.
         if (previous != null && previous.directory.canonicalPath != driver.directory.canonicalPath) remove(previous)
-        if (!prefs.driverChoiceMade || wasSelected) select(prefs, driver)
+        if ((!prefs.driverChoiceMade && prefs.driverPicked.isEmpty()) || wasSelected) select(prefs, driver)
         Trail.note(context, "driver: bundled ${driver.name} (${driver.version}) installed")
     }
 

@@ -5,6 +5,29 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **The app chooses the graphics driver, proves it, and falls back.** Each
+  app carries a catalog of drivers with a pinned SHA-256 each
+  (`android/drivers/catalog.json`, checked by `tools/driver_catalog.py`),
+  reads the phone's chip, takes the best ranked driver for it and the game
+  (the copy it carries, or a download, asked for first on mobile data) and
+  runs a self-test in a process of its own before using it: the device made
+  as a run makes it and a frame drawn off screen and compared. A driver that
+  fails is written down and the next is tried. A run whose renderer cannot
+  start on an app-chosen driver switches to the next and starts again; a
+  run that presents frames of one colour for a minute or of moving speckle
+  for twenty seconds asks the player ("Is the picture wrong?") and never
+  switches by itself. A driver the player chose is kept. The watch's rules
+  were measured on 19,006 looks at 102 recordings of the five games: no
+  recording is accused wherever the watch begins, and the worst twenty
+  seconds hold 6 speckle looks where 32 are wanted
+  (`tools/frame_watch_calibrate.py`, `FrameWatchTest`, ctest's
+  `picture-probe`; docs/android.md, section 6).
+- **Drivers from anywhere.** Settings → Graphics driver takes a zip from a
+  file, from an `https://` link, or shared from another app, lists the
+  catalog's other drivers for the chip with a download each, warns with the
+  SHA-256 before unpacking one the catalog does not know, and self-tests
+  whatever arrives. Qualcomm's repackaged drivers are linked to, never
+  carried or chosen by the app.
 - **Compile all shaders at boot shows how far it is.** The compile before
   the first frame was minutes of a black screen with nothing on it (1,064
   pipelines one at a time on a Galaxy A35's Mali-G68, mw2 #4), which looked

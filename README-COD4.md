@@ -143,9 +143,12 @@ the sound breaks up there (on the AYN Thor it does when other programs keep
 the processor busy), the screen goes back to its fastest mode for the rest
 of the run and your limit stays.
 
-If the screen stays black, the app says so within half a minute, names the
-graphics chip and the driver, and offers the other driver (the Turnip driver
-the app carries, or the phone's own) and **Share log**. If it runs badly,
+The app picks the graphics driver for your phone's chip by itself, tests it
+before the game starts, and keeps any driver you choose yourself
+(**Settings → Graphics driver**, where you can also import one from a file,
+a link, or another app's Share). If the screen stays black or shows only
+speckle, the app says so, names the graphics chip and the driver, and offers
+the next driver and **Share log**. If it runs badly,
 open the game's **Menu → Share performance report** after a minute or two of
 play: it sends the frame rate, the graphics chip's time a frame, the device
 and your settings as text, which is what we need to do anything about it.
@@ -279,7 +282,7 @@ How it works and what was measured:
 | Can't connect online, or friends don't see your game | **Settings → Network** on **Online** (restart the game after changing it); everyone on the same app version; the host must have *started* the match |
 | System Link: the other device's game is not listed, or the overlay says `LAN: 0` | Both devices must be on the same Wi-Fi network, behind the same router. With two routers, a mesh's second network or a guest network they cannot hear each other: set **Settings → Network** to **Online** on both (restart the game) |
 | "Your .iso file is not where it was" | Put the `.iso` back (SD card, moved file), or tap the large button and pick it again |
-| Black screen | Within half a minute the app says why, or that no picture has come, with the graphics chip and driver: try the other driver it offers (or **Settings → Graphics driver**) and send **Share log** |
+| Black screen, or a picture of noise | The app says why, or asks whether the picture is wrong, with the graphics chip and driver: take the driver it offers (or pick or import one in **Settings → Graphics driver**; **The phone's own driver** there goes back) and send **Share log** |
 | Low frame rate or choppy sound | **Menu → Share performance report** in the game after a minute of play, and send it; see [Supported devices](#supported-devices-and-what-to-expect) |
 | Crash on a non-Qualcomm phone | Untested hardware; the app's **Log** screen says what happened |
 | `setup.cmd` problems | Logs are in `out\logs\`; use a short path such as `C:\cod4`; accept the USB debugging prompt on the phone |

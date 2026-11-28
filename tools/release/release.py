@@ -11,6 +11,7 @@
     python tools/release/release.py publish --device-report <report.json>
     python tools/release/release.py verify-public
     python tools/release/release.py announce [--dry-run]
+    python tools/release/release.py drivers [--upload]
 
 Each step refuses to go on when a gate fails and says which. Nothing is
 published by anything but `publish`, which runs the gates again on the drafts
@@ -55,6 +56,17 @@ say it would, the game-code line after it).
            release is published, so this step is for a look beforehand (on the
            last release) or a resend; it needs no RELEASE_WORK, and sending
            takes the webhook from DISCORD_RELEASES_WEBHOOK or --webhook-file.
+  drivers  the graphics driver catalog the apps ask for once a day
+           (android/drivers/catalog.json, docs/android.md "The driver
+           catalog"): checks it (tools/driver_catalog.py check, and verify:
+           every package downloaded and hashed), refuses a version that is not
+           newer than the published one, and prints exactly what would be
+           public: the repository, the release, the one file, its SHA-256 and
+           each driver it names. Nothing is published without --upload, which
+           makes the pre-release `drivers` of mw3-recomp when there is none
+           and puts driver-catalog.json on it, then reads it back by the
+           address the apps use. It publishes on a public repository: the
+           owner says when. Needs no RELEASE_WORK.
   publish  toolchain first when it is still a draft, then the games, then
            verify-public: the download addresses answer with the drafts'
            bytes and each repository's latest release is the new tag. Last,
@@ -737,10 +749,77 @@ class Release:
         print("public: every download answers and every 'latest' is the new tag")
 
 
+# ---- the driver catalog's public copy ---------------------------------------
+DRIVERS_REPOSITORY = f"{OWNER}/mw3-recomp"
+DRIVERS_TAG = "drivers"
+DRIVERS_ASSET = "driver-catalog.json"
+DRIVERS_URL = f"https://github.com/{DRIVERS_REPOSITORY}/releases/download/{DRIVERS_TAG}/{DRIVERS_ASSET}"
+DRIVERS_NOTES = (
+    "The catalog of graphics drivers the Android apps choose from (android/drivers/catalog.json in the source): "
+    "names, where each package is published by its own project, and its SHA-256. The apps fetch this one file once a "
+    "day; no driver is hosted here.")
+
+
+def drivers(upload):
+    catalog = REPOSITORY / "android" / "drivers" / "catalog.json"
+    tool = REPOSITORY / "tools" / "driver_catalog.py"
+    run(sys.executable, tool, "check")
+    run(sys.executable, tool, "verify")
+    text = catalog.read_bytes()
+    ours = json.loads(text)
+    try:
+        with urllib.request.urlopen(DRIVERS_URL, timeout=60) as answer:
+            published = answer.read()
+    except OSError:
+        published = None
+    exists = subprocess.run(["gh", "release", "view", DRIVERS_TAG, "--repo", DRIVERS_REPOSITORY],
+                            capture_output=True).returncode == 0
+    print(f"repository  {DRIVERS_REPOSITORY} (public)")
+    print(f"release     {DRIVERS_TAG}: " + ("exists" if exists else
+                                              "to be made, a pre-release titled \"Graphics driver catalog\", never 'latest'"))
+    print(f"file        {DRIVERS_ASSET}, {len(text)} bytes, SHA-256 {hashlib.sha256(text).hexdigest()}")
+    print(f"address     {DRIVERS_URL}")
+    print(f"version     {ours['version']}" + (
+        "; nothing is published there yet" if published is None else f"; published now: {json.loads(published)['version']}"))
+    print(f"notes       {DRIVERS_NOTES}")
+    print("it names:")
+    for driver in ours["drivers"]:
+        where = driver.get("url") or "(no address: the apps carry it)"
+        print(f"  {driver['id']}: {where}, SHA-256 {driver['sha256']}, "
+              + ("chosen by the app" if driver.get("auto") else "by hand only"))
+    print("no driver package, no app and no game file is uploaded: the one JSON file above")
+    if published == text:
+        print("the published catalog is this one already")
+        return
+    if published is not None and json.loads(published)["version"] >= ours["version"]:
+        raise Refused(f"the published catalog is version {json.loads(published)['version']}, this one {ours['version']}: "
+                      "an app keeps the newer of the two, so a changed catalog needs a higher version")
+    if not upload:
+        print("nothing published: --upload does it, when the owner has said so")
+        return
+    with tempfile.TemporaryDirectory() as folder:
+        file = Path(folder) / DRIVERS_ASSET
+        file.write_bytes(text)
+        if not exists:
+            run("gh", "release", "create", DRIVERS_TAG, "--repo", DRIVERS_REPOSITORY, "--title", "Graphics driver catalog",
+                "--notes", DRIVERS_NOTES, "--prerelease", "--latest=false")
+        run("gh", "release", "upload", DRIVERS_TAG, file, "--repo", DRIVERS_REPOSITORY, "--clobber")
+    for _ in range(12):
+        try:
+            with urllib.request.urlopen(DRIVERS_URL, timeout=60) as answer:
+                if answer.read() == text:
+                    print(f"published: {DRIVERS_URL} answers with this catalog")
+                    return
+        except OSError:
+            pass
+        time.sleep(10)
+    raise Refused(f"{DRIVERS_URL} does not answer with the catalog that was uploaded")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("step", choices=("status", "sync", "tag", "withdraw", "gates", "published-apk", "device-template",
-                                         "publish", "verify-public", "announce", "fixed-in"))
+                                         "publish", "verify-public", "announce", "fixed-in", "drivers"))
     parser.add_argument("--work", help="the folder with the mirrors' clones and the SDK (RELEASE_WORK)")
     parser.add_argument("--branch", default="origin/android", help="the private branch to release")
     parser.add_argument("--games", default=",".join(GAMES))
@@ -753,11 +832,15 @@ def main():
                              "published or sent")
     parser.add_argument("--webhook-file", help="announce: a file holding the webhook, instead of DISCORD_RELEASES_WEBHOOK")
     parser.add_argument("--device-report", help="publish: the filled report of gates 5 and 6")
+    parser.add_argument("--upload", action="store_true", help="drivers: publish the catalog (the owner's decision)")
     args = parser.parse_args()
     try:
         if args.step == "announce":
             for game in args.games.split(","):
                 announce.announce(f"{OWNER}/{game}-recomp", None, args.dry_run, args.webhook_file)
+            return 0
+        if args.step == "drivers":
+            drivers(args.upload)
             return 0
         if args.dry_run and args.step not in ("publish", "fixed-in"):
             raise Refused(f"{args.step} has no dry run")

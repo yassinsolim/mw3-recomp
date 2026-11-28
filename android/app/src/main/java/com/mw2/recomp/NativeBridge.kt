@@ -211,10 +211,15 @@ object NativeBridge {
 
     /**
      * The runtime's last look at a frame of the run (FrameWatch.kt), into
-     * [out]: how many frames have been looked at, 1 for one colour, the
-     * samples unlike all their neighbours per thousand, the brightness.
+     * [out], seven numbers: how many frames have been looked at, 1 for one
+     * colour, per thousand the samples unlike all their neighbours, those of
+     * the ground's colour and those unlike their neighbours as they were at
+     * the look before, the brightness, the frame's draws.
      */
     external fun nativePictureProbe(out: IntArray)
+
+    /** The run's frames need no more looking at: the runtime stops copying them. */
+    external fun nativePictureSettled()
 
     // ---- installing --------------------------------------------------------
 

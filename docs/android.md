@@ -341,12 +341,80 @@ One panel of the app's own in every title (Modern Warfare 2, Modern Warfare 3, C
 
 ## 6. Custom Vulkan Drivers (Turnip & libadrenotools)
 
-For devices with Qualcomm Adreno GPUs, Mesa **Turnip** drivers offer substantial performance and correctness advantages over outdated OEM vendor drivers.
+For devices with Qualcomm Adreno GPUs, Mesa **Turnip** drivers offer substantial performance and correctness advantages over outdated OEM vendor drivers. The runtime unpacks a driver into the app's private storage and loads it using `libadrenotools` in a dedicated linker namespace.
 
-1. Download a compatible Turnip driver archive (`.zip` containing `meta.json` and `libvulkan_freedreno.so`).
-2. Open **Graphics Driver** in the launcher.
-3. Tap **Import Driver** and choose the downloaded zip.
-4. The runtime extracts the driver into private storage and loads it using `libadrenotools` in a dedicated linker namespace.
+A player does not have to know any of this: the app chooses a driver for the phone's chip, proves it draws, and goes to the next when it does not.
+
+### How the app chooses a driver (`DriverAuto.kt`, `DriverCatalog.kt`)
+
+On the first start, and again whenever the app, the catalog, the system's build or the chip's name changes (and not at every start), the launcher:
+
+1. reads the chip from the OpenGL ES driver's strings (`DeviceInfo.gpu`: "Adreno (TM) 740", "Mali-G715", "Xclipse 940"), which does not open the Vulkan driver that may be the trouble;
+2. ranks what the catalog has for that chip and Android version: a driver a report calls good for this chip and game first, then by rank; one a report calls broken for them, and one that has failed on this phone, are left out. The phone's own driver is in the list with the rank the catalog gives it for the chip;
+3. makes the best one ready: the copy the app carries (Turnip v27.0.0-R2 and the project's API 29 build), or a download, which on mobile data is asked for first, the next choice serving meanwhile;
+4. **proves it** with the self-test below, and selects the first that passes. One that fails is written down (`driver:` lines in the log, and Settings → Graphics driver shows "Failed on this phone: ...") and the next is tried, down to the phone's own.
+
+**A player's own choice is kept.** Whoever picks a driver in Settings → Graphics driver (the phone's own included) keeps it through updates; it is tested once and they are told if it fails, nothing more. **Going back** is that screen: pick any driver listed, or **The phone's own driver**.
+
+### The driver catalog (`android/drivers/catalog.json`, `tools/driver_catalog.py`)
+
+One JSON file: for each driver package its name and version, the project that publishes it and the release asset's address, its **SHA-256** and size, the library inside, its licence, the Android API it needs, the chips it is for, a rank, whether the app may choose it by itself (`auto`), and reports: "good" or "broken" for a chip and a game, each with where that is known from (this project's device tests, a player's log). `system` holds the same for phones' own drivers by a piece of their version string. Every app carries the catalog it was built with and asks `https://github.com/yassinsolim/mw3-recomp/releases/download/drivers/driver-catalog.json` for a newer one once a day; a failed fetch keeps what there is. `tools/release/release.py drivers` checks the catalog and prints what would be published; `--upload` publishes that one file (the owner's decision: as of 28 November 2026 the release does not exist and the apps use the catalog they carry).
+
+`python tools/driver_catalog.py verify` downloads every entry, compares the hash, and looks inside (a `meta.json` naming an AArch64 library with a Vulkan entry point, `minApi` not below what the library's libc symbols need); `inspect <url|zip>` prints what an entry for a new package would say; `check` is the catalog's shape alone. A new driver goes in by a commit with `verify` beside it.
+
+The first entries: for Adreno 6xx and 7xx, Turnip v27.0.0-R2 (StevenMXZ, carried), then the project's own API 29 build (carried), R3, whitebelyash's Stable v2, K11MCH1's v26.0.0 R8 and Weab-chan's CI build; for Adreno 8xx The412Banner's Turnip v27.0.0-20261121 A8xx, a download (Mesa with the a8xx patches: a player's Snapdragon 8 Elite runs on it and does not draw properly on the project's unpatched build, which is therefore no longer offered to an 8xx). By hand only: K11MCH1's a8xx draft, the repackaged Qualcomm 842.6, 805 and 744.19, PanVK for Mali.
+
+**Security rules.** A driver is native code running inside the app, with everything the app may do.
+
+- The app downloads by itself only a package whose SHA-256 is in the catalog, and only from an HTTPS address that is a GitHub release asset (`DriverCatalog.allowedUrl`); a download whose hash is not the catalog's is deleted and that entry never tried again. Redirects are followed only to HTTPS, and nothing over 96 MB is kept.
+- A catalog entry that is not whole (no hash, an address from elsewhere, a proprietary driver marked `auto`) is dropped when the catalog is read.
+- Qualcomm's own drivers, repackaged by others, are linked to and never carried, rehosted or chosen by the app; they are fetched from their publisher when the player asks for one by name.
+- A package the catalog does not know (a file, a link, something shared) is unpacked only after a warning that shows its name, size and SHA-256 and says that nothing vouches for it; then it is self-tested like any other.
+- The self-test runs in a process of its own, so a driver that crashes or hangs takes that process and not the app.
+
+### Importing a driver from anywhere (`DriverActivity.kt`)
+
+Settings → Graphics driver lists the drivers on the phone, each with what is known of it here, and under them the catalog's others for this chip with **Download**. Besides:
+
+- **Import a driver (.zip)**: the system's file picker (Downloads, a card, a cloud folder).
+- **Import from a link**: any `https://` address of a driver's zip, for instance a GitHub release asset.
+- **From another app**: share a zip or a link to the app ("Import as graphics driver" in the share list of a browser, a file manager or a chat), or open a zip with it.
+
+Whatever way it came, a package whose SHA-256 the catalog knows is taken as that entry; any other gets the warning above. It is then unpacked, self-tested, and selected when it passes (**Use anyway** is there when it does not).
+
+### The self-test (`DriverSelfTest.kt`, `runtime/gpu/vulkan/selftest.cpp`)
+
+In the `:drivertest` process the driver is opened and the device made exactly as a run makes it (`vk::pipeline::CreateDevice`, so a driver refused for want of descriptor indexing is refused here, with the same words), and one 64x64 frame is drawn off screen with shaders built as the renderer's are -- a set of 65,536 sampled images, a BC1 texture, alpha test, depth test, blending, a compute pass -- and read back; each pixel checked has to be what it must be. Every step is written to a file as it begins, so a process that died or hung has said where ("the driver crashed at compiling the pipelines").
+
+### The watch over a run's first frames (`FrameWatch.kt`, `runtime/gpu/vulkan/picture_probe.h`)
+
+A driver can pass all that and still show nothing in the game: a black screen at sixty frames a second, or coloured speckle (a player's Snapdragon 8 Gen 2 in Advanced Warfare, November 2026; the cause is not known, and five drivers on the Thor's same chip are clean). So until a driver has shown a picture of this game on this phone, the presenter copies 64 by 36 samples of a frame twice a second and the app judges the looks; once six in a row were a picture (three seconds of a logo or a menu) the driver is written down as good and neither that run nor any later one on it is looked at.
+
+The app **never switches for this by itself**: it asks ("Is the picture wrong?", with **Use _the next driver_**, **The picture is fine** and **Share log**), and "fine" is final for that driver. Only a failure the renderer itself reports (no device, a feature missing, [below](#a-run-that-shows-nothing)) or two crashes inside the driver change an app-chosen driver without a question, and say so afterwards.
+
+The rules were measured (`python tools/frame_watch_calibrate.py`, 28 November 2026) on 19,006 looks at 102 screen recordings of the five games on the two test phones -- the visual checks' 45 labelled recordings (29 clean, 16 with faults, [visualqa.md](visualqa.md)), three release suites, Black Ops III's menus, matches and zombies, first starts with their logos, videos and loading screens -- and on the player's screenshot:
+
+| | the player's screenshot | real runs | the rule |
+|---|---|---|---|
+| samples unlike all four neighbours, per thousand | 158 | up to 250 in recordings, 303 in a still of play (foliage, gravel, a fence) | no rule by itself: play is busier than the fault |
+| "speckle": 80 or more of those, on a ground of one colour over a third of the frame or more (the screenshot: 587 per thousand), of which at most a quarter are where and what they were half a second before | yes, if it moves | 12 looks of 19,006; at most 6 in a row; the worst twenty seconds anywhere hold 15% | **noise**: 40 looks judged, four in five of them speckle and no six pictures in a row. A recording's worst is 6 of 40 where 32 are wanted |
+| one colour (every sample within 6 of the first) | - | the longest stretch in any recording 8.0 s | **one colour**: 120 looks in a row (a minute), each of a frame with a draw in it (black that nothing was drawn on is not the driver's and is not judged). The draw count tells no more than that: Modern Warfare 3 draws 51 to 99 times a frame under its logos and the black between them |
+| the watch begun at every look of every recording, as if the run had started there | | 18,467 times a picture within seconds, 539 times the recording ended first, never an accusation | |
+
+What this does not catch, by design: speckle that stands still (it is not told from a starfield or a page of small print), a fault over part of a picture, and anything after the first picture. `FrameWatchTest` runs the numbers of those 19,006 looks (`android/app/src/test/resources/frame_looks.tsv`: statistics, no picture) through the rules and holds the margins; `tests/picture_probe_test.cpp` (ctest's `picture-probe`) checks the measuring. In a build with diagnostics `MW2_TEST_PICTURE=flat` or `noise` reports every frame as that, `MW2_PICTURE_PROBE_LOG=1` writes every look to the log, and `MW2_PICTURE_PROBE=0` turns the looking off.
+
+### On the phones (27 November 2026, Modern Warfare 3, a `.da` debug build)
+
+**AYN Thor (Adreno 740, Android 13).**
+
+- *A fresh install* chose Turnip v27.0.0-R2 (ranked first, known good on the 740), the self-test passed ("Turnip Adreno (TM) 740 (vendor 0x5143 device 0x43050A01), Mesa 27.0.0-devel (git-2648b2059f), Vulkan 1.4.367"), and Settings → Graphics driver showed it in use with "Passed the test on this phone". The launcher started three more times made the choice once.
+- *A real start, as the runtime sees it* (`MW2_PICTURE_PROBE_LOG`, Survival on Dome, 200 looks): two black looks, then logos; a picture after 8 looks judged (4 seconds); 4 looks of one colour in the whole run, never two in a row; at most 224 samples in a thousand unlike their neighbours, in play; no look that was speckle.
+- *A driver that draws one colour* (`MW2_TEST_PICTURE=flat` on R2): "Is the picture wrong?" 60 seconds after the first frame, over the game's Brightness screen, offering the phone's own driver (the one other driver on the phone). Taken: R2 was written down as failed, the run started again on the phone's own driver and showed a picture, and the launcher's next pass chose the project's API 29 Turnip in place of the phone's own, R2 left out.
+- *A driver that draws speckle* (`MW2_TEST_PICTURE=noise`): the same question after 20 seconds (39 of 40 looks speckle). **The picture is fine** closed it and wrote the driver down as good.
+- *The renderer refusing the device on the app's choice* (`MW2_TEST_REFUSE_DEVICE=1`): no question; the run started again on the phone's own driver with the note "Turnip 27.0.0-R2 could not show the game on this phone (...). The app now uses The phone's own driver."
+- *Frames a second* in Survival's 64 seconds of play, the looking off (`MW2_PICTURE_PROBE=0`) and on, two runs each on the same driver: 119.22 and 119.75 off, 119.78 and 119.72 on. A run that is looked at pays for the looks until the first picture -- 8 here -- and none in play.
+
+Found on the way and mended: the app's older rule that gives a Snapdragon the Turnip it carries selected that driver again at every start, over a driver the app had chosen in its place (so a run started straight after a fallback was back on the driver that had failed); it now stands down once the app has made its own choice (`DriverStore.installBundled`, `Prefs.driverPicked`). And what failed on a phone was forgotten when a run asked the launcher to choose again; it is now forgotten only when the app, the catalog or the system changes (`Prefs.driverVerdictsKey`).
 
 ### Older Snapdragons (Adreno 610-619, Android 10 and 11)
 
@@ -829,11 +897,15 @@ second from the start of a run until the title's first frame is on screen):
 Either message names the graphics chip (the launcher's OpenGL ES strings,
 `DeviceInfo.gpu`, which do not need the Vulkan driver that may be the
 trouble) and the driver in use, says what to try, and has two more buttons:
-**Use the phone's driver** or **Use Turnip** -- whichever is not in use,
-where the app carries one; chosen as Settings' Graphics driver chooses it,
-and the run starts again through `HandOffActivity`, since a process opens
-its driver once -- and **Share log**, which sends what the launcher's Log
-screen shares, as a file (`LogShare`), and leaves the message up.
+**Use _the next driver_** -- the best ranked one for the chip that has not
+failed here and is on the phone already (`DriverAuto.nextReady`), the
+phone's own last; the one that failed is written down, and the run starts
+again through `HandOffActivity`, since a process opens its driver once --
+and **Share log**, which sends what the launcher's Log screen shares, as a
+file (`LogShare`), and leaves the message up. Where the runtime said why
+and the driver was the app's choice and not the player's, there is no
+message: the next driver is selected, the run starts again, and a note says
+what happened ([how the app chooses a driver](#how-the-app-chooses-a-driver-driverautokt-drivercatalogkt)).
 
 Pressed on the Retroid Pocket Flip 2, 26 November 2026 (Modern Warfare 2, a
 `.dev` build with the two switches below). **Share log** on either message

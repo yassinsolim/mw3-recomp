@@ -272,8 +272,12 @@ object DriverAuto {
         val key = key(catalog, text)
         val (selected, selectedId) = current(app, prefs, catalog)
         if (!force && prefs.driverAutoKey == key && (prefs.driverChoiceMade || prefs.driverPicked == selectedId)) return Outcome(null, null)
-        // Something changed: what failed before may not fail now.
-        if (prefs.driverAutoKey != key) prefs.driverVerdicts = prefs.driverVerdicts.filterValues { !it.startsWith("fail") }
+        // Something changed: what failed before may not fail now, and what drew is watched once more.
+        // Not when a run struck a driver out and asked for this pass (fallBack): that is to be remembered.
+        if (prefs.driverVerdictsKey != key) {
+            prefs.driverVerdicts = emptyMap()
+            prefs.driverVerdictsKey = key
+        }
         log(app, "choosing for ${gpu.vendor} ${gpu.model} (${gpu.name.ifEmpty { "unnamed" }}), Android API ${Build.VERSION.SDK_INT}," +
             " ${DriverCatalog.game}, catalog ${catalog.version}" + if (prefs.driverChoiceMade) "; the player's choice stays" else "")
 

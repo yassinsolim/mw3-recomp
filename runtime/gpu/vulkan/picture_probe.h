@@ -1,42 +1,53 @@
 #pragma once
-// What the first frames of a run look like, in three numbers.
+// What the first frames of a run look like, in a few numbers.
 //
 // A driver can load, make every pipeline and present sixty frames a second
-// of nothing: one colour, or blocks of noise (a player's Snapdragon 8 Gen 2,
-// November 2026). The frame counter cannot tell, so for the first minutes of
-// a run the presenter copies a frame twice a second, 64 by 36 samples of it,
-// and says what it saw; the app decides over time (FrameWatch.kt) and offers
-// the next driver. After that nothing is copied.
+// of nothing: one colour, or speckle (a player's Snapdragon 8 Gen 2,
+// November 2026). The frame counter cannot tell, so until the app has seen
+// a picture on the driver the presenter copies a frame twice a second, 64 by
+// 36 samples of it, and says what it saw; the app decides over time
+// (FrameWatch.kt) and offers the next driver. After that, and on every later
+// run on a driver that has shown a picture, nothing is copied.
+//
+// No one number tells a broken frame from a busy one: frames of play have
+// up to 300 samples in a thousand unlike all four neighbours (foliage,
+// gravel, a chain-link fence), the player's screenshot of speckle 158. What
+// the screenshot has that 19,006 looks at 102 recordings of the five games
+// have 12 times is all three of: speckle, on a ground of one colour, that is
+// somewhere else half a second later (docs/android.md has the measurements;
+// tools/frame_watch_calibrate.py makes them).
 #include <cstdint>
 #include <cstdlib>
 
 namespace vk::probe
 {
     constexpr uint32_t kWidth = 64, kHeight = 36;
+    constexpr uint32_t kSamples = kWidth * kHeight;
 
     struct Picture
     {
         uint32_t serial = 0;     // how many frames have been looked at; 0: none yet
         bool flat = false;       // every sample is one colour
         uint32_t isolated = 0;   // per thousand: samples unlike all four of their neighbours
+        uint32_t ground = 0;     // per thousand: samples of the frame's middle colour
+        uint32_t stable = 0;     // per thousand: isolated samples that were so, and the same colour, at the look before
         uint32_t luma = 0;       // the mean brightness, 0 to 255
+        uint32_t draws = 0;      // draws in the newest frame the renderer finished, 4095 at the most
     };
 
-    // The three numbers of kWidth x kHeight samples of four bytes, red first.
-    // A picture's neighbouring samples mostly agree, across an edge on one
-    // side at least; noise agrees with nothing around it.
-    inline Picture Analyse(const uint8_t* rgba)
+    // The numbers of kWidth x kHeight samples of four bytes, red first, and of
+    // the look before them (`before`, null at the first: everything isolated
+    // then counts as stable, which is the answer that accuses nothing).
+    inline Picture Analyse(const uint8_t* rgba, const uint8_t* before = nullptr)
     {
         constexpr int kFlat = 6, kUnlike = 24;
-        auto unlike = [&](uint32_t a, uint32_t b, int by) {
-            const uint8_t* p = rgba + a * 4;
-            const uint8_t* q = rgba + b * 4;
+        auto unlike = [](const uint8_t* p, const uint8_t* q, int by) {
             return std::abs(p[0] - q[0]) > by || std::abs(p[1] - q[1]) > by || std::abs(p[2] - q[2]) > by;
         };
         Picture picture;
         picture.flat = true;
         uint64_t sum = 0;
-        uint32_t isolated = 0;
+        uint32_t alone = 0, same = 0, ground = 0;
         for (uint32_t y = 0; y < kHeight; y++)
         {
             for (uint32_t x = 0; x < kWidth; x++)
@@ -44,15 +55,19 @@ namespace vk::probe
                 const uint32_t at = y * kWidth + x;
                 const uint8_t* p = rgba + at * 4;
                 sum += p[0] + p[1] + p[2];
-                if (unlike(at, 0, kFlat)) picture.flat = false;
+                if (unlike(p, rgba, kFlat)) picture.flat = false;
+                if (!unlike(p, middle, kFlat)) ground++;
                 if (x == 0 || y == 0 || x == kWidth - 1 || y == kHeight - 1) continue;
-                if (unlike(at, at - 1, kUnlike) && unlike(at, at + 1, kUnlike) &&
-                    unlike(at, at - kWidth, kUnlike) && unlike(at, at + kWidth, kUnlike))
-                    isolated++;
+                if (!isolated(rgba, at)) continue;
+                alone++;
+                if (!before || (isolated(before, at) && !unlike(p, before + at * 4, kUnlike))) same++;
             }
         }
-        picture.isolated = isolated * 1000 / ((kWidth - 2) * (kHeight - 2));
-        picture.luma = uint32_t(sum / (3ull * kWidth * kHeight));
+        constexpr uint32_t kInner = (kWidth - 2) * (kHeight - 2);
+        picture.isolated = alone * 1000 / kInner;
+        picture.stable = same * 1000 / kInner;
+        picture.ground = ground * 1000 / kSamples;
+        picture.luma = uint32_t(sum / (3ull * kSamples));
         return picture;
     }
 
@@ -66,6 +81,12 @@ namespace vk::probe
     void Collect(uint32_t slot);
     void Destroy();
 #endif
+    // The renderer's: how many draws the frame it has just finished had. A
+    // screen of one colour that nothing was drawn on is a loading screen.
+    void Drawn(uint64_t draws);
+    // The app has made up its mind (or knows the driver from an earlier
+    // run): nothing more is copied in this run. Any thread.
+    void Settle();
     // The last frame looked at; any thread.
     Picture Last();
 }

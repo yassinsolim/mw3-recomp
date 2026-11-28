@@ -544,12 +544,18 @@ class Prefs(context: Context) {
         get() = store.getString(KEY_DRIVER_PICKED, "") ?: ""
         set(value) = store.edit().putString(KEY_DRIVER_PICKED, value).apply()
 
+    /** DriverAuto.key as it was when [driverVerdicts] were found. */
+    var driverVerdictsKey: String
+        get() = store.getString(KEY_DRIVER_VERDICTS_KEY, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_VERDICTS_KEY, value).apply()
+
     /**
      * What this phone has found out about each driver, by the catalog's name
      * for it or "dir:<folder>" for one the player imported: "ok" (the
      * self-test passed), "good" (a run showed a picture), or "fail: <why>".
-     * One that failed is not chosen again until the app, the catalog or the
-     * system changes (DriverAuto.key).
+     * They are forgotten when the app, the catalog or the system changes
+     * ([driverVerdictsKey]): what failed may not fail now, and what drew is
+     * shown again.
      */
     var driverVerdicts: Map<String, String>
         get() = (store.getString(KEY_DRIVER_VERDICTS, "") ?: "").lineSequence().mapNotNull { line ->
@@ -974,6 +980,7 @@ class Prefs(context: Context) {
         private const val KEY_DRIVER_AUTO_KEY = "driverAutoKey"
         private const val KEY_DRIVER_PICKED = "driverPicked"
         private const val KEY_DRIVER_VERDICTS = "driverVerdicts"
+        private const val KEY_DRIVER_VERDICTS_KEY = "driverVerdictsKey"
         private const val KEY_DRIVER_NOTICE = "driverNotice"
         private const val KEY_DRIVER_TRIAL = "driverTrial"
         private const val KEY_DRIVER_CRASH_SEEN = "driverCrashSeen"

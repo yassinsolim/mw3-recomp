@@ -85,11 +85,13 @@ class DriverCatalogTest {
     }
 
     @Test
-    fun aSnapdragon8EliteGetsTheProjectsBuildAndNotItsOwnDriverInAdvancedWarfare() {
+    fun aSnapdragon8EliteGetsATurnipWithTheA8xxPatchesAndNotItsOwnDriverInAdvancedWarfare() {
         val aw = ids(elite, 36, "aw")
-        assertEquals("turnip-27.0.0-483aff3-api29", aw.first())
-        // R2 is for the 6xx and 7xx; Qualcomm's V@0800.71 crashed in its shader compiler on a player's phone.
+        assertEquals("turnip-27.0.0-20261121-a8xx-banner", aw.first())
+        // R2 and the project's unpatched build are for the 6xx and 7xx; Qualcomm's V@0800.71 crashed in its shader
+        // compiler on a player's phone.
         assertFalse("turnip-27.0.0-r2" in aw)
+        assertFalse("turnip-27.0.0-483aff3-api29" in aw)
         assertFalse("system" in aw)
         // The same phone in another game, and another version of that driver, keep the phone's own as the last resort.
         assertEquals("system", ids(elite, 36, "mw3").last())

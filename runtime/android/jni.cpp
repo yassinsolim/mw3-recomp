@@ -374,14 +374,23 @@ MW2_NATIVE(jstring, nativeDriverSelfTest)(JNIEnv* env, jobject, jstring report)
 }
 
 // What the last frame looked at looked like (picture_probe.h): how many have
-// been looked at, whether it was one colour, the samples unlike their
-// neighbours per thousand, the brightness.
+// been looked at, whether it was one colour, per thousand the samples unlike
+// their neighbours, those of the ground's colour and those unlike their
+// neighbours as at the look before, the brightness, the frame's draws.
 MW2_NATIVE(void, nativePictureProbe)(JNIEnv* env, jobject, jintArray out)
 {
-    if (!out || env->GetArrayLength(out) < 4) return;
+    if (!out || env->GetArrayLength(out) < 7) return;
     const vk::probe::Picture picture = vk::probe::Last();
-    const jint values[4] = { jint(picture.serial), picture.flat ? 1 : 0, jint(picture.isolated), jint(picture.luma) };
-    env->SetIntArrayRegion(out, 0, 4, values);
+    const jint values[7] = { jint(picture.serial), picture.flat ? 1 : 0, jint(picture.isolated), jint(picture.ground),
+                             jint(picture.stable), jint(picture.luma), jint(picture.draws) };
+    env->SetIntArrayRegion(out, 0, 7, values);
+}
+
+// The app has seen a picture on this driver, now or in an earlier run: no
+// more frames are looked at.
+MW2_NATIVE(void, nativePictureSettled)(JNIEnv*, jobject)
+{
+    vk::probe::Settle();
 }
 
 #if MW2_SPLIT_GAME
