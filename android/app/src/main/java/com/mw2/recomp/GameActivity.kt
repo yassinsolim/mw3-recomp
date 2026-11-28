@@ -820,6 +820,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         GameService.start(this)
         Trail.clear(this)
         pads.setEnabled(prefs.gamepadEnabled)
+        pads.listen(this)
         pads.refreshDevices()
         applyLook()
         startHardwareMonitor()
@@ -2201,6 +2202,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         monitorThread = null
         handler.removeCallbacksAndMessages(null)
         getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener)
+        pads.stopListening()
         NativeBridge.listener = null
         if (started && !isChangingConfigurations) {
             // The activity is going for good: the run goes with it.

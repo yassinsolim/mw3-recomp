@@ -242,23 +242,45 @@ namespace
         ShutLocked();
         kernel::PostNotification(XN_SYS_SIGNINCHANGED, MaskLocked());
     }
-    void OpenLocked(uint32_t user)
+    // What the screen offers a controller: the profiles nobody else plays as,
+    // a new one, and signing out for one already signed in.
+    std::vector<Item> ItemsLocked(uint32_t user)
     {
-        // The first controller's player is the online service's.
-        if (g_open || user == 0 || user >= kUsers || !screen::Claim(screen::Which::Signin)) return;
-        g_asking = user;
-        const Player& current = g_players[g_asking];
-
-        g_items.clear();
+        std::vector<Item> items;
         for (const Profile& profile : Profiles())
         {
             const bool taken = profile.id == FirstLocked().id ||
                                std::any_of(g_players, g_players + kUsers, [&](const Player& other) {
                                    return other.signedIn && other.id == profile.id; });
-            if (!taken) g_items.push_back({ Item::Existing, profile, profile.name });
+            if (!taken) items.push_back({ Item::Existing, profile, profile.name });
         }
-        g_items.push_back({ Item::New, {}, "New profile" });
-        if (current.signedIn) g_items.push_back({ Item::SignOut, {}, "Sign out" });
+        items.push_back({ Item::New, {}, "New profile" });
+        if (g_players[user].signedIn) items.push_back({ Item::SignOut, {}, "Sign out" });
+        return items;
+    }
+
+    void OpenLocked(uint32_t user)
+    {
+        // The first controller's player is the online service's.
+        if (g_open || user == 0 || user >= kUsers) return;
+        if (!screen::Drawn())
+        {
+            // A build that draws no screen (Android's) cannot let the player
+            // choose, and a screen nobody sees would take the controllers
+            // away from the title. The controller is signed in at once as
+            // the screen's first entry would have it: the first profile of
+            // this machine nobody plays as, or a new one. The title asked
+            // because it will not save for a player who is not signed in.
+            g_asking = user;
+            if (g_players[user].signedIn)
+                kernel::PostNotification(XN_SYS_SIGNINCHANGED, MaskLocked());
+            else
+                ChooseLocked(ItemsLocked(user).front());
+            return;
+        }
+        if (!screen::Claim(screen::Which::Signin)) return;
+        g_asking = user;
+        g_items = ItemsLocked(user);
         g_focus = 0;
         g_open = true;
         g_version++;

@@ -23,7 +23,9 @@
 //
 // The screen is drawn here into a picture the presenter lays over the frame,
 // and is driven by the controller that asked for it, through the title's own
-// reads of the controllers: while it is open the title sees none pressed.
+// reads of the controllers: while it is open the title sees none pressed. A
+// build that draws no screens (Android's) signs the controller in at once as
+// the screen's first entry, instead of opening a screen nobody would see.
 #include "screen.h"
 
 #include <cstdint>

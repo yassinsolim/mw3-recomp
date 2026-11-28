@@ -222,6 +222,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   in place of R2, chosen by `DriverStore.bundledAssetFor`
   (`DriverStoreTest`). Not yet run on an Adreno 8xx
   ([android.md](docs/android.md#snapdragon-8-elite-adreno-830-and-other-adreno-8xx)).
+- **A controller on a phone is player 1, and its progress is saved.** With
+  one controller, Modern Warfare 2 and 3, Call of Duty 4 and Advanced
+  Warfare could treat it as a second player: "You are not signed in to a
+  profile. You will not be able to save your progress", YES did nothing, and
+  nothing was saved (six reports). The app gave pad slots to every device
+  with gamepad bits in the order Android listed them, and to any device id
+  that sent a pad event, and never noticed a device leaving: a Bluetooth pad
+  that slept came back under a new id as the second controller. Now
+  (`PadSlots.kt`, tested in `PadSlotsTest`) the touch controls, a built-in
+  pad and the first physical pad pressed are all player 1; a slot goes only
+  to a real pad (an A button or a stick, not virtual) on its first press; the
+  app listens for devices added, removed and changed, and a pad back under a
+  new id gets its old slot again. Each pad's name, id and slot is a `pad:`
+  line in the log. A second pad that the title asks to sign in now is signed
+  in on YES (Android draws no sign-in screen: the controller signs in as the
+  first free profile, or "Player 2"), so its progress is saved too; the
+  Android input path now tells the sign-in code which controller pressed.
 - **Setup builds Modern Warfare 2's Windows game.** `setup\setup.cmd -Game mw2`
   refused `-Build pc`, and the configure it would have run could not have
   built it: the disc's version (`tu0`) was set only in the environment, which

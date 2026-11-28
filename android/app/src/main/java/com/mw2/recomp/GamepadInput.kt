@@ -1,5 +1,10 @@
 package com.mw2.recomp
 
+import android.content.Context
+import android.hardware.input.InputManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -22,11 +27,49 @@ class GamepadInput {
 
     private var enabled = true
 
-    /** Android device id -> player slot, 0..3. */
-    private val slots = HashMap<Int, Int>()
+    /** Which player each controller is (PadSlots.kt). */
+    private val slots = PadSlots()
     private val buttons = IntArray(4)
     private val axes = Array(4) { FloatArray(4) }       // lx, ly, rx, ry
     private val triggers = Array(4) { IntArray(2) }
+
+    private var inputManager: InputManager? = null
+
+    /**
+     * Devices coming and going while the game runs. A Bluetooth pad that
+     * sleeps comes back under a new id; without this its old id kept slot 0
+     * and the pad became the second controller until the app was put away
+     * and brought back.
+     */
+    private val deviceListener = object : InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) {
+            val device = InputDevice.getDevice(deviceId) ?: return
+            if (isPad(device)) log("pad: \"${device.name}\" id $deviceId connected; it gets a slot on its first press")
+        }
+
+        override fun onInputDeviceRemoved(deviceId: Int) = drop(deviceId)
+
+        override fun onInputDeviceChanged(deviceId: Int) {
+            // A device that is no longer a pad, or that is another device
+            // under the same id, starts over.
+            val had = slots.deviceOf(deviceId) ?: return
+            val device = InputDevice.getDevice(deviceId)
+            if (device == null || !isPad(device) || device.descriptor != had.descriptor) drop(deviceId)
+        }
+    }
+
+    /** Listens for devices from now until [stopListening]. */
+    fun listen(context: Context) {
+        if (inputManager != null) return
+        val manager = context.getSystemService(InputManager::class.java) ?: return
+        manager.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
+        inputManager = manager
+    }
+
+    fun stopListening() {
+        inputManager?.unregisterInputDeviceListener(deviceListener)
+        inputManager = null
+    }
 
     /** A controller's right stick, left and right turned round: the titles' own Invert option is for up and down only. */
     @Volatile
@@ -56,47 +99,62 @@ class GamepadInput {
 
     fun isEnabled(): Boolean = enabled
 
-    /** Called at start-up and whenever a device is added or removed. */
+    /**
+     * Forgets the devices that are not there any more: at start-up, and on
+     * coming back to the front, in case a removal was missed meanwhile.
+     */
     fun refreshDevices() {
-        val seen = HashSet<Int>()
-        for (id in InputDevice.getDeviceIds()) {
-            val device = InputDevice.getDevice(id) ?: continue
-            if (!isPad(device)) continue
-            seen.add(id)
-            if (!slots.containsKey(id)) {
-                val slot = (0 until 4).firstOrNull { free -> !slots.containsValue(free) } ?: continue
-                slots[id] = slot
-                if (enabled) NativeBridge.nativePadConnected(slot, true)
-            }
-        }
-        val gone = slots.keys.filter { it !in seen }
-        for (id in gone) {
-            val slot = slots.remove(id) ?: continue
-            buttons[slot] = 0
-            axes[slot].fill(0f)
-            triggers[slot][0] = 0
-            triggers[slot][1] = 0
-            NativeBridge.nativePadConnected(slot, false)
-        }
+        val present = InputDevice.getDeviceIds().toHashSet()
+        for (gone in slots.keepOnly(present)) gone(gone)
     }
 
-    fun hasAnyPad(): Boolean = slots.isNotEmpty()
+    fun hasAnyPad(): Boolean = !slots.isEmpty()
 
-    private fun isPad(device: InputDevice): Boolean {
-        if (device.isVirtual) return false
-        val sources = device.sources
-        val joystick = sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
-        val gamepad = sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD
-        return joystick || gamepad
+    private fun drop(deviceId: Int) {
+        gone(slots.remove(deviceId) ?: return)
     }
 
-    private fun slotFor(deviceId: Int): Int {
-        slots[deviceId]?.let { return it }
-        // A device that sent an event before the enumeration saw it.
-        val slot = (0 until 4).firstOrNull { free -> !slots.containsValue(free) } ?: 0
-        slots[deviceId] = slot
-        NativeBridge.nativePadConnected(slot, true)
+    private fun gone(gone: PadSlots.Gone) {
+        log("pad: \"${gone.device.name}\" id ${gone.device.id} gone from slot ${gone.slot}")
+        if (!gone.slotEmpty) return
+        val slot = gone.slot
+        buttons[slot] = 0
+        axes[slot].fill(0f)
+        triggers[slot][0] = 0
+        triggers[slot][1] = 0
+        push(slot)
+        NativeBridge.nativePadConnected(slot, false)
+    }
+
+    private fun isPad(device: InputDevice): Boolean = PadSlots.isPad(
+        device.isVirtual, device.sources,
+        device.hasKeys(KeyEvent.KEYCODE_BUTTON_A)[0],
+        device.getMotionRange(MotionEvent.AXIS_X, InputDevice.SOURCE_JOYSTICK) != null,
+    )
+
+    /** The slot of the pad that sent an event, given on its first; null for a device that is not a pad. */
+    private fun slotFor(deviceId: Int): Int? {
+        slots.slotOf(deviceId)?.let { return it }
+        val device = InputDevice.getDevice(deviceId) ?: return null
+        if (!isPad(device)) return null
+        // An id seen for the first time: whatever left meanwhile goes first,
+        // so a pad back under a new id finds its old slot free.
+        refreshDevices()
+        // Before Android 10 there is no telling; such a pad is taken for an external one.
+        val builtIn = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !device.isExternal
+        val entry = PadSlots.Device(deviceId, device.descriptor ?: "id $deviceId", device.name ?: "?", builtIn)
+        val (slot, wasEmpty) = slots.take(entry) ?: return null
+        log("pad: \"${entry.name}\" id $deviceId vendor ${hex(device.vendorId)}:${hex(device.productId)} " +
+            "${if (builtIn) "built-in" else "external"}: slot $slot (player ${slot + 1})")
+        if (wasEmpty) NativeBridge.nativePadConnected(slot, true)
         return slot
+    }
+
+    private fun hex(value: Int) = "%04x".format(value)
+
+    private fun log(line: String) {
+        android.util.Log.i("MW2", line)
+        NativeBridge.nativeLog(false, line)
     }
 
     /** True when the event was a pad's and has been dealt with. */
@@ -108,7 +166,7 @@ class GamepadInput {
         if (!fromPad) return false
         val bit = bitFor(event.keyCode)
         if (bit == 0) return false
-        val slot = slotFor(event.deviceId)
+        val slot = slotFor(event.deviceId) ?: return false
         when (event.action) {
             KeyEvent.ACTION_DOWN -> buttons[slot] = buttons[slot] or bit
             KeyEvent.ACTION_UP -> buttons[slot] = buttons[slot] and bit.inv()
@@ -122,14 +180,26 @@ class GamepadInput {
         if (!enabled) return false
         if (event.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK) return false
         if (event.action != MotionEvent.ACTION_MOVE) return false
-        val slot = slotFor(event.deviceId)
-
         val lx = axis(event, MotionEvent.AXIS_X)
         val ly = axis(event, MotionEvent.AXIS_Y)
         val rx = if (has(event, MotionEvent.AXIS_Z)) axis(event, MotionEvent.AXIS_Z)
         else axis(event, MotionEvent.AXIS_RX)
         val ry = if (has(event, MotionEvent.AXIS_RZ)) axis(event, MotionEvent.AXIS_RZ)
         else axis(event, MotionEvent.AXIS_RY)
+        val lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER).takeIf { it > 0f }
+            ?: event.getAxisValue(MotionEvent.AXIS_BRAKE)
+        val rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER).takeIf { it > 0f }
+            ?: event.getAxisValue(MotionEvent.AXIS_GAS)
+        // Some pads report the d-pad as a hat rather than as keys.
+        val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
+        val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+
+        // A device with no slot gets one for a press, not for a stick at
+        // rest: a pad's first report on connecting is its sticks centred.
+        val atRest = lx == 0f && ly == 0f && rx == 0f && ry == 0f && lt <= 0.1f && rt <= 0.1f &&
+            abs(hatX) <= 0.5f && abs(hatY) <= 0.5f
+        if (atRest && slots.slotOf(event.deviceId) == null) return true
+        val slot = slotFor(event.deviceId) ?: return false
 
         axes[slot][0] = lx
         // The guest's sticks point up; Android's point down.
@@ -137,16 +207,9 @@ class GamepadInput {
         axes[slot][2] = LookInvert.stickX(rx, invertRightX)
         axes[slot][3] = -ry
 
-        val lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER).takeIf { it > 0f }
-            ?: event.getAxisValue(MotionEvent.AXIS_BRAKE)
-        val rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER).takeIf { it > 0f }
-            ?: event.getAxisValue(MotionEvent.AXIS_GAS)
         triggers[slot][0] = (lt.coerceIn(0f, 1f) * 255f).toInt()
         triggers[slot][1] = (rt.coerceIn(0f, 1f) * 255f).toInt()
 
-        // Some pads report the d-pad as a hat rather than as keys.
-        val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
-        val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
         var bits = buttons[slot] and
             (NativeBridge.UP or NativeBridge.DOWN or NativeBridge.LEFT or NativeBridge.RIGHT).inv()
         if (hatX < -0.5f) bits = bits or NativeBridge.LEFT

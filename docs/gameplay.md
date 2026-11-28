@@ -194,6 +194,17 @@ The picture is drawn on the CPU with the launcher's fonts and laid over the
 middle of the frame by the presenter, as a copy: it is opaque.
 `MW2_DUMP_FRAMES` writes each state of it as `signin_<n>.ppm`.
 
+The Android build draws no screens. There, when the title asks, the
+controller pressed last is signed in at once as the screen's first entry
+would have it: the first profile of this machine nobody is playing as, or a
+new one ("Player 2"). The title's "You are not signed in to a profile ... Do
+you wish to sign in?" is then answered by YES, and that player's progress is
+saved. On a phone that question is rare: the touch controls, a built-in pad
+and the first physical pad are all the first controller, and only a second
+pad is another (`android/.../PadSlots.kt`, logged as `pad:` lines). A pad
+gets its slot on its first press, and one that comes back with a new device
+id after sleeping (a Bluetooth pad) gets its old slot back.
+
 ## The save-device prompt
 
 The campaign asks which storage device to save to until each controller has

@@ -732,6 +732,11 @@ PPC_FUNC(__imp__XamInputGetState)
             // desktop: a measurement run is the same path twice with no hand
             // on the screen.
             pad.buttons |= ScriptedButtons(user & 3);
+            // The sign-in screen's bookkeeping: which controller pressed last
+            // is the one the title's "Do you wish to sign in?" is answered
+            // for (signin::Ask), and a press that answered it is not the
+            // title's too.
+            if (signin::Input(user & 3, pad.buttons)) pad.buttons = 0;
             int16_t axes[4] = { pad.leftX, pad.leftY, pad.rightX, pad.rightY };
             uint8_t triggers[2] = { std::max(pad.leftTrigger, g_scriptTriggers[user & 3][0]),
                                     std::max(pad.rightTrigger, g_scriptTriggers[user & 3][1]) };
@@ -953,7 +958,9 @@ PPC_FUNC(__imp__XamInputGetState)
 #else
     if (user < 4)
     {
-        const uint16_t buttons = ScriptedButtons(user);
+        uint16_t buttons = ScriptedButtons(user);
+        // As above: a scripted controller answers the sign-in question too.
+        if (signin::Input(user, buttons)) buttons = 0;
         if (g_scripted[user])
         {
             Latch& latch = g_latch[user];
