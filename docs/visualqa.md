@@ -346,6 +346,42 @@ graphics chip and renderer times a frame. Run back to back on the Thor
 that evening, S.S.D.D. made 114.8 with `c41a440`'s apps and 114.4 with
 these: the phone's state that day, not the code.
 
+The rest of that release's gate, the same evening, on the same apps
+(`81cf718` changes no app code):
+
+- **The update** (Thor, as a player has it, docs/android-releases.md):
+  the v0.1.12 (`27754dc`) release-signed `.ru` app built Modern Warfare 3's
+  game code on the phone in 262 s; the v0.1.13 (`f39fd7b`) app went over it
+  by `pm install -r` from `/data/local/tmp`. No rebuild, the build report and
+  `saves/` byte for byte the same, the profile read back, both libraries
+  "built on this device ... which this app takes", a campaign game started.
+- **Controller save** (Thor, MW3, the built-in pad): slot 0 (player 1), the
+  save written, and after a restart Resume Game, Yes loaded
+  `sp_ny_manhattan`. The Flip 2 had shown it in CoD4.
+- **Aim when firing** (`tools/aim_fire.py`): Thor in MW3, LT 6 to 24 ms
+  after the finger and RT 199 to 200 ms after LT, the sights up in the
+  picture; Flip 2 in MW2, RT 200 to 205 ms after LT. A tap still shoots, Aim
+  held makes Fire a plain RT, and with the setting off Fire is RT alone, on
+  both. No sight timing was read: MW3 writes no `look: yaw` lines (it turns
+  by the stick) and MW2's opening player holds no weapon yet (zoom stays 1).
+- **Floating stick and auto-sprint** (`tools/move_stick.py`): Thor in MW3,
+  Flip 2 in MW2: the stick under the finger to the pixel, sprint 299 to
+  300 ms after the edge and let go on the way back, nothing with both off.
+- **Invert horizontal and vertical** (Thor, MW3, `tools/invert_look.py`):
+  the turns the app hands the game (`look: turn`) were +26.04 right and
+  +12.98 down with neither, -26.04 and +12.98 with horizontal, +26.04 and
+  -12.98 with vertical. The script itself reports `WRONG` (0.00) because it
+  reads the view's angles from `look: yaw` lines, which only titles whose
+  touch look goes into the view directly write; MW3's campaign turns by the
+  stick (`android/input.cpp`, `Turn`).
+- **Another language**: the app set to German by its own language
+  (`cmd locale set-app-locales`, the system left at en-US): the start hint
+  and the in-game menu in German.
+- **The blue band** on Solar: two more Flip 2 runs of `aw-shadows` passed
+  with no `local-flicker`; at 206 to 209 s one was elsewhere on the map, the
+  other in a dark interior with no band. Not seen again, so not compared
+  with `c41a440`.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
