@@ -123,24 +123,50 @@ object DriverFallback {
         ranked.firstOrNull { it.id != failedId && ready(it) }
 
     /**
-     * How many runs on a driver may end in a crash inside it before the
-     * app stops choosing it: one crash can be anything.
+     * How many runs in a row on a driver may end in a crash inside it, or
+     * before the game's first picture, before the app does something about
+     * it: one can be anything.
      */
     const val STRIKES = 2
 
-    private val driverFiles = listOf(
-        "/hw/vulkan.", "vulkan.adreno", "vulkan.mali", "libllvm-qgl", "libllvm-glnext", "libgsl.so",
-        "libvulkan_freedreno", "libvulkan_panfrost", "libGLES_mali", "/files/drivers/", "/driver_tmp/",
+    /** File names that are a graphics driver's, by how they begin: Qualcomm's, Mesa's, Arm's, a HAL's. */
+    private val driverNames = listOf(
+        "vulkan.", "libvulkan_", "libllvm-qgl", "libllvm-glnext", "libadreno", "libgsl.so", "libGLES_mali", "libmali",
     )
 
+    /** Folders a driver the player or the app unpacked is loaded from. */
+    private val driverFolders = listOf("/files/drivers/", "/driver_tmp/")
+
+    private val frameLine = Regex("""#\d+\s.*""")
+
     /**
-     * Whether a crash was inside the graphics driver: one of the crashing
-     * thread's innermost six frames is in a driver's file. [trace] is
-     * Tombstone.read's text; [library] the selected driver's file name, ""
-     * for the phone's own.
+     * The file of one backtrace frame: a tombstone's ("#00 pc 00000000002b9140
+     * /vendor/lib64/libllvm-qgl.so (...)"), or the runtime's fault report in
+     * game.log ("#04 libllvm-qgl.so+0x2b9140", "#00 _ZN8platform...+0x54 (libaw.so)").
      */
-    fun crashInDriver(trace: String, library: String): Boolean =
-        trace.lineSequence().map { it.trim() }.filter { it.startsWith("#") }.take(6).any { frame ->
-            driverFiles.any { frame.contains(it) } || (library.isNotEmpty() && frame.contains(library))
-        }
+    fun frameFile(frame: String): String {
+        val parts = frame.trim().split(Regex("""\s+"""))
+        if (parts.size >= 4 && parts[1] == "pc") return parts[3]
+        val last = parts.last()
+        if (parts.size >= 3 && last.startsWith("(") && last.endsWith(")")) return last.substring(1, last.length - 1)
+        return parts.getOrNull(1)?.substringBefore("+0x").orEmpty()
+    }
+
+    /**
+     * The graphics driver's file a crash was in, or null: one of the crashing
+     * thread's innermost six frames is in a driver's file -- by its name, by
+     * the folder the app unpacks drivers to, or [library], the selected
+     * driver's file name ("" for the phone's own). [trace] is Tombstone.read's
+     * text or a fault report's backtrace from game.log; the signal handler's
+     * own frames, up to the kernel's return from it, are not counted.
+     */
+    fun driverLibraryOf(trace: String, library: String): String? {
+        val frames = trace.lineSequence().mapNotNull { frameLine.find(it)?.value }.toList()
+        val handler = frames.take(12).indexOfFirst { it.contains("__kernel_rt_sigreturn") }
+        return frames.drop(handler + 1).take(6).map(::frameFile).firstOrNull { file ->
+            val name = file.substringAfterLast('/')
+            driverNames.any { name.startsWith(it) } || driverFolders.any { file.contains(it) } ||
+                (library.isNotEmpty() && name == library)
+        }?.substringAfterLast('/')
+    }
 }

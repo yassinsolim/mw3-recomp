@@ -432,20 +432,25 @@ class MainActivity : AppCompatActivity() {
     private var driverAskedFor = ""
 
     /**
-     * The app's own choice of driver, off the main thread: a run that
-     * crashed inside its driver is counted, the choice is made again when
-     * the app, the catalog or the system changed, and what came of it is
-     * said. [allowMetered]: the player agreed to a download on mobile data.
+     * The app's own choice of driver, off the main thread: the runs since
+     * the last look are counted against their drivers, the choice is made
+     * again when the app, the catalog or the system changed, a player whose
+     * own choice does not run the game is asked about the recommended one
+     * (DriverRescue), and what came of it is said. [allowMetered]: the
+     * player agreed to a download on mobile data. [force]: choose again
+     * even though nothing has changed.
      */
-    private fun considerDriver(allowMetered: Boolean = false) {
+    private fun considerDriver(allowMetered: Boolean = false, force: Boolean = false) {
         if (driverBusy) return
         driverBusy = true
         thread(name = "driver-auto", isDaemon = true) {
             var after: String? = null
             var outcome: DriverAuto.Outcome? = null
+            var rescue: DriverRescue.Offer? = null
             try {
                 after = DriverAuto.afterRun(this, prefs)
-                outcome = DriverAuto.run(this, prefs, allowMetered)
+                outcome = DriverAuto.run(this, prefs, allowMetered, force)
+                rescue = DriverRescue.offer(this, prefs)
             } catch (error: Throwable) {
                 DriverAuto.log(this, "the choice could not be made: $error")
             }
@@ -473,8 +478,41 @@ class MainActivity : AppCompatActivity() {
                         .setPositiveButton(R.string.driver_fetch) { _, _ -> considerDriver(allowMetered = true) }
                         .show()
                 }
+                rescue?.let(::askRescue)
             }
         }
+    }
+
+    private var rescueDialog: AlertDialog? = null
+
+    /**
+     * The player's own driver does not run the game here: what happened, the
+     * driver recommended for this phone, and the choice -- never a switch
+     * without it. The log is a button away and leaves the question up.
+     */
+    private fun askRescue(offer: DriverRescue.Offer) {
+        if (rescueDialog?.isShowing == true) return
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.driver_rescue_title)
+            .setCancelable(false)
+            .setNeutralButton(R.string.view_log, null)
+            .setNegativeButton(R.string.driver_rescue_keep) { _, _ ->
+                thread(name = "driver-rescue", isDaemon = true) { DriverRescue.keep(this, prefs, offer) }
+            }
+        if (offer.recommended != null) {
+            builder.setMessage(getString(R.string.driver_rescue_message, offer.name, offer.why, offer.recommended))
+                .setPositiveButton(R.string.driver_rescue_use) { _, _ ->
+                    thread(name = "driver-rescue", isDaemon = true) {
+                        DriverRescue.useRecommended(this, prefs, offer)
+                        runOnUiThread { if (!isFinishing && !isDestroyed) considerDriver(force = true) }
+                    }
+                }
+        } else {
+            builder.setMessage(getString(R.string.driver_rescue_nothing_else, offer.name, offer.why))
+        }
+        val dialog = builder.show()
+        rescueDialog = dialog
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { showLog() }
     }
 
     override fun onPause() {

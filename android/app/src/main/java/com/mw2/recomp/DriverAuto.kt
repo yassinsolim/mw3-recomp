@@ -108,7 +108,8 @@ object DriverFetch {
  * fails is written down and the next is tried, down to the phone's own.
  *
  * A player who has chosen a driver keeps it (Prefs.driverChoiceMade): it is
- * tested once, and they are told if it fails.
+ * tested once, they are told if it fails, and where it does not run the game
+ * they are offered the recommended one (DriverRescue), never switched.
  */
 object DriverAuto {
 
@@ -184,7 +185,7 @@ object DriverAuto {
 
     /** What has failed on this phone, by the names Prefs.driverVerdicts keeps. */
     fun failed(prefs: Prefs): Set<String> =
-        prefs.driverVerdicts.filter { it.value.startsWith("fail") && !it.key.startsWith("strikes:") }.keys
+        prefs.driverVerdicts.filter { it.value.startsWith("fail") }.keys
 
     /**
      * Makes the catalog's [entry] ready on this phone: unpacked already, the
@@ -383,30 +384,41 @@ object DriverAuto {
     }
 
     /**
-     * After a run, in the launcher: one that ended in a crash inside the
-     * graphics driver counts against the driver it ran on, and at
-     * [DriverFallback.STRIKES] the driver is struck out as one that failed
-     * its self-test is. Returns what to tell the player, or null.
+     * After runs, in the launcher: each run Android recorded the end of
+     * since the last look is judged (DriverRescue.classify) against the
+     * driver it started on, and runs in a row that crashed inside the driver
+     * or before the first picture are counted (Prefs.driverStreak). At
+     * [DriverFallback.STRIKES] an app-chosen driver is struck out as one
+     * that failed its self-test is; a player's choice is left to
+     * DriverRescue's question. Returns what to tell the player, or null.
+     * Under the pass's lock: two launchers' passes would count a run twice.
      */
-    fun afterRun(context: Context, prefs: Prefs): String? {
-        val id = prefs.driverTrial
-        if (id.isEmpty()) return null
-        val crash = DeviceInfo.lastRunCrash(context) ?: return null
-        if (crash.first <= prefs.driverCrashSeen) return null
-        prefs.driverCrashSeen = crash.first
-        val (driver, currentId) = current(context, prefs)
-        if (currentId != id || !DriverFallback.crashInDriver(crash.second, driver?.library.orEmpty())) return null
-        val strikes = (prefs.driverVerdicts["strikes:$id"]?.toIntOrNull() ?: 0) + 1
-        log(context, "the last run crashed inside the graphics driver ($id, $strikes of ${DriverFallback.STRIKES})")
-        if (strikes < DriverFallback.STRIKES) {
-            prefs.noteDriverVerdict("strikes:$id", strikes.toString())
-            return null
+    fun afterRun(context: Context, prefs: Prefs): String? = synchronized(lock) {
+        val ends = DeviceInfo.runEnds(context, prefs.driverRunEndSeen)
+        if (ends.isEmpty()) return@synchronized null
+        prefs.driverRunEndSeen = ends.last().timestamp
+        val runs = prefs.driverRuns.associateBy { it.pid }
+        val gameLog by lazy { DriverRescue.gameLog(context) }
+        var message: String? = null
+        for (end in ends) {
+            val run = runs[end.pid] ?: continue
+            val (driver, currentId) = current(context, prefs)
+            val library = if (currentId == run.id) driver?.library.orEmpty() else ""
+            val verdict = DriverRescue.classify(end.nativeCrash, end.tombstone, DriverRescue.runLog(gameLog, end.pid), run.framed, library)
+            val streak = DriverRescue.Streak.parse(prefs.driverStreak).after(run.id, verdict)
+            prefs.driverStreak = streak.toString()
+            if (verdict.end == DriverRescue.End.OTHER) continue
+            log(context, "the run of pid ${end.pid} on ${run.id} " +
+                (if (verdict.end == DriverRescue.End.DRIVER_CRASH) "crashed inside the graphics driver (${verdict.library})" else "ended before its first picture") +
+                ", ${streak.count} of ${DriverFallback.STRIKES} in a row")
+            if (streak.count < DriverFallback.STRIKES || prefs.driverChoiceMade || currentId != run.id) continue
+            prefs.driverStreak = ""
+            val why = streak.why()
+            val failedName = driver?.name ?: context.getString(R.string.driver_system)
+            val next = fallBack(context, prefs, run.id, why)
+            message = if (next != null) context.getString(R.string.driver_auto_switched, failedName, why, next)
+            else context.getString(R.string.driver_choice_failed, failedName, why)
         }
-        prefs.noteDriverVerdict("strikes:$id", "0")
-        val why = "the game crashed inside it $strikes times"
-        val failedName = driver?.name ?: context.getString(R.string.driver_system)
-        val next = fallBack(context, prefs, id, why)
-        return if (next != null) context.getString(R.string.driver_auto_switched, failedName, why, next)
-        else context.getString(R.string.driver_choice_failed, failedName, why)
+        return message
     }
 }

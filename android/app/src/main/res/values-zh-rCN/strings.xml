@@ -732,4 +732,12 @@
     <string name="update_download_description">正在下载新版本</string>
     <string name="mods_skip_executable">不会从模组中获取可执行文件</string>
     <string name="mods_skip_plugin">需要 CoD Xe 插件，本移植版不支持运行</string>
+    <string name="driver_rescue_title">你选择的图形驱动无法运行游戏</string>
+    <string name="driver_rescue_message">你选择的图形驱动：%1$s。\n%2$s\n\n推荐这部手机使用：%3$s。你的驱动仍会保留，可在“设置 › 图形驱动”中换回。</string>
+    <string name="driver_rescue_nothing_else">你选择的图形驱动：%1$s。\n%2$s\n\n应用不知道这部手机还有其他可用驱动。日志里有提交错误报告所需的内容。</string>
+    <string name="driver_rescue_crashed">游戏在驱动内部（%1$s）崩溃。连续启动次数：%2$d。</string>
+    <string name="driver_rescue_no_picture">游戏在显示画面之前就停止了。连续启动次数：%1$d。</string>
+    <string name="driver_rescue_broken">已知它在这部手机的芯片上运行此游戏会崩溃。</string>
+    <string name="driver_rescue_use">使用推荐驱动</string>
+    <string name="driver_rescue_keep">保留我的</string>
 </resources>

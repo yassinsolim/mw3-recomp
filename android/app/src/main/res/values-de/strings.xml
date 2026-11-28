@@ -733,4 +733,12 @@
     <string name="update_download_description">Neue Version wird heruntergeladen</string>
     <string name="mods_skip_executable">ausführbare Dateien werden nie aus einer Mod übernommen</string>
     <string name="mods_skip_plugin">benötigt das CoD-Xe-Plugin, das dieser Port nicht ausführt</string>
+    <string name="driver_rescue_title">Dein Grafiktreiber führt das Spiel nicht aus</string>
+    <string name="driver_rescue_message">Der von dir gewählte Grafiktreiber: %1$s.\n%2$s\n\nEmpfohlen für dieses Handy: %3$s. Dein Treiber bleibt installiert; unter Einstellungen › Grafiktreiber kommst du zu ihm zurück.</string>
+    <string name="driver_rescue_nothing_else">Der von dir gewählte Grafiktreiber: %1$s.\n%2$s\n\nDie App kennt keinen anderen Treiber für dieses Handy. Im Log steht, was ein Fehlerbericht braucht.</string>
+    <string name="driver_rescue_crashed">Das Spiel ist im Treiber abgestürzt (%1$s). Starts in Folge: %2$d.</string>
+    <string name="driver_rescue_no_picture">Das Spiel hat aufgehört, bevor es ein Bild gezeigt hat. Starts in Folge: %1$d.</string>
+    <string name="driver_rescue_broken">Er stürzt bekanntermaßen mit diesem Spiel auf dem Chip dieses Handys ab.</string>
+    <string name="driver_rescue_use">Empfohlenen nutzen</string>
+    <string name="driver_rescue_keep">Meinen behalten</string>
 </resources>

@@ -376,7 +376,7 @@ class Prefs(context: Context) {
      */
     fun driverResults(): List<String> =
         driverChecks.lineSequence().filter { it.isNotEmpty() }.map { "driver self-test $it" }.toList() +
-            driverVerdicts.filter { !it.key.startsWith("strikes:") }.map { "driver result ${it.key}: ${it.value}" }
+            driverVerdicts.map { "driver result ${it.key}: ${it.value}" }
 
     // ---- sound ------------------------------------------------------------
 
@@ -576,19 +576,47 @@ class Prefs(context: Context) {
         get() = store.getString(KEY_DRIVER_NOTICE, "") ?: ""
         set(value) = store.edit().putString(KEY_DRIVER_NOTICE, value).commit().let { }
 
-    /**
-     * The driver the last run started on, by the name its results are kept
-     * under (GameActivity): a run that crashed inside its driver counts
-     * against that one (DriverAuto.afterRun).
-     */
-    var driverTrial: String
-        get() = store.getString(KEY_DRIVER_TRIAL, "") ?: ""
-        set(value) = store.edit().putString(KEY_DRIVER_TRIAL, value).commit().let { }
+    /** A run of the game: its process, the driver it started on (by the name its results are kept under), and whether it showed a frame. */
+    data class DriverRun(val pid: Int, val id: String, val framed: Boolean)
 
-    /** When the newest crash DriverAuto.afterRun has looked at happened. */
-    var driverCrashSeen: Long
-        get() = store.getLong(KEY_DRIVER_CRASH_SEEN, 0)
-        set(value) = store.edit().putLong(KEY_DRIVER_CRASH_SEEN, value).commit().let { }
+    /**
+     * The last runs (GameActivity), so that the launcher can tell which
+     * driver each run Android records the end of was on, and whether it
+     * had shown its first frame (DriverAuto.afterRun).
+     */
+    var driverRuns: List<DriverRun>
+        get() = (store.getString(KEY_DRIVER_RUNS, "") ?: "").lineSequence().mapNotNull { line ->
+            val parts = line.split('\t')
+            val pid = parts.getOrNull(0)?.toIntOrNull()
+            if (parts.size != 3 || pid == null) null else DriverRun(pid, parts[1], parts[2] == "1")
+        }.toList()
+        set(value) = store.edit().putString(
+            KEY_DRIVER_RUNS,
+            value.takeLast(8).joinToString("\n") { "${it.pid}\t${it.id}\t${if (it.framed) 1 else 0}" },
+        ).commit().let { }
+
+    fun noteDriverRun(pid: Int, id: String) {
+        driverRuns = driverRuns.filter { it.pid != pid } + DriverRun(pid, id, false)
+    }
+
+    fun noteDriverRunFramed(pid: Int) {
+        driverRuns = driverRuns.map { if (it.pid == pid) it.copy(framed = true) else it }
+    }
+
+    /** When the newest end of a run DriverAuto.afterRun has looked at happened. */
+    var driverRunEndSeen: Long
+        get() = store.getLong(KEY_DRIVER_RUN_END_SEEN, 0)
+        set(value) = store.edit().putLong(KEY_DRIVER_RUN_END_SEEN, value).commit().let { }
+
+    /** The runs in a row that ended badly on one driver (DriverRescue.Streak). */
+    var driverStreak: String
+        get() = store.getString(KEY_DRIVER_STREAK, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_STREAK, value).commit().let { }
+
+    /** The driver and version the player said "Keep mine" for (DriverRescue.keepKey), or "". */
+    var driverRescueKept: String
+        get() = store.getString(KEY_DRIVER_RESCUE_KEPT, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_RESCUE_KEPT, value).commit().let { }
 
     /** When the catalog was last asked for online. */
     var driverCatalogAt: Long
@@ -982,8 +1010,10 @@ class Prefs(context: Context) {
         private const val KEY_DRIVER_VERDICTS = "driverVerdicts"
         private const val KEY_DRIVER_VERDICTS_KEY = "driverVerdictsKey"
         private const val KEY_DRIVER_NOTICE = "driverNotice"
-        private const val KEY_DRIVER_TRIAL = "driverTrial"
-        private const val KEY_DRIVER_CRASH_SEEN = "driverCrashSeen"
+        private const val KEY_DRIVER_RUNS = "driverRuns"
+        private const val KEY_DRIVER_RUN_END_SEEN = "driverRunEndSeen"
+        private const val KEY_DRIVER_STREAK = "driverStreak"
+        private const val KEY_DRIVER_RESCUE_KEPT = "driverRescueKept"
         private const val KEY_DRIVER_CATALOG_AT = "driverCatalogAt"
         private const val KEY_DRIVER_CHECKS = "driverChecks"
         private const val KEY_GAME_DIR = "gameDirectory"

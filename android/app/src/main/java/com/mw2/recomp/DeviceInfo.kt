@@ -205,23 +205,31 @@ object DeviceInfo {
         }
     }
 
+    /** One end of the run's process: when, its pid, whether it was a native crash, and the tombstone's text where the system kept one. */
+    class RunEnd(val timestamp: Long, val pid: Int, val nativeCrash: Boolean, val tombstone: String?)
+
     /**
-     * The run's newest end, where it was a native crash and the system kept
-     * its tombstone (Android 12 on): when, and the crashing thread's
-     * backtrace as Tombstone.read writes it. Null otherwise, an end that was
-     * no crash included.
+     * The run's ends Android recorded after [after], oldest first (Android
+     * 11 on; a tombstone from 12 on). Empty where there is no record.
      */
-    fun lastRunCrash(context: Context): Pair<Long, String>? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+    fun runEnds(context: Context, after: Long): List<RunEnd> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return emptyList()
         return try {
-            val record = context.getSystemService(ActivityManager::class.java)
+            context.getSystemService(ActivityManager::class.java)
                 .getHistoricalProcessExitReasons(context.packageName, 0, kExits)
-                .firstOrNull { it.processName.endsWith(":game") } ?: return null
-            if (record.reason != ApplicationExitInfo.REASON_CRASH_NATIVE) return null
-            val trace = record.traceInputStream?.use { Tombstone.read(it.readNBytesCompat(kTombstoneBytes)) } ?: return null
-            record.timestamp to trace
+                .filter { it.processName.endsWith(":game") && it.timestamp > after }
+                .sortedBy { it.timestamp }
+                .map { record ->
+                    val crash = record.reason == ApplicationExitInfo.REASON_CRASH_NATIVE
+                    val trace = if (!crash || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) null else try {
+                        record.traceInputStream?.use { Tombstone.read(it.readNBytesCompat(kTombstoneBytes)) }
+                    } catch (_: Throwable) {
+                        null
+                    }
+                    RunEnd(record.timestamp, record.pid, crash, trace)
+                }
         } catch (_: Throwable) {
-            null
+            emptyList()
         }
     }
 

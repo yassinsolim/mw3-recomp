@@ -1,0 +1,13 @@
+    signal 11 (SIGSEGV), code 2 (SEGV_ACCERR), fault address 0x7b9d749000
+    thread 25113 (Database):
+      #00 pc 000000000169cb40  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #01 pc 000000000169d8ec  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #02 pc 000000000169e26c  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #03 pc 000000000169e87c  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #04 pc 00000000016801d8  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #05 pc 0000000000a0ec24  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #06 pc 0000000001028984  /data/data/com.aw.recomp/files/game-code/libawgame.so
+      #07 pc 00000000001dd780  /data/app/~~A_j3pvXq725ke_bHfkLpww==/com.aw.recomp-FKmNTkVcV32ovz_ZA6Gp0A==/lib/arm64/libaw.so (BuildId: df10b876d17713677bb5c8c97a5dd55a7c855ad4)
+      #08 pc 00000000001f7ffc  /data/app/~~A_j3pvXq725ke_bHfkLpww==/com.aw.recomp-FKmNTkVcV32ovz_ZA6Gp0A==/lib/arm64/libaw.so (BuildId: df10b876d17713677bb5c8c97a5dd55a7c855ad4)
+      #09 pc 0000000000082d74  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+184) (BuildId: 382af8e0d63cd53c0349c0e5658fa346)
+      #10 pc 00000000000751f0  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+68) (BuildId: 382af8e0d63cd53c0349c0e5658fa346)

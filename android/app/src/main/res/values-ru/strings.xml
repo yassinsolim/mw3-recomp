@@ -735,4 +735,12 @@
     <string name="update_download_description">Загрузка новой версии</string>
     <string name="mods_skip_executable">исполняемые файлы никогда не берутся из мода</string>
     <string name="mods_skip_plugin">нужен плагин CoD Xe, который этот порт не поддерживает</string>
+    <string name="driver_rescue_title">Ваш графический драйвер не запускает игру</string>
+    <string name="driver_rescue_message">Выбранный вами графический драйвер: %1$s.\n%2$s\n\nРекомендуемый для этого телефона: %3$s. Ваш драйвер останется установленным; вернуться к нему можно в разделе Настройки › Графический драйвер.</string>
+    <string name="driver_rescue_nothing_else">Выбранный вами графический драйвер: %1$s.\n%2$s\n\nДругих драйверов для этого телефона приложение не знает. В журнале есть всё, что нужно для отчёта об ошибке.</string>
+    <string name="driver_rescue_crashed">Игра аварийно завершилась внутри драйвера (%1$s). Запусков подряд: %2$d.</string>
+    <string name="driver_rescue_no_picture">Игра остановилась, не показав изображения. Запусков подряд: %1$d.</string>
+    <string name="driver_rescue_broken">Известно, что с этой игрой он падает на чипе этого телефона.</string>
+    <string name="driver_rescue_use">Использовать рекомендуемый</string>
+    <string name="driver_rescue_keep">Оставить мой</string>
 </resources>

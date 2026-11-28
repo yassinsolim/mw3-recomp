@@ -733,4 +733,12 @@
     <string name="update_download_description">Yeni sürüm indiriliyor</string>
     <string name="mods_skip_executable">çalıştırılabilir dosyalar asla moddan alınmaz</string>
     <string name="mods_skip_plugin">bu portun çalıştırmadığı CoD Xe eklentisini gerektirir</string>
+    <string name="driver_rescue_title">Grafik sürücün oyunu çalıştırmıyor</string>
+    <string name="driver_rescue_message">Seçtiğin grafik sürücüsü: %1$s.\n%2$s\n\nBu telefon için önerilen: %3$s. Sürücün yüklü kalır; Ayarlar › Grafik sürücüsü bölümünden ona dönebilirsin.</string>
+    <string name="driver_rescue_nothing_else">Seçtiğin grafik sürücüsü: %1$s.\n%2$s\n\nUygulama bu telefon için başka bir sürücü bilmiyor. Hata raporu için gerekenler günlükte var.</string>
+    <string name="driver_rescue_crashed">Oyun sürücünün içinde çöktü (%1$s). Art arda açılış: %2$d.</string>
+    <string name="driver_rescue_no_picture">Oyun bir görüntü göstermeden durdu. Art arda açılış: %1$d.</string>
+    <string name="driver_rescue_broken">Bu telefonun çipinde bu oyunla çöktüğü biliniyor.</string>
+    <string name="driver_rescue_use">Önerileni kullan</string>
+    <string name="driver_rescue_keep">Benimkini tut</string>
 </resources>

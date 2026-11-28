@@ -800,4 +800,13 @@
     <string name="update_download_description">Downloading the new version</string>
     <string name="mods_skip_executable">executables are never taken from a mod</string>
     <string name="mods_skip_plugin">needs the CoD Xe plugin, which this port does not run</string>
+    <!-- a player's own driver that does not run the game (DriverRescue.kt) -->
+    <string name="driver_rescue_title">Your graphics driver is not running the game</string>
+    <string name="driver_rescue_message">The graphics driver you chose: %1$s.\n%2$s\n\nRecommended for this phone: %3$s. Your driver stays installed; Settings \u203a Graphics driver goes back to it.</string>
+    <string name="driver_rescue_nothing_else">The graphics driver you chose: %1$s.\n%2$s\n\nThe app knows no other driver for this phone. The log has what a bug report needs.</string>
+    <string name="driver_rescue_crashed">The game crashed inside the driver (%1$s). Starts in a row: %2$d.</string>
+    <string name="driver_rescue_no_picture">The game stopped before it showed a picture. Starts in a row: %1$d.</string>
+    <string name="driver_rescue_broken">It is known to crash with this game on this phone\'s chip.</string>
+    <string name="driver_rescue_use">Use recommended</string>
+    <string name="driver_rescue_keep">Keep mine</string>
 </resources>

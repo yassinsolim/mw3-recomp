@@ -148,6 +148,22 @@ class DriverCatalog(val version: Int, val drivers: List<Entry>, val system: List
 
     fun entry(id: String): Entry? = drivers.firstOrNull { it.id == id }
 
+    /**
+     * The report that calls the driver [id] (an entry's, or [SYSTEM] for the
+     * phone's own, whose version [glText] names) broken on this chip in this
+     * game, or null: DriverRescue asks a player who chose it.
+     */
+    fun brokenHere(id: String, gpu: Gpu, game: String, glText: String): Report? {
+        val (reports, own) = if (id == SYSTEM) {
+            val rule = system.firstOrNull { rule -> rule.gpus.any { it.holds(gpu) } } ?: return null
+            rule.reports to rule.gpus
+        } else {
+            val entry = entry(id) ?: return null
+            entry.reports to entry.gpus
+        }
+        return reports.firstOrNull { !it.good && it.about(gpu, game, own, glText) }
+    }
+
     /** The entry a package with this SHA-256 is, if the catalog knows it. */
     fun bySha(sha256: String): Entry? = drivers.firstOrNull { it.sha256 == sha256.lowercase() }
 

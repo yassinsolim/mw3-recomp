@@ -1,0 +1,80 @@
+===== new run, pid 23362 =====
+[i] step: game-code (loading the recompiled game code from its package)
+[i] step: start (memory defaults and the game thread)
+[i] step: image (reading and decrypting the executable)
+[i] step: online (starting the network service)
+[i] step: guest-memory (reserving the console's 4 GiB of address space and its 512 MB bank)
+[i] step: kernel (the console's kernel and the game's files)
+[i] step: gpu (bringing up the renderer)
+[i] step: vulkan-library (opening the Vulkan driver)
+[i] step: surface (waiting for the screen's surface)
+[i] step: vulkan-instance (vkCreateInstance)
+[i] step: vulkan-surface (the surface, and choosing the GPU)
+[i] step: vulkan-device (the device's features and extensions, and vkCreateDevice)
+[i] step: swapchain (the swapchain and its frames)
+[i] step: pipeline-layout (the descriptor sets, the pipeline cache and the pipeline layout)
+[i] step: textures (the texture cache's staging memory)
+[i] step: arena (allocating the frame arena, with the shadow of guest memory where it fits)
+[i] step: guest (start-up is done; the title's own code runs from here)
+[E] ---- guest fault: SIGSEGV at host 0x112 ----
+[E] last step: guest
+[E] SEGV_MAPERR, nothing is mapped there (si_code 1)
+[E] mapped as: nothing -- the address is in no mapping
+[E] outside the guest space (offset -528126979822) -- fault in host runtime code
+[E] ---- fault backtrace (33 frames) ----
+[E]  #00 _ZN8platform14PrintBacktraceEPKc+0x54 (libaw.so)
+[E]  #01 libaw.so+0xfad7c
+[E]  #02 _ZN3art11SignalChain7HandlerEiP7siginfoPv+0x484 (libsigchain.so)
+[E]  #03 __kernel_rt_sigreturn+0x0 ([vdso])
+[E]  #04 libllvm-qgl.so+0x2b9140
+[E]  #05 libllvm-qgl.so+0x2b7ffc
+[E]  #06 libllvm-qgl.so+0x4d8d2c
+[E]  #07 libllvm-qgl.so+0x5a4b1c
+[E]  #08 libllvm-qgl.so+0x5a52fc
+[E]  #09 libllvm-qgl.so+0x3c6d28
+[E]  #10 libllvm-qgl.so+0x3c6b40
+[E]  #11 libllvm-qgl.so+0x34acb0
+[E]  #12 libllvm-qgl.so+0x391294
+[E]  #13 libllvm-qgl.so+0x937620
+[E]  #14 libllvm-qgl.so+0x3ff604
+[E]  #15 libllvm-qgl.so+0x3ff078
+[E]  #16 libllvm-qgl.so+0xfce9f0
+[E]  #17 libllvm-qgl.so+0xfd4da4
+[E]  #18 libllvm-qgl.so+0x9202b4
+[E]  #19 libllvm-qgl.so+0x404498
+[E]  #20 libllvm-qgl.so+0x404134
+[E]  #21 libllvm-qgl.so+0x406978
+[E]  #22 libllvm-qgl.so+0x402ba8
+[E]  #23 vulkan.adreno.so+0x1e2f20
+[E]  #24 vulkan.adreno.so+0x1bc280
+[E]  #25 _ZN11qglinternal25vkCreateGraphicsPipelinesEP10VkDevice_TP17VkPipelineCache_TjPK28VkGraphicsPipelineCreateInfoPK21VkAllocationCallbacksPP12VkPipeline_T+0x4cc4 (vulkan.adreno.so)
+[E]  #26 _ZN2vk8pipeline22CreateGraphicsPipelineEPKvPvPi+0x220 (libaw.so)
+[E]  #27 _ZN2vk8renderer6detail13BuildPipelineERKNS1_11PipelineKeyERKNS1_6ShaderES7_+0x210 (libaw.so)
+[E]  #28 _ZN2vk8renderer6detail14EnsurePipelineERKNS1_11PipelineKeyERKNS1_6ShaderES7_Pb+0x2c0 (libaw.so)
+[E]  #29 _ZN2vk8renderer6detail6warmup6WorkerEb+0x61c (libaw.so)
+[E]  #30 libaw.so+0x166204
+[E]  #31 libc.so+0x82d78
+[E]  #32 libc.so+0x751f4
+[E] --------------------------------
+[E] fault host pc 0000007AF09C4140 on thread ?
+[E]   x0  000000000000010A  x1  0000007AB45B8391
+[E]   x2  0000000000000006  x3  0000000000000010
+[E]   x4  0000007AB45B8397  x5  B400007DEDCF11A8
+[E]   x6  000000006934762E  x7  752E64616F6C2E75
+[E]   x8  0000000000000001  x9  000000006B59C7CC
+[E]   x10 000000000A169FBE  x11 0200007DEDCF1190
+[E]   x12 2E757067712E6D76  x13 7661752E64616F6C
+[E]   x14 0000000000000000  x15 0000000000000018
+[E]   x16 000000000000000C  x17 0000000000000000
+[E]   x18 0000007AB28B0000  x19 0000007AB45B8430
+[E]   x20 0000000000000002  x21 0000007AB45B8508
+[E]   x22 0000007AB45B8379  x23 B400007DADCFD370
+[E]   x24 0000007AB45B83B0  x25 0000000000000030
+[E]   x26 0000007AB45C3740  x27 0000000000000001
+[E]   x28 0000007AB45B8391  x29 0000007AB45B8361
+[E]   x30 0000007AF09C41B4  sp 0000007AB45B8340
+[E] stack at 0000007AB45B8340 (<= is this library's code):
+[E]   sp+000 B400007D4DE47910
+[E]   sp+008 C1E77E71698E0959
+[E]   sp+010 00078AFAF09C0424
+[E]   sp+018 0000000000000000

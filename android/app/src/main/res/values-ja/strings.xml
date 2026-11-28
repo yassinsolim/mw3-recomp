@@ -732,4 +732,12 @@
     <string name="update_download_description">新しいバージョンをダウンロード中</string>
     <string name="mods_skip_executable">実行ファイルはMODから読み込まれません</string>
     <string name="mods_skip_plugin">CoD Xeプラグインが必要ですが、このポートでは動作しません</string>
+    <string name="driver_rescue_title">選択したグラフィックドライバーでゲームが動きません</string>
+    <string name="driver_rescue_message">選択したグラフィックドライバー：%1$s\n%2$s\n\nこの端末へのおすすめ：%3$s。今のドライバーはインストールされたまま残り、設定 › グラフィックドライバー から戻せます。</string>
+    <string name="driver_rescue_nothing_else">選択したグラフィックドライバー：%1$s\n%2$s\n\nこの端末向けのほかのドライバーをアプリは知りません。不具合の報告に必要な情報はログにあります。</string>
+    <string name="driver_rescue_crashed">ゲームがドライバー内（%1$s）でクラッシュしました。連続した起動回数：%2$d</string>
+    <string name="driver_rescue_no_picture">ゲームが画面を表示する前に停止しました。連続した起動回数：%1$d</string>
+    <string name="driver_rescue_broken">このゲームでは、この端末のチップでクラッシュすることがわかっています。</string>
+    <string name="driver_rescue_use">おすすめを使う</string>
+    <string name="driver_rescue_keep">今のままにする</string>
 </resources>

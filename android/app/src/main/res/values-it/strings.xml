@@ -734,4 +734,12 @@
     <string name="update_download_description">Download della nuova versione</string>
     <string name="mods_skip_executable">gli eseguibili non vengono mai presi da una mod</string>
     <string name="mods_skip_plugin">richiede il plugin CoD Xe, che questo port non supporta</string>
+    <string name="driver_rescue_title">Il tuo driver grafico non fa girare il gioco</string>
+    <string name="driver_rescue_message">Il driver grafico che hai scelto: %1$s.\n%2$s\n\nConsigliato per questo telefono: %3$s. Il tuo driver resta installato; da Impostazioni › Driver grafico puoi tornarci.</string>
+    <string name="driver_rescue_nothing_else">Il driver grafico che hai scelto: %1$s.\n%2$s\n\nL’app non conosce altri driver per questo telefono. Il log contiene ciò che serve a una segnalazione di bug.</string>
+    <string name="driver_rescue_crashed">Il gioco si è bloccato dentro il driver (%1$s). Avvii di fila: %2$d.</string>
+    <string name="driver_rescue_no_picture">Il gioco si è fermato prima di mostrare un’immagine. Avvii di fila: %1$d.</string>
+    <string name="driver_rescue_broken">È noto che si blocca con questo gioco sul chip di questo telefono.</string>
+    <string name="driver_rescue_use">Usa il consigliato</string>
+    <string name="driver_rescue_keep">Tieni il mio</string>
 </resources>

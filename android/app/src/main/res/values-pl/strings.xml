@@ -735,4 +735,12 @@
     <string name="update_download_description">Pobieranie nowej wersji</string>
     <string name="mods_skip_executable">pliki wykonywalne nigdy nie są pobierane z moda</string>
     <string name="mods_skip_plugin">wymaga wtyczki CoD Xe, której ten port nie obsługuje</string>
+    <string name="driver_rescue_title">Twój sterownik grafiki nie uruchamia gry</string>
+    <string name="driver_rescue_message">Wybrany przez ciebie sterownik grafiki: %1$s.\n%2$s\n\nZalecany dla tego telefonu: %3$s. Twój sterownik zostaje zainstalowany; w Ustawienia › Sterownik grafiki możesz do niego wrócić.</string>
+    <string name="driver_rescue_nothing_else">Wybrany przez ciebie sterownik grafiki: %1$s.\n%2$s\n\nAplikacja nie zna innego sterownika dla tego telefonu. W logu jest to, czego potrzebuje zgłoszenie błędu.</string>
+    <string name="driver_rescue_crashed">Gra uległa awarii wewnątrz sterownika (%1$s). Uruchomienia z rzędu: %2$d.</string>
+    <string name="driver_rescue_no_picture">Gra zatrzymała się, zanim pokazała obraz. Uruchomienia z rzędu: %1$d.</string>
+    <string name="driver_rescue_broken">Wiadomo, że ulega awarii z tą grą na układzie tego telefonu.</string>
+    <string name="driver_rescue_use">Użyj zalecanego</string>
+    <string name="driver_rescue_keep">Zostaw mój</string>
 </resources>

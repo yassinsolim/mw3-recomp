@@ -5,6 +5,22 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **A player's own driver that does not run the game is put to them.** When
+  the driver in use is the player's choice and the catalog calls it broken
+  for the chip and game (Qualcomm's V@0800.71 on a Snapdragon 8 Elite in
+  Advanced Warfare, which crashed in `libllvm-qgl.so` at every start), or
+  its last two runs in a row crashed inside the driver's files or before
+  their first frame at the driver's start-up steps, the launcher's next
+  start asks once: the driver, what happened, the driver recommended for
+  the phone, **Use recommended** (the app selects and tests it; the
+  player's stays installed), **Keep mine** (not asked again for that
+  version) and **Log**. The choice is never switched without the player.
+  Runs are judged from Android's record of each end (the tombstone's
+  frames, Android 12 on) and the run's own start-up steps and fault report
+  in `game.log`; a crash in the game's code does not count
+  (`DriverRescue.kt`, `DriverRescueTest` from three players' crashes;
+  `MW2_DEBUG_CRASH_IN_DRIVER=1` crashes a run inside the driver to check
+  it; docs/android.md, section 6).
 - **The app chooses the graphics driver, proves it, and falls back.** Each
   app carries a catalog of drivers with a pinned SHA-256 each
   (`android/drivers/catalog.json`, checked by `tools/driver_catalog.py`),

@@ -1,0 +1,60 @@
+===== new run, pid 23400 =====
+[i] step: game-code (loading the recompiled game code from its package)
+[i] step: start (memory defaults and the game thread)
+[i] step: image (reading and decrypting the executable)
+[i] step: online (starting the network service)
+[i] step: guest-memory (reserving the console's 4 GiB of address space and its 512 MB bank)
+[i] step: kernel (the console's kernel and the game's files)
+[i] step: gpu (bringing up the renderer)
+[i] step: vulkan-library (opening the Vulkan driver)
+[i] step: surface (waiting for the screen's surface)
+[i] step: vulkan-instance (vkCreateInstance)
+[E] ---- guest fault: SIGSEGV at host 0x6ef1739a80 ----
+[E] last step: vulkan-instance
+[E] SEGV_ACCERR, mapped but the access is not allowed (si_code 2)
+[E] mapped as: 6ef116b000-6ef173c000 rw-p 00000000 00:00 0                              [anon:.bss]
+[E] outside the guest space (offset +4684225152) -- fault in host runtime code
+[E] ---- fault backtrace (4 frames) ----
+[E]  #00 _ZN8platform14PrintBacktraceEPKc+0x54 (libmw3.so)
+[E]  #01 libmw3.so+0x2d2d58
+[E]  #02 app_process64+0x4f50
+[E]  #03 __kernel_rt_sigreturn+0x0 ([vdso])
+[E] --------------------------------
+[E] fault host pc 0000006EF1739A80 on thread vulkan presenter
+[E]   x0  0000006F471D126E  x1  0000006DD81FF3E8
+[E]   x2  0000006F471DA084  x3  FFFFFFFF94F93DC7
+[E]   x4  00078FED33000000  x5  0000006DD81FF6F0
+[E]   x6  0000006FE4BFD000  x7  0000000001F77E26
+[E]   x8  0000006FE2428800  x9  77A983E318D99302
+[E]   x10 0000000000000001  x11 0000000000000000
+[E]   x12 0000000000000000  x13 0000000000000054
+[E]   x14 0000006F4B621054  x15 00000000FFFFFFEC
+[E]   x16 0000006F471EE980  x17 0000006EF1739A80
+[E]   x18 0000006DD764E000  x19 0000BC1CB0E60A03
+[E]   x20 00000000FFFFFFFE  x21 0000006F471EF000
+[E]   x22 0000006EF0875780  x23 0000006DD8200000
+[E]   x24 0000006DD81FFCC0  x25 0000006DD81FFCC0
+[E]   x26 0000006DD8200000  x27 0000006DD81FF850
+[E]   x28 0000006DD8200000  x29 0000006DD81FF450
+[E]   x30 0000006F471E0920  sp 0000006DD81FF420
+[E] stack at 0000006DD81FF420 (<= is this library's code):
+[E]   sp+000 0000000000000000
+[E]   sp+008 0000000000000003
+[E]   sp+010 0000006FDDE6F7E0
+[E]   sp+018 0000006FDDE6F808
+[E]   sp+020 0000006DD81FF4A0
+[E]   sp+028 77A983E318D99302
+[E]   sp+030 0000006DD81FF4A0
+[E]   sp+038 0000006F471DA090
+[E]   sp+040 0000006DD81FFCC0
+[E]   sp+048 0000006DD8200000
+[E]   sp+050 0000006DD81FFCC0
+[E]   sp+058 0000006EF15620A8
+[E]   sp+060 0000006EF0875780
+[E]   sp+068 0000006DD81FF4F8
+[E]   sp+070 0000006F471DA084
+[E]   sp+078 0000006F471EFB90
+[E]   sp+080 0000006DD81FF4B0
+[E]   sp+088 0000006FDF497AAC
+[E]   sp+090 0000006DD81FF510
+[E]   sp+098 0000006F471D8B18

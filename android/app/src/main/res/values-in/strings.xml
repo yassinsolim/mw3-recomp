@@ -732,4 +732,12 @@
     <string name="update_download_description">Mengunduh versi baru</string>
     <string name="mods_skip_executable">file executable tidak pernah diambil dari mod</string>
     <string name="mods_skip_plugin">memerlukan plugin CoD Xe, yang tidak dijalankan port ini</string>
+    <string name="driver_rescue_title">Driver grafismu tidak menjalankan game</string>
+    <string name="driver_rescue_message">Driver grafis pilihanmu: %1$s.\n%2$s\n\nDisarankan untuk ponsel ini: %3$s. Drivermu tetap terpasang; lewat Pengaturan \u203a Driver grafis kamu bisa kembali ke sana.</string>
+    <string name="driver_rescue_nothing_else">Driver grafis pilihanmu: %1$s.\n%2$s\n\nAplikasi tidak mengenal driver lain untuk ponsel ini. Log berisi yang dibutuhkan laporan bug.</string>
+    <string name="driver_rescue_crashed">Game crash di dalam driver (%1$s). Peluncuran berturut-turut: %2$d.</string>
+    <string name="driver_rescue_no_picture">Game berhenti sebelum menampilkan gambar. Peluncuran berturut-turut: %1$d.</string>
+    <string name="driver_rescue_broken">Driver ini diketahui crash dengan game ini pada chip ponsel ini.</string>
+    <string name="driver_rescue_use">Pakai yang disarankan</string>
+    <string name="driver_rescue_keep">Tetap pakai milikku</string>
 </resources>

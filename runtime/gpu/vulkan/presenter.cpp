@@ -1660,6 +1660,15 @@ namespace
                                            : std::string("The graphics driver would not make a device (vkCreateDevice failed)."));
             return false;
         }
+        // MW2_DEBUG_CRASH_IN_DRIVER=1: the driver is handed a shader module with no description, so
+        // that the run dies inside the driver's own code -- what the app's question about a player's
+        // driver that keeps crashing is checked with (docs/switches.md, android/.../DriverRescue.kt).
+        if (const char* value = std::getenv("MW2_DEBUG_CRASH_IN_DRIVER"); value && !std::strcmp(value, "1"))
+        {
+            LOGW("driver: MW2_DEBUG_CRASH_IN_DRIVER=1: vkCreateShaderModule without a description, on purpose");
+            VkShaderModule module = VK_NULL_HANDLE;
+            vkCreateShaderModule(g.device, nullptr, nullptr, &module);
+        }
         crash::Step("swapchain", "the swapchain and its frames");
         if (!CreateSwapchain()) {
             android::RendererFailed("The graphics driver would not make a swapchain for the screen.");

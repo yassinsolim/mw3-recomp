@@ -734,4 +734,12 @@
     <string name="update_download_description">Descargando la nueva versión</string>
     <string name="mods_skip_executable">los ejecutables nunca se toman de un mod</string>
     <string name="mods_skip_plugin">necesita el plugin CoD Xe, que este port no ejecuta</string>
+    <string name="driver_rescue_title">Tu controlador gráfico no ejecuta el juego</string>
+    <string name="driver_rescue_message">El controlador gráfico que elegiste: %1$s.\n%2$s\n\nRecomendado para este teléfono: %3$s. Tu controlador sigue instalado; en Ajustes › Controlador gráfico puedes volver a él.</string>
+    <string name="driver_rescue_nothing_else">El controlador gráfico que elegiste: %1$s.\n%2$s\n\nLa app no conoce otro controlador para este teléfono. El registro tiene lo que necesita un informe de error.</string>
+    <string name="driver_rescue_crashed">El juego se cerró dentro del controlador (%1$s). Inicios seguidos: %2$d.</string>
+    <string name="driver_rescue_no_picture">El juego se detuvo antes de mostrar una imagen. Inicios seguidos: %1$d.</string>
+    <string name="driver_rescue_broken">Se sabe que falla con este juego en el chip de este teléfono.</string>
+    <string name="driver_rescue_use">Usar el recomendado</string>
+    <string name="driver_rescue_keep">Mantener el mío</string>
 </resources>

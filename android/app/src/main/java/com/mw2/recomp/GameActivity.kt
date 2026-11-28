@@ -536,6 +536,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
         }
         if (statsValues[5] >= 2f) {
             frameSeen = true
+            prefs.noteDriverRunFramed(Process.myPid())
             return
         }
         // Compiling shaders the player asked for and saying how far it is
@@ -715,15 +716,15 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
     /**
      * Which driver this run is on, said in the log and kept for the
-     * launcher (a run that crashes inside its driver counts against it,
-     * DriverAuto.afterRun); and what the app did about the last run's
-     * driver, told to the player once.
+     * launcher (a run that crashes inside its driver, or before its first
+     * frame, counts against it: DriverAuto.afterRun); and what the app did
+     * about the last run's driver, told to the player once.
      */
     private fun noteRunDriver() {
         val (driver, id) = DriverAuto.current(this, prefs)
         runDriverId = id
         runDriverName = driver?.name ?: getString(R.string.driver_system)
-        prefs.driverTrial = id
+        prefs.noteDriverRun(Process.myPid(), id)
         NativeBridge.nativeLog(
             false,
             "driver: this run is on ${driver?.name ?: "the phone's own driver"} [$id], " +

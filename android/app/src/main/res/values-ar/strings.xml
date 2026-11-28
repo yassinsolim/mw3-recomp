@@ -737,4 +737,12 @@
     <string name="update_download_description">جارٍ تنزيل الإصدار الجديد</string>
     <string name="mods_skip_executable">لا تُؤخذ الملفات التنفيذية من أي تعديل أبدًا</string>
     <string name="mods_skip_plugin">يتطلب إضافة CoD Xe، التي لا يشغّلها هذا المنفذ</string>
+    <string name="driver_rescue_title">برنامج تشغيل الرسومات الذي اخترته لا يشغّل اللعبة</string>
+    <string name="driver_rescue_message">برنامج تشغيل الرسومات الذي اخترته: %1$s.\n%2$s\n\nالموصى به لهذا الهاتف: %3$s. يبقى برنامجك مثبتًا، ويمكنك العودة إليه من الإعدادات › برنامج تشغيل الرسومات.</string>
+    <string name="driver_rescue_nothing_else">برنامج تشغيل الرسومات الذي اخترته: %1$s.\n%2$s\n\nلا يعرف التطبيق برنامج تشغيل آخر لهذا الهاتف. يحتوي السجل على ما يحتاجه تقرير الخطأ.</string>
+    <string name="driver_rescue_crashed">تعطلت اللعبة داخل برنامج التشغيل (%1$s). مرات التشغيل المتتالية: %2$d.</string>
+    <string name="driver_rescue_no_picture">توقفت اللعبة قبل أن تعرض صورة. مرات التشغيل المتتالية: %1$d.</string>
+    <string name="driver_rescue_broken">من المعروف أنه يتعطل مع هذه اللعبة على شريحة هذا الهاتف.</string>
+    <string name="driver_rescue_use">استخدام الموصى به</string>
+    <string name="driver_rescue_keep">الإبقاء على برنامجي</string>
 </resources>

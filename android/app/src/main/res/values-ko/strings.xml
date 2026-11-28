@@ -732,4 +732,12 @@
     <string name="update_download_description">새 버전 다운로드 중</string>
     <string name="mods_skip_executable">실행 파일은 모드에서 가져오지 않아요</string>
     <string name="mods_skip_plugin">CoD Xe 플러그인이 필요하지만 이 포트에서는 실행되지 않아요</string>
+    <string name="driver_rescue_title">선택한 그래픽 드라이버로 게임이 실행되지 않아요</string>
+    <string name="driver_rescue_message">선택한 그래픽 드라이버: %1$s\n%2$s\n\n이 휴대폰 추천 드라이버: %3$s. 지금 드라이버는 설치된 채로 남고, 설정 › 그래픽 드라이버에서 다시 고를 수 있어요.</string>
+    <string name="driver_rescue_nothing_else">선택한 그래픽 드라이버: %1$s\n%2$s\n\n앱이 아는 이 휴대폰용 드라이버가 더 없어요. 버그 신고에 필요한 내용은 로그에 있어요.</string>
+    <string name="driver_rescue_crashed">게임이 드라이버 안(%1$s)에서 멈췄어요. 연속 실행 횟수: %2$d</string>
+    <string name="driver_rescue_no_picture">게임이 화면을 보여 주기 전에 멈췄어요. 연속 실행 횟수: %1$d</string>
+    <string name="driver_rescue_broken">이 휴대폰 칩에서 이 게임과 함께 충돌하는 것으로 알려져 있어요.</string>
+    <string name="driver_rescue_use">추천 드라이버 사용</string>
+    <string name="driver_rescue_keep">내 드라이버 유지</string>
 </resources>

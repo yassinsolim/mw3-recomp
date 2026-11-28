@@ -255,17 +255,22 @@ class FrameWatchTest {
             "      #01 pc 0000000000a1b2d4  /vendor/lib64/libllvm-qgl.so\n" +
             "      #02 pc 0000000000123456  /vendor/lib64/hw/vulkan.adreno.so\n" +
             "      #03 pc 0000000000345678  /data/app/x/lib/arm64/libaw.so (vk::pipeline::Create+120)\n"
-        assertTrue(DriverFallback.crashInDriver(qualcomm, ""))
+        assertEquals("libllvm-qgl.so", DriverFallback.driverLibraryOf(qualcomm, ""))
         // An imported driver, loaded from the app's own folders under whatever name its zip gave it.
         val imported = "    thread 1 (gpu):\n      #00 pc 00000000000aaaaa  /data/user/0/com.aw.recomp/files/drivers/turnip-27.0.0-r2/vulkan.ad07xx.so\n" +
             "      #01 pc 00000000000bbbbb  /data/app/x/lib/arm64/libaw.so\n"
-        assertTrue(DriverFallback.crashInDriver(imported, "vulkan.ad07xx.so"))
-        assertTrue(DriverFallback.crashInDriver("      #00 pc 0000000000000001  /somewhere/odd/vulkan.ad07xx.so\n", "vulkan.ad07xx.so"))
+        assertEquals("vulkan.ad07xx.so", DriverFallback.driverLibraryOf(imported, "vulkan.ad07xx.so"))
+        assertEquals("vulkan.ad07xx.so", DriverFallback.driverLibraryOf("      #00 pc 0000000000000001  /somewhere/odd/vulkan.ad07xx.so\n", "vulkan.ad07xx.so"))
+        // Mesa's own name for Turnip, and Qualcomm's helper libraries.
+        assertEquals("libvulkan_freedreno.so", DriverFallback.driverLibraryOf("      #00 pc 0000000000000001  /data/x/libvulkan_freedreno.so (ir3_ra+12)\n", ""))
+        assertEquals("libadreno_utils.so", DriverFallback.driverLibraryOf("      #00 pc 0000000000000001  /vendor/lib64/libadreno_utils.so\n", ""))
+        // The system's Vulkan loader is not a driver, nor a function of ours named after one.
+        assertNull(DriverFallback.driverLibraryOf("      #00 pc 0000000000000001  /system/lib64/libvulkan.so (vulkan.adreno+1)\n", ""))
         // The game's own crash, with the driver far down the stack or not there at all.
         val ours = "    thread 9 (guest):\n" + (0 until 7).joinToString("") { "      #0$it pc 000000000000100$it  /data/app/x/lib/arm64/libaw.so (sub_8212$it+4)\n" } +
             "      #07 pc 0000000000123456  /vendor/lib64/hw/vulkan.adreno.so\n"
-        assertFalse(DriverFallback.crashInDriver(ours, ""))
-        assertFalse(DriverFallback.crashInDriver("    no signal recorded\n    (the crashing thread 5 is not in the tombstone)\n", "libvulkan_freedreno.so"))
-        assertFalse(DriverFallback.crashInDriver("", ""))
+        assertNull(DriverFallback.driverLibraryOf(ours, ""))
+        assertNull(DriverFallback.driverLibraryOf("    no signal recorded\n    (the crashing thread 5 is not in the tombstone)\n", "libvulkan_freedreno.so"))
+        assertNull(DriverFallback.driverLibraryOf("", ""))
     }
 }

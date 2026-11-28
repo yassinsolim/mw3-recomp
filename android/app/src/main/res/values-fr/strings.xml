@@ -734,4 +734,12 @@
     <string name="update_download_description">Téléchargement de la nouvelle version</string>
     <string name="mods_skip_executable">les exécutables ne sont jamais pris dans un mod</string>
     <string name="mods_skip_plugin">nécessite le plugin CoD Xe, que ce portage ne prend pas en charge</string>
+    <string name="driver_rescue_title">Votre pilote graphique ne fait pas tourner le jeu</string>
+    <string name="driver_rescue_message">Le pilote graphique que vous avez choisi : %1$s.\n%2$s\n\nRecommandé pour ce téléphone : %3$s. Votre pilote reste installé ; Paramètres \u203a Pilote graphique permet d’y revenir.</string>
+    <string name="driver_rescue_nothing_else">Le pilote graphique que vous avez choisi : %1$s.\n%2$s\n\nL’app ne connaît aucun autre pilote pour ce téléphone. Le journal contient ce qu’il faut pour un rapport de bug.</string>
+    <string name="driver_rescue_crashed">Le jeu a planté dans le pilote (%1$s). Lancements d’affilée : %2$d.</string>
+    <string name="driver_rescue_no_picture">Le jeu s’est arrêté avant d’afficher une image. Lancements d’affilée : %1$d.</string>
+    <string name="driver_rescue_broken">Il est connu pour planter avec ce jeu sur la puce de ce téléphone.</string>
+    <string name="driver_rescue_use">Utiliser le recommandé</string>
+    <string name="driver_rescue_keep">Garder le mien</string>
 </resources>
