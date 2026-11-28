@@ -250,6 +250,8 @@
     <string name="touch_look_aiming_hint">Tant que Viser est maintenu. Le zoom d\'un viseur ralentit aussi la rotation, comme le jeu ralentit le stick d\'une manette.</string>
     <string name="tap_to_fire">Toucher la zone de visée pour tirer</string>
     <string name="tap_to_fire_hint">Un appui bref là où vous visez tire un coup, sans aller chercher le bouton Tir.</string>
+    <string name="aim_when_firing">Viser en tirant (tactile)</string>
+    <string name="aim_when_firing_hint">Le bouton Tir à l\'écran vise aussi : le viseur se lève quand vous appuyez et le coup part un instant plus tard ; relâcher Tir relâche les deux. Si vous maintenez déjà Viser, Tir fonctionne comme d\'habitude.</string>
     <string name="gyro_aiming">Visée au gyroscope</string>
     <string name="gyro_label">Visée au gyroscope : %1$s</string>
     <string-array name="gyro_choices">

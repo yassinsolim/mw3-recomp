@@ -357,6 +357,7 @@ class SettingsActivity : AppCompatActivity() {
             { prefs.touchLookAiming = (25 + it * 5) / 100f },
         )
         switch(R.id.tap_to_fire, prefs.tapToFire) { prefs.tapToFire = it }
+        switch(R.id.aim_when_firing, prefs.aimWhenFiring) { prefs.aimWhenFiring = it }
 
         // The gyroscope, where the phone has one.
         if (GyroInput(this).available) {

@@ -250,6 +250,8 @@
     <string name="touch_look_aiming_hint">Finché tieni premuto Mira. Lo zoom di un mirino rallenta inoltre la rotazione, come il gioco rallenta la levetta di un controller.</string>
     <string name="tap_to_fire">Tocca l\'area della visuale per sparare</string>
     <string name="tap_to_fire_hint">Un tocco breve dove guardi spara un colpo, senza dover raggiungere il pulsante Fuoco.</string>
+    <string name="aim_when_firing">Mira mentre spari (touch)</string>
+    <string name="aim_when_firing_hint">Il pulsante Fuoco sullo schermo prende anche la mira: il mirino si alza quando premi e lo sparo parte un istante dopo; rilasciando Fuoco si rilasciano entrambi. Se tieni già premuto Mira, Fuoco funziona come al solito.</string>
     <string name="gyro_aiming">Mira con giroscopio</string>
     <string name="gyro_label">Mira con giroscopio: %1$s</string>
     <string-array name="gyro_choices">

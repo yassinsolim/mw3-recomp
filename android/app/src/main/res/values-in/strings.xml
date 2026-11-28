@@ -250,6 +250,8 @@
     <string name="touch_look_aiming_hint">Selama Bidik ditahan. Zoom teropong juga memperlambat putaran, seperti game memperlambat stik controller.</string>
     <string name="tap_to_fire">Ketuk area lihat untuk menembak</string>
     <string name="tap_to_fire_hint">Ketukan singkat di area pandang menembakkan peluru, tanpa perlu menjangkau tombol Tembak.</string>
+    <string name="aim_when_firing">Bidik saat menembak (sentuh)</string>
+    <string name="aim_when_firing_hint">Tombol Tembak di layar juga membidik: alat bidik naik saat ditekan dan tembakan menyusul sesaat kemudian; melepas Tembak melepas keduanya. Jika Anda sudah menahan Bidik, Tembak bekerja seperti biasa.</string>
     <string name="gyro_aiming">Bidik dengan giroskop</string>
     <string name="gyro_label">Bidik dengan giroskop: %1$s</string>
     <string-array name="gyro_choices">

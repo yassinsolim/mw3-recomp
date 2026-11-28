@@ -8,6 +8,7 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -98,6 +99,19 @@ class TouchOverlayView @JvmOverloads constructor(
     private val endTapFire = Runnable {
         tapFiring = false
         pushState()
+    }
+
+    // Fire also aims (Prefs.aimWhenFiring): while a press of Fire is being
+    // managed (AimWhenFiring) the pad state has both triggers from it.
+    private val aimFire = AimWhenFiring()
+    private val recheckAimFire = Runnable { pushState() }
+
+    private fun isFire(element: ControlElement) = element.kind == ControlKind.TRIGGER && element.value == 1
+
+    /** Aim is held or toggled on: the sights are up or coming up on the player's say. */
+    private fun playerAiming(): Boolean = layout.elements.any {
+        it.visible && it.kind == ControlKind.TRIGGER && it.value == 0 &&
+            (held.contains(it.id) || toggled.contains(it.id))
     }
 
     // ---- editing -----------------------------------------------------------
@@ -214,6 +228,8 @@ class TouchOverlayView @JvmOverloads constructor(
     // ---- the state the guest sees -------------------------------------------
 
     private fun pushState() {
+        val now = SystemClock.uptimeMillis()
+        val aimFiring = aimFire.managing(now)
         var buttons = 0
         var leftTrigger = 0
         var rightTrigger = 0
@@ -227,7 +243,7 @@ class TouchOverlayView @JvmOverloads constructor(
             val on = held.contains(element.id) || toggled.contains(element.id)
             when (element.kind) {
                 ControlKind.BUTTON -> if (on) buttons = buttons or element.value
-                ControlKind.TRIGGER -> if (on) {
+                ControlKind.TRIGGER -> if (on && !(aimFiring && isFire(element))) {
                     if (element.value == 0) leftTrigger = 255 else rightTrigger = 255
                 }
                 ControlKind.DPAD -> buttons = buttons or (dpadBits[element.id] ?: 0)
@@ -247,11 +263,18 @@ class TouchOverlayView @JvmOverloads constructor(
             }
         }
         if (tapFiring) rightTrigger = 255
+        if (aimFiring) {
+            leftTrigger = 255
+            if (aimFire.rightTrigger(now)) rightTrigger = 255
+        }
         NativeBridge.nativeTouchState(
             buttons, leftTrigger, rightTrigger,
             leftX.coerceIn(-1f, 1f), leftY.coerceIn(-1f, 1f),
             rightX.coerceIn(-1f, 1f), rightY.coerceIn(-1f, 1f),
         )
+        removeCallbacks(recheckAimFire)
+        val next = aimFire.nextChangeAt(now)
+        if (next != AimWhenFiring.NOT_YET) postDelayed(recheckAimFire, max(0L, next - now))
     }
 
     /** Everything up: called when the pad is hidden, edited, or paused. */
@@ -266,6 +289,8 @@ class TouchOverlayView @JvmOverloads constructor(
         if (editing) toggled.clear()
         looks.clear()
         removeCallbacks(endTapFire)
+        removeCallbacks(recheckAimFire)
+        aimFire.cancel()
         tapFiring = false
         if (NativeBridge.isLoaded()) {
             NativeBridge.nativeLookEnd()
@@ -356,9 +381,14 @@ class TouchOverlayView @JvmOverloads constructor(
             ControlKind.DPAD -> moveDpad(element, x, y)
             ControlKind.BUTTON, ControlKind.TRIGGER -> {
                 if (element.toggle) {
-                    if (!toggled.remove(element.id)) toggled.add(element.id)
+                    val on = !toggled.remove(element.id)
+                    if (on) toggled.add(element.id)
+                    if (isFire(element) && prefs.aimWhenFiring) {
+                        if (on) aimFire.press(millis, playerAiming()) else aimFire.release(millis)
+                    }
                 } else {
                     held.add(element.id)
+                    if (isFire(element) && prefs.aimWhenFiring) aimFire.press(millis, playerAiming())
                 }
                 if (besideLook(element)) looks[pointerId] = Look(x, y, millis, turning = false)
             }
@@ -387,7 +417,10 @@ class TouchOverlayView @JvmOverloads constructor(
             when (element.kind) {
                 ControlKind.STICK -> stickPositions.remove(element.id)
                 ControlKind.DPAD -> dpadBits.remove(element.id)
-                else -> held.remove(element.id)
+                else -> {
+                    held.remove(element.id)
+                    if (isFire(element) && !element.toggle) aimFire.release(millis)
+                }
             }
             changed = true
         } else if (look != null && prefs.tapToFire &&

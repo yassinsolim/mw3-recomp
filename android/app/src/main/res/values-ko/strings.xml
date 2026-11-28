@@ -250,6 +250,8 @@
     <string name="touch_look_aiming_hint">조준 버튼을 누르고 있는 동안 적용돼요. 게임이 컨트롤러 스틱을 느리게 하듯, 조준경 배율에 따라 회전도 더 느려져요.</string>
     <string name="tap_to_fire">시점 영역을 탭하여 발사</string>
     <string name="tap_to_fire_hint">보고 있는 곳을 짧게 탭하면 사격 버튼에 손을 뻗지 않고도 한 발 쏴요.</string>
+    <string name="aim_when_firing">사격 시 조준 (터치)</string>
+    <string name="aim_when_firing_hint">화면의 사격 버튼이 조준도 함께 해요. 누르면 조준경이 올라오고 잠시 뒤에 발사되며, 버튼에서 손을 떼면 둘 다 해제돼요. 이미 조준을 누르고 있다면 사격은 평소처럼 동작해요.</string>
     <string name="gyro_aiming">자이로 조준</string>
     <string name="gyro_label">자이로 조준: %1$s</string>
     <string-array name="gyro_choices">

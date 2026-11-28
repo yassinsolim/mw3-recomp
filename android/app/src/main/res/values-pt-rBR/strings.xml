@@ -250,6 +250,8 @@
     <string name="touch_look_aiming_hint">Enquanto Mirar estiver pressionado. O zoom da mira também desacelera o giro, como o jogo faz com o analógico do controle.</string>
     <string name="tap_to_fire">Toque na área de visão para atirar</string>
     <string name="tap_to_fire_hint">Um toque rápido onde você olha dispara um tiro, sem precisar alcançar o botão Atirar.</string>
+    <string name="aim_when_firing">Mirar ao atirar (toque)</string>
+    <string name="aim_when_firing_hint">O botão Atirar na tela também mira: a mira sobe quando você o toca e o tiro sai um instante depois; soltar Atirar solta os dois. Se você já está segurando Mirar, Atirar funciona como sempre.</string>
     <string name="gyro_aiming">Mira com giroscópio</string>
     <string name="gyro_label">Mira com giroscópio: %1$s</string>
     <string-array name="gyro_choices">

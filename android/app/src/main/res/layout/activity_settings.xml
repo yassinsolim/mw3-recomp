@@ -681,6 +681,19 @@
                     android:layout_height="wrap_content"
                     android:text="@string/tap_to_fire_hint" />
 
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/aim_when_firing"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/aim_when_firing" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/aim_when_firing_hint" />
+
                 <TextView
                     android:id="@+id/gyro_label"
                     style="@style/SettingLabel"

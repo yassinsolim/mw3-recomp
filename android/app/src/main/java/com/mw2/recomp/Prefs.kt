@@ -450,6 +450,11 @@ class Prefs(context: Context) {
         get() = store.getBoolean(KEY_TAP_TO_FIRE, false)
         set(value) = store.edit().putBoolean(KEY_TAP_TO_FIRE, value).apply()
 
+    /** The on-screen Fire button also aims: the left trigger at once, the right one when the sights are up (AimWhenFiring). */
+    var aimWhenFiring: Boolean
+        get() = store.getBoolean(KEY_AIM_WHEN_FIRING, false)
+        set(value) = store.edit().putBoolean(KEY_AIM_WHEN_FIRING, value).apply()
+
     /** The gyroscope turning the view: [GYRO_OFF], [GYRO_ALWAYS] or [GYRO_AIMING]. */
     var gyroMode: Int
         get() = store.getInt(KEY_GYRO_MODE, GYRO_OFF).coerceIn(GYRO_OFF, GYRO_AIMING)
@@ -857,6 +862,7 @@ class Prefs(context: Context) {
         private const val KEY_TOUCH_LOOK_VERTICAL = "touchLookVertical"
         private const val KEY_TOUCH_LOOK_AIMING = "touchLookAiming"
         private const val KEY_TAP_TO_FIRE = "tapToFire"
+        private const val KEY_AIM_WHEN_FIRING = "aimWhenFiring"
         private const val KEY_GYRO_MODE = "gyroMode"
         private const val KEY_GYRO_SENSITIVITY = "gyroSensitivity"
         /** The gyroscope's settings, in the order the runtime numbers them (android/input.cpp). */

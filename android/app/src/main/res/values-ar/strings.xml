@@ -250,6 +250,8 @@
     <string name="touch_look_aiming_hint">طوال الضغط على زر التصويب. كما يُبطئ تكبير المنظار الدوران، كما تُبطئ اللعبة عصا وحدة التحكم.</string>
     <string name="tap_to_fire">انقر على منطقة النظر لإطلاق النار</string>
     <string name="tap_to_fire_hint">نقرة قصيرة حيث تنظر تطلق رصاصة، دون الحاجة إلى زر الإطلاق.</string>
+    <string name="aim_when_firing">التصويب عند إطلاق النار (باللمس)</string>
+    <string name="aim_when_firing_hint">زر الإطلاق على الشاشة يصوّب أيضًا: يرتفع المنظار عند الضغط عليه وتنطلق الرصاصة بعد لحظة؛ وعند رفع إصبعك عن الإطلاق يُترك الاثنان. إذا كنت تضغط على زر التصويب أصلًا، يعمل الإطلاق كالمعتاد.</string>
     <string name="gyro_aiming">التصويب بالجيروسكوب</string>
     <string name="gyro_label">التصويب بالجيروسكوب: %1$s</string>
     <string-array name="gyro_choices">

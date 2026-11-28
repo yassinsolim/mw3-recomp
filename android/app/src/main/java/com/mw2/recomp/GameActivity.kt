@@ -1728,6 +1728,10 @@ class GameActivity : AppCompatActivity(), NativeListener {
         rows.add(GameMenu.Choice(getString(R.string.tap_to_fire), onOff(), if (prefs.tapToFire) 1 else 0) {
             prefs.tapToFire = it == 1
         })
+        // Read by the on-screen pad as Fire goes down (AimWhenFiring).
+        rows.add(GameMenu.Choice(getString(R.string.aim_when_firing), onOff(), if (prefs.aimWhenFiring) 1 else 0) {
+            prefs.aimWhenFiring = it == 1
+        })
 
         if (gyro.available) {
             rows.add(GameMenu.Choice(

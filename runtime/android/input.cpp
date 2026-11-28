@@ -269,6 +269,21 @@ bool android::input::Poll(uint32_t user, Pad& out)
         // Past gpad_button_deadzone (0.13) the left trigger is pulled, and
         // the sights are up or coming up.
         g_aiming.store(out.leftTrigger > 33, std::memory_order_relaxed);
+        // MW2_TRACE_LOOK: when the triggers were first seen pulled and let go, on the clock the
+        // touch events' times are on (uptime), so tools/aim_fire.py can set them beside a touch.
+        static const bool trace = diag::Flag("MW2_TRACE_LOOK");
+        if (trace)
+        {
+            static bool left = false, right = false;
+            const bool nowLeft = out.leftTrigger > 33, nowRight = out.rightTrigger > 33;
+            if (nowLeft != left || nowRight != right)
+            {
+                left = nowLeft;
+                right = nowRight;
+                LOGI("trigger: lt %d rt %d at %.2f ms", nowLeft ? 1 : 0, nowRight ? 1 : 0,
+                     std::chrono::duration<double, std::milli>(Clock::now().time_since_epoch()).count());
+            }
+        }
         UpdateLook(out);
         any = true;
     }

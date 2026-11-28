@@ -180,8 +180,9 @@ GUEST_HOOK(T_AimAssist_UpdateInput)
         if (yaw != lastYaw || pitch != lastPitch)
         {
             const bool exact = exactRight != 0.0f || exactDown != 0.0f;
-            LOGI("look: yaw %.4f pitch %.4f added %.4f %.4f zoom %.4f waited %.2f ms", yaw, pitch,
-                 addedRight, addedDown, scale, exact ? double(Nanoseconds(now) - since) / 1e6 : 0.0);
+            LOGI("look: yaw %.4f pitch %.4f added %.4f %.4f zoom %.4f waited %.2f ms at %.2f ms", yaw, pitch,
+                 addedRight, addedDown, scale, exact ? double(Nanoseconds(now) - since) / 1e6 : 0.0,
+                 double(Nanoseconds(now)) / 1e6);
             lastYaw = yaw;
             lastPitch = pitch;
         }
