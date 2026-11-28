@@ -177,8 +177,14 @@ $Pins = @{
 $XenonCommit  = 'ddd128bcca99fe8bfbb99bea583c972351fa6ace'   # as build.sh and tools/recomp_mw3.sh
 $ReleaseRepo  = "yassinsolim/$Game-recomp"   # where the Android app is published (android/app/build.gradle.kts, UPDATE_REPO)
 $AdrenoRemote = 'https://github.com/bylaws/libadrenotools.git'
-$TurnipUrl    = 'https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip'
-$TurnipSha    = '8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781'   # THIRD_PARTY.md
+# The community Turnip packages the apps bundle, as android/fetch_deps.sh and THIRD_PARTY.md:
+# the Adreno 6xx/7xx's and the Adreno 8xx's (DriverStore.bundledAssetFor).
+$Turnips = @(
+    @{ File = 'turnip_v27_r2.zip'; Sha = '8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781'
+       Url = 'https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip' }
+    @{ File = 'turnip_a8xx.zip'; Sha = 'd04357d9b96489a0f8385bad175a4f99a6b4e02f0ff8b6b0ea2cb65f1fbf8082'
+       Url = 'https://github.com/The412Banner/Banners-Turnip/releases/download/v27.0.0-20261121/Turnip-v27.0.0-20261121-A8xx.zip' }
+)
 $SdkPackages  = 'ndk;28.2.13676358', 'platforms;android-35', 'build-tools;35.0.0', 'cmake;3.22.1', 'platform-tools'
 $DefaultRelay = 'mw3.yassin.app:3074'   # Prefs.DEFAULT_RELAY_ADDRESS, the app's default
 
@@ -1103,22 +1109,23 @@ if ($ForAndroid) {
             Exec $GitTools.Git @('clone', '-q', '--depth', '1', '-c', 'core.autocrlf=false', $AdrenoRemote, $adreno)
             Exec $GitTools.Git @('-C', $adreno, 'submodule', 'update', '-q', '--init', '--recursive', '--depth', '1')
         }
-        # The Turnip driver the apps bundle (THIRD_PARTY.md): downloaded,
-        # hash-checked, never committed. A failure leaves the APK without it
-        # rather than stopping the build, and says so to Gradle, which
-        # refuses to build an app without the driver by accident
+        # The Turnip drivers the apps bundle (THIRD_PARTY.md): downloaded,
+        # hash-checked, never committed. A failure leaves the APK without that
+        # one rather than stopping the build, and says so to Gradle, which
+        # refuses to build an app without the drivers by accident
         # (android/app/build.gradle.kts, bundledDriverCheck).
-        $turnip = Join-Path $Repo 'android\app\src\mw3\assets\drivers\turnip_v27_r2.zip'
-        if (-not ((Test-Path $turnip) -and (Sha256Of $turnip) -eq $TurnipSha)) {
-            Step 'bundled Turnip driver'
+        foreach ($package in $Turnips) {
+            $turnip = Join-Path $Repo "android\app\src\mw3\assets\drivers\$($package.File)"
+            if ((Test-Path $turnip) -and (Sha256Of $turnip) -eq $package.Sha) { continue }
+            Step "bundled Turnip driver $($package.File)"
             try {
                 New-Item -ItemType Directory -Force (Split-Path -Parent $turnip) | Out-Null
-                Exec 'curl.exe' @('-fsSL', '--retry', '3', '-o', "$turnip.part", $TurnipUrl)
-                if ((Sha256Of "$turnip.part") -ne $TurnipSha) { throw 'SHA-256 of the Turnip package does not match' }
+                Exec 'curl.exe' @('-fsSL', '--retry', '3', '-o', "$turnip.part", $package.Url)
+                if ((Sha256Of "$turnip.part") -ne $package.Sha) { throw 'SHA-256 of the Turnip package does not match' }
                 Move-Item -Force "$turnip.part" $turnip
             } catch {
-                Warn "no bundled Turnip driver: $($_.Exception.Message). The app is built to run on the phone's own graphics driver; on an Adreno that is slower and can show a broken picture. Run setup again with a network to bundle it."
-                $gradleArgs += '-PwithoutBundledDriver=true'
+                Warn "no bundled Turnip driver $($package.File): $($_.Exception.Message). The phones it is for run on their own graphics driver; on an Adreno that is slower and can show a broken picture. Run setup again with a network to bundle it."
+                if ($gradleArgs -notcontains '-PwithoutBundledDriver=true') { $gradleArgs += '-PwithoutBundledDriver=true' }
                 Remove-Item -Force -ErrorAction SilentlyContinue $turnip, "$turnip.part"
             }
         }

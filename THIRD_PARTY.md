@@ -22,7 +22,7 @@ time and are not stored here.
 | Zone structure definitions from [OpenAssetTools](https://github.com/Laupetin/OpenAssetTools) via [pc2xbox360mw2ools](https://github.com/slanginbeans/pc2xbox360mw2ools) | `launcher/zone/defs/`, `launcher/zone/defs_pc/` (each has a `NOTICE.md`) | GPL-3.0 |
 | [FidelityFX Super Resolution 1.0](https://github.com/GPUOpen-Effects/FidelityFX-FSR) by Advanced Micro Devices: its RCAS sharpening filter, written out as GLSL | `runtime/gpu/vulkan/shaders/sharpen.frag` (and its SPIR-V in `sharpen_shaders.inc`) | MIT (in the file) |
 | [libadrenotools](https://github.com/bylaws/libadrenotools) | fetched into `third_party/libadrenotools/` | BSD-2-Clause |
-| Mesa Turnip driver | fetched, see below | MIT |
+| Mesa Turnip driver | fetched, see below | MIT; the Adreno 8xx build GPL-3.0 |
 
 ## Mesa Turnip (Vulkan driver for Qualcomm Adreno)
 
@@ -34,22 +34,35 @@ Qualcomm devices.
 
 - Project: Mesa, <https://gitlab.freedesktop.org/mesa/mesa> (Turnip is its open
   source Vulkan driver for Adreno GPUs)
-- Licence: MIT
-- Build used from Android 11 on: Turnip v27.0.0-R2 by StevenMXZ,
+- Licence: MIT (Mesa); the Adreno 8xx build below also carries GPL-3.0
+  patches, so that build as a whole is GPL-3.0, as this project is
+- Build used from Android 11 on, Adreno 6xx and 7xx: Turnip v27.0.0-R2 by
+  StevenMXZ,
   <https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip>
   (SHA-256 `8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781`)
-- Build used on Android 10 and on an Adreno 8xx: the project's own, of Mesa
-  at commit `483aff363be4d6913017b834123c8eeaada171d9`, unmodified, compiled
-  with NDK r28c for API 29 by `android/build_turnip.sh` (every community
-  build needs Android 11's libc, and v27.0.0-R2 predates Mesa's a8xx fixes)
+- Build used on an Adreno 8xx (Snapdragon 8 Elite): Turnip v27.0.0-20261121
+  A8xx by The412Banner,
+  <https://github.com/The412Banner/Banners-Turnip/releases/download/v27.0.0-20261121/Turnip-v27.0.0-20261121-A8xx.zip>
+  (SHA-256 `d04357d9b96489a0f8385bad175a4f99a6b4e02f0ff8b6b0ea2cb65f1fbf8082`).
+  Its Corresponding Source: Mesa at commit
+  `29673701c432571838325a5092125df0184f84d1` with the patches and scripts of
+  <https://github.com/The412Banner/Banners-Turnip> at commit
+  `41df28befa332dd46665312dc39044e41999372c` (the release's tag), among them
+  whitebelyash's `turnip/gen8` stack and patches from
+  WinNative-Emu/Drivers and Droid-Deck/Drivers (GPL-3.0); repository licence
+  GPL-3.0
+- Build used on Android 10: the project's own, of Mesa at commit
+  `483aff363be4d6913017b834123c8eeaada171d9`, unmodified, compiled with NDK
+  r28c for API 29 by `android/build_turnip.sh` (every community build needs
+  Android 11's libc)
 
-The first is downloaded at build time by `android/fetch_deps.sh` (or
-`setup/setup.ps1` on Windows), checked against the hash above and packaged
-into the apps' assets; the second is built by `android/fetch_deps.sh`, which
-runs the script. Neither is stored in this repository.
+The first two are downloaded at build time by `android/fetch_deps.sh` (or
+`setup/setup.ps1` on Windows), checked against the hashes above and packaged
+into the apps' assets; the third is built by `android/fetch_deps.sh`, which
+runs the script. None is stored in this repository.
 
-Mesa's licence, MIT, as it applies to the Turnip sources both builds are made
-from (each file names its own copyright holders; the few files under other
+Mesa's licence, MIT, as it applies to the Turnip sources all three builds are
+made from (each file names its own copyright holders; the few files under other
 permissive licences are listed in Mesa's `licenses/` directory):
 
 ```

@@ -263,6 +263,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **An Adreno 8xx (Snapdragon 8 Elite) gets the community A8xx Turnip a
+  player plays with, in place of the project's own Mesa build.** A player
+  on an 8 Elite said the driver the 0.1.6 update brought "doesn't work
+  properly" and The412Banner's Turnip v27.0.0-20261121 A8xx does. Unpatched
+  Mesa does not yet read the 8 Elite generation's SnapAlloc window buffers
+  (Mesa MR 44464, open: a corrupted picture) nor invalidate bindless
+  descriptors the a8xx way; the A8xx build carries both fixes. It is
+  downloaded and hash-checked by `android/fetch_deps.sh` and
+  `setup/setup.ps1` (`turnip_a8xx.zip`, GPL-3.0 as a whole, THIRD_PARTY.md),
+  checked by the release's gate 3, and chosen by
+  `DriverStore.bundledAssetFor` (`DriverStoreTest`); the project's build
+  stays for Android 10 and the 6xx and 7xx keep R2. A player on the
+  bundled driver is moved to it; one who picked another keeps theirs. Not
+  run on an Adreno 8xx by us
+  ([android.md](docs/android.md#snapdragon-8-elite-adreno-830-and-other-adreno-8xx)).
 - **Snapdragon 8 Elite (Adreno 830) and the other Adreno 8xx get the
   project's own Turnip.** Qualcomm's driver V@0800.71 crashed in its shader
   compiler (`libllvm-qgl.so`) building one of Advanced Warfare's pipelines

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# The Turnip (Mesa, MIT) driver the apps carry for Android 10 and for the
-# Adreno 8xx: Mesa at a pinned commit, only the freedreno Vulkan driver on
-# KGSL, compiled with the NDK for API 29 and packaged in the layout
-# DriverStore and libadrenotools read (meta.json + the library).
-# android/fetch_deps.sh runs it.
+# The Turnip (Mesa, MIT) driver the apps carry for Android 10: Mesa at a
+# pinned commit, only the freedreno Vulkan driver on KGSL, compiled with the
+# NDK for API 29 and packaged in the layout DriverStore and libadrenotools
+# read (meta.json + the library). android/fetch_deps.sh runs it.
 #
 # Why our own build: every community Turnip package is compiled for API 30 or
 # later and imports C11 <threads.h> from bionic as LIBC_R, which Android 10's
@@ -12,11 +11,9 @@
 # for is LIBC_P (docs/drafts/older-hardware.md, "Building it ourselves").
 # Nothing is patched, so a bug found with it can be reported upstream.
 #
-# Why it on an Adreno 8xx (Snapdragon 8 Elite, 830; 8 Elite Gen 5, 840) too:
-# the community Turnip v27.0.0-R2 the others get is Mesa of 7 November 2026,
-# before the a8xx fixes of 19-24 November (the gen8 VPC cache, QCTDD10982019),
-# and Qualcomm's own driver V@0800.71 crashes in its shader compiler
-# (libllvm-qgl.so) on a pipeline of Advanced Warfare's (DriverStore.kt).
+# Not for the Adreno 8xx: unpatched Mesa did not work properly on a player's
+# Snapdragon 8 Elite (AW 0.1.6) and The412Banner's A8xx build did, so that is
+# the one an 8xx gets (android/fetch_deps.sh, DriverStore.bundledAssetFor).
 #
 #   android/build_turnip.sh <output.zip>
 #
@@ -114,7 +111,7 @@ meta = {
     "schemaVersion": 1,
     "name": f"Turnip {version} ({short})",
     "description": f"Mesa {version} at {short}, freedreno Vulkan on KGSL, built by mw3-android "
-                   "(android/build_turnip.sh) with the NDK for API 29, for Android 10 and the Adreno 8xx. MIT licence.",
+                   "(android/build_turnip.sh) with the NDK for API 29, for Android 10. MIT licence.",
     "author": "Mesa contributors; built by mw3-android",
     "packageVersion": "1",
     "vendor": "Mesa",

@@ -163,13 +163,14 @@ class DriverStore(private val context: Context) {
     /**
      * Makes the driver the build carries the default on Qualcomm phones,
      * where the stock driver renders this game slowly and with corrupted
-     * textures and Turnip does not. Two packages, both made at build time by
-     * android/fetch_deps.sh and never committed: from Android 11 on the
-     * community Turnip v27.0.0-R2 (assets/drivers/turnip_v27_r2.zip), and on
-     * Android 10 and on an Adreno 8xx the project's own build of Mesa
+     * textures and Turnip does not. Three packages, all put in place at build
+     * time by android/fetch_deps.sh and never committed: from Android 11 on
+     * the community Turnip v27.0.0-R2 (assets/drivers/turnip_v27_r2.zip), on
+     * an Adreno 8xx The412Banner's A8xx Turnip of 21 November 2026
+     * (turnip_a8xx.zip), and on Android 10 the project's own build of Mesa
      * (turnip_api29.zip, android/build_turnip.sh): every community Turnip
-     * asks for Android 11's libc and does not load on Android 10, and R2
-     * predates Mesa's a8xx fixes (bundledAssetFor).
+     * asks for Android 11's libc and does not load on Android 10
+     * (bundledAssetFor).
      *
      * It only ever fills a gap. Once the player has picked anything, the
      * system's driver included (Prefs.driverChoiceMade), it is never
@@ -329,21 +330,29 @@ class DriverStore(private val context: Context) {
 
     companion object {
         const val BUNDLED_ASSET = "drivers/turnip_v27_r2.zip"
+        const val BUNDLED_ASSET_A8XX = "drivers/turnip_a8xx.zip"
         const val BUNDLED_ASSET_API29 = "drivers/turnip_api29.zip"
 
         /**
-         * Which package this phone is given. The community build needs
+         * Which package this phone is given. The community builds need
          * bionic's LIBC_R (API 30), the project's own only LIBC_P, so below
-         * API 30 only the latter can load. An Adreno 8xx gets the project's
-         * own on any Android: R2 is Mesa of 7 November 2026, before the a8xx
-         * fixes of 19-24 November, and Qualcomm's own driver V@0800.71 on a
-         * Snapdragon 8 Elite crashes in its shader compiler on one of Advanced
-         * Warfare's pipelines (a player's log, AW 0.1.5). [gpu] is
+         * API 30 only the latter can load. An Adreno 8xx (no phone with one
+         * runs Android 10) gets The412Banner's A8xx build: a player on a
+         * Snapdragon 8 Elite plays with it, and the 8 Elite's own driver
+         * V@0800.71 crashes in its shader compiler on one of Advanced
+         * Warfare's pipelines (AW 0.1.5), while the project's unpatched Mesa
+         * "doesn't work properly" there for the same player (AW 0.1.6): Mesa
+         * main does not yet read the 8 Elite's SnapAlloc window buffers' layout
+         * (MR 44464) nor invalidate bindless descriptors the a8xx way, both
+         * of which the A8xx build carries. [gpu] is
          * DeviceInfo.gpu's text ("Adreno (TM) 830 (Qualcomm), OpenGL ES ..."),
          * asked only from API 30 on.
          */
-        fun bundledAssetFor(sdk: Int, gpu: () -> String): String =
-            if (sdk < 30 || adreno8xx(gpu())) BUNDLED_ASSET_API29 else BUNDLED_ASSET
+        fun bundledAssetFor(sdk: Int, gpu: () -> String): String = when {
+            sdk < 30 -> BUNDLED_ASSET_API29
+            adreno8xx(gpu()) -> BUNDLED_ASSET_A8XX
+            else -> BUNDLED_ASSET
+        }
 
         /** An Adreno 810 ... 840 by its OpenGL ES renderer's name; "Adreno 8c Gen 3" is a 6xx and does not count. */
         fun adreno8xx(gpu: String): Boolean = ADRENO_8XX.containsMatchIn(gpu)

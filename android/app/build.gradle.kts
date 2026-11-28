@@ -64,7 +64,7 @@ val bo3ApplicationId = "com.bo3.recomp$appSuffix"
 val mw2DriverAssets = layout.buildDirectory.dir("mw2-driver-assets").get().asFile
 
 // The graphics driver the apps bundle and what loads it, both fetched by
-// android/fetch_deps.sh and neither committed: the Turnip package under
+// android/fetch_deps.sh and neither committed: the Turnip packages under
 // src/mw3/assets/drivers and third_party/libadrenotools. An app built without
 // either runs on the phone's own driver and only its log says so, and on an
 // Adreno 740 that is a picture in 32-pixel blocks at half the frame rate:
@@ -73,11 +73,14 @@ val mw2DriverAssets = layout.buildDirectory.dir("mw2-driver-assets").get().asFil
 // them unless the build says it means to: -PwithoutBundledDriver=true
 // (setup\setup.ps1, when the driver could not be downloaded).
 val withoutBundledDriver = (findProperty("withoutBundledDriver") as String?) == "true"
-val bundledDriverPackage = file("src/mw3/assets/drivers/turnip_v27_r2.zip")
+val bundledDriverPackages = listOf(
+    file("src/mw3/assets/drivers/turnip_v27_r2.zip"),
+    file("src/mw3/assets/drivers/turnip_a8xx.zip"),
+)
 val adrenotoolsSources = rootProject.file("../third_party/libadrenotools/CMakeLists.txt")
 val bundledDriverCheck = tasks.register("bundledDriverCheck") {
     doLast {
-        val missing = listOf(bundledDriverPackage, adrenotoolsSources).filterNot { it.isFile }
+        val missing = (bundledDriverPackages + adrenotoolsSources).filterNot { it.isFile }
         if (missing.isNotEmpty() && !withoutBundledDriver) {
             throw GradleException(
                 "The bundled graphics driver is incomplete: ${missing.joinToString { it.path }} " +

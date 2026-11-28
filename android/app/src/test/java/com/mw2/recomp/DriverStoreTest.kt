@@ -14,13 +14,14 @@ class DriverStoreTest {
     private fun never(): String = throw AssertionError("the GPU is not asked below API 30")
 
     @Test
-    fun snapdragon8EliteGetsTheProjectsMesa() {
+    fun snapdragon8EliteGetsTheA8xxTurnip() {
         // A player's log, AW 0.1.5: "phone: Xiaomi 24129PN74G (dada), Android 16 (API 36)",
         // "chip: QTI SM8750, hardware qcom, board sun"; Qualcomm's driver crashed in libllvm-qgl.so.
         val gpu = "Adreno (TM) 830 (Qualcomm), OpenGL ES 3.2 V@0800.71 (GIT@208ca19915, Iab05a79315, 1770369230) (Date:02/06/26); Vulkan 1.3.0 declared"
         assertTrue(QualcommSoc.isQualcomm(36, "QTI", "qcom", "sun") { never() })
-        assertEquals(DriverStore.BUNDLED_ASSET_API29, DriverStore.bundledAssetFor(36) { gpu })
-        assertEquals(DriverStore.BUNDLED_ASSET_API29, DriverStore.bundledAssetFor(35) { "Adreno (TM) 840 (Qualcomm), OpenGL ES 3.2 V@0846.0" })
+        assertEquals(DriverStore.BUNDLED_ASSET_A8XX, DriverStore.bundledAssetFor(36) { gpu })
+        assertEquals(DriverStore.BUNDLED_ASSET_A8XX, DriverStore.bundledAssetFor(35) { "Adreno (TM) 840 (Qualcomm), OpenGL ES 3.2 V@0846.0" })
+        assertEquals(DriverStore.BUNDLED_ASSET_A8XX, DriverStore.bundledAssetFor(30) { "Adreno (TM) 810 (Qualcomm)" })
     }
 
     @Test
@@ -35,6 +36,12 @@ class DriverStoreTest {
     @Test
     fun android10GetsTheProjectsMesaWithoutAskingTheGpu() {
         assertEquals(DriverStore.BUNDLED_ASSET_API29, DriverStore.bundledAssetFor(29) { never() })
+    }
+
+    @Test
+    fun theThreePackagesAreDistinct() {
+        val assets = setOf(DriverStore.BUNDLED_ASSET, DriverStore.BUNDLED_ASSET_A8XX, DriverStore.BUNDLED_ASSET_API29)
+        assertEquals(3, assets.size)
     }
 
     @Test

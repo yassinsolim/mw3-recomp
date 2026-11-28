@@ -94,12 +94,14 @@ The gates. All of them pass or nothing is published:
    and no game file; signed with the release key
    (`RELEASE_CERTIFICATE_SHA256`); the package and the version code are the
    tag's.
-3. **The driver.** Inside the APK itself, not by the build's log: the two
-   Turnip packages, each with a driver in it: the community one with the
-   SHA-256 `android/fetch_deps.sh` names, and the project's own build for
-   Android 10 and the Adreno 8xx (`turnip_api29.zip`, made by the release
-   workflow with `android/build_turnip.sh`, so not hashed) whose `meta.json`
-   names the Mesa commit that script pins; and no other driver package.
+3. **The driver.** Inside the APK itself, not by the build's log: the three
+   Turnip packages, each with a driver in it: the two community ones (R2 for
+   the Adreno 6xx and 7xx, `turnip_v27_r2.zip`; The412Banner's A8xx for the
+   Adreno 8xx, `turnip_a8xx.zip`) with the SHA-256s `android/fetch_deps.sh`
+   names, and the project's own build for Android 10 (`turnip_api29.zip`,
+   made by the release workflow with `android/build_turnip.sh`, so not
+   hashed) whose `meta.json` names the Mesa commit that script pins; and no
+   other driver package.
    Then libadrenotools' four hook libraries, and each title's library built
    with libadrenotools. Without them the app runs on the phone's own
    driver, whose picture on an Adreno is wrong.

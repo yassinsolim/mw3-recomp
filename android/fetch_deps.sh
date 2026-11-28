@@ -53,16 +53,24 @@ else
     git -C "${XENON}" apply "${REPOSITORY_ROOT}/patches/xenonrecomp-mw2.patch"
 fi
 
-# The Turnip (Mesa, MIT) Vulkan driver the apps unpack and use by default on
+# The Turnip (Mesa) Vulkan drivers the apps unpack and use by default on
 # Qualcomm phones, where the stock driver is slow and draws corrupted textures
 # (and, in Modern Warfare 2, leaves surfaces out for minutes while it compiles
-# their pipelines). Downloaded, never committed (THIRD_PARTY.md); it is kept
-# under the mw3 flavour's assets, the MW2 flavours package a copy of it
-# (android/app/build.gradle.kts, bundledDriverAssets), and a build without it
+# their pipelines). Downloaded, never committed (THIRD_PARTY.md); they are kept
+# under the mw3 flavour's assets, the MW2 flavours package a copy of them
+# (android/app/build.gradle.kts, bundledDriverAssets), and a build without them
 # has no bundled driver, which Gradle refuses unless it is asked for.
+# From Android 11 on, the Adreno 6xx and 7xx: StevenMXZ's v27.0.0-R2 (MIT).
 TURNIP_URL="${TURNIP_URL:-https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip}"
 TURNIP_SHA256="8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781"
 TURNIP_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_v27_r2.zip"
+# The Adreno 8xx (Snapdragon 8 Elite): The412Banner's A8xx build of 21 November
+# 2026 (Mesa 29673701c43 with whitebelyash's gen8 stack and the a8xx fixes of
+# WinNative and DroidDeck, GPL-3.0; recipe at Banners-Turnip 41df28befa3), the
+# one a player on an 8 Elite plays with (DriverStore.bundledAssetFor).
+TURNIP8_URL="${TURNIP8_URL:-https://github.com/The412Banner/Banners-Turnip/releases/download/v27.0.0-20261121/Turnip-v27.0.0-20261121-A8xx.zip}"
+TURNIP8_SHA256="d04357d9b96489a0f8385bad175a4f99a6b4e02f0ff8b6b0ea2cb65f1fbf8082"
+TURNIP8_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_a8xx.zip"
 
 # The file goes in on standard input: given a name with a backslash in it (a
 # Windows shell whose pwd is D:\...), sha256sum puts a backslash before the
@@ -73,30 +81,33 @@ sha256_of() {
     fi
 }
 
-if [ -f "${TURNIP_ASSET}" ] && [ "$(sha256_of "${TURNIP_ASSET}")" = "${TURNIP_SHA256}" ]; then
-    echo "The bundled Turnip driver is already there."
-else
-    echo "Downloading the bundled Turnip driver"
-    mkdir -p "$(dirname "${TURNIP_ASSET}")"
+# fetch_turnip <url> <sha256> <asset>
+fetch_turnip() {
+    if [ -f "$3" ] && [ "$(sha256_of "$3")" = "$2" ]; then
+        echo "The bundled Turnip driver $(basename "$3") is already there."
+        return
+    fi
+    echo "Downloading the bundled Turnip driver $(basename "$3")"
+    mkdir -p "$(dirname "$3")"
     # Into a temporary name first: a download that fails the check must not
     # be left where Gradle would package it.
-    curl -fsSL -o "${TURNIP_ASSET}.part" "${TURNIP_URL}"
-    if [ "$(sha256_of "${TURNIP_ASSET}.part")" != "${TURNIP_SHA256}" ]; then
-        rm -f "${TURNIP_ASSET}.part"
-        echo "The Turnip download does not match the expected SHA-256; not using it." >&2
+    curl -fsSL -o "$3.part" "$1"
+    if [ "$(sha256_of "$3.part")" != "$2" ]; then
+        rm -f "$3.part"
+        echo "The Turnip download $1 does not match the expected SHA-256; not using it." >&2
         exit 1
     fi
-    mv "${TURNIP_ASSET}.part" "${TURNIP_ASSET}"
-fi
+    mv "$3.part" "$3"
+}
+fetch_turnip "${TURNIP_URL}" "${TURNIP_SHA256}" "${TURNIP_ASSET}"
+fetch_turnip "${TURNIP8_URL}" "${TURNIP8_SHA256}" "${TURNIP8_ASSET}"
 
-# The Turnip the apps carry for Android 10, where the one above cannot load
-# (it needs Android 11's libc), and for the Adreno 8xx, where the one above
-# predates Mesa's a8xx fixes: the project's own build of Mesa, made here by
+# The Turnip the apps carry for Android 10, where the ones above cannot load
+# (they need Android 11's libc): the project's own build of Mesa, made here by
 # android/build_turnip.sh, never committed (THIRD_PARTY.md). It needs Linux
 # or WSL with Meson and the NDK; without them the apps are built without it
-# and an Android 10 Snapdragon or an Adreno 8xx has no bundled driver
-# (DriverStore.kt). The release workflows set REQUIRE_TURNIP_API29=1, which
-# makes that an error.
+# and an Android 10 Snapdragon has no bundled driver (DriverStore.kt). The
+# release workflows set REQUIRE_TURNIP_API29=1, which makes that an error.
 TURNIP29_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_api29.zip"
 TURNIP29_COMMIT="$(sed -n 's/^MESA_COMMIT="\(.*\)"$/\1/p' "${REPOSITORY_ROOT}/android/build_turnip.sh")"
 turnip29_current() {
@@ -107,16 +118,16 @@ with zipfile.ZipFile(sys.argv[1]) as z:
 EOF
 }
 if turnip29_current; then
-    echo "The project's Turnip driver (Android 10, Adreno 8xx) is already there."
+    echo "The project's Turnip driver (Android 10) is already there."
 else
-    echo "Building the project's Turnip driver for Android 10 and the Adreno 8xx (Mesa ${TURNIP29_COMMIT:0:10}; a few minutes)"
+    echo "Building the project's Turnip driver for Android 10 (Mesa ${TURNIP29_COMMIT:0:10}; a few minutes)"
     if ! bash "${REPOSITORY_ROOT}/android/build_turnip.sh" "${TURNIP29_ASSET}"; then
         rm -f "${TURNIP29_ASSET}"
         if [ "${REQUIRE_TURNIP_API29:-0}" = 1 ]; then
             echo "The project's Turnip driver could not be built." >&2
             exit 1
         fi
-        echo "The project's Turnip driver could not be built: the apps will have no bundled driver on Android 10 or an Adreno 8xx." >&2
+        echo "The project's Turnip driver could not be built: the apps will have no bundled driver on Android 10." >&2
     fi
 fi
 
