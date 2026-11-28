@@ -1,4 +1,4 @@
-[![Join our Discord](https://img.shields.io/badge/Discord-join%20our%20server-5865F2?logo=discord&logoColor=white)](https://yassin.app/discord) **Help, news and requests: [join our Discord](https://yassin.app/discord).**
+[![Latest release](https://img.shields.io/github/v/release/yassinsolim/cod4-recomp?label=release)](https://github.com/yassinsolim/cod4-recomp/releases/latest) [![Downloads](https://img.shields.io/github/downloads/yassinsolim/cod4-recomp/total?label=downloads)](https://github.com/yassinsolim/cod4-recomp/releases) [![Join our Discord](https://img.shields.io/badge/Discord-join%20our%20server-5865F2?logo=discord&logoColor=white)](https://yassin.app/discord) **Help, news and requests: [join our Discord](https://yassin.app/discord).**
 
 # CoD4 Recompiled: Call of Duty 4: Modern Warfare on Android
 
@@ -19,6 +19,17 @@ least played: expect rough edges.
 Other games: [Modern Warfare 3](https://github.com/yassinsolim/mw3-recomp)
 (also builds for Windows) · [Modern Warfare 2](https://github.com/yassinsolim/mw2-recomp) ·
 [Advanced Warfare](https://github.com/yassinsolim/aw-recomp)
+
+**Supported devices** (tested = run by the project on every release; nothing else is):
+
+| Device | Chip, GPU | Android | Tested | Measured FPS in Call of Duty 4 |
+|---|---|---|---|---|
+| AYN Thor (120 Hz) | Snapdragon 8 Gen 2, Adreno 740 | 13 | **yes** | 117 to 119 |
+| Retroid Pocket Flip 2 (60 Hz) | Snapdragon 865, Adreno 650 | 13 | **yes** | 59.5 to 60 |
+| Any other Snapdragon | Adreno 6xx, 7xx, 8xx | 10 or later | no | none measured |
+| Mali, Xclipse, PowerVR | Mali-G57 and newer untested; Mali-G52, G76 and older not supported | 10 or later | no | none measured |
+
+What to expect, and the reports players sent: [Supported devices and what to expect](#supported-devices-and-what-to-expect).
 
 ## Quick start
 
