@@ -43,7 +43,9 @@ say it would, the game-code line after it).
            4 every statement the published app took is taken by the draft, or
              the notes say in their first lines that the game code is built
              again; the toolchain release setup/toolchain.json names exists
-             with that SHA-256 (publish makes it public before the apps).
+             with that SHA-256 (publish makes it public before the apps), and
+             its package was built from the recompiler's patch and commit the
+             mirror has (its assets/toolchain/toolchain.json).
            7 the notes (docs/releases/<game>-<tag>.txt): plain text, under
              1,450 characters, with a line on known issues.
   published-apk
@@ -198,6 +200,36 @@ def version_code(tag):
     if minor > 99 or patch > 99:
         raise Refused(f"{tag}: minor and patch must be below 100")
     return major * 10000 + minor * 100 + patch
+
+
+def git_blob(clone, commit, path):
+    """A file of a commit as it is stored, byte for byte (run() strips the output)."""
+    return subprocess.run(["git", "show", f"{commit}:{path}"], cwd=clone, capture_output=True, check=True).stdout
+
+
+def toolchain_manifest(package):
+    """What the build tools' package says it holds (tools/toolchain/package.py writes it)."""
+    with zipfile.ZipFile(package) as apk:
+        return json.loads(apk.read("assets/toolchain/toolchain.json"))
+
+
+def toolchain_mismatches(manifest, named, patch, setup):
+    """How the package setup/toolchain.json names (`named`) differs from what this release recompiles with:
+    the recompiler's patch (hashed without carriage returns, as package.py and the app's build kit hash it),
+    XenonRecomp's commit in setup.ps1, and the version. A package made from another patch builds other game
+    code on the phone than the app expects, and the app refuses it."""
+    problems = []
+    built = manifest.get("recompiler", {})
+    patch_hash = hashlib.sha256(patch.replace(b"\r", b"")).hexdigest()
+    if built.get("patchSha256") != patch_hash:
+        problems.append(f"patches/xenonrecomp-mw2.patch is {patch_hash[:12]}, the package's {str(built.get('patchSha256'))[:12]}")
+    commit = re.search(rb"XenonCommit\s*=\s*'([0-9a-f]+)'", setup)
+    commit = commit.group(1).decode() if commit else None
+    if built.get("commit") != commit:
+        problems.append(f"setup.ps1 names XenonRecomp {commit}, the package {built.get('commit')}")
+    if str(manifest.get("version")) != str(named["version"]):
+        problems.append(f"setup/toolchain.json says version {named['version']}, the package {manifest.get('version')}")
+    return problems
 
 
 class Release:
@@ -513,14 +545,24 @@ class Release:
         digest = (asset or {}).get("digest") or ""
         if not asset or (digest and digest != f"sha256:{first['sha256']}"):
             raise Refused(f"gate 4: {tag}'s {first['asset']} is not the one setup/toolchain.json names ({digest})")
-        if not digest:
-            folder = self.out / "toolchain"
-            folder.mkdir(exist_ok=True)
+        folder = self.out / "toolchain" / tag
+        folder.mkdir(parents=True, exist_ok=True)
+        package = folder / first["asset"]
+        if not package.exists() or sha256_of(package) != first["sha256"]:
             run("gh", "release", "download", tag, "-R", repo, "-D", folder, "-p", first["asset"], "--clobber")
-            if sha256_of(folder / first["asset"]) != first["sha256"]:
+            if sha256_of(package) != first["sha256"]:
                 raise Refused(f"gate 4: {tag}'s {first['asset']} is not the one setup/toolchain.json names")
+        for game in self.games:
+            mirror, clone = self.state["mirrors"][game], self.clone(game)
+            problems = toolchain_mismatches(toolchain_manifest(package), first,
+                                            git_blob(clone, mirror, "patches/xenonrecomp-mw2.patch"),
+                                            git_blob(clone, mirror, "setup/setup.ps1"))
+            if problems:
+                raise Refused(f"gate 4, {game}: {tag} was built from other recompiler inputs than this release's: "
+                              f"{'; '.join(problems)}. Raise TOOLCHAIN_VERSION, run Build tools package and name "
+                              "the new release in setup/toolchain.json (docs/android-releases.md, The toolchain release)")
         print(f"toolchain: {tag} in {repo}, {'a draft: published first' if release['draft'] else 'published'}, "
-              f"SHA-256 as named")
+              f"SHA-256 as named, built from this release's recompiler and patch")
         return (repo, tag, first) if release["draft"] else (repo, None, first)
 
     def notes(self, game, tag):

@@ -111,7 +111,12 @@ The gates. All of them pass or nothing is published:
    the game code is built again (the app then builds it by itself,
    [When the game code has to be rebuilt](#when-the-game-code-has-to-be-rebuilt)).
    The build tools' release `setup/toolchain.json` names exists with that
-   SHA-256; when it is still a draft it is published before the apps.
+   SHA-256; when it is still a draft it is published before the apps. Its
+   package was built from the recompiler's patch and commit the release has
+   (the package's `assets/toolchain/toolchain.json`): a package made from an
+   older patch would build other game code on the phone than the app takes,
+   so a change of the patch is refused until `TOOLCHAIN_VERSION` is raised
+   and the new release is named (`tests/release_toolchain_test.py`).
 5. **The devices**, not the script's to pass: on the AYN Thor and the
    Retroid Pocket Flip 2, each game is started, a campaign level and a match
    with bots are played for two to three minutes, the visual suite passes

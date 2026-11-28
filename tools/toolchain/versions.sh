@@ -3,7 +3,8 @@
 
 # The toolchain app's own version: raised with any change to what it holds.
 # 2: the recompiler's patch keeps XER's summary overflow in the context.
-TOOLCHAIN_VERSION=2
+# 3: the recompiler packs D3D 2_10_10_10 as it unpacks it (vpkd3d128).
+TOOLCHAIN_VERSION=3
 # The NDK the PC's game library is built with (setup/setup.ps1) has clang
 # 19.0.1; this is the release of the same line.
 LLVM_VERSION=19.1.7
