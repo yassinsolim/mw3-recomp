@@ -49,6 +49,20 @@ void platform::Initialise()
 {
     g_mainThread = GetCurrentThreadId();
     timeBeginPeriod(1);
+    // Windows 11 stops honouring that request for a process whose window is
+    // covered or minimised: its sleeps then end on the 15.6 ms tick, and the
+    // ring consumer, which sleeps a tenth of a millisecond when the ring is
+    // empty, picked a frame's commands up that late (Modern Warfare 3's
+    // campaign presented 31 to 33 frames a second in its menus behind
+    // another window and 60 once the process was left out). The process
+    // asks to be left out of that; looked up, so earlier systems go without.
+    {
+        struct Throttling { ULONG version, controlMask, stateMask; } state{ 1, 0x4 /* ignore timer resolution */, 0 };
+        using Set = BOOL(WINAPI*)(HANDLE, int, void*, DWORD);
+        if (const auto set = reinterpret_cast<Set>(reinterpret_cast<void*>(
+                GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetProcessInformation"))))
+            set(GetCurrentProcess(), 4 /* ProcessPowerThrottling */, &state, sizeof state);
+    }
     // A player's build has no console window of its own. Started from a
     // terminal, it writes there, as a console program would.
     if (!GetConsoleWindow() && AttachConsole(ATTACH_PARENT_PROCESS))

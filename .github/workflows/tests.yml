@@ -63,3 +63,6 @@ jobs:
 
       - name: Test the release's build tools check
         run: python3 -B tests/release_toolchain_test.py
+
+      - name: Test that a game that is not released stays out of the mirrors
+        run: python3 -B tests/release_unreleased_test.py

@@ -426,6 +426,46 @@ repository `yassinsolim/bo3-recomp` being prepared); its game's own folders
 
     git filter-repo --invert-paths --path bo3/ --path-glob 'ppc_bo3*'
 
+### Games that are not released
+
+A game the owner keeps private can still be merged into `android`: the
+filter takes it out whole, files, lines and words, and `sync` refuses to
+push a mirror that has anything of it left.
+
+- **Its files** are named in `tools/release/unreleased.json` (`paths`,
+  `globs`), a file no mirror has: the filter drops it with the paths it
+  lists. A mirror's copy of `release.py`, finding no such file, filters as
+  before.
+- **Its lines in files the mirrors keep** are marked. A region stands
+  between two comment lines that hold nothing but the mark `@private-begin`
+  and the mark `@private-end` (after `//`, `#` or `<!--`); one line ends in
+  a comment that is the mark `@private-line`; and a comment line that
+  starts with the mark `@public:` holds, after one space, the line the
+  mirrors have in that place, with its own indentation. The filter's blob
+  callback (`public_text`) takes the regions and marked lines out and puts
+  the public lines in, so a mirror's file is what it was before the game was
+  added and its builds do not change. A mark counts only in that position: a
+  sentence that names one, as these do, is text.
+- **Commit messages.** A message that names the game is replaced in the
+  mirrors by what follows its `Public:` line (the part of the commit the
+  mirrors get), or by "Work on a game that is not released." A commit whose
+  every change was the game's is dropped by `git filter-repo` as empty.
+- **The check** (`unreleased_problems`, gate 1): in every commit the push
+  would add, no path and no message matches `mention` (a regular
+  expression of the game's names, in `unreleased.json`), no text file does,
+  and no mark is left. Files that had such a word in public before the game
+  was added are listed under `published` and passed over.
+
+`python -B tests/release_unreleased_test.py` tries the marks on made-up
+text and then filters this checkout's `HEAD` into a repository of its own,
+as `sync` would, and searches the whole filtered history. It needs
+`git filter-repo`; in a mirror, which has no `unreleased.json`, that part is
+passed over.
+
+A change to a marked file keeps to this: what is the game's goes inside a
+region, and a line that changes for it gets its public twin. The test fails
+on the first commit that forgets.
+
 ## The camo packs release
 
 Modern Warfare 3's public repository has one more release, `camo-packs`,

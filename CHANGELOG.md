@@ -21,6 +21,12 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   The release tool's gate 4 now refuses build tools made from another
   recompiler patch or commit than the apps'
   (`tests/release_toolchain_test.py`).
+- **A game window behind another ran at half its rate on Windows 11**, where
+  a covered window's process loses the 1 ms timer: the process now asks to
+  keep it (`runtime/platform.cpp`). Every title: Modern Warfare 3's campaign
+  built before the change presented 31 to 33 frames a second in its menus
+  behind another window, and 60 once the same request was made for that
+  process from outside (two runs each way).
 - **Setup and the installer accept the same Modern Warfare 3 disc.** The app's
   check of a disc took both packagings of the campaign executable
   (`d90bc8d9…`, executable version 22, the bring-up's, and `e94de720…`, the
@@ -38,6 +44,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   setup accepts.
 
 ### Added
+- **The release tool keeps a game that is not released out of the public
+  repositories.** Its files are named in a list the filter drops with them,
+  its lines in shared files are marked and taken out, a commit message that
+  names it is replaced, and `sync` refuses a mirror in which a path, a
+  message or a text still names it
+  ([docs/android-releases.md](docs/android-releases.md#games-that-are-not-released),
+  `tests/release_unreleased_test.py`).
 - **A player's own driver that does not run the game is put to them.** When
   the driver in use is the player's choice and the catalog calls it broken
   for the chip and game (Qualcomm's V@0800.71 on a Snapdragon 8 Elite in

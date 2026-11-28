@@ -434,3 +434,22 @@ PPC_FUNC(__imp__RtlCompareMemoryUlong)
         while (matched < length && uint32_t(src[matched / 4]) == ctx.r5.u32) matched += 4;
     ctx.r3.u64 = matched;
 }
+
+// (String1, Length1, String2, Length2, CaseInsensitive): the strings compared
+// over the shorter length, then the lengths; a length of 0xFFFF is the
+// string's own, up to its terminator. A title's device code names its
+// objects with it.
+PPC_FUNC(__imp__RtlCompareStringN)
+{
+    const char* first = GuestPtr<char>(ctx.r3.u32);
+    const char* second = GuestPtr<char>(ctx.r5.u32);
+    const uint32_t firstLength = ctx.r4.u32 == 0xFFFF ? uint32_t(std::strlen(first)) : ctx.r4.u32;
+    const uint32_t secondLength = ctx.r6.u32 == 0xFFFF ? uint32_t(std::strlen(second)) : ctx.r6.u32;
+    const bool fold = ctx.r7.u32 != 0;
+    const auto letter = [fold](char c) { return fold && c >= 'a' && c <= 'z' ? c - 32 : int(uint8_t(c)); };
+    int32_t result = 0;
+    for (uint32_t i = 0; i < std::min(firstLength, secondLength) && !result; i++)
+        result = letter(first[i]) - letter(second[i]);
+    if (!result) result = int32_t(firstLength) - int32_t(secondLength);
+    ctx.r3.s64 = result;
+}

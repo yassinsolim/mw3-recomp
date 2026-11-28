@@ -140,6 +140,17 @@ DROPPED_BLOBS = ["1f2bbd4247228de79269766ed3f5850630b3955d", "acdce15999039b8a20
 # The public copy of this private commit has one more newline at its message's end.
 MESSAGE_WITH_NEWLINE = "be9b1af"
 GAME_PATH = re.compile(r"(?i)\.(xex|xexp|ff|ffm|iwd|iwi|bik|iso|god|pak|apk|aab|so|pe)$|^(aw|bo3|cod4|mw2|mw3|ppc[^/]*)/")
+# A game that is not released is kept out of the mirrors whole (docs/android-releases.md, Games that are not
+# released): tools/release/unreleased.json, which the filter drops with the rest, names its files, the words
+# that give it away and the files that had such a word in public before. In a file the mirrors keep, its
+# lines stand between two comment lines, the marks private-begin and private-end with an @ before each, or
+# end in the comment @ private-line (no space); a comment line that starts with @ public: (no space) holds
+# the line the mirrors have in their place.
+UNRELEASED = "tools/release/unreleased.json"
+PRIVATE_REGION = re.compile(rb"^[ \t]*(?://|#|<!--) ?@private-(begin|end)\b")
+PRIVATE_LINE = re.compile(rb"(?://|#) ?@private-line[ \t]*\r?\n?$")
+PUBLIC_LINE = re.compile(rb"^[ \t]*(?://|#) ?@public: ?(.*)$", re.S)
+NOT_RELEASED = b"Work on a game that is not released.\n"
 ADRENOTOOLS_LIBRARIES = ("libhook_impl.so", "libmain_hook.so", "libfile_redirect_hook.so", "libgsl_alloc_hook.so")
 DEVICES = ("thor", "flip")
 DEVICE_CHECKS = ("campaign", "multiplayer", "visual", "turnip", "fps")
@@ -232,6 +243,102 @@ def toolchain_mismatches(manifest, named, patch, setup):
     return problems
 
 
+def public_text(data):
+    """A file as the mirrors have it: the marked lines of a game that is not released taken out."""
+    if (b"@private-" not in data and b"@public:" not in data) or b"\0" in data:
+        return data
+    kept, private = [], False
+    for line in data.splitlines(keepends=True):
+        region = PRIVATE_REGION.match(line)
+        if region:
+            if private == (region.group(1) == b"begin"):
+                raise Refused(f"a file's {line.strip().decode('utf-8', 'replace')!r} is out of place")
+            private = not private
+        elif not private and not PRIVATE_LINE.search(line):
+            public = PUBLIC_LINE.match(line)
+            kept.append(public.group(1) if public else line)
+    if private:
+        raise Refused("a file's private region is not closed")
+    return b"".join(kept)
+
+
+def public_message(message, mention):
+    """A commit's message as the mirrors have it. One that names a game that is not released is replaced by
+    what follows its 'Public:' line, the part of the commit the mirrors get, or by a line that says so."""
+    if not mention or not re.search(mention.encode(), message):
+        return message
+    public = re.search(rb"(?ms)^Public: *(.*)\Z", message)
+    text = public.group(1).strip() + b"\n" if public and public.group(1).strip() else NOT_RELEASED
+    if re.search(mention.encode(), text):
+        raise Refused(f"a commit's Public: text names a game that is not released: {text[:200]!r}")
+    return text
+
+
+def unreleased(repository, commit):
+    """tools/release/unreleased.json of a commit: {"paths", "globs", "mention", "published"}, or nothing."""
+    found = subprocess.run(["git", "show", f"{commit}:{UNRELEASED}"], cwd=repository, capture_output=True)
+    return json.loads(found.stdout) if found.returncode == 0 else {}
+
+
+def filter_private(clone, private, repository=REPOSITORY):
+    """The clone's branch refilter, made of the private commit: the history every mirror shares, without what
+    is the project's own and without the games that are not released. Returns what unreleased.json said."""
+    hidden = unreleased(repository, private)
+    run("git", "fetch", "--no-tags", repository, f"+{private}:refs/heads/private-android", cwd=clone)
+    run("git", "checkout", "-q", "-B", "refilter", "private-android", cwd=clone)
+    paths = []
+    for path in DROPPED_FOLDERS + DROPPED_FILES + hidden.get("paths", []) + ([UNRELEASED] if hidden else []):
+        paths += ["--path", path]
+    for glob in DROPPED_GLOBS + hidden.get("globs", []):
+        paths += ["--path-glob", glob]
+    commit = run("git", "rev-parse", MESSAGE_WITH_NEWLINE, cwd=repository)
+    callback = (f'if commit.original_id == b"{commit}": '
+                'commit.message = commit.message.rstrip(b"\\n") + b"\\n\\n"')
+    marked = []
+    if hidden:
+        here = f"import sys; sys.path.insert(0, {str(Path(__file__).resolve().parent)!r}); import release; "
+        callback += f'\n{here}commit.message = release.public_message(commit.message, {hidden["mention"]!r})'
+        marked = ["--blob-callback", f"{here}blob.data = release.public_text(blob.data)"]
+    run("git", "filter-repo", "--force", "--refs", "refilter", "--invert-paths", *paths,
+        "--commit-callback", callback, *marked, cwd=clone)
+    return hidden
+
+
+def unreleased_problems(clone, hidden, since=None):
+    """Where refilter still has a game that is not released: a path, a commit's message, a text file. `since`
+    is the public main the history goes on from: what is older was looked at when it was pushed."""
+    if not hidden:
+        return []
+    mention = re.compile(hidden["mention"].encode())
+    published = set(hidden.get("published", []))
+    span = ["refilter"] + ([f"^{since}"] if since else [])
+    bad = []
+    for line in run("git", "log", "--format=%h %B%x00", *span, cwd=clone).split("\0"):
+        if mention.search(line.encode()):
+            bad.append(f"commit {line.split()[0]}: its message")
+    objects = subprocess.run(["git", "rev-list", "--objects", *span], cwd=clone, capture_output=True).stdout
+    names = dict(line.split(" ", 1) for line in objects.decode("utf-8", "replace").splitlines() if " " in line)
+    bad += sorted(f"{path}: its name" for path in set(names.values()) if mention.search(path.encode()))
+    with tempfile.TemporaryFile() as wanted:
+        wanted.write("".join(name + "\n" for name in names).encode())
+        wanted.seek(0)
+        with subprocess.Popen(["git", "cat-file", "--batch"], cwd=clone, stdin=wanted, stdout=subprocess.PIPE) as batch:
+            while header := batch.stdout.readline():
+                name, kind, size = header.split()
+                data = batch.stdout.read(int(size))
+                batch.stdout.read(1)
+                path = names[name.decode()]
+                if kind != b"blob" or path in published or b"\0" in data[:8000]:
+                    continue
+                found = mention.search(data)
+                if found:
+                    line = data.count(b"\n", 0, found.start()) + 1
+                    bad.append(f"{path}:{line} ({name.decode()[:9]}): {found.group(0).decode('utf-8', 'replace')!r}")
+                elif public_text(data) != data:
+                    bad.append(f"{path} ({name.decode()[:9]}): a private mark is left")
+    return bad
+
+
 class Release:
     def __init__(self, args):
         work = args.work or os.environ.get("RELEASE_WORK")
@@ -312,18 +419,7 @@ class Release:
             if run("git", "status", "--porcelain", cwd=self.clone(game)):
                 raise Refused(f"{self.clone(game)} has changes of its own")
         # The filter all four share, in Modern Warfare 3's clone.
-        run("git", "fetch", "--no-tags", REPOSITORY, f"+{private}:refs/heads/private-android", cwd=base)
-        run("git", "checkout", "-q", "-B", "refilter", "private-android", cwd=base)
-        paths = []
-        for path in DROPPED_FOLDERS + DROPPED_FILES:
-            paths += ["--path", path]
-        for glob in DROPPED_GLOBS:
-            paths += ["--path-glob", glob]
-        commit = run("git", "rev-parse", MESSAGE_WITH_NEWLINE, cwd=REPOSITORY)
-        callback = (f'if commit.original_id == b"{commit}": '
-                    'commit.message = commit.message.rstrip(b"\\n") + b"\\n\\n"')
-        run("git", "filter-repo", "--force", "--refs", "refilter", "--invert-paths", *paths,
-            "--commit-callback", callback, cwd=base)
+        hidden = filter_private(base, private)
         blobs = self.out / "dropped-blobs.txt"
         blobs.write_text("\n".join(DROPPED_BLOBS) + "\n")
         run("git", "filter-repo", "--force", "--refs", "refilter", "--strip-blobs-with-ids", blobs, cwd=base)
@@ -352,6 +448,9 @@ class Release:
             bad, largest = self.history_problems(clone, extra)
             if bad:
                 raise Refused(f"{game}: in the filtered history: {bad[:20]}")
+            bad = unreleased_problems(clone, hidden, public)
+            if bad:
+                raise Refused(f"{game}: of a game that is not released, in the filtered history: {bad[:20]}")
             added = run("git", "rev-list", "--count", f"{public}..refilter", cwd=clone)
             print(f"{game}: {public[:9]} -> {new[:9]}, {added} commits, fast-forward, no game files, "
                   f"largest blob {largest >> 10} KB")
