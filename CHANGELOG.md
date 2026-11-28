@@ -24,8 +24,11 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - **Exo Zombies bots buy weapons and ammo** (AW title update 17): a script
   of the port's own sends each bot to a weapon station it can afford and
   presses use, so the game's own `wallbuythink` takes its points and gives
-  the weapon or refills its ammo. `MW2_ZOMBIE_BOTS=0` turns it off. Seen on
-  Windows in Outbreak to round 6; not yet on a phone (docs/AW-BRINGUP.md).
+  the weapon or refills its ammo; at a station whose trigger its paths do
+  not reach (Outbreak's M182 SPR) it uses the station as a press would.
+  `MW2_ZOMBIE_BOTS=0` turns it off. Seen with the app's Bots in System Link,
+  on Windows and on an AYN Thor to round 3, at 119.6 frames a second against
+  119.8 without it; bots do not join Local Play (docs/AW-BRINGUP.md).
 - **The app chooses the graphics driver, proves it, and falls back.** Each
   app carries a catalog of drivers with a pinned SHA-256 each
   (`android/drivers/catalog.json`, checked by `tools/driver_catalog.py`),

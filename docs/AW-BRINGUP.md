@@ -1508,10 +1508,37 @@ Seen on Windows, Outbreak, System Link, three bots, `MW2_ZOMBIE_BOTS=2`
 `client 3 bought weapon iw5_maulzm_mp cost 500 points 500 -> 0`, `client 1
 bought ammo iw5_maulzm_mp cost 250 points 1370 -> 1120`, nine sales (eight
 weapons, one ammo) in one match, rebought after deaths; round 6 reached with the human's
-points at 500 (no kill of his). Not working every time: the M182 SPR
-station (`pressed use, nothing bought`, 70-86 units away) never sold, and a
-station is left a minute after a failure. The bots all went down in round
-6. Not seen on a phone.
+points at 500 (no kill of his). The bots all went down in round 6.
+
+**How a player gets bots in Exo Zombies.** The app's **Bots** entry
+(`MW2_BOTS`) is the only way: the zombies lobby's Game Setup has the map and
+nothing else. `aw_bots.cpp` gives the host's side half of the number (Bots 6
+puts three bots beside the player, the most a four-player match holds), and
+the bots join in **System Link** (Create Game, Start Game). In **Local
+Play** none join, with Bots at 3 or 6 (Windows, Outbreak: the After Action
+Report lists the player alone). **Xbox Live** stays at "Connecting to Xbox
+Live" (Windows and the Thor, the app's default network, the relay). So a
+player with bots in Exo Zombies is in System Link, with the link the online
+service brings up (no `MW2_NET_LINK`).
+
+**The far station.** The M182 SPR's station in Outbreak is where a bot's
+paths end 70 to 86 units from its trigger, so pressing use never bought.
+After eight presses a bot within 150 units sends the station the `trigger`
+notify that `wallbuythink` waits for (what a player's use does), and the
+game charges and gives the weapon as before; the log line ends `by trigger
+notify at N units` (`by use` otherwise).
+
+That setup, the script on as shipped (`MW2_ZOMBIE_BOTS` unset, no test
+harness), Bots 6, `MW2_NETWORK=server`:
+
+| | Seen | Evidence |
+|---|---|---|
+| Windows, System Link, Outbreak | `client 1 bought weapon iw5_maulzm_mp cost 500 points 500 -> 0 ... by use`, `client 2 bought weapon iw5_m182sprzm_mp cost 500 points 500 -> 0 holds iw5_m182sprzm_mp by trigger notify at 69 units`, `client 3 bought ammo iw5_maulzm_mp cost 250 points 700 -> 450`; round 3, the player untouched by the bots' kills | `work/proof/n2-syslink-normal.log`, `pc-n2-round3.png` (not in the repository) |
+| AYN Thor, `com.aw.recomp.azb` (debug build of this branch, Turnip 27.0.0 R2, 120 FPS), launcher's **Exo Zombies**, System Link, Create Game, Start Game | the same three weapon sales in the first seconds (the M182 SPR `by trigger notify at 85 units`), then `client 1 bought ammo iw5_maulzm_mp cost 250 points 400 -> 150`; three bots on the HUD; round 3 | `thor-zombies-syslink-bots-bought.png`, `thor-zombies-round3-bots-bought.png`, `thor-run1-game.log` |
+| The script's cost on the Thor | two runs of the same start, about 135 s of play each (`MW2_REPORT_SECONDS=1`): 119.6 frames a second, the lowest second 111, with the script; 119.8, the lowest 116, with `MW2_ZOMBIE_BOTS=0` | `thor-on-game.log`, `thor-off-game.log` |
+
+Not seen: a purchase from the 3D printer, a station behind a door, a door or
+the power bought by a bot (the script does none of them), bots in Local Play.
 
 ## The aim after a sprint (26 November 2026)
 

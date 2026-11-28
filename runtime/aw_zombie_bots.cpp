@@ -299,6 +299,7 @@ awzb_use_station( goal )
     station = goal.object;
     before = self.moneycurrent;
     self.awzb_arrived = 1;
+    how = "use";
     self botlookatpoint( station.origin, 4, "script_forced" );
     wait 0.3;
 
@@ -313,7 +314,18 @@ awzb_use_station( goal )
             self botlookatpoint( station.origin, 4, "script_forced" );
         }
 
-        self botpressbutton( "use", 0.4 );
+        // Some stations stand where a bot's paths end short of the trigger
+        // (the M182 SPR's in Outbreak, 70 to 86 units off): a bot that came
+        // that close and still is not charged uses the station as the
+        // trigger would, by the notify wallbuythink waits for.
+        if ( i == 8 && distancesquared( self.origin, station.origin ) < 150 * 150 )
+        {
+            how = "trigger notify at " + int( distance( self.origin, station.origin ) ) + " units";
+            station notify( "trigger", self );
+        }
+        else
+            self botpressbutton( "use", 0.4 );
+
         wait 0.5;
 
         if ( self.moneycurrent < before )
@@ -325,7 +337,7 @@ awzb_use_station( goal )
     if ( self.moneycurrent < before )
     {
         self.awzb_result = "yes";
-        awzb_say( "bought " + self.awzb_station_kind + " " + self.awzb_station_weapon + " cost " + ( before - self.moneycurrent ) + " points " + before + " -> " + self.moneycurrent + " holds " + self getcurrentweapon() );
+        awzb_say( "bought " + self.awzb_station_kind + " " + self.awzb_station_weapon + " cost " + ( before - self.moneycurrent ) + " points " + before + " -> " + self.moneycurrent + " holds " + self getcurrentweapon() + " by " + how );
     }
 }
 )gsc";
