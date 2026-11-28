@@ -4,6 +4,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 
 ## [Unreleased]
 
+### Fixed
+- **Setup and the installer accept the same Modern Warfare 3 disc.** The app's
+  check of a disc took both packagings of the campaign executable
+  (`d90bc8d9…`, executable version 22, the bring-up's, and `e94de720…`, the
+  USA/Europe disc's, version 2), but the installer in the runtime takes the
+  one it was built with, and a test app built without `MW3_XEX_SHA256` fell
+  back to `d90bc8d9…` while a release is built with `e94de720…`: a player
+  whose disc passed setup's check was refused with "not a disc this build was
+  made from". CMake now falls back to `e94de720…` (the release's), and the
+  app's check takes the one the build installs (`MW3_XEX_SHA256`, else
+  `mw3/tu0`, else the release's), so a disc of the other packaging is refused
+  by setup with its version and the one supported. ctest's `xex-hashes`
+  (`tests/xex_hashes_test.cmake`) holds the hashes of every game in
+  CMakeLists.txt, the app's kit, the release workflow and
+  `update_test_apks.sh` together; `KitDiscsTest` has the discs each game's
+  setup accepts.
+
 ### Added
 - **A player's own driver that does not run the game is put to them.** When
   the driver in use is the player's choice and the catalog calls it broken

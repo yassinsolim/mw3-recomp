@@ -209,7 +209,7 @@ object GameBuild {
     internal class FromDisc(val folder: String, val executable: String, val sha256: List<String>, val versions: List<Long>)
 
     /** The disc's executables: those of the titles that are the disc's own, and those the update-made titles name. */
-    private fun fromDisc(kit: Kit): List<FromDisc> =
+    internal fun fromDisc(kit: Kit): List<FromDisc> =
         kit.titles.filterNot { it.fromUpdate }.map { FromDisc(it.folder, it.executable, it.sha256, it.versions) } +
             kit.titles.filter { it.fromUpdate && it.discSha256.isNotEmpty() }.map { FromDisc(kit.folder, it.executable, it.discSha256, it.versions) }
 

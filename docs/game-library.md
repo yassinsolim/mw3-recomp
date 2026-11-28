@@ -113,8 +113,10 @@ only the others are compiled again.
 ## Limits
 
 - The published Modern Warfare 3 app runs the USA/Europe disc build
-  (`MW3_XEX_SHA256` in the release workflow); the other packaging
-  `tools/check_mw3_xex.py` accepts needs an app built with `-Dev`. Modern
+  (`MW3_XEX_SHA256` in the release workflow) and accepts that one: a disc of
+  the bring-up's other packaging (executable version 22) is refused with its
+  version and the one supported. An app built on a PC that has that
+  executable in `mw3/tu0` installs and accepts it (`-Dev`). Modern
   Warfare 2 has the one disc build (1.0.557).
 - The game package is trusted by its name: any package called
   `com.mw3.recomp.game` (`com.mw2.recomp.game`) whose library states the

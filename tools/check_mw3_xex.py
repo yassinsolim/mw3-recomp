@@ -6,8 +6,11 @@ from pathlib import Path
 
 # Retail packagings of the same iw5sp_ship.exe build. Each was recompiled with
 # config/MW3.toml and gave the same 128 jump tables and no boundary errors;
-# the second (USA/Europe disc, media id 30775D59) also ran the bounded
-# headless start-up.
+# only the second (USA/Europe disc, media id 30775D59, executable version 2)
+# also ran the bounded headless start-up and is the one the published app
+# installs (android-release.yml, CMakeLists.txt's default, the app's kit
+# table; tests/xex_hashes_test.cmake). The first (executable version 22, the
+# bring-up's) is installed only by a build that has it in mw3/tu0.
 SUPPORTED_SHA256 = (
     "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912",
     "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1",

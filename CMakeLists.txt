@@ -672,9 +672,15 @@ if(MW2_IS_MW3)
     # that carries both titles installs and checks both: each is the one in
     # mw3/tu0 when it is there (tools/check_mw3_xex.py has already accepted it
     # before any code was generated), -DMW3_XEX_SHA256_SP/MP for a build that
-    # has the generated sources but not the disc, or the first executable the
-    # bring-up was done on. MW2_XEX_SHA256_SP/MP are not read here: the Android
-    # build always passes MW2's.
+    # has the generated sources but not the disc, or else the disc the
+    # published app installs (the USA/Europe disc's, as the release workflow
+    # and tools/release/update_test_apks.sh give it), so that a test build
+    # takes the disc a release takes. The Android app's own check of a disc
+    # (android/app/build.gradle.kts, kitGames) is made from the same three,
+    # in the same order; tests/xex_hashes_test.cmake holds the two together.
+    # The other packaging tools/check_mw3_xex.py lists (the bring-up's) is
+    # installed only by a build that has it in mw3/tu0. MW2_XEX_SHA256_SP/MP
+    # are not read here: the Android build always passes MW2's.
     if(MW2_IS_COD4)
         set(mw3_xex_dir "${CMAKE_SOURCE_DIR}/cod4/tu0")
         set(mw3_xex_hash_SP "f6b848ac4ecf2b12881223e4c3cd63c49ae36e1fadc6f2179428033274602739")
@@ -696,7 +702,7 @@ if(MW2_IS_MW3)
         set(mw3_xex_hash_MP "d0eb63c97f69cf14ecaf5171429fa4afcce6f0fd5ca3d774c7a0af343f33fe4e")
     else()
         set(mw3_xex_dir "${CMAKE_SOURCE_DIR}/mw3/tu0")
-        set(mw3_xex_hash_SP "d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912")
+        set(mw3_xex_hash_SP "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1")
         set(mw3_xex_hash_MP "0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c")
     endif()
     set(mw3_xex_file_SP "default.xex")

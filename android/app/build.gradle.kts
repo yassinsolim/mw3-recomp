@@ -28,6 +28,25 @@ val repositoryRoot = file("../..")
 //   MW2_KEYSTORE and friends  a signing key, so the apk is installable
 fun setting(name: String): String? = System.getenv(name)?.trim()?.ifEmpty { null }
 
+// The Modern Warfare 3 discs the published app installs and runs: the
+// executables the release workflow and tools/release/update_test_apks.sh give
+// as MW3_XEX_SHA256 and CMakeLists.txt falls back to. The app's own check of a
+// disc (kitGames) and the installer built into its runtime take the same
+// executable, chosen as CMakeLists.txt chooses it: the build machine's
+// MW3_XEX_SHA256 (_MP), else the executable in mw3/tu0, else this one. So a
+// disc is never accepted by the one and refused by the other. The bring-up's
+// other packaging of the campaign's executable (tools/check_mw3_xex.py) is
+// accepted only by a build made with it in mw3/tu0.
+val mw3ReleaseExecutableSha256 = "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1"
+val mw3ReleaseExecutableMpSha256 = "0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c"
+fun mw3Executable(variable: String, file: String, release: String): String = setting(variable)
+    ?: File(repositoryRoot, "mw3/tu0/$file").takeIf { it.isFile }?.let { found ->
+        MessageDigest.getInstance("SHA-256").digest(found.readBytes()).joinToString("") { "%02x".format(it) }
+    }
+    ?: release
+val mw3ExecutableSha256 = mw3Executable("MW3_XEX_SHA256", "default.xex", mw3ReleaseExecutableSha256)
+val mw3ExecutableMpSha256 = mw3Executable("MW3_XEX_SHA256_MP", "default_mp.xex", mw3ReleaseExecutableMpSha256)
+
 // -PmpInstance=2: a copy of Modern Warfare 3's multiplayer alone, as an app
 // of its own beside the game (com.mw3.recomp.mp2, "CoD: MW3 Multiplayer (2)"),
 // so that two can play each other on one device (docs/MW3-MP-BRINGUP.md).
@@ -674,9 +693,10 @@ class KitGame(
     /** The jump tables the analyser does not find are added (tools/intext_switch_tables.py, InTextTables.kt). */
     val inTextTables: Boolean = false,
 )
-// The executables' hashes are setup/setup.ps1's (Modern Warfare 2),
-// tools/check_mw3_xex.py's, tools/check_cod4_xex.py's and
-// tools/check_aw_xex.py's.
+// The executables' hashes are setup/setup.ps1's (Modern Warfare 2), those
+// tools/check_cod4_xex.py and tools/check_aw_xex.py name, and Modern Warfare 3's
+// as chosen above: in each case the ones the runtime installs (CMakeLists.txt;
+// tests/xex_hashes_test.cmake compares the two).
 val kitGames = mapOf(
     "mw2" to KitGame(
         "mw2/tu0",
@@ -690,12 +710,14 @@ val kitGames = mapOf(
     "mw3" to KitGame(
         "mw3/tu0",
         listOf(
-            KitTitle("mw3", "default.xex",
-                listOf("d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912",
-                    "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1"),
-                "MW3.toml", "mw3_switch_tables.toml", "ppc_mw3", listOf("MW3_TITLE=1"), versions = listOf(2, 22)),
-            KitTitle("mw3mp", "default_mp.xex", listOf("0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c"),
-                "MW3MP.toml", "mw3mp_switch_tables.toml", "ppc_mw3_mp", listOf("MW3_TITLE=1", "MW3_TITLE_MP=1"), versions = listOf(2)),
+            // The header version of the release's executable is the one the refusal names
+            // beside what was found; another executable's has not been read.
+            KitTitle("mw3", "default.xex", listOf(mw3ExecutableSha256),
+                "MW3.toml", "mw3_switch_tables.toml", "ppc_mw3", listOf("MW3_TITLE=1"),
+                versions = if (mw3ExecutableSha256 == mw3ReleaseExecutableSha256) listOf(2) else emptyList()),
+            KitTitle("mw3mp", "default_mp.xex", listOf(mw3ExecutableMpSha256),
+                "MW3MP.toml", "mw3mp_switch_tables.toml", "ppc_mw3_mp", listOf("MW3_TITLE=1", "MW3_TITLE_MP=1"),
+                versions = if (mw3ExecutableMpSha256 == mw3ReleaseExecutableMpSha256) listOf(2) else emptyList()),
         ),
     ),
     "cod4" to KitGame(
@@ -770,6 +792,7 @@ kitGames.forEach { (game, kit) ->
     val task = tasks.register("gameBuildKit${game.replaceFirstChar { it.uppercase() }}") {
         inputs.files(hashed.map { File(repositoryRoot, it) })
         inputs.file("build.gradle.kts")
+        inputs.property("mw3Executables", "$mw3ExecutableSha256 $mw3ExecutableMpSha256")
         outputs.dir(into)
         doLast {
             into.deleteRecursively()
@@ -862,10 +885,15 @@ kitGames.forEach { (game, kit) ->
 
 // LocaleResourcesTest reads every source set's strings from src/: a changed
 // translation runs the unit tests again rather than finding them up to date.
-// DriverCatalogTest reads the driver catalog the same way.
+// DriverCatalogTest reads the driver catalog the same way. KitDiscsTest reads
+// the kits the build makes (the discs each game's setup accepts), so every
+// kit is made before the tests run.
 tasks.withType<Test>().configureEach {
     inputs.files(fileTree("src") { include("*/res/values*/strings*.xml") }).withPropertyName("stringResources")
     inputs.file("../drivers/catalog.json").withPropertyName("driverCatalog")
+    kitGames.keys.forEach { dependsOn("gameBuildKit${it.replaceFirstChar { first -> first.uppercase() }}") }
+    systemProperty("buildKitDirectory", layout.buildDirectory.dir("build-kit").get().asFile.path)
+    inputs.property("mw3Executables", "$mw3ExecutableSha256 $mw3ExecutableMpSha256")
 }
 
 dependencies {

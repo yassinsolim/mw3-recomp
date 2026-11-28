@@ -278,9 +278,13 @@ because the published APK cannot be renamed; the disc images from Downloads;
 | Advanced Warfare | v0.1.3, v0.1.4 | 6 min 48 s (campaign and multiplayer), then Add DLC (11 packages and the title update) built the update's library in 3 min 30 s | 0.5 s | `libawgame.so` and `libawmpgame.so` "built on this device", "11 packages and the title update" still there, `libawgame.so` loaded, no build service, `game-build-report.txt` (the `awmp17` build) untouched. The v0.1.3 app's log line does not list `libawmp17game.so` (the gap this change closes), so its acceptance is shown by no rebuild having started, not by a line |
 | Modern Warfare 3 | v0.1.12, v0.1.13 (`f39fd7b`, the release gate of `81cf718`) | 4 min 22 s | 0.4 s | both libraries "built on this device ... which this app takes", no build service, `game-build-report.txt` and `saves/` (`profile.bin`, `profiles.txt`) byte for byte as before, the profile read back (no first-start screens), `libmw3game.so` loaded, a new campaign game started; `driver:` the bundled Turnip, `cpu: cores 80 the fastest, 78 the title's, 07 the background's` |
 
-A test app of Modern Warfare 3 built without the workflow's
-`MW3_XEX_SHA256` refuses the player's disc ("not a disc this build was made
-from"): the script sets it.
+A test app of Modern Warfare 3 takes the disc the release takes, whatever the
+build machine sets: `MW3_XEX_SHA256` (the script sets it, as the workflow
+does), else the executable in `mw3/tu0`, else the release's. The installer in
+its runtime and the app's own check of a disc are told the same one, so a disc
+is never passed by the second and refused by the first with the installer's
+sentence (`tests/xex_hashes_test.cmake`, ctest's `xex-hashes`, holds
+CMakeLists.txt, the kit table, the workflow and the script together).
 
 ## When the game code has to be rebuilt
 

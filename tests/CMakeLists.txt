@@ -156,6 +156,14 @@ add_executable(pipeline-cache-test
 target_include_directories(pipeline-cache-test PRIVATE "${MW2_RUNTIME}")
 add_test(NAME pipeline-cache COMMAND pipeline-cache-test)
 
+# ---- the executables a disc must have --------------------------------------
+# The installer in the runtime (CMakeLists.txt), the Android app's check of a
+# disc (android/app/build.gradle.kts) and the release workflow name them
+# apart; a disc one accepts and another refuses reaches a player as a
+# refusal the app's own check never gave. A script, with no build.
+add_test(NAME xex-hashes
+    COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_SOURCE_DIR}/xex_hashes_test.cmake")
+
 # ---- how a crash reaches the system's handler ------------------------------
 # The last fault handler calls the one before it from the crashing thread
 # (runtime/signal_forward.h), and another thread's write to a page the GPU
