@@ -14,6 +14,7 @@
 #include "backdrop.h"
 #include "sharpen.h"
 #include "picture_probe.h"
+#include "surface_transform.h"
 
 #if !defined(MW2_HAVE_VULKAN) || (!defined(MW2_USE_SDL) && !defined(MW2_ANDROID))
 // Without a loader or a window system there is nothing to present to; the rest
@@ -652,35 +653,28 @@ namespace
         // The renderer's frame is blitted in, so a transfer destination.
         info.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        // How the frame sits on the panel.
-        //
-        // A phone's panel is wired portrait, so a landscape window reports
-        // currentTransform as ROTATE_90. Passing that back says "my frame is
-        // already turned to match" -- and this renderer's is not, it draws
-        // the console's landscape frame square on. The result is a picture
-        // lying on its side, which is what the first run on a phone showed.
-        //
-        // Identity instead, where the surface allows it: the compositor then
-        // turns the frame, which it is going to be doing for the system bars
-        // anyway. It costs a pass the pre-rotated path would not, and the
-        // alternative is rotating every frame in the blit below -- worth
-        // doing one day, not worth an upside-down menu today.
-        info.preTransform = (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-                                ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
-                                : caps.currentTransform;
-        g.suboptimalIsExpected = info.preTransform != caps.currentTransform;
-        // Once. This is remade on every rotation and every resize, and a line
-        // a frame is its own performance problem.
+        // How the frame sits on the panel: identity where the surface takes
+        // it, the compositor turning the frame (surface_transform.h).
+        const auto turn = vk::surface_transform::Choose(caps.supportedTransforms, caps.currentTransform);
+        info.preTransform = VkSurfaceTransformFlagBitsKHR(turn.transform);
+        g.suboptimalIsExpected = turn.compositorTurns;
         static bool toldAboutTheTransform = false;
-        if (g.suboptimalIsExpected && !std::exchange(toldAboutTheTransform, true))
+        switch (vk::surface_transform::Tell(turn, toldAboutTheTransform))
+        {
+        case vk::surface_transform::Note::CompositorTurns:
             LOGI("vulkan: the panel is mounted %s; the compositor turns the frame",
                  caps.currentTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR  ? "a quarter turn"
                  : caps.currentTransform == VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR ? "upside down"
                  : caps.currentTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR ? "three quarters round"
                                                                                     : "at some angle");
-        else if (caps.currentTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+            break;
+        case vk::surface_transform::Note::MayBeRotated:
             LOGW("vulkan: the surface will not take an identity transform; the picture may be"
                  " rotated");
+            break;
+        case vk::surface_transform::Note::None:
+            break;
+        }
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         info.presentMode = PresentMode();
         info.clipped = VK_TRUE;

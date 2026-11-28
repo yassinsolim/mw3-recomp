@@ -286,6 +286,15 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **"The surface will not take an identity transform; the picture may be
+  rotated" no longer follows every swapchain remade on a phone held
+  landscape.** The presenter does take identity there and the compositor
+  turns the frame, which it says once; the warning was the `else` of that
+  once and so came at every rotation and resize after the first (an HONOR
+  LGN-NX1's log, Snapdragon 695, had it at each of its new surfaces, and the
+  log reader listed it among the errors). It is now said only where the
+  surface refuses identity (`runtime/gpu/vulkan/surface_transform.h`,
+  ctest's `surface-transform`).
 - **An Adreno 8xx (Snapdragon 8 Elite) gets the community A8xx Turnip a
   player plays with, in place of the project's own Mesa build.** A player
   on an 8 Elite said the driver the 0.1.6 update brought "doesn't work

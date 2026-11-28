@@ -105,6 +105,15 @@ add_executable(picture-probe-test
 target_include_directories(picture-probe-test PRIVATE "${MW2_RUNTIME}/gpu/vulkan")
 add_test(NAME picture-probe COMMAND picture-probe-test)
 
+# ---- how the frame sits on the panel ---------------------------------------
+# The swapchain's transform and what the log says of it
+# (runtime/gpu/vulkan/surface_transform.h): the warning that the picture may be
+# rotated only where the surface refuses identity.
+add_executable(surface-transform-test
+    "${CMAKE_CURRENT_SOURCE_DIR}/surface_transform_test.cpp")
+target_include_directories(surface-transform-test PRIVATE "${MW2_RUNTIME}/gpu/vulkan")
+add_test(NAME surface-transform COMMAND surface-transform-test)
+
 # ---- what a device sustains ------------------------------------------------
 # The rule that holds a run to the frame rate its device keeps and gives it
 # the sun's shadows when its frames have room for them (runtime/adaptive.h):
