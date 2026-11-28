@@ -742,8 +742,9 @@ build's spread is 100.4 to 106.7):
 None is past the spread. Main was applied its cores as it entered the
 title's code in these runs, and the DPC and audio workers it starts then
 took the fastest core with it (`Cpus_allowed_list` 7): Main alone there
-stood ready with no core 39% of the time. Main now gets its cores at the
-1200th frame (`platform::PlaceMainThread`); that order is not measured yet.
+stood ready with no core 39% of the time. Main got its cores at the 1200th
+frame afterwards (`platform::PlaceMainThread`); measured in the next
+section, and not kept.
 
 **What the generated code costs** (simpleperf by symbol, Shadows of Evil
 on the Flip 2 at 60, 20 s; counters are not readable): Main's samples were
@@ -758,11 +759,10 @@ sub_82493B20 (VMX128 maths through SIMDe). Every guest load and store is
 `volatile`, so a value spilled to the guest stack and read back goes
 through memory: 22% of the accesses are at r1. Made plain (a
 `plain_stack_accesses` recompiler option, tried and not kept) the code
-was 12% larger and the frame rate the same. The memcpy is the host's now
-(`T_Memcpy`, runtime/guest_memcpy.cpp; `MW2_GUEST_MEMCPY=1` puts the
-guest's back): 5.4% of Main's samples where the guest's was 14.3%, and
-Shadows of Evil plays as before; it is not yet run in the multiplayer on
-a phone.
+was 12% larger and the frame rate the same. The host's memcpy for the
+guest's took 5.4% of Main's samples where the guest's was 14.3%, and
+Shadows of Evil played as before; measured on four maps in the next
+section, and not kept.
 
 What holds Shadows of Evil under 115: the frames wait for the processor
 57 to 62% of the time and for the chip 14 to 30%; the four performance
@@ -775,6 +775,121 @@ frame waits on: it waits on the job workers, which share the same four
 cores. Past about 104 needs either less work across all of the game's
 threads (a fifth of every guest thread's time is the kernel and the call
 table) or a fifth fast core.
+
+## Where BO3 ends up on the Thor at 120 (28 November 2026)
+
+The last round: the three changes still open measured against the plain
+build, the final table, and what is left for the owner to decide.
+Everything warm (a first run per map and package thrown away), the Thor at
+120, `MW2_FPS_LIMIT=120`, each change run between plain runs.
+
+**The three changes** (mean (1% low, the log's slowest hundredth)):
+
+| | Shadows of Evil | The Giant | Combine | mp_spire |
+|---|---|---|---|---|
+| plain build | 101.6 (48.7), 104.4 (57.1), 103.7 (61.7), 99.3 (58.8), 97.8 (52.5) | 111.9 (62.9), 115.5 (70.3) | 118.9 (61.5), 119.1 (64.9) | 118.9 (62.6) |
+| Main alone on the fastest core from the 1200th frame, the ring consumer on cpu3-6 (`MW2_CORES_MAIN=0x80 MW2_CORES_RING=0x78`) | 101.3 (37.2), 104.7 (40.5) | | | |
+| the host's memcpy for the title's (`T_Memcpy`) | 98.9 (56.9), 103.4 (59.7) | 114.3 (69.1), 115.2 (66.3) | 119.0 (64.1); one run stalled (below) | 118.9 (60.1), 119.0 (61.9) |
+| the game library built `-O3 -fno-plt` | 97.5 (57.7), 108.0 (55.9), 100.5 (60.1) | | | |
+
+None is kept. Main on the fastest core is the same mean with worse lows
+(the 99th percentile frame 23.6 ms where the plain build's is 13.7 to
+15.9). The host's memcpy is inside the plain build's spread on every map,
+and in one of its Combine runs the world stopped after 14 seconds of play
+(`STALL: no world frame since 60.671 s`, the main thread in
+`NtWaitForSingleObjectEx` from sub_826F0400, every job worker idle in its
+wait; the stall report then took a SIGILL in libbo3.so). The next host
+memcpy run and four plain ones did not stall, so the cause is not known,
+but nothing it gains is worth the doubt: `T_Memcpy` and
+runtime/guest_memcpy.cpp are gone. `-fno-plt` still leaves a `.plt` of
+187 KB (from 294 KB) and the three runs spread 97.5 to 108.0, the widest
+yet, averaging 102.0 against the plain build's 101.4. The `MW2_CORES_*`
+masks stay as a measuring switch; unset, threads are placed as before.
+
+**The Flip 2 at 60** with this branch (host memcpy then, which is no
+worse): Shadows of Evil, warm, 60.3 frames a second, 94% of the seconds at
+57 or more, 1% low 29.6, longest frame 109 ms; with the `-fno-plt` library
+60.3, 96%, 29.0, 89 ms. No underruns.
+
+**The Thor at 120, final** (the plain build: bo3-thor120 as committed,
+game library `-O3`, no profile; runs from the table above):
+
+| | runs | mean | 1% low | seconds at 115+ | longest frame |
+|---|---|---|---|---|---|
+| Shadows of Evil | 5 | 101.4 (97.8 to 104.4) | 48.7 to 61.7 | 12 to 27% | 63 to 161 ms |
+| The Giant | 2 | 113.7 (111.9, 115.5) | 62.9, 70.3 | 61%, 77% | 57, 52 ms |
+| Combine | 2 | 119.0 (118.9, 119.1) | 61.5, 64.9 | 96%, 97% | 69 ms |
+| mp_spire | 1 | 118.9 | 62.6 | 96% | 85 ms |
+| Combine, 10 minutes | 1 | 119.7 | 89.7 | 99% | 77 ms |
+
+What each map can do: Combine and mp_spire hold 115 nearly every second
+and 120 over ten minutes; their lows in a three-minute run are the first
+seconds after the spawn. The Giant is at the line, 112 to 116 depending on
+the run, drawn at 73 to 80% of full width to keep up (the chip as well as
+the processor). Shadows of Evil is 98 to 104 and does not reach 115 with
+anything tried.
+
+**What limits Shadows of Evil**, from these runs: the frames wait for the
+processor 35 to 74% of the time and for the chip 15 to 32%. In play the
+game's threads take 63 to 64% of a core for Main, 61 to 68% for the ring
+consumer, 57 to 65% for each of the two busiest job workers, 46 to 49% for
+the server, 35 to 41% for another worker, 17 to 19% for the recorder and
+about 42% for the rest: some 4.1 cores' worth, on the Thor's four fast
+cores (one fastest, three performance). Ready with no core free: two
+threads 24 to 27% of the time, Main 19 to 20%, the server 16%. Moving Main
+(the last round and this one), making its memcpy cheaper, a profile for
+the whole library, LSE atomics and `-fno-plt` all left the mean where it
+was, so no one thread is the frame's chain: the work of all of them has to
+get smaller, or there has to be a fifth fast core, which the Thor does not
+have.
+
+**Capping where 115 does not hold** (Shadows of Evil, same slots):
+
+| | mean | seconds at the cap (95%+ of it) | 1% low | 99th percentile frame | frame-to-frame change | frame time deviation |
+|---|---|---|---|---|---|---|
+| uncapped | 99.3, 97.8 | (12 to 15% at 115+) | 58.8, 52.5 | 15.0, 15.9 ms | 1.50, 1.57 ms | 4.6, 4.9 ms |
+| cap 100 | 100.3, 98.9 | 98%, 86% | 60.0, 62.6 | 13.7, 14.1 ms | 1.80, 1.84 ms | 8.9, 8.9 ms (one 0.7 s hitch each) |
+| cap 90 | 90.2, 90.4 | 96%, 100% | 47.6, 59.5 | 15.0, 14.9 ms | 1.74, 1.81 ms | 3.8, 3.5 ms |
+
+(The last three columns from the frame log, `MW2_FRAME_LOG`, world frames
+from 5 s in.) Neither cap is steadier. The display stays at 120 Hz: the
+surface votes for 100 or 90 and the Thor keeps 120 (`the display runs at
+120.0000 Hz`), so a capped frame is shown for one blank or two in turn (at
+100: four of 8.3 ms and one of 16.7 ms every 50 ms) and the frame-to-frame
+change is larger capped than not. The cap at 100 buys a slightly better 1%
+low and 99th percentile; at 90 nothing over uncapped. The one cap that
+would be even on this panel is 60, the adaptive governor's next step,
+which gives up 40 frames a second.
+
+**What is left, with a rough cost** (estimates, none measured):
+
+- *Less work in the job workers*: a third of their guest time is two
+  VMX128 maths functions run through SIMDe, sub_82493D58 and sub_82493B20.
+  Hand-written NEON hooks for the two, checked bit for bit against the
+  recompiled ones: about two days. If it halves those two, the two busiest
+  workers lose about a sixth of their time; the frame rate gain is
+  unknown, perhaps a few frames, since every thread shares the same cores.
+- *Less kernel time*: a fifth of each guest thread's time is the kernel
+  (waits, yields, the sleeps that replace spinning). Fewer syscalls per job
+  (a short user-space spin before a futex wait, batched wakes): one to two
+  days, uncertain gain, and the spinning is what the sleep was added to
+  stop.
+- *Merging threads*: the ring consumer (61 to 68%) and the recorder (17 to
+  19%) are separate; folding the recorder into the ring consumer saves the
+  hand-off but not the work. Several days, a rendering risk on every
+  title, and the total load would still be over four cores.
+- *A lower target for Shadows of Evil*: free to do. Measured above, 90 or
+  100 on the Thor's 120 Hz panel is not steadier; 60 is, at a large cost
+  in smoothness. Leaving it uncapped at about 100 is the better of the
+  three unless the panel can be put at 90 or 100 Hz, which was not found.
+- *Not worth more time*: Main's core, the profile for the library, LSE
+  atomics, `-fno-plt`, plain stack accesses, the host memcpy, the title's
+  thread priorities: each measured, none past the spread.
+
+Decision for the owner: ship 120 as it is (the campaign's Combine and
+multiplayer's mp_spire at 115 to 120, The Giant at about 114, Shadows of Evil at
+about 100), or spend about two days on the workers' maths for an unknown
+gain in Shadows of Evil.
 
 ## Open
 
