@@ -166,9 +166,10 @@ class DriverStore(private val context: Context) {
      * textures and Turnip does not. Two packages, both made at build time by
      * android/fetch_deps.sh and never committed: from Android 11 on the
      * community Turnip v27.0.0-R2 (assets/drivers/turnip_v27_r2.zip), and on
-     * Android 10 the project's own build of Mesa (turnip_api29.zip,
-     * android/build_turnip.sh), because every community Turnip asks for
-     * Android 11's libc and does not load there.
+     * Android 10 and on an Adreno 8xx the project's own build of Mesa
+     * (turnip_api29.zip, android/build_turnip.sh): every community Turnip
+     * asks for Android 11's libc and does not load on Android 10, and R2
+     * predates Mesa's a8xx fixes (bundledAssetFor).
      *
      * It only ever fills a gap. Once the player has picked anything, the
      * system's driver included (Prefs.driverChoiceMade), it is never
@@ -238,13 +239,8 @@ class DriverStore(private val context: Context) {
         prefs.driverLibrary = driver.library
     }
 
-    /**
-     * Which package this phone is given: the community build needs bionic's
-     * LIBC_R (API 30), the project's own only LIBC_P. Below API 30 a build
-     * without the latter has nothing to offer.
-     */
     private fun bundledAsset(): String =
-        if (Build.VERSION.SDK_INT >= 30) BUNDLED_ASSET else BUNDLED_ASSET_API29
+        bundledAssetFor(Build.VERSION.SDK_INT) { DeviceInfo.gpu(context) }
 
     /** The asset's SHA-256, or null when this build does not carry one. */
     private fun bundledSha(asset: String): String? {
@@ -331,8 +327,27 @@ class DriverStore(private val context: Context) {
         }
     }
 
-    private companion object {
+    companion object {
         const val BUNDLED_ASSET = "drivers/turnip_v27_r2.zip"
         const val BUNDLED_ASSET_API29 = "drivers/turnip_api29.zip"
+
+        /**
+         * Which package this phone is given. The community build needs
+         * bionic's LIBC_R (API 30), the project's own only LIBC_P, so below
+         * API 30 only the latter can load. An Adreno 8xx gets the project's
+         * own on any Android: R2 is Mesa of 7 November 2026, before the a8xx
+         * fixes of 19-24 November, and Qualcomm's own driver V@0800.71 on a
+         * Snapdragon 8 Elite crashes in its shader compiler on one of Advanced
+         * Warfare's pipelines (a player's log, AW 0.1.5). [gpu] is
+         * DeviceInfo.gpu's text ("Adreno (TM) 830 (Qualcomm), OpenGL ES ..."),
+         * asked only from API 30 on.
+         */
+        fun bundledAssetFor(sdk: Int, gpu: () -> String): String =
+            if (sdk < 30 || adreno8xx(gpu())) BUNDLED_ASSET_API29 else BUNDLED_ASSET
+
+        /** An Adreno 810 ... 840 by its OpenGL ES renderer's name; "Adreno 8c Gen 3" is a 6xx and does not count. */
+        fun adreno8xx(gpu: String): Boolean = ADRENO_8XX.containsMatchIn(gpu)
+
+        private val ADRENO_8XX = Regex("""Adreno \(TM\) 8\d\d\b""")
     }
 }

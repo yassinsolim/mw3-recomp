@@ -192,6 +192,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Snapdragon 8 Elite (Adreno 830) and the other Adreno 8xx get the
+  project's own Turnip.** Qualcomm's driver V@0800.71 crashed in its shader
+  compiler (`libllvm-qgl.so`) building one of Advanced Warfare's pipelines
+  soon after start-up; the translated shaders are valid and match ones
+  the same driver compiles, so nothing in them was changed. The bundled
+  driver on an Adreno 8xx is now Mesa `483aff363be` built by
+  `android/build_turnip.sh` (it has the a8xx fixes the community R2 lacks)
+  in place of R2, chosen by `DriverStore.bundledAssetFor`
+  (`DriverStoreTest`). Not yet run on an Adreno 8xx
+  ([android.md](docs/android.md#snapdragon-8-elite-adreno-830-and-other-adreno-8xx)).
 - **Setup builds Modern Warfare 2's Windows game.** `setup\setup.cmd -Game mw2`
   refused `-Build pc`, and the configure it would have run could not have
   built it: the disc's version (`tu0`) was set only in the environment, which

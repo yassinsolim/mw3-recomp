@@ -32,7 +32,7 @@ Mesa main (`483aff363be`, 27 November 2026), [`src/freedreno/common/freedreno_de
 | a6xx gen1 low | 605, 608, 610, 612, 613 | `reg_size_vec4 = 32/48`, 128 KB GMEM, no fast clear, no sampler min/max |
 | **a6xx gen1** | **615, 616, 618, 619** | 512 KB GMEM, one CCU, `blit_wfi_quirk` |
 | a6xx gen2-4 | 620, 621, 623, 630, 640, 643/7c+ Gen 3, 644, 650, 660, 663, 680, 690 | |
-| a7xx, a8xx | 702 ... 750, 8xx (8xx not yet upstream in a release) | |
+| a7xx, a8xx | 702 ... 750, 810 ... 840 (the 830's KGSL entry `0x44050001` is in the 26.3.1 release too) | a8xx fixed through November 2026 (docs/android.md, Adreno 8xx) |
 
 **Descriptor indexing is on for every one of them.** [`tu_device.cc`](https://gitlab.freedesktop.org/mesa/mesa/-/blob/483aff363be/src/freedreno/vulkan/tu_device.cc#L543) sets `descriptorIndexing`, `shaderSampledImageArrayNonUniformIndexing`, `descriptorBindingSampledImageUpdateAfterBind`, `descriptorBindingPartiallyBound` and `runtimeDescriptorArray` to `true` with no chip test. The limits are `MAX_SET_SIZE / (4 * FDL6_TEX_CONST_DWORDS)` = 2^24 descriptors, well above the 65,536 images the renderer asks for (`tools/check_device_report.py`, `IMAGE_COUNT`).
 

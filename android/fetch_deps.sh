@@ -90,11 +90,13 @@ else
 fi
 
 # The Turnip the apps carry for Android 10, where the one above cannot load
-# (it needs Android 11's libc): the project's own build of Mesa, made here by
+# (it needs Android 11's libc), and for the Adreno 8xx, where the one above
+# predates Mesa's a8xx fixes: the project's own build of Mesa, made here by
 # android/build_turnip.sh, never committed (THIRD_PARTY.md). It needs Linux
 # or WSL with Meson and the NDK; without them the apps are built without it
-# and an Android 10 Snapdragon has no bundled driver (DriverStore.kt). The
-# release workflows set REQUIRE_TURNIP_API29=1, which makes that an error.
+# and an Android 10 Snapdragon or an Adreno 8xx has no bundled driver
+# (DriverStore.kt). The release workflows set REQUIRE_TURNIP_API29=1, which
+# makes that an error.
 TURNIP29_ASSET="${REPOSITORY_ROOT}/android/app/src/mw3/assets/drivers/turnip_api29.zip"
 TURNIP29_COMMIT="$(sed -n 's/^MESA_COMMIT="\(.*\)"$/\1/p' "${REPOSITORY_ROOT}/android/build_turnip.sh")"
 turnip29_current() {
@@ -105,16 +107,16 @@ with zipfile.ZipFile(sys.argv[1]) as z:
 EOF
 }
 if turnip29_current; then
-    echo "The Android 10 Turnip driver is already there."
+    echo "The project's Turnip driver (Android 10, Adreno 8xx) is already there."
 else
-    echo "Building the Android 10 Turnip driver (Mesa ${TURNIP29_COMMIT:0:10}; a few minutes)"
+    echo "Building the project's Turnip driver for Android 10 and the Adreno 8xx (Mesa ${TURNIP29_COMMIT:0:10}; a few minutes)"
     if ! bash "${REPOSITORY_ROOT}/android/build_turnip.sh" "${TURNIP29_ASSET}"; then
         rm -f "${TURNIP29_ASSET}"
         if [ "${REQUIRE_TURNIP_API29:-0}" = 1 ]; then
-            echo "The Android 10 Turnip driver could not be built." >&2
+            echo "The project's Turnip driver could not be built." >&2
             exit 1
         fi
-        echo "The Android 10 Turnip driver could not be built: the apps will have no bundled driver on Android 10." >&2
+        echo "The project's Turnip driver could not be built: the apps will have no bundled driver on Android 10 or an Adreno 8xx." >&2
     fi
 fi
 

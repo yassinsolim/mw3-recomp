@@ -38,10 +38,10 @@ Qualcomm devices.
 - Build used from Android 11 on: Turnip v27.0.0-R2 by StevenMXZ,
   <https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip>
   (SHA-256 `8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781`)
-- Build used on Android 10: the project's own, of Mesa at commit
-  `483aff363be4d6913017b834123c8eeaada171d9`, unmodified, compiled with NDK
-  r28c for API 29 by `android/build_turnip.sh` (every community build needs
-  Android 11's libc)
+- Build used on Android 10 and on an Adreno 8xx: the project's own, of Mesa
+  at commit `483aff363be4d6913017b834123c8eeaada171d9`, unmodified, compiled
+  with NDK r28c for API 29 by `android/build_turnip.sh` (every community
+  build needs Android 11's libc, and v27.0.0-R2 predates Mesa's a8xx fixes)
 
 The first is downloaded at build time by `android/fetch_deps.sh` (or
 `setup/setup.ps1` on Windows), checked against the hash above and packaged
