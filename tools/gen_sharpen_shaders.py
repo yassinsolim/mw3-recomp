@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Writes runtime/gpu/vulkan/shaders/sharpen_shaders.inc: the SPIR-V of the
-two shaders in that folder that sharpen the frame on its way to the window
-(runtime/gpu/vulkan/sharpen.cpp), as arrays of words.
+"""Writes the SPIR-V of the fixed shaders in runtime/gpu/vulkan/shaders as
+arrays of words: sharpen_shaders.inc, the two that sharpen the frame on its
+way to the window (runtime/gpu/vulkan/sharpen.cpp), and selftest_shaders.inc,
+the three of the driver self-test (runtime/android/driver_selftest.cpp).
 
 The runtime writes its other SPIR-V itself (spirv.h), because those shaders
 are made while the title runs. These are fixed, and the fragment shader is a
@@ -26,11 +27,17 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES = os.path.join(ROOT, "runtime", "gpu", "vulkan", "shaders")
-OUTPUT = os.path.join(SOURCES, "sharpen_shaders.inc")
-# The array's name and the file it is compiled from.
-SHADERS = [
-    ("kSharpenVertex", "sharpen.vert"),
-    ("kSharpenFragment", "sharpen.frag"),
+# Each file written: the arrays' names and the files they are compiled from.
+OUTPUTS = [
+    ("sharpen_shaders.inc", [
+        ("kSharpenVertex", "sharpen.vert"),
+        ("kSharpenFragment", "sharpen.frag"),
+    ]),
+    ("selftest_shaders.inc", [
+        ("kSelfTestVertex", "selftest.vert"),
+        ("kSelfTestFragment", "selftest.frag"),
+        ("kSelfTestCompute", "selftest.comp"),
+    ]),
 ]
 
 
@@ -62,24 +69,26 @@ def compile_shader(glslc, name):
 
 def main():
     glslc = find_glslc()
-    lines = ["// Written by tools/gen_sharpen_shaders.py from the shaders beside it; not edited by hand.", ""]
-    for array, name in SHADERS:
-        words = compile_shader(glslc, name)
-        lines.append("// %s" % name)
-        lines.append("constexpr uint32_t %s[] = {" % array)
-        for i in range(0, len(words), 8):
-            lines.append("    " + " ".join("0x%08x," % word for word in words[i:i + 8]))
-        lines.append("};")
-        lines.append("")
-    text = "\n".join(lines)
-    if "--check" in sys.argv[1:]:
-        with open(OUTPUT, newline="") as committed:
-            if committed.read() != text:
-                sys.exit("%s is not what the shaders compile to: run tools/gen_sharpen_shaders.py" % OUTPUT)
-        return
-    with open(OUTPUT, "w", newline="\n") as out:
-        out.write(text)
-    print("wrote %s" % os.path.relpath(OUTPUT, ROOT))
+    for file, shaders in OUTPUTS:
+        output = os.path.join(SOURCES, file)
+        lines = ["// Written by tools/gen_sharpen_shaders.py from the shaders beside it; not edited by hand.", ""]
+        for array, name in shaders:
+            words = compile_shader(glslc, name)
+            lines.append("// %s" % name)
+            lines.append("constexpr uint32_t %s[] = {" % array)
+            for i in range(0, len(words), 8):
+                lines.append("    " + " ".join("0x%08x," % word for word in words[i:i + 8]))
+            lines.append("};")
+            lines.append("")
+        text = "\n".join(lines)
+        if "--check" in sys.argv[1:]:
+            with open(output, newline="") as committed:
+                if committed.read() != text:
+                    sys.exit("%s is not what the shaders compile to: run tools/gen_sharpen_shaders.py" % output)
+            continue
+        with open(output, "w", newline="\n") as out:
+            out.write(text)
+        print("wrote %s" % os.path.relpath(output, ROOT))
 
 
 if __name__ == "__main__":

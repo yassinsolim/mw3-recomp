@@ -31,7 +31,10 @@ class DriverStore(private val context: Context) {
         val minimumApi: Int,
     )
 
-    private val root: File get() = File(context.filesDir, "drivers").apply { mkdirs() }
+    // Canonical, as import writes the folders it keeps in the settings: the
+    // files folder is /data/user/0/... by one name and /data/data/... by the
+    // other, and a driver listed under one was not found by the other.
+    private val root: File get() = File(context.filesDir, "drivers").apply { mkdirs() }.canonicalFile
 
     fun list(): List<Driver> {
         val folders = root.listFiles() ?: return emptyList()
@@ -50,7 +53,8 @@ class DriverStore(private val context: Context) {
         return try {
             val json = JSONObject(meta.readText())
             val library = json.optString("libraryName")
-            if (library.isEmpty() || !File(directory, library).exists()) return null
+            // A name, never a path: the runtime opens the folder's file of that name.
+            if (library.isEmpty() || library.contains('/') || !File(directory, library).isFile) return null
             Driver(
                 directory = directory,
                 name = json.optString("name", directory.name),
@@ -90,8 +94,11 @@ class DriverStore(private val context: Context) {
      * folder of its own and only moved into place once meta.json has been
      * read and makes sense, so a half-unpacked archive never becomes a
      * driver the runtime then fails to load. The stream is closed here.
+     * [catalogId]: the catalog's name for the package (DriverCatalog.Entry),
+     * whose SHA-256 the caller has checked; it is then unpacked into a
+     * folder of that name and remembered as that entry ([idOf]).
      */
-    fun import(stream: InputStream, suggestedName: String): Outcome {
+    fun import(stream: InputStream, suggestedName: String, catalogId: String? = null): Outcome {
         val staging = File(context.cacheDir, "driver-import-${System.currentTimeMillis()}")
         staging.mkdirs()
         try {
@@ -108,7 +115,7 @@ class DriverStore(private val context: Context) {
 
             val json = JSONObject(metaFile.readText())
             val library = json.optString("libraryName")
-            if (library.isEmpty() || !File(content, library).exists()) {
+            if (library.isEmpty() || library.contains('/') || !File(content, library).isFile) {
                 return Outcome.Failed(context.getString(R.string.driver_bad_zip))
             }
             if (!looksLikeArm64(File(content, library))) {
@@ -121,7 +128,7 @@ class DriverStore(private val context: Context) {
             }
 
             val name = json.optString("name", suggestedName).ifEmpty { suggestedName }
-            val driverFolderName = safeName(name)
+            val driverFolderName = catalogId ?: safeName(name)
             val target = File(root, driverFolderName).canonicalFile
             val rootCanonical = root.canonicalFile
             if (!target.path.startsWith(rootCanonical.path + File.separator)) {
@@ -144,6 +151,7 @@ class DriverStore(private val context: Context) {
                 tempTarget.deleteRecursively()
             }
             val finalDriver = read(target) ?: return Outcome.Failed(context.getString(R.string.driver_bad_zip))
+            if (catalogId != null) File(target, CATALOG_MARK).writeText(catalogId) else File(target, CATALOG_MARK).delete()
             return Outcome.Imported(finalDriver)
         } catch (error: Throwable) {
             return Outcome.Failed(error.message ?: context.getString(R.string.driver_bad_zip))
@@ -158,6 +166,36 @@ class DriverStore(private val context: Context) {
         if (canonicalDir.path.startsWith(rootCanonical.path + File.separator)) {
             canonicalDir.deleteRecursively()
         }
+    }
+
+    /**
+     * The name a driver's results are kept under (Prefs.driverVerdicts): the
+     * catalog's for one fetched from it or carried by the app, "dir:<folder>"
+     * for one the player imported.
+     */
+    fun idOf(driver: Driver, prefs: Prefs, catalog: DriverCatalog?): String {
+        try {
+            val marked = File(driver.directory, CATALOG_MARK).readText().trim()
+            if (marked.isNotEmpty()) return marked
+        } catch (_: java.io.IOException) {
+            // Not one of the catalog's by its folder; perhaps the carried one.
+        }
+        if (driver.directory.absolutePath == prefs.bundledDriverDirectory) {
+            catalog?.bySha(prefs.bundledDriverSha)?.let { return it.id }
+        }
+        return "dir:${driver.directory.name}"
+    }
+
+    /** The unpacked driver that is the catalog's [entry], or null when it is not on this phone. */
+    fun ofCatalog(entry: DriverCatalog.Entry, prefs: Prefs): Driver? {
+        if (prefs.bundledDriverSha == entry.sha256) bundled(prefs)?.let { return it }
+        val folder = File(root, entry.id)
+        val marked = try {
+            File(folder, CATALOG_MARK).readText().trim()
+        } catch (_: java.io.IOException) {
+            ""
+        }
+        return if (marked == entry.id) read(folder) else null
     }
 
     /**
@@ -250,16 +288,7 @@ class DriverStore(private val context: Context) {
         } catch (_: java.io.IOException) {
             return null
         }
-        val digest = MessageDigest.getInstance("SHA-256")
-        stream.use {
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
-                val count = it.read(buffer)
-                if (count < 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return sha256(stream)
     }
 
     private fun safeName(name: String): String {
@@ -332,6 +361,23 @@ class DriverStore(private val context: Context) {
         const val BUNDLED_ASSET = "drivers/turnip_v27_r2.zip"
         const val BUNDLED_ASSET_A8XX = "drivers/turnip_a8xx.zip"
         const val BUNDLED_ASSET_API29 = "drivers/turnip_api29.zip"
+
+        /** In a driver's folder: the catalog's name for it, written only for a package whose SHA-256 was the catalog's. */
+        private const val CATALOG_MARK = ".catalog"
+
+        /** The SHA-256 of everything [stream] holds, in hex; the stream is closed here. */
+        fun sha256(stream: InputStream): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            stream.use {
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = it.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
 
         /**
          * Which package this phone is given. The community builds need

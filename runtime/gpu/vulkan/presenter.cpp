@@ -13,6 +13,7 @@
 #include "../../render_size.h"
 #include "backdrop.h"
 #include "sharpen.h"
+#include "picture_probe.h"
 
 #if !defined(MW2_HAVE_VULKAN) || (!defined(MW2_USE_SDL) && !defined(MW2_ANDROID))
 // Without a loader or a window system there is nothing to present to; the rest
@@ -1234,6 +1235,10 @@ namespace
         if (vk::pipeline::Failed(vkWaitForFences(g.device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX),
                                  "the presenter's fence"))
             return;
+#ifdef MW2_ANDROID
+        // A look at a frame recorded with this slot's last copy has been made by now.
+        vk::probe::Collect(g.frameIndex);
+#endif
 
 #ifdef MW2_ANDROID
         // One frame a blank, counted here and not by the swapchain's queue
@@ -1377,6 +1382,12 @@ namespace
             vkCmdClearColorImage(frame.commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &colour, 1, &range);
         }
         DrawOverlay(frame, image, shown, frameFrom, frameTo);
+#ifdef MW2_ANDROID
+        // What the run's first frames look like, twice a second (picture_probe.h).
+        if (shown.image && !again)
+            vk::probe::Record(g.device, g.physical, frame.commands, g.frameIndex,
+                              shown.image, shown.width, shown.height);
+#endif
 
         vk::util::Barrier(frame.commands, image, VK_IMAGE_ASPECT_COLOR_BIT,
                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
@@ -1490,6 +1501,7 @@ namespace
             vkDeviceWaitIdle(g.device);
             vk::backdrop::Destroy();
             vk::sharpen::Destroy();
+            vk::probe::Destroy();
             DestroyOverlay();
             for (auto& frame : g.frames)
             {

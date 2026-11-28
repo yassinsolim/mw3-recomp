@@ -96,6 +96,15 @@ add_executable(version-test
 target_include_directories(version-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../launcher")
 add_test(NAME version COMMAND version-test)
 
+# ---- what a run's first frames look like -----------------------------------
+# The three numbers the app judges a driver's first frames by
+# (runtime/gpu/vulkan/picture_probe.h): one colour, noise, a picture. The
+# presenter's copy needs a device; what is made of the copy does not.
+add_executable(picture-probe-test
+    "${CMAKE_CURRENT_SOURCE_DIR}/picture_probe_test.cpp")
+target_include_directories(picture-probe-test PRIVATE "${MW2_RUNTIME}/gpu/vulkan")
+add_test(NAME picture-probe COMMAND picture-probe-test)
+
 # ---- what a device sustains ------------------------------------------------
 # The rule that holds a run to the frame rate its device keeps and gives it
 # the sun's shadows when its frames have room for them (runtime/adaptive.h):
@@ -141,6 +150,7 @@ if(WIN32)
     target_link_options(bc-test PRIVATE -static)
     target_link_options(volume-test PRIVATE -static)
     target_link_options(version-test PRIVATE -static)
+    target_link_options(picture-probe-test PRIVATE -static)
     target_link_options(demonware-test PRIVATE -static)
     target_link_options(pipeline-cache-test PRIVATE -static)
 endif()

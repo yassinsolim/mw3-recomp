@@ -30,14 +30,31 @@
         android:layout_height="wrap_content"
         android:text="@string/driver_hint" />
 
-    <Button
-        android:id="@+id/import_driver"
-        android:background="@drawable/bg_button_action"
-        android:textColor="#E8EAED"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="@string/import_driver" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/import_driver"
+            android:background="@drawable/bg_button_action"
+            android:textColor="#E8EAED"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/import_driver" />
+
+        <Button
+            android:id="@+id/import_driver_link"
+            android:background="@drawable/bg_button_action"
+            android:textColor="#E8EAED"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:text="@string/import_driver_link" />
+    </LinearLayout>
 
     <ListView
         android:id="@+id/driver_list"

@@ -202,6 +202,20 @@ object NativeBridge {
     external fun nativeSelectDriver(directory: String, library: String)
     external fun nativeDriverDescription(): String
 
+    /**
+     * The driver self-test, on the driver selected, in the process started
+     * for it (DriverSelfTest.kt): "" when the test frame came out right, or
+     * what went wrong. Every step is written to the file at [report].
+     */
+    external fun nativeDriverSelfTest(report: String): String
+
+    /**
+     * The runtime's last look at a frame of the run (FrameWatch.kt), into
+     * [out]: how many frames have been looked at, 1 for one colour, the
+     * samples unlike all their neighbours per thousand, the brightness.
+     */
+    external fun nativePictureProbe(out: IntArray)
+
     // ---- installing --------------------------------------------------------
 
     external fun nativeGameInstalled(gameDir: String): Boolean

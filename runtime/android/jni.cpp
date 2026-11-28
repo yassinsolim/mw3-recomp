@@ -19,6 +19,7 @@
 #include "../crash.h"
 #include "../install/install.h"
 #include "../gpu/vulkan/presenter.h"
+#include "../gpu/vulkan/picture_probe.h"
 #include "../gpu/vulkan/sharpen.h"
 #include "../gpu/vulkan/texture_cache.h"
 #include "../gpu/vulkan/pipeline.h"
@@ -271,6 +272,8 @@ MW2_NATIVE(jboolean, nativeInit)(JNIEnv* env, jobject, jstring filesDir, jstring
         const size_t read = std::fread(name, 1, sizeof(name) - 1, cmdline);
         std::fclose(cmdline);
         if (read > 0 && std::strstr(name, ":game")) which = "game";
+        // The driver self-test's process (DriverSelfTest.kt): a log of its own.
+        if (read > 0 && std::strstr(name, ":drivertest")) which = "drivertest";
     }
     const std::string logPath = g_paths.files + "/" + which + ".log";
     android::OpenLogFile(logPath.c_str());
@@ -360,6 +363,25 @@ MW2_NATIVE(jstring, nativeDriverDescription)(JNIEnv* env, jobject)
     if (android::driver::CustomDriverFailed())
         text += " (the imported driver would not load)";
     return FromString(env, text);
+}
+
+// The driver self-test (gpu/vulkan/selftest.cpp), in the process the app
+// starts for it: "" when the selected driver drew the test frame right, or
+// what went wrong. `report` is the file its steps are written to.
+MW2_NATIVE(jstring, nativeDriverSelfTest)(JNIEnv* env, jobject, jstring report)
+{
+    return FromString(env, android::driver::SelfTest(ToString(env, report).c_str()));
+}
+
+// What the last frame looked at looked like (picture_probe.h): how many have
+// been looked at, whether it was one colour, the samples unlike their
+// neighbours per thousand, the brightness.
+MW2_NATIVE(void, nativePictureProbe)(JNIEnv* env, jobject, jintArray out)
+{
+    if (!out || env->GetArrayLength(out) < 4) return;
+    const vk::probe::Picture picture = vk::probe::Last();
+    const jint values[4] = { jint(picture.serial), picture.flat ? 1 : 0, jint(picture.isolated), jint(picture.luma) };
+    env->SetIntArrayRegion(out, 0, 4, values);
 }
 
 #if MW2_SPLIT_GAME

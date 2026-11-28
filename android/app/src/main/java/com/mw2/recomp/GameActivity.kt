@@ -155,6 +155,15 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var frameSeen = false
     private var failureShown = false
 
+    /** The driver this run is on, by the name its results are kept under (DriverAuto.current). */
+    private var runDriverId = DriverCatalog.SYSTEM
+    private var runDriverName = ""
+
+    /** Whether the run's first frames are a picture (FrameWatch.kt), and the runtime's last look at one. */
+    private val frameWatch = FrameWatch()
+    private val pictureLook = IntArray(4)
+    private var pictureSettled = false
+
     /**
      * The rate the runtime holds the run to, as the player was last told, and
      * the rate the display was last asked for a mode of (statsTick).
@@ -332,6 +341,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             if (NativeBridge.isLoaded()) {
                 NativeBridge.nativeStats(statsValues)
                 watchForBlackScreen()
+                watchPicture()
                 showBootCompile()
                 followHeldRate()
                 measureBestLooking()
@@ -570,25 +580,25 @@ class GameActivity : AppCompatActivity(), NativeListener {
      */
     private fun showRendererFailure(reason: String, mayWait: Boolean) {
         failureShown = true
-        val bundled = prefs.bundledDriverDirectory.takeIf { it.isNotEmpty() }
-            ?.let { path -> DriverStore(this).list().firstOrNull { it.directory.absolutePath == path } }
-        val onSystem = prefs.driverDirectory.isEmpty()
-        // A driver the player imported failed: the one the app carries is
-        // the likelier to work than the phone's own, which on the Snapdragons
-        // that need an imported one (Adreno 610-619 on Android 10-11) is
-        // refused for want of descriptor indexing.
-        val onOtherImported = !onSystem && bundled != null && prefs.driverDirectory != bundled.directory.absolutePath
+        // The renderer said so itself: the driver is written down as one
+        // that cannot show this game here, and where the app chose it, the
+        // next one is taken and the run started again without a question.
+        if (!mayWait) {
+            val next = DriverAuto.fallBack(this, prefs, runDriverId, reason)
+            if (next != null) {
+                prefs.driverNotice = getString(R.string.driver_auto_switched, runDriverName, reason, next)
+                restartRun("the app switched from $runDriverName to $next and the run starts again")
+                return
+            }
+        }
+        val next = DriverAuto.nextReady(this, prefs, runDriverId)
+        val nextName = next?.let { it.first?.name ?: getString(R.string.driver_system) }
         val driver = try {
             NativeBridge.nativeDriverDescription()
         } catch (_: Throwable) {
             ""
         }
-        val advice = when {
-            onOtherImported -> getString(R.string.renderer_try_bundled_instead)
-            !onSystem -> getString(R.string.renderer_try_system)
-            bundled != null -> getString(R.string.renderer_try_bundled)
-            else -> getString(R.string.renderer_try_import)
-        }
+        val advice = if (nextName != null) getString(R.string.renderer_try_next, nextName) else getString(R.string.renderer_try_import)
         val message = getString(
             R.string.renderer_failed_message, reason, DeviceInfo.gpu(this),
             driver.ifEmpty { getString(R.string.driver_system) }, advice,
@@ -598,12 +608,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
             .setMessage(message)
             .setCancelable(false)
             .setNeutralButton(R.string.share_log, null)
-        if (onOtherImported) {
-            builder.setPositiveButton(R.string.renderer_use_bundled) { _, _ -> restartWithDriver(bundled) }
-        } else if (!onSystem) {
-            builder.setPositiveButton(R.string.renderer_use_system) { _, _ -> restartWithDriver(null) }
-        } else if (bundled != null) {
-            builder.setPositiveButton(R.string.renderer_use_bundled) { _, _ -> restartWithDriver(bundled) }
+        if (nextName != null) {
+            builder.setPositiveButton(getString(R.string.driver_try_next, nextName)) { _, _ -> switchDriver(reason) }
         }
         if (mayWait) {
             builder.setNegativeButton(R.string.keep_waiting) { _, _ -> goFullscreen() }
@@ -620,19 +626,110 @@ class GameActivity : AppCompatActivity(), NativeListener {
     }
 
     /**
-     * The other driver, chosen as Settings' Graphics driver chooses it
-     * ([driver] null for the phone's own), and the run started again: the
-     * driver is opened once in a process's life.
+     * The run's first frames, looked at twice a second by the runtime
+     * (nativePictureProbe) and judged over time (FrameWatch): a picture
+     * settles it and the driver is written down as one that draws this game
+     * here; noise for twenty seconds or one colour for a minute is put to
+     * the player, who may take the next driver or say the picture is fine.
      */
-    private fun restartWithDriver(driver: DriverStore.Driver?) {
-        prefs.driverChoiceMade = true
-        prefs.driverDirectory = driver?.directory?.absolutePath ?: ""
-        prefs.driverLibrary = driver?.library ?: ""
+    private fun watchPicture() {
+        if (pictureSettled || failureShown || isFinishing) return
+        NativeBridge.nativePictureProbe(pictureLook)
+        when (val verdict = frameWatch.look(SystemClock.elapsedRealtime(), pictureLook[0], pictureLook[1] != 0, pictureLook[2])) {
+            FrameWatch.Verdict.WATCHING -> Unit
+            FrameWatch.Verdict.GOOD -> {
+                pictureSettled = true
+                if (prefs.driverVerdicts[runDriverId] != "good") prefs.noteDriverVerdict(runDriverId, "good")
+                NativeBridge.nativeLog(false, "driver: the run's first frames are a picture [$runDriverId]")
+            }
+            FrameWatch.Verdict.NOISE, FrameWatch.Verdict.FLAT -> showPictureWrong(verdict == FrameWatch.Verdict.NOISE)
+        }
+    }
+
+    private fun showPictureWrong(noise: Boolean) {
+        failureShown = true
+        val why = if (noise) "its frames were noise for 20 s" else "its frames were one colour for 60 s"
+        NativeBridge.nativeLog(true, "driver: the run presents frames that are not a picture [$runDriverId]: $why" +
+            " (last look: ${pictureLook[2]} per thousand samples unlike their neighbours, brightness ${pictureLook[3]})")
+        val next = DriverAuto.nextReady(this, prefs, runDriverId)
+        val nextName = next?.let { it.first?.name ?: getString(R.string.driver_system) }
+        val driver = try {
+            NativeBridge.nativeDriverDescription()
+        } catch (_: Throwable) {
+            ""
+        }
+        val advice = if (nextName != null) getString(R.string.renderer_try_next, nextName) else getString(R.string.renderer_try_import)
+        val message = getString(
+            R.string.renderer_failed_message, getString(if (noise) R.string.picture_noise else R.string.picture_flat),
+            DeviceInfo.gpu(this), driver.ifEmpty { getString(R.string.driver_system) }, advice,
+        )
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.picture_wrong_title)
+            .setMessage(message)
+            .setCancelable(false)
+            .setNeutralButton(R.string.share_log, null)
+            .setNegativeButton(R.string.picture_fine) { _, _ ->
+                // The player's eyes outrank the samples: never asked again on this driver.
+                failureShown = false
+                pictureSettled = true
+                prefs.noteDriverVerdict(runDriverId, "good")
+                NativeBridge.nativeLog(false, "driver: the player says the picture is fine [$runDriverId]")
+                goFullscreen()
+            }
+        if (nextName != null) {
+            builder.setPositiveButton(getString(R.string.driver_try_next, nextName)) { _, _ -> switchDriver(why) }
+        }
+        val dialog = builder.show()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            LogShare.share(this, LogSummary.whole(this, NativeBridge.nativeLogTail()))
+        }
+    }
+
+    /**
+     * The player took the next driver over one that showed nothing or the
+     * wrong thing ([why], in English): this one is written down as failed
+     * here, the next is selected, and the run starts again -- the driver is
+     * opened once in a process's life.
+     */
+    private fun switchDriver(why: String) {
+        val next = DriverAuto.fallBack(this, prefs, runDriverId, why, asked = true)
+        restartRun("the player switched from $runDriverName to ${next ?: "nothing else"} and the run starts again")
+    }
+
+    private fun restartRun(line: String) {
         prefs.flush()
-        NativeBridge.nativeLog(false, "the player switched to ${driver?.name ?: "the system's driver"} and the run starts again")
+        NativeBridge.nativeLog(false, "driver: $line")
         HandOffActivity.start(this, RunRequest(title, launchData, contentLevel))
         finish()
         handler.postDelayed({ Process.killProcess(Process.myPid()) }, 80)
+    }
+
+    /**
+     * Which driver this run is on, said in the log and kept for the
+     * launcher (a run that crashes inside its driver counts against it,
+     * DriverAuto.afterRun); and what the app did about the last run's
+     * driver, told to the player once.
+     */
+    private fun noteRunDriver() {
+        val (driver, id) = DriverAuto.current(this, prefs)
+        runDriverId = id
+        runDriverName = driver?.name ?: getString(R.string.driver_system)
+        prefs.driverTrial = id
+        NativeBridge.nativeLog(
+            false,
+            "driver: this run is on ${driver?.name ?: "the phone's own driver"} [$id], " +
+                (if (prefs.driverChoiceMade) "the player's choice" else "the app's choice") +
+                "; on this phone so far: ${prefs.driverVerdicts[id] ?: "untested"}",
+        )
+        prefs.driverResults().forEach { NativeBridge.nativeLog(false, "driver: $it") }
+        val notice = prefs.driverNotice
+        if (notice.isEmpty()) return
+        prefs.driverNotice = ""
+        AlertDialog.Builder(this)
+            .setTitle(R.string.graphics_driver)
+            .setMessage(notice)
+            .setPositiveButton(R.string.close) { _, _ -> goFullscreen() }
+            .show()
     }
 
     /**
@@ -760,6 +857,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
 
         applyOptions()
         applyDriver()
+        noteRunDriver()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {

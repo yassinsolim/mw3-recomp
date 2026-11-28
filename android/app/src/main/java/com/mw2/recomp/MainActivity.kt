@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import kotlin.concurrent.thread
 import org.json.JSONArray
 
@@ -408,6 +409,10 @@ class MainActivity : AppCompatActivity() {
         showArt()
         searchDiscs()
         refresh()
+        // The driver the app chooses by itself, when something it was chosen
+        // for has changed, and what the last run said of the one in use
+        // (DriverAuto.kt).
+        considerDriver()
         // The launcher asks for the mode the game will ask for (the limit may
         // have been changed in Settings since), and says so when the system
         // has not given it after the moment a mode change takes.
@@ -420,6 +425,55 @@ class MainActivity : AppCompatActivity() {
         pendingUpdateUrl?.let { url ->
             pendingUpdateUrl = null
             if (packageManager.canRequestPackageInstalls()) startUpdateDownload(url)
+        }
+    }
+
+    private var driverBusy = false
+    private var driverAskedFor = ""
+
+    /**
+     * The app's own choice of driver, off the main thread: a run that
+     * crashed inside its driver is counted, the choice is made again when
+     * the app, the catalog or the system changed, and what came of it is
+     * said. [allowMetered]: the player agreed to a download on mobile data.
+     */
+    private fun considerDriver(allowMetered: Boolean = false) {
+        if (driverBusy) return
+        driverBusy = true
+        thread(name = "driver-auto", isDaemon = true) {
+            var after: String? = null
+            var outcome: DriverAuto.Outcome? = null
+            try {
+                after = DriverAuto.afterRun(this, prefs)
+                outcome = DriverAuto.run(this, prefs, allowMetered)
+            } catch (error: Throwable) {
+                DriverAuto.log(this, "the choice could not be made: $error")
+            }
+            runOnUiThread {
+                driverBusy = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val notice = prefs.driverNotice
+                if (notice.isNotEmpty()) prefs.driverNotice = ""
+                val message = listOfNotNull(notice.ifEmpty { null }, after, outcome?.message).distinct().joinToString("\n\n")
+                if (message.isNotEmpty()) {
+                    refresh()
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.graphics_driver)
+                        .setMessage(message)
+                        .setPositiveButton(R.string.close, null)
+                        .show()
+                }
+                val wanted = outcome?.wantsDownload
+                if (wanted != null && wanted.id != driverAskedFor) {
+                    driverAskedFor = wanted.id
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.driver_download_title)
+                        .setMessage(getString(R.string.driver_download_ask, wanted.name, String.format(Locale.US, "%.1f", wanted.size / (1024.0 * 1024.0))))
+                        .setNegativeButton(R.string.driver_download_later, null)
+                        .setPositiveButton(R.string.driver_fetch) { _, _ -> considerDriver(allowMetered = true) }
+                        .show()
+                }
+            }
         }
     }
 

@@ -1,0 +1,428 @@
+{
+  "schema": 1,
+  "version": 2026112801,
+  "about": "Graphics drivers the apps may fetch (docs/android.md, The driver catalog). Checked by tools/driver_catalog.py verify. Proprietary drivers are linked to, never carried or chosen automatically.",
+  "drivers": [
+    {
+      "id": "turnip-27.0.0-r2",
+      "name": "Turnip v27.0.0-R2",
+      "version": "Mesa 27.0.0-devel 2648b2059f (7 Nov 2026)",
+      "kind": "turnip",
+      "source": "StevenMXZ/Adreno-Tools-Drivers v39",
+      "url": "https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip",
+      "asset": "drivers/turnip_v27_r2.zip",
+      "sha256": "8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781",
+      "size": 2663719,
+      "library": "libvulkan_freedreno.so",
+      "licence": "MIT (Mesa); carried with its notice (THIRD_PARTY.md)",
+      "auto": true,
+      "minApi": 30,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 799
+        }
+      ],
+      "rank": 100,
+      "reports": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 740,
+              "to": 740
+            }
+          ],
+          "game": "*",
+          "result": "good",
+          "source": "AYN Thor (SM8550, Android 13): all five games at 117-119 FPS, visual suite, November 2026"
+        },
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 650,
+              "to": 650
+            }
+          ],
+          "game": "*",
+          "result": "good",
+          "source": "Retroid Pocket Flip 2 (SM8250, Android 13): visual suite, November 2026"
+        }
+      ]
+    },
+    {
+      "id": "turnip-27.0.0-483aff3-api29",
+      "name": "Turnip 27.0.0-devel (the project's build)",
+      "version": "Mesa 27.0.0-devel 483aff363b (27 Nov 2026), unpatched",
+      "kind": "turnip",
+      "source": "android/build_turnip.sh (reproducible; not published as a file)",
+      "asset": "drivers/turnip_api29.zip",
+      "sha256": "55c1ca69d6ca3e4639404cdde731bdb4b214ba2e9b9d5217e85cfe6731c14b8f",
+      "size": 3477312,
+      "library": "libvulkan_freedreno.so",
+      "licence": "MIT (Mesa); carried with its notice (THIRD_PARTY.md)",
+      "auto": true,
+      "minApi": 29,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 899
+        }
+      ],
+      "rank": 90,
+      "rankFor": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 800,
+              "to": 899
+            }
+          ],
+          "rank": 110
+        }
+      ],
+      "reports": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 740,
+              "to": 740
+            }
+          ],
+          "game": "mw3",
+          "result": "good",
+          "source": "AYN Thor: Survival at 117 FPS, 27 Nov 2026 (docs/android.md)"
+        },
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 650,
+              "to": 650
+            }
+          ],
+          "game": "*",
+          "result": "good",
+          "source": "Retroid Pocket Flip 2: MW3 Survival and AW Induction at 60 FPS, 27 Nov 2026"
+        }
+      ]
+    },
+    {
+      "id": "turnip-27.0.0-r3",
+      "name": "Turnip v27.0.0-R3",
+      "version": "Mesa 27.0.0-devel c5ef4bdfab (23 Nov 2026)",
+      "kind": "turnip",
+      "source": "StevenMXZ/Adreno-Tools-Drivers v40",
+      "url": "https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v40/Turnip_v27.0.0-R3.zip",
+      "sha256": "3a3da776b614550fe8822363bfe7bacca8bc22a5e743d221c196333a54a07add",
+      "size": 2591380,
+      "library": "libvulkan_freedreno.so",
+      "licence": "MIT (Mesa); downloaded from its publisher",
+      "auto": true,
+      "minApi": 30,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 899
+        }
+      ],
+      "rank": 80,
+      "reports": []
+    },
+    {
+      "id": "turnip-stable-26.2.3-v2",
+      "name": "Stable Turnip v2",
+      "version": "Mesa 26.2.3 (19 Sep 2026)",
+      "kind": "turnip",
+      "source": "whitebelyash/AdrenoToolsDrivers stu_v2",
+      "url": "https://github.com/whitebelyash/AdrenoToolsDrivers/releases/download/stu_v2/stable-turnip-V2.zip",
+      "sha256": "426846964f9b9c3f182b9298a805e85c1f062a590f622cf4ddc9b0b5934a581e",
+      "size": 2658864,
+      "library": "libvulkan_freedreno.so",
+      "licence": "MIT (Mesa); downloaded from its publisher",
+      "auto": true,
+      "minApi": 30,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 799
+        }
+      ],
+      "rank": 70,
+      "reports": []
+    },
+    {
+      "id": "turnip-26.0.0-r8-k11mch1",
+      "name": "Turnip v26.0.0 R8",
+      "version": "Mesa 26.0.0-devel 5ac41be677 (8 Jan 2026)",
+      "kind": "turnip",
+      "source": "K11MCH1/AdrenoToolsDrivers v26.0.0-rc08",
+      "url": "https://github.com/K11MCH1/AdrenoToolsDrivers/releases/download/v26.0.0-rc08/Turnip_v26.0.0_R8.zip",
+      "sha256": "e634db0f929e2205e95511c769071817d0390180ec72c8e690bc76375e813715",
+      "size": 3478359,
+      "library": "vulkan.ad07xx.so",
+      "licence": "MIT (Mesa); downloaded from its publisher",
+      "auto": true,
+      "minApi": 30,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 799
+        }
+      ],
+      "rank": 60,
+      "reports": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 740,
+              "to": 740
+            }
+          ],
+          "game": "aw",
+          "result": "good",
+          "source": "AYN Thor: Advanced Warfare's intro and Seoul, 110 s, screenshots checked, 28 Nov 2026"
+        }
+      ]
+    },
+    {
+      "id": "turnip-25.3.0-bbdd688-weabchan",
+      "name": "Turnip CI 25.3.0-devel bbdd688",
+      "version": "Mesa 25.3.0-devel bbdd688 (11 Oct 2025)",
+      "kind": "turnip",
+      "source": "Weab-chan/freedreno_turnip-CI 25.3.0-devel_bbdd688",
+      "url": "https://github.com/Weab-chan/freedreno_turnip-CI/releases/download/25.3.0-devel_bbdd688/turnip_Oct-11-2025_bbdd688.zip",
+      "sha256": "2c49537d049fdfc9efa09f8f242c72596d4e1d059212a0c60681c3248674dcd6",
+      "size": 3372882,
+      "library": "vulkan.ad07XX.so",
+      "licence": "MIT (Mesa); downloaded from its publisher",
+      "auto": true,
+      "minApi": 30,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 799
+        }
+      ],
+      "rank": 50,
+      "reports": []
+    },
+    {
+      "id": "turnip-a8xx-draft-k11mch1",
+      "name": "Turnip A8XX draft",
+      "version": "Mesa 26.0.0-devel, a8xx draft (8 Jan 2026)",
+      "kind": "turnip",
+      "source": "K11MCH1/AdrenoToolsDrivers v26.0.0-rc08",
+      "url": "https://github.com/K11MCH1/AdrenoToolsDrivers/releases/download/v26.0.0-rc08/turnip_a8xx.zip",
+      "sha256": "27e400a39cae06ac22695d74b837449868f712c679662c5793776bd575eca3bd",
+      "size": 2477437,
+      "library": "vulkan.ad08xx.so",
+      "licence": "MIT (Mesa); downloaded from its publisher",
+      "auto": false,
+      "minApi": 30,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 800,
+          "to": 899
+        }
+      ],
+      "rank": 30,
+      "note": "Its publisher calls it a super beta.",
+      "reports": []
+    },
+    {
+      "id": "qualcomm-842.6-k11mch1",
+      "name": "Qualcomm Adreno 842.6",
+      "version": "Qualcomm 512.842.6",
+      "kind": "qualcomm",
+      "source": "K11MCH1/AdrenoToolsDrivers v842.6",
+      "url": "https://github.com/K11MCH1/AdrenoToolsDrivers/releases/download/v842.6/8Elite2-842.6.zip",
+      "sha256": "1c18001cc568724ea7d7424f3ade0cd659ba695bb51170cf87f578677af78a56",
+      "size": 12201469,
+      "library": "vulkan.ad07xx.so",
+      "licence": "Qualcomm proprietary, repackaged by a third party: linked to, never carried, downloaded only when the player asks",
+      "auto": false,
+      "minApi": 35,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 700,
+          "to": 899
+        }
+      ],
+      "rank": 20,
+      "reports": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 830,
+              "to": 830
+            }
+          ],
+          "game": "aw",
+          "result": "good",
+          "source": "a player's Snapdragon 8 Elite (Discord, November 2026): the stock driver crashes, this one runs"
+        }
+      ]
+    },
+    {
+      "id": "qualcomm-805-k11mch1",
+      "name": "Qualcomm Adreno 805",
+      "version": "Qualcomm 512.805",
+      "kind": "qualcomm",
+      "source": "K11MCH1/AdrenoToolsDrivers v805",
+      "url": "https://github.com/K11MCH1/AdrenoToolsDrivers/releases/download/v805/vulkan-805-adpkg.zip",
+      "sha256": "2065acf6298383a31b8e98cea1a0d20249d0a3859858a87e4652df9dbe1e8134",
+      "size": 12729489,
+      "library": "vulkan.ad0805.so",
+      "licence": "Qualcomm proprietary, repackaged by a third party: linked to, never carried, downloaded only when the player asks",
+      "auto": false,
+      "minApi": 27,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 799
+        }
+      ],
+      "rank": 15,
+      "note": "From a Meta Quest 3; its publisher says it works on a6xx and a7xx.",
+      "reports": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 740,
+              "to": 740
+            }
+          ],
+          "game": "aw",
+          "result": "good",
+          "source": "AYN Thor: Advanced Warfare's intro and Seoul, 110 s, screenshots checked, 28 Nov 2026 (512.805.0, Vulkan 1.3.295)"
+        }
+      ]
+    },
+    {
+      "id": "qualcomm-744.19-k11mch1",
+      "name": "Qualcomm v744.19",
+      "version": "Qualcomm 512.744.19",
+      "kind": "qualcomm",
+      "source": "K11MCH1/AdrenoToolsDrivers v744.19",
+      "url": "https://github.com/K11MCH1/AdrenoToolsDrivers/releases/download/v744.19/adreno-744.19-adpkg.zip",
+      "sha256": "161270e0b2edebe402998324ddece2fcbc13d71aac043b04662659de1aefcbdc",
+      "size": 13603177,
+      "library": "vulkan.ad7441.so",
+      "licence": "Qualcomm proprietary, repackaged by a third party: linked to, never carried, downloaded only when the player asks",
+      "auto": false,
+      "minApi": 29,
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 600,
+          "to": 799
+        }
+      ],
+      "rank": 10,
+      "reports": []
+    },
+    {
+      "id": "panvk-kbase-26.3.1-zenithblue",
+      "name": "PanVK 26.3.1 for mali_kbase",
+      "version": "Mesa 26.3.0-devel 795ca7ff (31 Oct 2026), out of tree",
+      "kind": "panvk",
+      "source": "zenithblue-oss/panvk-kbase-android panvk-kbase-v26.3.1",
+      "url": "https://github.com/zenithblue-oss/panvk-kbase-android/releases/download/panvk-kbase-v26.3.1/Mesa-PanVK-Android-v26.3.1-795ca7ff-adrenotools.zip",
+      "sha256": "7e2e9987bbebefb06f52b2570e61e6208503d4d3a10a395b97aea9b6e1fad9e4",
+      "size": 9482291,
+      "library": "libvulkan_panfrost.so",
+      "licence": "MIT (Mesa); downloaded from its publisher",
+      "auto": false,
+      "minApi": 29,
+      "gpus": [
+        {
+          "vendor": "mali",
+          "from": 0,
+          "to": 9999
+        }
+      ],
+      "rank": 10,
+      "note": "Experimental; never run by this project on a Mali.",
+      "reports": []
+    }
+  ],
+  "system": [
+    {
+      "gpus": [
+        {
+          "vendor": "adreno",
+          "from": 0,
+          "to": 9999
+        }
+      ],
+      "rank": 40,
+      "note": "Qualcomm's own driver runs the renderer where it has descriptor indexing, slower and with texture faults Turnip does not have.",
+      "reports": [
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 800,
+              "to": 899
+            }
+          ],
+          "game": "aw",
+          "driver": "V@0800.71",
+          "result": "broken",
+          "source": "a player's log (Xiaomi 24129PN74G, SM8750, AW 0.1.5): SIGSEGV in libllvm-qgl.so from vkCreateGraphicsPipelines"
+        },
+        {
+          "gpus": [
+            {
+              "vendor": "adreno",
+              "from": 740,
+              "to": 740
+            }
+          ],
+          "game": "aw",
+          "driver": "V@0676",
+          "result": "good",
+          "source": "AYN Thor's own 512.676.53 (Vulkan 1.3.128): Advanced Warfare's intro and Seoul, 110 s, screenshots checked, 28 Nov 2026"
+        }
+      ]
+    },
+    {
+      "gpus": [
+        {
+          "vendor": "mali",
+          "from": 0,
+          "to": 9999
+        },
+        {
+          "vendor": "xclipse",
+          "from": 0,
+          "to": 9999
+        },
+        {
+          "vendor": "powervr",
+          "from": 0,
+          "to": 9999
+        }
+      ],
+      "rank": 100,
+      "note": "Arm's, Samsung's and Imagination's own drivers are the ones this project knows.",
+      "reports": []
+    }
+  ]
+}

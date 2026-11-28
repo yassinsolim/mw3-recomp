@@ -62,6 +62,9 @@ val bo3ApplicationId = "com.bo3.recomp$appSuffix"
 // Where the MW2 flavours' copy of the bundled graphics driver is put
 // (bundledDriverAssets, at the end of this file).
 val mw2DriverAssets = layout.buildDirectory.dir("mw2-driver-assets").get().asFile
+// Where every app's copy of the driver catalog is put (driverCatalogAssets,
+// at the end of this file).
+val driverCatalogAssets = layout.buildDirectory.dir("driver-catalog-assets").get().asFile
 
 // The graphics driver the apps bundle and what loads it, both fetched by
 // android/fetch_deps.sh and neither committed: the Turnip packages under
@@ -156,6 +159,15 @@ android {
         // (docs/perf-reports.md): HTTPS always, but for a debug build pointed
         // at a server on the PC beside it (MW2_PERF_URL=http://127.0.0.1:...).
         buildConfigField("String", "PERF_URL", "\"${setting("MW2_PERF_URL") ?: "https://mw3.yassin.app/perf"}\"")
+        // Where a newer driver catalog than the one the app carries is looked
+        // for (DriverAuto.kt, docs/android.md "The driver catalog"): one file
+        // for all five apps, in the release the build tools are in. A debug
+        // build may be pointed at a server on the PC beside it
+        // (MW2_DRIVER_CATALOG_URL=http://127.0.0.1:...).
+        buildConfigField(
+            "String", "DRIVER_CATALOG_URL",
+            "\"${setting("MW2_DRIVER_CATALOG_URL") ?: "https://github.com/yassinsolim/mw3-recomp/releases/download/drivers/driver-catalog.json"}\"",
+        )
         // The toolchain package's name: -PtoolchainSuffix=.test for a build
         // that tries an update of it beside the published package, which the
         // published apps on the same device go on using.
@@ -508,6 +520,8 @@ android {
         // src/mw3/assets (the camouflage packs are MW3's): a copy of the
         // drivers folder alone, made by bundledDriverAssets below.
         listOf("campaign", "multiplayer", "mw2", "cod4", "aw", "bo3").forEach { getByName(it) { assets.srcDir(mw2DriverAssets) } }
+        // Every app carries the driver catalog it was built with (android/drivers/catalog.json).
+        getByName("main") { assets.srcDir(driverCatalogAssets) }
     }
 
     externalNativeBuild {
@@ -595,6 +609,17 @@ tasks.configureEach {
     // (the v0.1.0 release jobs of the MW2 repo failed on each undeclared one).
     val forMw2 = listOf("Campaign", "Multiplayer", "Mw2", "Cod4", "Aw", "Bo3").any { name.contains(it) }
     if (forMw2 && (name.contains("Assets") || name.contains("lint", ignoreCase = true))) dependsOn(bundledDriverAssets)
+}
+
+// The driver catalog (android/drivers/catalog.json), as assets/drivers/catalog.json
+// of every app (DriverAuto.catalog).
+val driverCatalog = tasks.register<Sync>("driverCatalogAssets") {
+    from("../drivers") { include("catalog.json") }
+    into(File(driverCatalogAssets, "drivers"))
+}
+tasks.configureEach {
+    val forAnApp = listOf("Campaign", "Multiplayer", "Mw3", "Mw2", "Cod4", "Aw", "Bo3").any { name.contains(it) }
+    if (forAnApp && (name.contains("Assets") || name.contains("lint", ignoreCase = true))) dependsOn(driverCatalog)
 }
 
 // ---- the build kit (docs/ondevice-build.md) ----------------------------------
@@ -830,8 +855,10 @@ kitGames.forEach { (game, kit) ->
 
 // LocaleResourcesTest reads every source set's strings from src/: a changed
 // translation runs the unit tests again rather than finding them up to date.
+// DriverCatalogTest reads the driver catalog the same way.
 tasks.withType<Test>().configureEach {
     inputs.files(fileTree("src") { include("*/res/values*/strings*.xml") }).withPropertyName("stringResources")
+    inputs.file("../drivers/catalog.json").withPropertyName("driverCatalog")
 }
 
 dependencies {
@@ -842,4 +869,6 @@ dependencies {
     // Tombstone.kt's reading of the system's crash record, on the build
     // machine: `gradlew :app:testMw2Tu0DebugUnitTest`.
     testImplementation("junit:junit:4.13.2")
+    // DriverCatalog reads JSON, and Android's own org.json is a stub on the build machine.
+    testImplementation("org.json:json:20180813")
 }

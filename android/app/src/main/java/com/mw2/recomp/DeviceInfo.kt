@@ -205,6 +205,26 @@ object DeviceInfo {
         }
     }
 
+    /**
+     * The run's newest end, where it was a native crash and the system kept
+     * its tombstone (Android 12 on): when, and the crashing thread's
+     * backtrace as Tombstone.read writes it. Null otherwise, an end that was
+     * no crash included.
+     */
+    fun lastRunCrash(context: Context): Pair<Long, String>? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        return try {
+            val record = context.getSystemService(ActivityManager::class.java)
+                .getHistoricalProcessExitReasons(context.packageName, 0, kExits)
+                .firstOrNull { it.processName.endsWith(":game") } ?: return null
+            if (record.reason != ApplicationExitInfo.REASON_CRASH_NATIVE) return null
+            val trace = record.traceInputStream?.use { Tombstone.read(it.readNBytesCompat(kTombstoneBytes)) } ?: return null
+            record.timestamp to trace
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.R)
     private fun describe(record: ApplicationExitInfo): String {
         val status = when (record.reason) {

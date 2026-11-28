@@ -243,6 +243,12 @@ namespace android::driver
     // True when the chosen driver was asked for and did not load, so the app
     // can tell the player instead of silently running on the system's.
     bool CustomDriverFailed();
+    // Whether the selected driver can run the renderer (gpu/vulkan/selftest.cpp):
+    // the device made as a run makes it and one frame drawn off screen and
+    // read back. "" when every pixel checked is right, or what went wrong;
+    // each step is written to `reportPath` as it starts. For a process of its
+    // own, which a driver that crashes takes with it.
+    std::string SelfTest(const char* reportPath);
 }
 
 // ---- performance ----------------------------------------------------------

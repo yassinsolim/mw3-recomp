@@ -328,6 +328,8 @@ class Prefs(context: Context) {
         GraphicsPresets.values(GraphicsPresets.AUTOMATIC)?.let { put(edit, it) }
         for (title in Title.entries) edit.remove(KEY_CHIP_MS + title.name).remove(KEY_TWICE_FAILED + title.name)
         edit.putBoolean(KEY_DRIVER_CHOICE_MADE, false).putString(KEY_DRIVER_DIR, "").putString(KEY_DRIVER_LIB, "")
+        // And the app chooses again, with what failed before forgotten (DriverAuto.run).
+        edit.remove(KEY_DRIVER_AUTO_KEY).remove(KEY_DRIVER_PICKED).remove(KEY_DRIVER_VERDICTS)
         edit.commit()
         // The driver the build carries is the default on the chips it is
         // for, and the phone's own elsewhere.
@@ -363,8 +365,18 @@ class Prefs(context: Context) {
             (if (asyncPipelines) ", in the background" else ", at the draw") +
             (if (Title.hasDetailBias) ", detail at distance $detailBias" else ""),
         "driver " + (if (driverDirectory.isEmpty()) "the system's" else java.io.File(driverDirectory).name) +
-            (if (driverChoiceMade) " (chosen)" else " (the app's default)"),
-    )
+            (if (driverChoiceMade) " (chosen)" else " (the app's choice" + driverPicked.let { if (it.isEmpty()) ")" else ": $it)" }),
+    ) + driverResults()
+
+    /**
+     * What this phone found out about its drivers, for a shared report and
+     * the log: the self-test's last answers and what runs said. Reports of
+     * these are what the catalog's known-good and known-broken lists are
+     * made from (docs/android.md, "The driver catalog").
+     */
+    fun driverResults(): List<String> =
+        driverChecks.lineSequence().filter { it.isNotEmpty() }.map { "driver self-test $it" }.toList() +
+            driverVerdicts.filter { !it.key.startsWith("strikes:") }.map { "driver result ${it.key}: ${it.value}" }
 
     // ---- sound ------------------------------------------------------------
 
@@ -515,6 +527,72 @@ class Prefs(context: Context) {
     var bundledDriverDirectory: String
         get() = store.getString(KEY_BUNDLED_DRIVER_DIR, "") ?: ""
         set(value) = store.edit().putString(KEY_BUNDLED_DRIVER_DIR, value).apply()
+
+    // ---- the driver the app chooses by itself (DriverAuto.kt) ---------------
+
+    /**
+     * What the last choice was made for: the app's build, the catalog's
+     * version, the system's build and the chip. A choice is made again when
+     * any of them changes, and not at every start.
+     */
+    var driverAutoKey: String
+        get() = store.getString(KEY_DRIVER_AUTO_KEY, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_AUTO_KEY, value).apply()
+
+    /** The catalog's name for the driver the app selected ("system" for the phone's own), or "" before it has. */
+    var driverPicked: String
+        get() = store.getString(KEY_DRIVER_PICKED, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_PICKED, value).apply()
+
+    /**
+     * What this phone has found out about each driver, by the catalog's name
+     * for it or "dir:<folder>" for one the player imported: "ok" (the
+     * self-test passed), "good" (a run showed a picture), or "fail: <why>".
+     * One that failed is not chosen again until the app, the catalog or the
+     * system changes (DriverAuto.key).
+     */
+    var driverVerdicts: Map<String, String>
+        get() = (store.getString(KEY_DRIVER_VERDICTS, "") ?: "").lineSequence().mapNotNull { line ->
+            val at = line.indexOf('\t')
+            if (at <= 0) null else line.substring(0, at) to line.substring(at + 1)
+        }.toMap()
+        set(value) = store.edit().putString(
+            KEY_DRIVER_VERDICTS,
+            value.entries.joinToString("\n") { "${it.key}\t${it.value.replace('\n', ' ').replace('\t', ' ')}" },
+        ).commit().let { }
+
+    fun noteDriverVerdict(id: String, verdict: String) {
+        driverVerdicts = driverVerdicts + (id to verdict)
+    }
+
+    /** What the launcher has to tell the player about the driver, once: a switch the app made, a driver that failed. */
+    var driverNotice: String
+        get() = store.getString(KEY_DRIVER_NOTICE, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_NOTICE, value).commit().let { }
+
+    /**
+     * The driver the last run started on, by the name its results are kept
+     * under (GameActivity): a run that crashed inside its driver counts
+     * against that one (DriverAuto.afterRun).
+     */
+    var driverTrial: String
+        get() = store.getString(KEY_DRIVER_TRIAL, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_TRIAL, value).commit().let { }
+
+    /** When the newest crash DriverAuto.afterRun has looked at happened. */
+    var driverCrashSeen: Long
+        get() = store.getLong(KEY_DRIVER_CRASH_SEEN, 0)
+        set(value) = store.edit().putLong(KEY_DRIVER_CRASH_SEEN, value).commit().let { }
+
+    /** When the catalog was last asked for online. */
+    var driverCatalogAt: Long
+        get() = store.getLong(KEY_DRIVER_CATALOG_AT, 0)
+        set(value) = store.edit().putLong(KEY_DRIVER_CATALOG_AT, value).apply()
+
+    /** The self-test's last answers, a line a driver, in English as the log is: for a shared performance report. */
+    var driverChecks: String
+        get() = store.getString(KEY_DRIVER_CHECKS, "") ?: ""
+        set(value) = store.edit().putString(KEY_DRIVER_CHECKS, value).apply()
 
     // ---- where the game lives ------------------------------------------------
 
@@ -893,6 +971,14 @@ class Prefs(context: Context) {
         private const val KEY_DRIVER_CHOICE_MADE = "driverChoiceMade"
         private const val KEY_BUNDLED_DRIVER_SHA = "bundledDriverSha"
         private const val KEY_BUNDLED_DRIVER_DIR = "bundledDriverDirectory"
+        private const val KEY_DRIVER_AUTO_KEY = "driverAutoKey"
+        private const val KEY_DRIVER_PICKED = "driverPicked"
+        private const val KEY_DRIVER_VERDICTS = "driverVerdicts"
+        private const val KEY_DRIVER_NOTICE = "driverNotice"
+        private const val KEY_DRIVER_TRIAL = "driverTrial"
+        private const val KEY_DRIVER_CRASH_SEEN = "driverCrashSeen"
+        private const val KEY_DRIVER_CATALOG_AT = "driverCatalogAt"
+        private const val KEY_DRIVER_CHECKS = "driverChecks"
         private const val KEY_GAME_DIR = "gameDirectory"
         private const val KEY_DISC_IMAGE = "discImage"
         private const val KEY_INSTALL_DISC_IMAGE = "installDiscImage"

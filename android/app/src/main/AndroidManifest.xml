@@ -138,13 +138,42 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
+        <!-- The drivers' screen is also where a driver comes in from
+             another app: a zip shared or opened from a file manager, or a
+             link shared from a browser or a chat (DriverActivity.handleShared).
+             What arrives is only ever shown to the player, who decides; a
+             driver the catalog does not know is unpacked after a warning
+             and used after the self-test. -->
         <activity
             android:name=".DriverActivity"
-            android:exported="false"
+            android:exported="true"
+            android:launchMode="singleTop"
             android:parentActivityName=".MainActivity"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+            <intent-filter android:label="@string/driver_share_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+            </intent-filter>
+            <intent-filter android:label="@string/driver_share_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/zip" />
+                <data android:scheme="content" android:mimeType="application/x-zip-compressed" />
+            </intent-filter>
+        </activity>
+
+        <!-- The driver self-test's process (DriverSelfTest.kt): a driver is
+             opened once in a process's life, and one that crashes or hangs
+             takes this process and not the launcher. -->
+        <service
+            android:name=".DriverTestService"
+            android:exported="false"
+            android:process=":drivertest" />
 
         <activity
             android:name=".DlcActivity"

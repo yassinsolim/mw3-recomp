@@ -56,7 +56,13 @@ object Trail {
         } catch (_: Throwable) {
             ""
         }
-        if (name.endsWith(":game")) "game" else "launcher"
+        // The driver self-test's process too (DriverSelfTest.kt): a driver
+        // that takes it down must not read as the launcher's crash.
+        when {
+            name.endsWith(":game") -> "game"
+            name.endsWith(DriverTestService.PROCESS) -> "drivertest"
+            else -> "launcher"
+        }
     }
 
     private val CRASH: String get() = "last-crash-$suffix.txt"
