@@ -5,10 +5,15 @@
 namespace
 {
     std::atomic<uint64_t> g_last{ 0 };
+    std::atomic<uint32_t> g_draws{ 0 };
+    std::atomic<bool> g_settled{ false };
 
+    // serial 12 bits, flat 1, isolated 10, ground 10, stable 10, luma 8, draws 12.
     uint64_t Pack(const vk::probe::Picture& p)
     {
-        return uint64_t(p.serial) | (uint64_t(p.flat) << 32) | (uint64_t(p.isolated) << 33) | (uint64_t(p.luma) << 44);
+        return uint64_t(p.serial & 0xFFF) | (uint64_t(p.flat) << 12) | (uint64_t(p.isolated & 0x3FF) << 13) |
+               (uint64_t(p.ground & 0x3FF) << 23) | (uint64_t(p.stable & 0x3FF) << 33) |
+               (uint64_t(p.luma & 0xFF) << 43) | (uint64_t(p.draws & 0xFFF) << 51);
     }
 }
 
@@ -16,11 +21,24 @@ vk::probe::Picture vk::probe::Last()
 {
     const uint64_t packed = g_last.load(std::memory_order_relaxed);
     Picture p;
-    p.serial = uint32_t(packed);
-    p.flat = (packed >> 32) & 1;
-    p.isolated = uint32_t((packed >> 33) & 0x7FF);
-    p.luma = uint32_t((packed >> 44) & 0xFF);
+    p.serial = uint32_t(packed & 0xFFF);
+    p.flat = (packed >> 12) & 1;
+    p.isolated = uint32_t((packed >> 13) & 0x3FF);
+    p.ground = uint32_t((packed >> 23) & 0x3FF);
+    p.stable = uint32_t((packed >> 33) & 0x3FF);
+    p.luma = uint32_t((packed >> 43) & 0xFF);
+    p.draws = uint32_t((packed >> 51) & 0xFFF);
     return p;
+}
+
+void vk::probe::Drawn(uint64_t draws)
+{
+    g_draws.store(uint32_t(draws < 4095 ? draws : 4095), std::memory_order_relaxed);
+}
+
+void vk::probe::Settle()
+{
+    g_settled.store(true, std::memory_order_relaxed);
 }
 
 #ifdef MW2_HAVE_VULKAN
@@ -30,14 +48,16 @@ vk::probe::Picture vk::probe::Last()
 #include "../../log.h"
 
 #include <chrono>
+#include <cstring>
 
 namespace
 {
-    // Twice a second for the run's first three minutes of frames: the app
-    // has decided long before (FrameWatch.kt), and a run that is fine pays
-    // for 360 copies of 2,304 samples and nothing after.
+    // Twice a second until the app has seen a picture (Settle), three
+    // minutes of frames at the most: a run on a driver not known yet pays
+    // for a few copies of 2,304 samples, any other for none.
     constexpr int64_t kEveryMs = 500;
     constexpr uint32_t kLooks = 360;
+    static_assert(kLooks <= 0xFFF, "a look's serial is kept in twelve bits");
     constexpr uint32_t kNoSlot = UINT32_MAX;
 
     struct State
@@ -52,6 +72,11 @@ namespace
         uint32_t looks = 0;
         int64_t lastMs = 0;
         bool failed = false;
+        uint32_t pendingDraws = 0;    // what the renderer's newest frame had when the copy was recorded
+        bool haveBefore = false;
+        uint8_t before[vk::probe::kSamples * 4] = {};   // the look before: what stayed where it was
+        int kind = -1;                // what the last look was written down as
+        uint32_t said = 0;
     };
     State g;
 
@@ -110,6 +135,8 @@ void vk::probe::Record(void* deviceHandle, void* physical, void* commandBuffer, 
                        void* frame, uint32_t width, uint32_t height)
 {
     if (g.failed || g.looks >= kLooks || g.pending != kNoSlot || !frame || !width || !height) return;
+    // Settled: the app needs no more. A run that measures the rules goes on to its three minutes.
+    if (g_settled.load(std::memory_order_relaxed) && !diag::Flag("MW2_PICTURE_PROBE_LOG")) return;
     const int64_t now = NowMs();
     if (g.looks && now - g.lastMs < kEveryMs) return;
     if (!g.looks && env::Text("MW2_PICTURE_PROBE") && !env::Flag("MW2_PICTURE_PROBE"))
@@ -144,6 +171,7 @@ void vk::probe::Record(void* deviceHandle, void* physical, void* commandBuffer, 
     copy.imageExtent = { kWidth, kHeight, 1 };
     vkCmdCopyImageToBuffer(commands, g.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g.buffer, 1, &copy);
     g.pending = slot;
+    g.pendingDraws = g_draws.load(std::memory_order_relaxed);
     g.lastMs = now;
 }
 
@@ -151,36 +179,47 @@ void vk::probe::Collect(uint32_t slot)
 {
     if (g.pending != slot || !g.mapped) return;
     g.pending = kNoSlot;
+    const uint8_t* samples = g.mapped;
     // MW2_TEST_PICTURE=flat or noise, in a build with diagnostics: the look
-    // is of one colour or of noise whatever was drawn, to see what the
-    // player of a driver that draws that sees on one that draws the game.
+    // is of one colour, or of speckle on black that is elsewhere every time,
+    // whatever was drawn: what the player of a driver that draws that sees,
+    // on one that draws the game.
+    static uint8_t made[kSamples * 4];
     if (const char* test = diag::Text("MW2_TEST_PICTURE"))
     {
-        static uint8_t made[kWidth * kHeight * 4];
+        if (!g.looks) LOGW("driver: MW2_TEST_PICTURE=%s: every frame is reported as that", test);
         uint32_t state = 12345 + g.looks;
-        for (uint8_t& byte : made)
+        for (uint32_t i = 0; i < kSamples; i++)
         {
             state = state * 1664525u + 1013904223u;
-            byte = test[0] == 'n' ? uint8_t(state >> 24) : 0;
+            const bool speck = test[0] == 'n' && (state >> 24) % 3 == 0;
+            made[i * 4] = speck ? uint8_t(state >> 16) : 0;
+            made[i * 4 + 1] = speck ? uint8_t(state >> 8) : 0;
+            made[i * 4 + 2] = speck ? uint8_t(state) : 0;
         }
-        Picture pretended = Analyse(made);
-        pretended.serial = ++g.looks;
-        g_last.store(Pack(pretended), std::memory_order_relaxed);
-        if (pretended.serial == 1) LOGW("driver: MW2_TEST_PICTURE=%s: every frame is reported as that", test);
-        return;
+        samples = made;
     }
-    Picture picture = Analyse(g.mapped);
+    Picture picture = Analyse(samples, g.haveBefore ? g.before : nullptr);
     picture.serial = ++g.looks;
+    picture.draws = g.pendingDraws;
+    std::memcpy(g.before, samples, sizeof(g.before));
+    g.haveBefore = true;
     g_last.store(Pack(picture), std::memory_order_relaxed);
-    // The first, and any that is one colour or noise: what a log of a black screen needs.
-    if (picture.serial == 1 || picture.flat || picture.isolated >= 120)
+    // What a log of a black or broken screen needs: the first look and every
+    // change of what is seen, thirty lines at the most; every look with
+    // MW2_PICTURE_PROBE_LOG, which is how the rules in FrameWatch.kt are measured.
+    const int kind = picture.flat ? (picture.draws ? 1 : 0) : picture.isolated >= 80 && picture.ground >= 333 ? 2 : 3;
+    static const char* const kKinds[] = { "one colour, nothing drawn", "one colour", "speckle on one colour", "a picture" };
+    const bool all = diag::Flag("MW2_PICTURE_PROBE_LOG");
+    if (all || (kind != g.kind && g.said < 30))
     {
-        static uint32_t said = 0;
-        if (said++ < 12)
-            LOGI("driver: frame look %u: %s, %u per thousand samples unlike their neighbours, brightness %u"
-                 " (first sample #%02X%02X%02X)", picture.serial, picture.flat ? "one colour" : "a picture",
-                 picture.isolated, picture.luma, g.mapped[0], g.mapped[1], g.mapped[2]);
+        g.said++;
+        LOGI("driver: frame look %u: %s; per thousand samples %u unlike their neighbours (%u of them as before),"
+             " %u the ground's colour; brightness %u, %u draws (first sample #%02X%02X%02X)",
+             picture.serial, kKinds[kind], picture.isolated, picture.stable, picture.ground, picture.luma,
+             picture.draws, samples[0], samples[1], samples[2]);
     }
+    g.kind = kind;
 }
 
 void vk::probe::Destroy()

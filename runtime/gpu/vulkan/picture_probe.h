@@ -44,6 +44,25 @@ namespace vk::probe
         auto unlike = [](const uint8_t* p, const uint8_t* q, int by) {
             return std::abs(p[0] - q[0]) > by || std::abs(p[1] - q[1]) > by || std::abs(p[2] - q[2]) > by;
         };
+        auto isolated = [&](const uint8_t* of, uint32_t at) {
+            const uint8_t* p = of + at * 4;
+            return unlike(p, p - 4, kUnlike) && unlike(p, p + 4, kUnlike) &&
+                   unlike(p, p - kWidth * 4, kUnlike) && unlike(p, p + kWidth * 4, kUnlike);
+        };
+        // The middle value of each channel: the colour of the ground wherever
+        // more than half the frame is it, and near enough it down to a third.
+        uint8_t middle[3] = {};
+        for (int c = 0; c < 3; c++)
+        {
+            uint32_t count[256] = {};
+            for (uint32_t i = 0; i < kSamples; i++) count[rgba[i * 4 + c]]++;
+            uint32_t below = 0;
+            for (int value = 0; value < 256; value++)
+            {
+                below += count[value];
+                if (below > kSamples / 2) { middle[c] = uint8_t(value); break; }
+            }
+        }
         Picture picture;
         picture.flat = true;
         uint64_t sum = 0;
