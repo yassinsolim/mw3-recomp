@@ -403,7 +403,7 @@ The rules were measured (`python tools/frame_watch_calibrate.py`, 28 November 20
 
 What this does not catch, by design: speckle that stands still (it is not told from a starfield or a page of small print), a fault over part of a picture, and anything after the first picture. `FrameWatchTest` runs the numbers of those 19,006 looks (`android/app/src/test/resources/frame_looks.tsv`: statistics, no picture) through the rules and holds the margins; `tests/picture_probe_test.cpp` (ctest's `picture-probe`) checks the measuring. In a build with diagnostics `MW2_TEST_PICTURE=flat` or `noise` reports every frame as that, `MW2_PICTURE_PROBE_LOG=1` writes every look to the log, and `MW2_PICTURE_PROBE=0` turns the looking off.
 
-### On the phones (27 November 2026, Modern Warfare 3, a `.da` debug build)
+### On the phones (27 November 2026, `.da` debug builds)
 
 **AYN Thor (Adreno 740, Android 13).**
 
@@ -413,6 +413,21 @@ What this does not catch, by design: speckle that stands still (it is not told f
 - *A driver that draws speckle* (`MW2_TEST_PICTURE=noise`): the same question after 20 seconds (39 of 40 looks speckle). **The picture is fine** closed it and wrote the driver down as good.
 - *The renderer refusing the device on the app's choice* (`MW2_TEST_REFUSE_DEVICE=1`): no question; the run started again on the phone's own driver with the note "Turnip 27.0.0-R2 could not show the game on this phone (...). The app now uses The phone's own driver."
 - *Frames a second* in Survival's 64 seconds of play, the looking off (`MW2_PICTURE_PROBE=0`) and on, two runs each on the same driver: 119.22 and 119.75 off, 119.78 and 119.72 on. A run that is looked at pays for the looks until the first picture -- 8 here -- and none in play.
+- *A link shared to the app* (`am start -a android.intent.action.SEND -t text/plain` with the address; the dialogs' buttons tapped): StevenMXZ's Turnip v27.0.0-R1, which the catalog does not hold, brought "A driver this app does not know" with its name, size and SHA-256; **Test and use** ran the self-test, it passed, the screen said "In use: Turnip v27.0.0-R1", and the next run's log read "this run is on Turnip v27.0.0-R1 [dir:Turnip_v27_0_0-R1], the player's choice" and "the run's first frames are a picture".
+- *Two drivers that fail the self-test for real*: K11MCH1's Turnip v26.0.0 R7 (unknown, by link) and R8 (the catalog's, by link) both crashed in the test's process at compiling its pipelines (SIGSEGV in the driver's `ir3_ra`, `_handle_copies`). The launcher lived, each got "This driver failed the test on this phone and was not selected" with **Use anyway**, the list shows "Failed on this phone: ...", and the driver in use stayed R2. The catalog's "good" for R8 on the 740 is a run of Advanced Warfare on it chosen by hand; the app would not choose it here by itself.
+- *A zip shared to the app* (`am start -a android.intent.action.SEND -t application/zip` with a `content://media/...` address of Turnip v27.0.0-R3 pushed to Download): known by its SHA-256 as the catalog's `turnip-27.0.0-r3`, so no warning; tested, passed, in use.
+- *The player's choice kept*: the launcher started twice more, the app installed over itself (`adb install -r`), and the app made to choose again (`driverAutoKey` changed) all left the imported driver selected; the last wrote "choosing for adreno 740 ...; the player's choice stays" and tested that driver only.
+- *The other four games' starts* (`MW2_PICTURE_PROBE_LOG`, a fresh install each, R2 chosen and tested each time): Modern Warfare 2's S.S.D.D. (299 looks), Call of Duty 4's The Bog (299), Advanced Warfare's Induction (360) and Black Ops 3's Shadows of Evil (321) were each called a picture after 6 to 8 looks judged, and none was asked about. Their looks are in `frame_looks_phones.tsv`, which `FrameWatchTest` starts the watch at every look of.
+
+**Retroid Pocket Flip 2 (Adreno 650, Android 13).**
+
+- *A fresh install* chose Turnip v27.0.0-R2 (ranked first, known good on the 650), the self-test passed ("Turnip Adreno (TM) 650 (vendor 0x5143 device 0x06050002), Mesa 27.0.0-devel (git-2648b2059f), Vulkan 1.3.367"), and Settings → Graphics driver showed it in use with "Passed the test on this phone"; two more starts of the launcher made no second choice.
+- *A real start* (Survival on Dome, 199 looks): a picture after 8 looks judged, 4 looks of one colour in the run, at most 88 samples in a thousand unlike their neighbours, no speckle.
+- *One colour* (`MW2_TEST_PICTURE=flat`): the question after 60 seconds, offering the phone's own driver; taken, the run started again on it and showed a picture, R2 written down as failed. *Speckle* (`noise`): the question after 20 seconds (39 of 40 looks).
+- *The renderer refusing the device*: no question; the run started again on the phone's own driver and showed a picture, and the launcher's next pass chose the project's API 29 Turnip in its place (self-test passed).
+- *Frames a second* in Survival's 61 seconds of play on that Turnip, the screen's 60 Hz the limit: 60.23 and 60.57 with the looking off, 60.52 and 60.56 with it on.
+
+Not run on a phone: the imports on the Flip 2, a driver fetched from the catalog's own list by its **Download** row, the catalog's public copy (it is not published yet: every start here logged "the catalog could not be fetched: the server answered 404" and went on with the carried one), and any Adreno 8xx or non-Adreno phone.
 
 Found on the way and mended: the app's older rule that gives a Snapdragon the Turnip it carries selected that driver again at every start, over a driver the app had chosen in its place (so a run started straight after a fallback was back on the driver that had failed); it now stands down once the app has made its own choice (`DriverStore.installBundled`, `Prefs.driverPicked`). And what failed on a phone was forgotten when a run asked the launcher to choose again; it is now forgotten only when the app, the catalog or the system changes (`Prefs.driverVerdictsKey`).
 
