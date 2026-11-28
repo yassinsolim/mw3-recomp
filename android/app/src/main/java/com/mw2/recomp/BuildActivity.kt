@@ -18,8 +18,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
-import java.io.FileInputStream
-import java.io.IOException
 import kotlin.concurrent.thread
 
 /**
@@ -80,10 +78,7 @@ class BuildActivity : AppCompatActivity() {
         if (result.resultCode == Activity.RESULT_OK && uri != null) {
             // The permission is kept: the image is offered to Install & Play.
             DiscImage.keep(this, uri)
-            takeExecutables(uri.toString()) {
-                val descriptor = contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("the file could not be opened")
-                descriptor.use { FileInputStream(it.fileDescriptor).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
-            }
+            takeExecutables(uri.toString()) { GameBuild.takeFromImage(this, uri.toString())?.let { throw it } }
         }
     }
 
@@ -91,7 +86,7 @@ class BuildActivity : AppCompatActivity() {
         val path = result.data?.getStringExtra(FileBrowserActivity.EXTRA_PATH)
         if (result.resultCode == Activity.RESULT_OK && path != null) {
             if (File(path).isDirectory) takeFromFolder(File(path))
-            else takeExecutables(path) { FileInputStream(path).channel.use { image -> GameBuild.takeFromDiscImage(this, image) } }
+            else takeExecutables(path) { GameBuild.takeFromImage(this, path)?.let { throw it } }
         }
     }
 
@@ -163,7 +158,7 @@ class BuildActivity : AppCompatActivity() {
         }
         taking = true
         thread(name = "build-executables") {
-            val found = DiscImage.inFolder(this, folder).games.firstOrNull { GameBuild.takeFromImage(this, it.path) }
+            val found = DiscImage.inFolder(this, folder).games.firstOrNull { GameBuild.takeFromImage(this, it.path) == null }
             handler.post {
                 taking = false
                 executables = found != null
@@ -192,7 +187,8 @@ class BuildActivity : AppCompatActivity() {
                 take()
                 null
             } catch (error: Exception) {
-                error.message ?: error.toString()
+                // A refused image or executable is said by its kind; anything else by what it says.
+                (error as? DiscRefusal)?.text(this, image.orEmpty()) ?: error.message ?: error.toString()
             }
             handler.post {
                 taking = false

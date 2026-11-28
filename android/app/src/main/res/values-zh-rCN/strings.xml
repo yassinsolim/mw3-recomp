@@ -558,7 +558,6 @@
     <string name="build_done_explained">游戏代码已构建完成：可从启动器启动游戏。\n\n现在你可以在 Android 设置中卸载“CoD recompilation build tools”以节省空间。这些工具由全部四个移植版共用：请等到没有任何移植版在构建时再卸载。请保留游戏应用、游戏代码和光盘镜像。如果以后的更新需要重新构建，应用会重新下载这些工具，Android 会请你安装。</string>
     <string name="build_failed">游戏代码构建已停止</string>
     <string name="build_failed_where">已完成的部分会保留，“构建”会从此处继续。报告位于 %1$s。</string>
-    <string name="build_unsupported_executable">%1$s 不是本应用支持的游戏版本。</string>
     <string name="build_toolchain_missing">未安装工具链包。</string>
     <string name="build_toolchain_other">此设备上的工具链包属于本应用的其他版本。请安装本应用发布版本附带的工具链包。</string>
     <string name="build_tool_failed">%1$s失败：\n%2$s</string>
@@ -625,7 +624,12 @@
     <string name="setup_disc_not_image">这不是 Xbox 360 光盘镜像。请选择用你的 %1$s 光盘制作的 .iso 文件。</string>
     <string name="setup_disc_not_on_device">此文件没有存储在本设备上（例如云端文件）。请先将它下载到设备，再重新选择。</string>
     <string name="setup_disc_incomplete">这是 %1$s，但缺少光盘的一部分内容（多人游戏）。请选择你光盘的完整 .iso 文件。</string>
-    <string name="setup_disc_version">这是 %1$s，但此应用暂不支持这个版本的光盘（其他地区或其他版本）。</string>
+    <string name="setup_disc_version">这是 %1$s，但其中的可执行文件是版本 %2$s，而此应用支持的是版本 %3$s（其他地区、其他版本或其他压制批次的光盘）。请选择受支持光盘的镜像。</string>
+    <string name="setup_disc_version_found">这是 %1$s，但其中的可执行文件是版本 %2$s，此应用不支持该版本（其他地区、其他版本或其他压制批次的光盘）。</string>
+    <string name="setup_disc_altered">这是 %1$s，但其中的 %2$s 与光盘上的不一致：文件在制作镜像时被改动或损坏。请用你的光盘重新制作 .iso 文件。</string>
+    <string name="setup_disc_permission">Android 不再允许此应用读取 %1$s：读取权限已被收回。请重新选择 .iso 文件。</string>
+    <string name="setup_disc_unreadable">无法把 %1$s 读到末尾（%2$s）。文件可能已损坏，或它所在的存储卡或硬盘出了故障。请重新选择，或先把它复制到手机自己的存储空间。</string>
+    <string name="setup_disc_no_space">此设备的可用空间不足，无法设置游戏：大约需要 %1$s。请腾出这么多空间，然后重新选择文件。</string>
     <string name="setup_disc_none_in_folder">该文件夹中没有 %1$s 的 .iso 文件。请打开文件所在的文件夹并点按该文件。</string>
     <string name="setup_disc_failed">无法设置光盘镜像：%1$s</string>
     <string name="setup_build_heading">构建游戏</string>

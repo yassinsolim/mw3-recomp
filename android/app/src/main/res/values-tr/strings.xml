@@ -559,7 +559,6 @@
     <string name="build_done_explained">Oyun kodu derlendi ve hazır: oyun başlatıcıdan açılır.\n\nArtık yer açmak için Android Ayarlar\'dan \"CoD recompilation build tools\" uygulamasını kaldırabilirsin. Araçlar dört portun hepsi tarafından ortak kullanılıyor: hiçbiri derleme yapmıyorken kaldır. Oyun uygulamasını, oyun kodunu ve disk kalıplarını sakla. İleride bir güncelleme yeniden derleme gerektirirse uygulama araçları tekrar indirir ve Android senden onları yüklemeni ister.</string>
     <string name="build_failed">Oyun kodunun derlenmesi durdu</string>
     <string name="build_failed_where">Yapılanlar korunuyor; Derle oradan devam eder. Rapor şurada: %1$s.</string>
-    <string name="build_unsupported_executable">%1$s, bu uygulamanın desteklediği bir oyun sürümü değil.</string>
     <string name="build_toolchain_missing">Araç zinciri paketi yüklü değil.</string>
     <string name="build_toolchain_other">Bu cihazdaki araç zinciri paketi, bu uygulamanın başka bir sürümüne ait. Bu uygulamanın sürümüyle gelen paketi yükle.</string>
     <string name="build_tool_failed">%1$s başarısız oldu:\n%2$s</string>
@@ -626,7 +625,12 @@
     <string name="setup_disc_not_image">Bu bir Xbox 360 disk kalıbı değil. %1$s diskinden oluşturulan .iso dosyasını seç.</string>
     <string name="setup_disc_not_on_device">Bu dosya bu cihazda kayıtlı değil (örneğin bir bulut dosyası). Önce cihaza indir, sonra yeniden seç.</string>
     <string name="setup_disc_incomplete">Bu %1$s, ama diskin bir kısmı eksik (çok oyunculu). Diskinin eksiksiz .iso dosyasını seç.</string>
-    <string name="setup_disc_version">Bu %1$s, ama diskin bu uygulamanın henüz desteklemediği bir sürümü (başka bir bölge ya da başka bir baskı).</string>
+    <string name="setup_disc_version">Bu %1$s, ama yürütülebilir dosyası %2$s sürümü ve bu uygulama %3$s sürümünü destekliyor (başka bir bölge, başka bir baskı ya da başka bir üretim). Desteklenen diskin görüntüsünü seç.</string>
+    <string name="setup_disc_version_found">Bu %1$s, ama yürütülebilir dosyası %2$s sürümü ve bu uygulama bu sürümü desteklemiyor (başka bir bölge, başka bir baskı ya da başka bir üretim).</string>
+    <string name="setup_disc_altered">Bu %1$s, ama içindeki %2$s diskte olan dosya değil: görüntü oluşturulurken değiştirilmiş ya da bozulmuş. .iso dosyasını diskinden yeniden oluştur.</string>
+    <string name="setup_disc_permission">Android artık bu uygulamanın %1$s dosyasını okumasına izin vermiyor: okuma izni geri alındı. .iso dosyasını yeniden seç.</string>
+    <string name="setup_disc_unreadable">%1$s sonuna kadar okunamadı (%2$s). Dosya bozuk olabilir ya da bulunduğu kart veya sürücü arızalanmış olabilir. Yeniden seç ya da önce telefonun kendi depolamasına kopyala.</string>
+    <string name="setup_disc_no_space">Bu cihazda oyunu kurmak için yeterli boş alan yok: yaklaşık %1$s gerekiyor. O kadar yer aç, sonra dosyayı yeniden seç.</string>
     <string name="setup_disc_none_in_folder">Bu klasörde %1$s için .iso dosyası yok. Dosyanın bulunduğu klasörü aç ve dosyaya dokun.</string>
     <string name="setup_disc_failed">Disk kalıbı hazırlanamadı: %1$s</string>
     <string name="setup_build_heading">Oyunu derle</string>

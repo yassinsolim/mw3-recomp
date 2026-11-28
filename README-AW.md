@@ -381,7 +381,8 @@ How it works and what was measured:
 | "There is no .iso file of Advanced Warfare in that folder" | Open the folder the `.iso` is in and tap the `.iso` itself, or use **CHOOSE THE .ISO FILE** |
 | "Play from the disc image" is greyed out (**Repair / rebuild**) | What is chosen is a folder of extracted game files, which can only be copied; the screen says so. Choose the `.iso` itself to play without copying |
 | "Your .iso file is not where it was" | The SD card is out, or an `.iso` was moved or deleted: put it back, or tap the large button and pick it again |
-| "This is Advanced Warfare, but not a version of the disc this app supports" | The `.iso` is not the USA/Europe disc this port was made for |
+| "This is Advanced Warfare, but its executable is version N and this app supports version 10" | The `.iso` is not the USA/Europe disc this port was made for: the message names the version found and the one supported |
+| "Android no longer lets this app read …", "… could not be read to the end", "There is not enough free space on this device …" | The permission to read the `.iso` was taken back, or the file, its card or its drive is failing (pick it again, or copy it to the phone's own storage first), or the phone has no room for the executables (the message says how much) |
 | The app asks for a second disc | The game needs both: pick the other disc's `.iso` (the install disc after the game disc) |
 | Nothing happens on the Brightness screen | Move the slider left or right first, then press **A**; the same on the next screen |
 | Android did not ask to install the build tools, or you tapped Cancel | Tap **Retry**. If Android says the app isn't allowed to install unknown apps: **Settings**, turn on **Allow from this source**, go back once, then **Install** |

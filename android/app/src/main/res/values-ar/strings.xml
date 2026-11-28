@@ -563,7 +563,6 @@
     <string name="build_done_explained">تم بناء كود اللعبة وهو جاهز: تبدأ اللعبة من المشغّل.\n\nيمكنك الآن إلغاء تثبيت \"CoD recompilation build tools\" من إعدادات Android لتوفير المساحة. الأدوات مشتركة بين المنافذ الأربعة: انتظر حتى لا يكون أيٌّ منها قيد البناء. احتفظ بتطبيق اللعبة وكود اللعبة وصور الأقراص. إن احتاج تحديث لاحق إلى إعادة البناء، فسيُنزّل التطبيق الأدوات مجددًا ويطلب منك Android تثبيتها.</string>
     <string name="build_failed">توقف بناء كود اللعبة</string>
     <string name="build_failed_where">ما أُنجز محفوظ، وسيتابع بناء من حيث توقف. يوجد تقرير في %1$s.</string>
-    <string name="build_unsupported_executable">%1$s ليس إصدارًا من اللعبة يدعمه هذا التطبيق.</string>
     <string name="build_toolchain_missing">حزمة أدوات البناء غير مثبتة.</string>
     <string name="build_toolchain_other">حزمة أدوات البناء على هذا الجهاز مخصّصة لإصدار آخر من هذا التطبيق. ثبّت الحزمة الخاصة بهذا التطبيق من الإصدار نفسه.</string>
     <string name="build_tool_failed">فشل %1$s:\n%2$s</string>
@@ -630,7 +629,12 @@
     <string name="setup_disc_not_image">هذه ليست صورة قرص Xbox 360. اختر ملف ‎.iso الذي أنشأته من قرص %1$s الخاص بك.</string>
     <string name="setup_disc_not_on_device">هذا الملف غير مخزّن على هذا الجهاز (ملف سحابي مثلًا). نزّله على الجهاز أولًا، ثم اختره من جديد.</string>
     <string name="setup_disc_incomplete">هذا %1$s، لكن جزءًا من القرص مفقود فيه (اللعب الجماعي). اختر ملف ‎.iso الكامل لقرصك.</string>
-    <string name="setup_disc_version">هذا %1$s، لكنه إصدار من القرص لا يدعمه هذا التطبيق بعد (منطقة أخرى أو نسخة أخرى).</string>
+    <string name="setup_disc_version">هذا %1$s، لكن الملف التنفيذي فيه هو الإصدار %2$s بينما يدعم هذا التطبيق الإصدار %3$s (منطقة أخرى أو نسخة أخرى أو طبعة أخرى من القرص). اختر صورة القرص المدعوم.</string>
+    <string name="setup_disc_version_found">هذا %1$s، لكن الملف التنفيذي فيه هو الإصدار %2$s، وهذا التطبيق لا يدعمه (منطقة أخرى أو نسخة أخرى أو طبعة أخرى من القرص).</string>
+    <string name="setup_disc_altered">هذا %1$s، لكن الملف %2$s الموجود فيه ليس هو الذي في القرص: تم تغييره أو تلفه عند إنشاء الصورة. أنشئ ملف ‎.iso من قرصك مرة أخرى.</string>
+    <string name="setup_disc_permission">لم يعد Android يسمح لهذا التطبيق بقراءة %1$s: تم سحب إذن قراءته. اختر ملف ‎.iso من جديد.</string>
+    <string name="setup_disc_unreadable">تعذّرت قراءة %1$s حتى النهاية (%2$s). ربما الملف تالف، أو تعطّلت البطاقة أو وحدة التخزين الموجود عليها. اختره من جديد، أو انسخه أولًا إلى مساحة تخزين الهاتف نفسه.</string>
+    <string name="setup_disc_no_space">لا توجد مساحة فارغة كافية على هذا الجهاز لإعداد اللعبة: يلزم نحو %1$s. وفّر هذه المساحة ثم اختر الملف من جديد.</string>
     <string name="setup_disc_none_in_folder">لا يوجد ملف ‎.iso لـ %1$s في هذا المجلد. افتح المجلد الذي يوجد فيه الملف واضغط على الملف.</string>
     <string name="setup_disc_failed">تعذّر إعداد صورة القرص: %1$s</string>
     <string name="setup_build_heading">بناء اللعبة</string>

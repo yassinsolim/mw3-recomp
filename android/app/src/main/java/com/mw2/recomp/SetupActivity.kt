@@ -218,11 +218,13 @@ class SetupActivity : AppCompatActivity() {
      */
     private fun takeImage(image: String): String? {
         val game = Setup.gameName(this)
-        val (kind, title) = DiscImage.inspect(this, image) ?: return getString(
-            // A document that is no file on this device (a cloud entry) cannot be read at positions.
-            if (DiscImage.isDocument(image) && readable(image)) R.string.setup_disc_not_on_device else R.string.setup_disc_not_image,
-            game,
-        )
+        val (kind, title) = try {
+            DiscImage.inspect(this, image)
+        } catch (refusal: DiscRefusal) {
+            // Gone, no longer readable, or no disc image: said apart, and written to the log with what the system said.
+            GameBuild.logDiscImage(this, image, refusal)
+            return refusal.text(this, image)
+        }
         when (kind) {
             DiscImage.Kind.OTHER -> return when {
                 // This game's disc without one of its executables: an image
@@ -235,7 +237,7 @@ class SetupActivity : AppCompatActivity() {
             // one this app has the tables for: another is another region's
             // or a later pressing's.
             DiscImage.Kind.GAME ->
-                if (GameBuild.offered(this) && !GameBuild.takeFromImage(this, image)) return getString(R.string.setup_disc_version, game)
+                if (GameBuild.offered(this)) GameBuild.takeFromImage(this, image)?.let { return it.text(this, image) }
             DiscImage.Kind.INSTALL -> Unit
         }
         val source = DiscImage.source(this, image) ?: return getString(R.string.setup_disc_not_on_device, game)
@@ -274,13 +276,6 @@ class SetupActivity : AppCompatActivity() {
             else -> emptyList()
         }.firstOrNull() ?: return null
         return takeImage(other.path)
-    }
-
-    /** Whether the document [image] can be opened at all, whatever kind of file it is. */
-    private fun readable(image: String): Boolean = try {
-        contentResolver.openFileDescriptor(Uri.parse(image), "r")?.use { true } ?: false
-    } catch (_: Throwable) {
-        false
     }
 
     // ---- step 2: the build ---------------------------------------------------------

@@ -10,6 +10,7 @@ import android.system.OsConstants
 import android.os.Environment
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -42,21 +43,27 @@ internal class DiscImage(private val channel: FileChannel) {
         base = longArrayOf(0x0, 0xFD90000, 0x2080000, 0x18300000, 0x18310000).firstOrNull {
             try {
                 read(it + 32 * SECTOR, MAGIC.size).array().contentEquals(MAGIC)
-            } catch (_: IOException) {
+            } catch (_: DiscRefusal.NotThisGame) {
                 false
             }
-        } ?: throw IOException("this is not an Xbox 360 disc image")
+        } ?: throw DiscRefusal.NotThisGame("this is not an Xbox 360 disc image")
         val volume = read(base + 32 * SECTOR + MAGIC.size, 8)
         val sector = volume.int.toLong() and 0xFFFFFFFFL
         val size = volume.int
-        if (size <= 0 || size > (1 shl 24)) throw IOException("the disc image's root folder is damaged")
+        if (size <= 0 || size > (1 shl 24)) throw DiscRefusal.NotThisGame("the disc image's root folder is damaged")
         root = read(base + sector * SECTOR, size)
     }
 
     private fun read(offset: Long, size: Int): ByteBuffer {
         val buffer = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
         while (buffer.hasRemaining()) {
-            if (channel.read(buffer, offset + buffer.position()) <= 0) throw IOException("the disc image is cut short")
+            val read = try {
+                channel.read(buffer, offset + buffer.position())
+            } catch (error: IOException) {
+                // What the system says: a card that failed, a file taken away, a permission taken back.
+                throw DiscRefusal.unreadable(error)
+            }
+            if (read <= 0) throw DiscRefusal.NotThisGame("the disc image is cut short")
         }
         buffer.flip()
         return buffer
@@ -115,7 +122,7 @@ internal class DiscImage(private val channel: FileChannel) {
             if (size <= 0 || size > (1 shl 24)) return null
             table = try {
                 read(at, size.toInt())
-            } catch (_: IOException) {
+            } catch (_: DiscRefusal.NotThisGame) {
                 return null
             }
         }
@@ -146,7 +153,7 @@ internal class DiscImage(private val channel: FileChannel) {
                 return read(at + where + 12, 4).order(ByteOrder.BIG_ENDIAN).int.toLong() and 0xFFFFFFFFL
             }
             null
-        } catch (_: IOException) {
+        } catch (_: DiscRefusal.NotThisGame) {
             null
         }
     }
@@ -250,15 +257,27 @@ internal class DiscImage(private val channel: FileChannel) {
             }
         }
 
-        /** [what] of [image], a path or a document's address, read as a disc image; null when it is none or cannot be read. */
-        private fun <T> opened(context: Context, image: String, what: (DiscImage) -> T): T? = try {
-            val channel = if (isDocument(image)) {
-                context.contentResolver.openFileDescriptor(Uri.parse(image), "r")
-                    ?.let { ParcelFileDescriptor.AutoCloseInputStream(it).channel }
+        /**
+         * The image opened for reading at positions: its path, or a document's
+         * address. Throws a [DiscRefusal.Unreadable] that says whether it is
+         * gone or its permission is.
+         */
+        fun open(context: Context, image: String): FileChannel = try {
+            if (isDocument(image)) {
+                // A provider that answers with no file: the entry is gone.
+                val descriptor = context.contentResolver.openFileDescriptor(Uri.parse(image), "r")
+                    ?: throw FileNotFoundException("the provider has no file for $image")
+                ParcelFileDescriptor.AutoCloseInputStream(descriptor).channel
             } else {
                 FileInputStream(image).channel
             }
-            channel?.use { what(DiscImage(it)) }
+        } catch (error: Exception) {
+            throw DiscRefusal.unreadable(error)
+        }
+
+        /** [what] of [image], a path or a document's address, read as a disc image; null when it is none or cannot be read. */
+        private fun <T> opened(context: Context, image: String, what: (DiscImage) -> T): T? = try {
+            open(context, image).use { what(DiscImage(it)) }
         } catch (_: Throwable) {
             // Not readable, not an image, or a provider that took the
             // permission back: all the same to the one asking.
@@ -271,8 +290,18 @@ internal class DiscImage(private val channel: FileChannel) {
          */
         fun kindOf(context: Context, image: String): Kind? = opened(context, image) { it.kind() }
 
-        /** What [image] is to this app and the number of the game it is a disc of; null as [kindOf] is. */
-        fun inspect(context: Context, image: String): Pair<Kind, Long?>? = opened(context, image) { Pair(it.kind(), it.game()) }
+        /**
+         * What [image] is to this app and the number of the game it is a disc
+         * of. Throws a [DiscRefusal] that says why it could not be read: gone,
+         * unreadable, or no disc image.
+         */
+        fun inspect(context: Context, image: String): Pair<Kind, Long?> = try {
+            open(context, image).use { channel -> DiscImage(channel).let { Pair(it.kind(), it.game()) } }
+        } catch (refusal: DiscRefusal) {
+            throw refusal
+        } catch (error: Exception) {
+            throw DiscRefusal.Failed(error)
+        }
 
         private fun isImageFile(file: File): Boolean =
             file.name.endsWith(".iso", ignoreCase = true) && file.isFile && file.length() > SMALLEST

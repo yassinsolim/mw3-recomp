@@ -560,7 +560,6 @@
     <string name="build_done_explained">Le code du jeu est compilé et prêt : le jeu se lance depuis le lanceur.\n\nVous pouvez maintenant désinstaller \"CoD recompilation build tools\" dans les Paramètres d\'Android pour gagner de la place. Les outils sont partagés par les quatre portages : attendez qu\'aucun ne soit en compilation. Gardez l\'appli du jeu, le code du jeu et les images disque. Si une future mise à jour exige une recompilation, l\'appli retélécharge les outils et Android vous demande de les installer.</string>
     <string name="build_failed">La compilation du code du jeu s\'est arrêtée</string>
     <string name="build_failed_where">Ce qui a été fait est conservé, et Compiler reprend à partir de là. Un rapport se trouve dans %1$s.</string>
-    <string name="build_unsupported_executable">%1$s n\'est pas une version du jeu prise en charge par cette appli.</string>
     <string name="build_toolchain_missing">Le paquet de la chaîne de compilation n\'est pas installé.</string>
     <string name="build_toolchain_other">Le paquet d\'outils de compilation de cet appareil correspond à une autre version de cette appli. Installez celui de la version publiée de cette appli.</string>
     <string name="build_tool_failed">Échec de %1$s :\n%2$s</string>
@@ -627,7 +626,12 @@
     <string name="setup_disc_not_image">Ce n\'est pas une image disque Xbox 360. Choisissez le fichier .iso créé à partir de votre disque %1$s.</string>
     <string name="setup_disc_not_on_device">Ce fichier n\'est pas stocké sur cet appareil (un fichier dans le cloud, par exemple). Téléchargez-le d\'abord sur l\'appareil, puis choisissez-le à nouveau.</string>
     <string name="setup_disc_incomplete">Ceci est %1$s, mais une partie du disque manque (le multijoueur). Choisissez le fichier .iso complet de votre disque.</string>
-    <string name="setup_disc_version">Ceci est %1$s, mais pas une version du disque que cette appli prend encore en charge (autre région ou autre édition).</string>
+    <string name="setup_disc_version">Ceci est %1$s, mais son exécutable est en version %2$s et cette appli prend en charge la version %3$s (autre région, édition ou pressage du disque). Choisissez une image du disque pris en charge.</string>
+    <string name="setup_disc_version_found">Ceci est %1$s, mais son exécutable est en version %2$s, que cette appli ne prend pas en charge (autre région, édition ou pressage du disque).</string>
+    <string name="setup_disc_altered">Ceci est %1$s, mais %2$s n\'est pas celui du disque : le fichier a été modifié ou endommagé lors de la création de l\'image. Refaites le fichier .iso à partir de votre disque.</string>
+    <string name="setup_disc_permission">Android n\'autorise plus cette appli à lire %1$s : l\'autorisation de le lire a été retirée. Choisissez à nouveau le fichier .iso.</string>
+    <string name="setup_disc_unreadable">%1$s n\'a pas pu être lu jusqu\'au bout (%2$s). Le fichier est peut-être endommagé, ou la carte ou le disque où il se trouve est défaillant. Choisissez-le à nouveau, ou copiez-le d\'abord dans le stockage propre du téléphone.</string>
+    <string name="setup_disc_no_space">Il n\'y a pas assez d\'espace libre sur cet appareil pour installer le jeu : environ %1$s sont nécessaires. Libérez cet espace, puis choisissez à nouveau le fichier.</string>
     <string name="setup_disc_none_in_folder">Il n\'y a aucun fichier .iso de %1$s dans ce dossier. Ouvrez le dossier où se trouve le fichier et appuyez dessus.</string>
     <string name="setup_disc_failed">Impossible de préparer l\'image disque : %1$s</string>
     <string name="setup_build_heading">Créer le jeu</string>

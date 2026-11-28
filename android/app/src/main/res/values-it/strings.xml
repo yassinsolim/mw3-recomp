@@ -560,7 +560,6 @@
     <string name="build_done_explained">Il codice del gioco è compilato e pronto: il gioco si avvia dal launcher.\n\nOra puoi disinstallare \"CoD recompilation build tools\" dalle Impostazioni di Android per liberare spazio. Gli strumenti sono condivisi da tutti e quattro i port: aspetta che nessuno stia compilando. Tieni l\'app del gioco, il codice del gioco e le immagini del disco. Se un aggiornamento futuro richiede una nuova compilazione, l\'app riscarica gli strumenti e Android ti chiede di installarli.</string>
     <string name="build_failed">La compilazione del codice del gioco si è interrotta</string>
     <string name="build_failed_where">Il lavoro fatto viene conservato e Compila riparte da lì. Trovi un report in %1$s.</string>
-    <string name="build_unsupported_executable">%1$s non è una versione del gioco supportata da questa app.</string>
     <string name="build_toolchain_missing">Il pacchetto della toolchain non è installato.</string>
     <string name="build_toolchain_other">Il pacchetto toolchain su questo dispositivo è per un\'altra versione di questa app. Installa quello della release di questa app.</string>
     <string name="build_tool_failed">%1$s non riuscito:\n%2$s</string>
@@ -627,7 +626,12 @@
     <string name="setup_disc_not_image">Questa non è un\'immagine di un disco Xbox 360. Scegli il file .iso creato dal tuo disco di %1$s.</string>
     <string name="setup_disc_not_on_device">Questo file non è salvato sul dispositivo (ad esempio è un file nel cloud). Scaricalo prima sul dispositivo, poi sceglilo di nuovo.</string>
     <string name="setup_disc_incomplete">Questo è %1$s, ma manca una parte del disco (il multigiocatore). Scegli il file .iso completo del tuo disco.</string>
-    <string name="setup_disc_version">Questo è %1$s, ma questa versione del disco non è ancora supportata dall\'app (un\'altra regione o un\'altra edizione).</string>
+    <string name="setup_disc_version">Questo è %1$s, ma il suo eseguibile è la versione %2$s e questa app supporta la versione %3$s (un\'altra regione, edizione o stampa del disco). Scegli un\'immagine del disco supportato.</string>
+    <string name="setup_disc_version_found">Questo è %1$s, ma il suo eseguibile è la versione %2$s, che questa app non supporta (un\'altra regione, edizione o stampa del disco).</string>
+    <string name="setup_disc_altered">Questo è %1$s, ma %2$s non è quello del disco: il file è stato modificato o danneggiato quando è stata creata l\'immagine. Crea di nuovo il file .iso dal tuo disco.</string>
+    <string name="setup_disc_permission">Android non consente più a questa app di leggere %1$s: il permesso di leggerlo è stato revocato. Scegli di nuovo il file .iso.</string>
+    <string name="setup_disc_unreadable">Impossibile leggere %1$s fino alla fine (%2$s). Il file potrebbe essere danneggiato, oppure la scheda o l\'unità su cui si trova ha avuto un guasto. Sceglilo di nuovo, o copialo prima nella memoria del telefono.</string>
+    <string name="setup_disc_no_space">Non c\'è abbastanza spazio libero su questo dispositivo per configurare il gioco: servono circa %1$s. Libera tutto quello spazio e scegli di nuovo il file.</string>
     <string name="setup_disc_none_in_folder">In quella cartella non c\'è nessun file .iso di %1$s. Apri la cartella in cui si trova il file e tocca il file.</string>
     <string name="setup_disc_failed">Impossibile preparare l\'immagine del disco: %1$s</string>
     <string name="setup_build_heading">Compila il gioco</string>

@@ -273,7 +273,8 @@ How it works and what was measured:
 | Problem | What to do |
 |---|---|
 | "The game is not built yet" or "The game has to be built first" | Tap the large button on the main screen: it builds the game |
-| "This is Modern Warfare 3, but not a version of the disc this app supports" | The `.iso` is a disc build this port was not made for ([accepted builds](tools/check_mw3_xex.py)) |
+| "This is Modern Warfare 3, but its executable is version N and this app supports version 2 / 22" | The `.iso` is a disc build this port was not made for ([accepted builds](tools/check_mw3_xex.py)): the message names the version found and the ones supported |
+| "Your .iso file is not where it was", "Android no longer lets this app read …", "… could not be read to the end", "There is not enough free space on this device …" | The `.iso` was moved or deleted or its SD card is out; the permission to read it was taken back; the file, its card or its drive is failing (pick it again, or copy it to the phone's own storage first); or the phone has no room for the executables (the message says how much) |
 | The build stopped or failed | What was done is kept: tap **Retry**. If it fails again, tap **Share log** under it and attach the file to an issue |
 | Android did not ask to install the build tools, or you tapped Cancel | Tap **Retry**. If Android says the app isn't allowed to install unknown apps: **Settings**, turn on **Allow from this source**, go back once, then **Install** |
 | Stuck at 60 Hz on the AYN Thor | See Tips: Smooth Display |

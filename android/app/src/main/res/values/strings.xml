@@ -611,7 +611,6 @@
     <string name="build_done_explained">The game code is built and ready: the game starts from the launcher.\n\nYou can now uninstall "CoD recompilation build tools" in Android Settings to save space. The tools are shared by all four ports: wait until none is building. Keep the game app, game code and disc images. If a later update needs a rebuild, the app downloads the tools again and Android asks you to install them.</string>
     <string name="build_failed">The build of the game code stopped</string>
     <string name="build_failed_where">What was done is kept, and Build carries on from it. A report is in %1$s.</string>
-    <string name="build_unsupported_executable">%1$s is not a version of the game this app supports.</string>
     <string name="build_toolchain_missing">The toolchain package is not installed.</string>
     <string name="build_toolchain_other">The toolchain package on this device is for another version of this app. Install the one from this app\'s release.</string>
     <string name="build_tool_failed">%1$s failed:\n%2$s</string>
@@ -685,7 +684,12 @@
     <string name="setup_disc_not_image">This is not an Xbox 360 disc image. Pick the .iso file made from your %1$s disc.</string>
     <string name="setup_disc_not_on_device">This file is not stored on this device (a cloud file, for one). Download it to the device first, then pick it again.</string>
     <string name="setup_disc_incomplete">This is %1$s, but part of the disc is missing from it (the multiplayer). Pick the complete .iso file of your disc.</string>
-    <string name="setup_disc_version">This is %1$s, but not a version of the disc this app supports yet (another region, or another edition).</string>
+    <string name="setup_disc_version">This is %1$s, but its executable is version %2$s and this app supports version %3$s (another region, edition or pressing of the disc). Pick an image of the supported disc.</string>
+    <string name="setup_disc_version_found">This is %1$s, but its executable is version %2$s, which this app does not support (another region, edition or pressing of the disc).</string>
+    <string name="setup_disc_altered">This is %1$s, but %2$s on it is not the one the disc has: the file was changed or damaged when the image was made. Make the .iso file again from your disc.</string>
+    <string name="setup_disc_permission">Android no longer lets this app read %1$s: the permission to read it was taken back. Pick the .iso file again.</string>
+    <string name="setup_disc_unreadable">%1$s could not be read to the end (%2$s). The file may be damaged, or the card or drive it is on failed. Pick it again, or copy it to the phone\'s own storage first.</string>
+    <string name="setup_disc_no_space">There is not enough free space on this device to set the game up: about %1$s are needed. Free that much, then pick the file again.</string>
     <string name="setup_disc_none_in_folder">There is no .iso file of %1$s in that folder. Open the folder the file is in and tap the file.</string>
     <string name="setup_disc_failed">The disc image could not be set up: %1$s</string>
     <!-- step 2: the build -->

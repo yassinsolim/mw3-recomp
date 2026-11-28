@@ -558,7 +558,6 @@
     <string name="build_done_explained">게임 코드 빌드가 끝나 준비됐어요. 이제 런처에서 게임을 시작할 수 있어요.\n\n공간을 절약하려면 Android 설정에서 \"CoD recompilation build tools\"를 제거해도 돼요. 이 도구는 네 가지 포트가 함께 사용하니 빌드 중인 포트가 없을 때 제거해 주세요. 게임 앱, 게임 코드, 디스크 이미지는 지우지 마세요. 나중에 업데이트로 다시 빌드해야 하면 앱이 도구를 다시 다운로드하고 Android에서 설치를 요청해요.</string>
     <string name="build_failed">게임 코드 빌드가 중단되었어요</string>
     <string name="build_failed_where">완료된 작업은 유지되고, 빌드는 거기서부터 이어져요. 보고서는 %1$s에 있어요.</string>
-    <string name="build_unsupported_executable">%1$s은(는) 이 앱이 지원하는 게임 버전이 아니에요.</string>
     <string name="build_toolchain_missing">툴체인 패키지가 설치되어 있지 않아요.</string>
     <string name="build_toolchain_other">이 기기의 툴체인 패키지는 이 앱의 다른 버전용이에요. 이 앱 릴리스에 포함된 패키지를 설치해 주세요.</string>
     <string name="build_tool_failed">%1$s 실패:\n%2$s</string>
@@ -625,7 +624,12 @@
     <string name="setup_disc_not_image">Xbox 360 디스크 이미지가 아니에요. %1$s 디스크로 만든 .iso 파일을 선택하세요.</string>
     <string name="setup_disc_not_on_device">이 파일은 기기에 저장되어 있지 않아요(예: 클라우드 파일). 먼저 기기에 다운로드한 다음 다시 선택하세요.</string>
     <string name="setup_disc_incomplete">%1$s 파일이 맞지만, 디스크 일부(멀티플레이)가 빠져 있어요. 디스크 전체가 담긴 .iso 파일을 선택하세요.</string>
-    <string name="setup_disc_version">%1$s 파일이 맞지만, 이 앱이 아직 지원하지 않는 디스크 버전이에요(다른 지역판 또는 다른 에디션).</string>
+    <string name="setup_disc_version">%1$s 파일이 맞지만, 실행 파일 버전이 %2$s이고 이 앱이 지원하는 버전은 %3$s이에요(다른 지역판, 에디션 또는 프레싱). 지원하는 디스크의 이미지를 선택하세요.</string>
+    <string name="setup_disc_version_found">%1$s 파일이 맞지만, 실행 파일 버전이 %2$s인데 이 앱은 이 버전을 지원하지 않아요(다른 지역판, 에디션 또는 프레싱).</string>
+    <string name="setup_disc_altered">%1$s 파일이 맞지만, 안에 있는 %2$s이(가) 디스크의 것과 달라요. 이미지를 만들 때 바뀌었거나 손상된 것 같아요. 디스크에서 .iso 파일을 다시 만드세요.</string>
+    <string name="setup_disc_permission">Android가 더 이상 이 앱이 %1$s을(를) 읽도록 허용하지 않아요. 읽기 권한이 회수되었어요. .iso 파일을 다시 선택하세요.</string>
+    <string name="setup_disc_unreadable">%1$s을(를) 끝까지 읽지 못했어요(%2$s). 파일이 손상되었거나, 파일이 있는 카드나 드라이브에 문제가 생겼을 수 있어요. 다시 선택하거나, 먼저 휴대폰 자체 저장공간에 복사하세요.</string>
+    <string name="setup_disc_no_space">이 기기에 게임을 설정할 여유 공간이 부족해요. 약 %1$s이(가) 필요해요. 공간을 확보한 뒤 파일을 다시 선택하세요.</string>
     <string name="setup_disc_none_in_folder">이 폴더에 %1$s의 .iso 파일이 없어요. 파일이 있는 폴더를 열고 파일을 누르세요.</string>
     <string name="setup_disc_failed">디스크 이미지를 설정하지 못했어요: %1$s</string>
     <string name="setup_build_heading">게임 빌드하기</string>

@@ -558,7 +558,6 @@
     <string name="build_done_explained">ゲームコードのビルドが完了しました。ランチャーからゲームを起動できます。\n\n容量を節約するため、Androidの設定で「CoD recompilation build tools」をアンインストールできます。このツールは4つの移植版すべてで共有されているため、どれもビルド中でないときに行ってください。ゲームアプリ、ゲームコード、ディスクイメージは残してください。今後のアップデートで再ビルドが必要な場合は、アプリがツールを再ダウンロードし、Androidがインストールを求めます。</string>
     <string name="build_failed">ゲームコードのビルドが停止しました</string>
     <string name="build_failed_where">完了した分は保持され、「ビルド」はそこから続行します。レポートは%1$sにあります。</string>
-    <string name="build_unsupported_executable">%1$sは、このアプリが対応していないゲームのバージョンです。</string>
     <string name="build_toolchain_missing">ツールチェーンパッケージがインストールされていません。</string>
     <string name="build_toolchain_other">この端末のツールチェーンパッケージは、このアプリの別バージョン用です。このアプリのリリースに含まれるものをインストールしてください。</string>
     <string name="build_tool_failed">%1$s に失敗しました：\n%2$s</string>
@@ -625,7 +624,12 @@
     <string name="setup_disc_not_image">Xbox 360のディスクイメージではありません。%1$sディスクから作成した.isoファイルを選んでください。</string>
     <string name="setup_disc_not_on_device">このファイルは端末内に保存されていません（クラウド上のファイルなど）。まず端末にダウンロードしてから、選び直してください。</string>
     <string name="setup_disc_incomplete">これは%1$sですが、ディスクの一部（マルチプレイヤー）が欠けています。ディスクの完全な.isoファイルを選んでください。</string>
-    <string name="setup_disc_version">これは%1$sですが、このアプリがまだ対応していないバージョンのディスクです（別の地域版やエディション）。</string>
+    <string name="setup_disc_version">これは%1$sですが、実行ファイルのバージョンは%2$sで、このアプリが対応しているのはバージョン%3$sです（別の地域版、エディション、またはプレス）。対応しているディスクのイメージを選んでください。</string>
+    <string name="setup_disc_version_found">これは%1$sですが、実行ファイルのバージョンは%2$sで、このアプリは対応していません（別の地域版、エディション、またはプレス）。</string>
+    <string name="setup_disc_altered">これは%1$sですが、中の%2$sがディスクのものと違います。イメージを作るときに変更されたか壊れたようです。ディスクから.isoファイルをもう一度作ってください。</string>
+    <string name="setup_disc_permission">Androidがこのアプリに%1$sの読み取りを許可しなくなりました（読み取りの権限が取り消されました）。.isoファイルをもう一度選んでください。</string>
+    <string name="setup_disc_unreadable">%1$sを最後まで読み取れませんでした（%2$s）。ファイルが壊れているか、保存先のカードやドライブに問題があるかもしれません。もう一度選ぶか、先に本体のストレージにコピーしてください。</string>
+    <string name="setup_disc_no_space">この端末にゲームを設定するための空き容量が足りません。約%1$s必要です。空きを作ってから、もう一度ファイルを選んでください。</string>
     <string name="setup_disc_none_in_folder">そのフォルダに%1$sの.isoファイルはありません。ファイルがあるフォルダを開いて、ファイルをタップしてください。</string>
     <string name="setup_disc_failed">ディスクイメージを準備できませんでした：%1$s</string>
     <string name="setup_build_heading">ゲームをビルド</string>

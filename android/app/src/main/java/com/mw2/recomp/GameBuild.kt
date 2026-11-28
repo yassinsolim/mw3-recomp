@@ -4,14 +4,13 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
 import java.io.File
-import java.io.FileInputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.security.MessageDigest
@@ -61,6 +60,13 @@ object GameBuild {
         val library: String = json.getString("library")
         val executable: String = json.getString("executable")
         val sha256: List<String> = strings(json, "sha256")
+
+        /**
+         * The version numbers (of the executable's header) of the supported
+         * builds of the disc's executable, which a refusal names beside the
+         * version found; none where the build kit does not know them.
+         */
+        val versions: List<Long> = json.getJSONArray("versions").let { list -> (0 until list.length()).map { list.getLong(it) } }
 
         /** The folder its executable is in, under [root]. */
         val folder: String = json.getString("folder")
@@ -200,12 +206,12 @@ object GameBuild {
     private fun executable(context: Context, title: KitTitle): File = File(File(root(context), title.folder), title.executable)
 
     /** An executable the build takes from the player's disc: where it is kept under [root], and the builds of it this app supports. */
-    private class FromDisc(val folder: String, val executable: String, val sha256: List<String>)
+    internal class FromDisc(val folder: String, val executable: String, val sha256: List<String>, val versions: List<Long>)
 
     /** The disc's executables: those of the titles that are the disc's own, and those the update-made titles name. */
     private fun fromDisc(kit: Kit): List<FromDisc> =
-        kit.titles.filterNot { it.fromUpdate }.map { FromDisc(it.folder, it.executable, it.sha256) } +
-            kit.titles.filter { it.fromUpdate && it.discSha256.isNotEmpty() }.map { FromDisc(kit.folder, it.executable, it.discSha256) }
+        kit.titles.filterNot { it.fromUpdate }.map { FromDisc(it.folder, it.executable, it.sha256, it.versions) } +
+            kit.titles.filter { it.fromUpdate && it.discSha256.isNotEmpty() }.map { FromDisc(kit.folder, it.executable, it.discSha256, it.versions) }
 
     private fun kept(context: Context, from: FromDisc): File = File(File(root(context), from.folder), from.executable)
 
@@ -265,27 +271,54 @@ object GameBuild {
 
     /**
      * Takes one executable out of [source], [size] bytes at [offset], and
-     * keeps it if it is a build this app supports. Throws an [IOException]
-     * that says what is wrong with it.
+     * keeps it as [target] if it is a build this app supports. Throws a
+     * [DiscRefusal] that says what is wrong: the image cannot be read, the
+     * storage is full ([needed] is what all the executables take), or what
+     * was read is not an executable of a build supported. [open] is how the
+     * partial file is written.
      */
-    private fun take(context: Context, title: FromDisc, source: FileChannel, offset: Long, size: Long) {
-        val target = kept(context, title)
+    internal fun take(
+        target: File,
+        title: FromDisc,
+        source: FileChannel,
+        offset: Long,
+        size: Long,
+        needed: Long = size,
+        open: (File) -> OutputStream = { it.outputStream() },
+    ) {
         target.parentFile?.mkdirs()
         val partial = File(target.path + ".part")
         try {
-            partial.outputStream().use { output ->
-                val buffer = ByteBuffer.allocate(1 shl 20)
-                var done = 0L
-                while (done < size) {
-                    buffer.clear().limit(minOf(buffer.capacity().toLong(), size - done).toInt())
-                    val read = source.read(buffer, offset + done)
-                    if (read <= 0) throw IOException("the disc image ends inside ${title.executable}")
-                    output.write(buffer.array(), 0, read)
-                    done += read
+            try {
+                open(partial).use { output ->
+                    val buffer = ByteBuffer.allocate(1 shl 20)
+                    var done = 0L
+                    while (done < size) {
+                        buffer.clear().limit(minOf(buffer.capacity().toLong(), size - done).toInt())
+                        val read = try {
+                            source.read(buffer, offset + done)
+                        } catch (error: IOException) {
+                            throw DiscRefusal.unreadable(error)
+                        }
+                        if (read <= 0) throw DiscRefusal.NotThisGame("the disc image ends inside ${title.executable}")
+                        output.write(buffer.array(), 0, read)
+                        done += read
+                    }
                 }
+            } catch (refusal: DiscRefusal) {
+                throw refusal
+            } catch (error: IOException) {
+                // Only what was written here can be left: the image's own errors are told above.
+                if (DiscRefusal.isNoSpace(error)) throw DiscRefusal.NoSpace(needed, error)
+                throw error
             }
             if (sha256(partial) !in title.sha256) {
-                throw IOException(context.getString(R.string.build_unsupported_executable, title.executable))
+                val found = XexHeader.version(partial)
+                throw when {
+                    found == null -> DiscRefusal.NotThisGame("${title.executable} is not an Xbox 360 executable")
+                    found in title.versions -> DiscRefusal.Altered(title.executable, found)
+                    else -> DiscRefusal.UnsupportedVersion(title.executable, found, title.versions)
+                }
             }
             if (!partial.renameTo(target)) throw IOException("${title.executable} could not be kept")
         } finally {
@@ -293,14 +326,29 @@ object GameBuild {
         }
     }
 
-    /** The executables out of a disc image, which is only read. Throws an [IOException] that says what went wrong. */
+    /**
+     * The executables of [titles] out of [image], each kept where [keptAt]
+     * says. All are found on the image before the first is copied, and what
+     * the copies need is what they add up to.
+     */
+    internal fun takeAll(
+        image: FileChannel,
+        titles: List<FromDisc>,
+        open: (File) -> OutputStream = { it.outputStream() },
+        keptAt: (FromDisc) -> File,
+    ) {
+        val disc = DiscImage(image)
+        val places = titles.map { title ->
+            title to (disc.find(title.executable) ?: throw DiscRefusal.NotThisGame("${title.executable} is not on that disc image"))
+        }
+        val needed = places.sumOf { it.second.second }
+        for ((title, place) in places) take(keptAt(title), title, image, place.first, place.second, needed, open)
+    }
+
+    /** The executables out of a disc image, which is only read. Throws a [DiscRefusal] (an [IOException]) that says what went wrong. */
     fun takeFromDiscImage(context: Context, image: FileChannel) {
         val kit = kit(context) ?: throw IOException("this app has no build kit")
-        val disc = DiscImage(image)
-        for (title in fromDisc(kit)) {
-            val (offset, size) = disc.find(title.executable) ?: throw IOException("${title.executable} is not on that disc image")
-            take(context, title, image, offset, size)
-        }
+        takeAll(image, fromDisc(kit)) { kept(context, it) }
     }
 
     /** The executables from the installed game files. Throws an [IOException] that says what went wrong. */
@@ -308,7 +356,7 @@ object GameBuild {
         val kit = kit(context) ?: throw IOException("this app has no build kit")
         for (title in fromDisc(kit)) {
             val file = File(gameDirectory, title.executable)
-            file.inputStream().channel.use { take(context, title, it, 0, file.length()) }
+            file.inputStream().channel.use { take(kept(context, title), title, it, 0, file.length()) }
         }
     }
 
@@ -318,20 +366,30 @@ object GameBuild {
 
     /**
      * The executables out of the disc image named [image] as Prefs names
-     * one, a path or a document the player picked; false when it cannot be
-     * read any more or is not a version this app supports.
+     * one, a path or a document the player picked. Null when they were
+     * kept; otherwise the [DiscRefusal] that says why not: the image is
+     * gone or cannot be read (and whether it is its permission), the
+     * storage is full, it is no disc image of this game, or it is of a
+     * version this app does not support. The cause is written to the
+     * report (class and message) whatever the kind.
      */
-    fun takeFromImage(context: Context, image: String): Boolean = try {
-        if (DiscImage.isDocument(image)) {
-            val descriptor = context.contentResolver.openFileDescriptor(Uri.parse(image), "r") ?: throw IOException("the file could not be opened")
-            descriptor.use { FileInputStream(it.fileDescriptor).channel.use { channel -> takeFromDiscImage(context, channel) } }
-        } else {
-            FileInputStream(image).channel.use { takeFromDiscImage(context, it) }
+    fun takeFromImage(context: Context, image: String): DiscRefusal? = try {
+        DiscImage.open(context, image).use { takeFromDiscImage(context, it) }
+        null
+    } catch (refusal: DiscRefusal) {
+        logDiscImage(context, image, refusal)
+        refusal
+    } catch (error: Exception) {
+        DiscRefusal.Failed(error).also { logDiscImage(context, image, it) }
+    }
+
+    /** Writes why [image] was refused, as the classes and messages of what was thrown, to the report a bug report carries. */
+    fun logDiscImage(context: Context, image: String, error: Throwable) {
+        try {
+            report(context).appendText("disc image ${DiscImage.label(context, image)}: ${DiscRefusal.describe(error)}\n")
+        } catch (_: IOException) {
+            // The report is for the player's bug report; a store that cannot take a line is not the disc's problem.
         }
-        true
-    } catch (_: Exception) {
-        // Gone, unreadable, or its permission taken back: the next place is tried.
-        false
     }
 
     /**
@@ -356,9 +414,9 @@ object GameBuild {
                 // Not a build this app supports: the player may have another image.
             }
         }
-        if (listOf(prefs.chosenImage, prefs.discImage).filter { it.isNotEmpty() }.distinct().any { takeFromImage(context, it) }) return true
+        if (listOf(prefs.chosenImage, prefs.discImage).filter { it.isNotEmpty() }.distinct().any { takeFromImage(context, it) == null }) return true
         return DiscImage.search(context).games.any { image ->
-            takeFromImage(context, image.path).also { if (it) prefs.chosenImage = image.path }
+            (takeFromImage(context, image.path) == null).also { if (it) prefs.chosenImage = image.path }
         }
     }
 

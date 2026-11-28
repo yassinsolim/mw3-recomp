@@ -661,6 +661,13 @@ class KitTitle(
      * player's disc.
      */
     val discSha256: List<String> = emptyList(),
+    /**
+     * The version numbers of the executable header (tools/xexinfo.py, the execution info's
+     * version) of the supported builds of the disc's executable, which the app names
+     * beside the version it found when it refuses a disc of another one. Empty where
+     * a build of the disc is supported and its version has not been read from one.
+     */
+    val versions: List<Long> = emptyList(),
 )
 class KitGame(
     val folder: String, val titles: List<KitTitle>, val extraSources: List<String> = emptyList(),
@@ -675,9 +682,9 @@ val kitGames = mapOf(
         "mw2/tu0",
         listOf(
             KitTitle("mw2", "default.xex", listOf("990e640d3a92544f9d585e71faf1ab65082d37ec6f5865b2599335fa123bf6ff"),
-                "MW2.tu0.toml", "mw2_switch_tables.tu0.toml", "ppc_tu0", listOf("MW2_VERSION_TU0=1")),
+                "MW2.tu0.toml", "mw2_switch_tables.tu0.toml", "ppc_tu0", listOf("MW2_VERSION_TU0=1"), versions = listOf(10)),
             KitTitle("mw2mp", "default_mp.xex", listOf("aacc47aff3221f3bd9129e80827fd3bcd74aa43bf74bb5c5ddbd0597c0d5fcde"),
-                "MW2MP.tu0.toml", "mw2mp_switch_tables.tu0.toml", "ppc_mp_tu0", listOf("MW2_TITLE_MP=1", "MW2_VERSION_TU0=1")),
+                "MW2MP.tu0.toml", "mw2mp_switch_tables.tu0.toml", "ppc_mp_tu0", listOf("MW2_TITLE_MP=1", "MW2_VERSION_TU0=1"), versions = listOf(10)),
         ),
     ),
     "mw3" to KitGame(
@@ -686,18 +693,18 @@ val kitGames = mapOf(
             KitTitle("mw3", "default.xex",
                 listOf("d90bc8d93b7b8f6001ead8330271196a6ef7a5c2e4a9e9b63118f47d58a05912",
                     "e94de720373d668a2bd592dfc74339bfbbc98cca993176fcd055b1449633bcd1"),
-                "MW3.toml", "mw3_switch_tables.toml", "ppc_mw3", listOf("MW3_TITLE=1")),
+                "MW3.toml", "mw3_switch_tables.toml", "ppc_mw3", listOf("MW3_TITLE=1"), versions = listOf(2, 22)),
             KitTitle("mw3mp", "default_mp.xex", listOf("0d7669844122b8f94e29ec87baf6bf0a7b84ab4abad8a82b43aa444682f90f7c"),
-                "MW3MP.toml", "mw3mp_switch_tables.toml", "ppc_mw3_mp", listOf("MW3_TITLE=1", "MW3_TITLE_MP=1")),
+                "MW3MP.toml", "mw3mp_switch_tables.toml", "ppc_mw3_mp", listOf("MW3_TITLE=1", "MW3_TITLE_MP=1"), versions = listOf(2)),
         ),
     ),
     "cod4" to KitGame(
         "cod4/tu0",
         listOf(
             KitTitle("cod4", "default.xex", listOf("f6b848ac4ecf2b12881223e4c3cd63c49ae36e1fadc6f2179428033274602739"),
-                "COD4.toml", "cod4_switch_tables.toml", "ppc_cod4", listOf("COD4_TITLE=1", "MW3_TITLE=1")),
+                "COD4.toml", "cod4_switch_tables.toml", "ppc_cod4", listOf("COD4_TITLE=1", "MW3_TITLE=1"), versions = listOf(1)),
             KitTitle("cod4mp", "default_mp.xex", listOf("9aae8db5b38f0b394f9052d1ee9c8b1f18038ff86fc5f4110f173f66043a0cc6"),
-                "COD4MP.toml", "cod4mp_switch_tables.toml", "ppc_cod4_mp", listOf("COD4_TITLE=1", "COD4_TITLE_MP=1", "MW3_TITLE=1")),
+                "COD4MP.toml", "cod4mp_switch_tables.toml", "ppc_cod4_mp", listOf("COD4_TITLE=1", "COD4_TITLE_MP=1", "MW3_TITLE=1"), versions = listOf(1)),
         ),
         // The two instructions the configuration replaces by calls (CMakeLists.txt).
         listOf("runtime/recomp/ppc_extra_instructions.cpp"),
@@ -707,9 +714,9 @@ val kitGames = mapOf(
         "aw/tu0",
         listOf(
             KitTitle("aw", "default.xex", listOf("a8b1e99c27d6d03a0b0700e6eada1e7d24ee4b194e3c9fa844f16c25f8376a73"),
-                "AW.toml", "aw_switch_tables.toml", "ppc_aw", listOf("AW_TITLE=1", "MW3_TITLE=1")),
+                "AW.toml", "aw_switch_tables.toml", "ppc_aw", listOf("AW_TITLE=1", "MW3_TITLE=1"), versions = listOf(10)),
             KitTitle("awmp", "default_mp.xex", listOf("3ef96359f96ee7994e43de70f56a9c2a019d5b841f11318ca2dffdb717b265f8"),
-                "AWMP.toml", "awmp_switch_tables.toml", "ppc_aw_mp", listOf("AW_TITLE=1", "AW_TITLE_MP=1", "MW3_TITLE=1")),
+                "AWMP.toml", "awmp_switch_tables.toml", "ppc_aw_mp", listOf("AW_TITLE=1", "AW_TITLE_MP=1", "MW3_TITLE=1"), versions = listOf(10)),
             KitTitle("awmp17", "default_mp.xex", emptyList(),
                 "AWMP.tu17.toml", "awmp_switch_tables.tu17.toml", "ppc_aw_mp_tu17",
                 listOf("AW_TITLE=1", "AW_TITLE_MP=1", "AW_TITLE_TU17=1", "MW3_TITLE=1"), updateFolder = "aw/tu17"),
@@ -798,7 +805,7 @@ kitGames.forEach { (game, kit) ->
                 mapOf(
                     "library" to title.library, "executable" to title.executable, "sha256" to title.sha256,
                     "folder" to (title.updateFolder ?: kit.folder), "fromUpdate" to (title.updateFolder != null),
-                    "discSha256" to title.discSha256,
+                    "discSha256" to title.discSha256, "versions" to title.versions,
                     "toml" to title.toml, "tables" to title.tables, "tree" to title.tree,
                     "defines" to listOf("MW2_TRACE_INDIRECT=1") + title.defines,
                     "expectedAbi" to "title ${title.library}\ngenerated-code $code\n" + shares,

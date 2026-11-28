@@ -286,6 +286,23 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Setup says why a disc image was refused.** `GameBuild.takeFromImage`
+  swallowed every exception, so an image that could not be read (moved,
+  deleted, its permission taken back, a failing card, no space left while
+  the executables were kept) was told with the sentence for a disc of
+  another region or edition (a Snapdragon 695 player's AW log, case
+  C0015, where the image had most likely become unreadable). The kinds are
+  now typed (`DiscRefusal`) and each has its own sentence in the setup's
+  disc step and in Repair / rebuild, in the 14 languages: the image is gone
+  (pick it again), its permission is (the same, and it says so), it fails
+  while it is read, there is no room for the executables (it says how much
+  is needed), it is no disc image of this game, an executable of the
+  disc's has a version this app has no game code for (it says the version
+  found and the ones supported, `versions` in the build kit,
+  `android/app/build.gradle.kts`), and an executable of the supported
+  version that is not the disc's bytes. The class and message of what was
+  thrown go to the setup log's report (`game-build-report.txt`, which Share
+  log carries). `DiscRefusalTest`.
 - **"The surface will not take an identity transform; the picture may be
   rotated" no longer follows every swapchain remade on a phone held
   landscape.** The presenter does take identity there and the compositor
