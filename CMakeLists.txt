@@ -1126,8 +1126,18 @@ endif()
 # .gsc is compiled before the title sees it (runtime/mods_gsc.cpp), by
 # gsc-tool (xensik, GPL-3.0, THIRD_PARTY.md): the compiler, and the tables of
 # this build's instruction, function, method and name numbers. Only the
-# sources that the Xbox 360 build of IW5 needs are compiled.
+# sources that the Xbox 360 build of IW5 needs are compiled. Advanced
+# Warfare's multiplayer as title update 17 makes it uses the same loader for
+# the Exo Zombies bots' script (runtime/aw_zombie_bots.cpp), with gsc-tool's
+# Xbox 360 build of S1 (its instruction numbers; the built-in functions' are
+# runtime/aw_gsc_builtins.h).
+set(MW2_GSC_ENGINE "")
 if(MW2_IS_MW3 AND NOT MW2_IS_COD4 AND NOT MW2_IS_AW AND NOT MW2_IS_BO3)
+    set(MW2_GSC_ENGINE iw5_xb)
+elseif(MW2_TITLE STREQUAL "awmp17")
+    set(MW2_GSC_ENGINE s1_xb)
+endif()
+if(MW2_GSC_ENGINE)
     include(FetchContent)
     FetchContent_Declare(gsc_tool
         URL https://github.com/xensik/gsc-tool/archive/6dc1aa3712b8b0bfda23afa304846383c18153d1.tar.gz
@@ -1138,14 +1148,14 @@ if(MW2_IS_MW3 AND NOT MW2_IS_COD4 AND NOT MW2_IS_AW AND NOT MW2_IS_BO3)
     file(GLOB GSC_TOOL_SOURCES
         "${gsc_tool_SOURCE_DIR}/src/gsc/*.cpp"
         "${gsc_tool_SOURCE_DIR}/src/gsc/common/*.cpp"
-        "${gsc_tool_SOURCE_DIR}/src/gsc/engine/iw5_xb*.cpp")
-    add_library(gsc_iw5 STATIC ${GSC_TOOL_SOURCES}
+        "${gsc_tool_SOURCE_DIR}/src/gsc/engine/${MW2_GSC_ENGINE}*.cpp")
+    add_library(gsc_engine STATIC ${GSC_TOOL_SOURCES}
         "${gsc_tool_SOURCE_DIR}/src/utils/reader.cpp"
         "${gsc_tool_SOURCE_DIR}/src/utils/writer.cpp"
         "${gsc_tool_SOURCE_DIR}/src/utils/string.cpp")
-    target_include_directories(gsc_iw5 PUBLIC "${gsc_tool_SOURCE_DIR}/include")
-    target_compile_options(gsc_iw5 PRIVATE -w ${MW2_ARCH_OPTIONS})
-    target_link_libraries(mw2 PRIVATE gsc_iw5)
+    target_include_directories(gsc_engine PUBLIC "${gsc_tool_SOURCE_DIR}/include")
+    target_compile_options(gsc_engine PRIVATE -w ${MW2_ARCH_OPTIONS})
+    target_link_libraries(mw2 PRIVATE gsc_engine)
     target_compile_definitions(mw2 PRIVATE MW2_GSC=1)
     # zlib, for the deflated halves of a script file and a raw file: the
     # system's on Android, the launcher's copy on the desktop.

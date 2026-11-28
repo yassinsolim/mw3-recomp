@@ -30,7 +30,11 @@
 #include "log.h"
 #include "kernel/kernel.h"
 #include "mw3_dlc_maps.h"
+#if defined(AW_TITLE)
+#include "aw_zombie_bots.h"
+#endif
 
+#include <strings.h>
 #include <zlib.h>
 
 #include <algorithm>
@@ -46,22 +50,36 @@ namespace fs = std::filesystem;
 
 namespace
 {
+#ifdef T_ASSET_SCRIPTFILE
+    constexpr uint32_t kRawFile = T_ASSET_RAWFILE, kScriptFile = T_ASSET_SCRIPTFILE;
+#else
     constexpr uint32_t kRawFile = 0x24, kScriptFile = 0x25;
+#endif
     // A script's name goes through a 64-byte buffer in the title's loader ("%s.gsc").
     constexpr size_t kLongestScriptName = 59;
     // What is set aside of the script pool's 2 MB for the mods' code. A
-    // Team Deathmatch on a disc map leaves 1260 KB of it unused.
+    // Team Deathmatch on a disc map leaves 1260 KB of it unused. Advanced
+    // Warfare's Exo Zombies fills far more of it with its own, and the only
+    // script laid there is the bots' (aw_zombie_bots.cpp).
+#if defined(AW_TITLE)
+    constexpr uint32_t kCodeRoom = 64 * 1024;
+#else
     constexpr uint32_t kCodeRoom = 384 * 1024;
-#ifdef MW3_TITLE_MP
+#endif
+#if defined(MW3_TITLE_MP) || defined(AW_TITLE_MP)
     constexpr const char* kOwnEntries = "scripts/mp/";
 #else
     constexpr const char* kOwnEntries = "scripts/sp/";
+#endif
+#ifndef T_PMEM_SCRIPT_SOURCE
+#define T_PMEM_SCRIPT_SOURCE 3u
 #endif
 
     struct ModFile
     {
         fs::path path;
         std::string mod;
+        std::string_view text;              // a script of the port's own (mods::Builtin), in place of a file
     };
 
     // An asset made for the title, in guest memory. A raw file is { name,
@@ -171,6 +189,12 @@ namespace
             }
             LOGI("mods: %s is on, %zu file(s)", name.c_str(), count);
         }
+#if defined(AW_TITLE)
+        // The port's own script for the Exo Zombies bots, unless switched off
+        // or a mod has one of that path.
+        if (const std::string_view text = awzombiebots::Script(); !text.empty())
+            g_files.try_emplace(std::string(awzombiebots::kPath) + ".gsc", ModFile{ {}, "the port", text });
+#endif
         g_any.store(!g_files.empty(), std::memory_order_release);
     }
 
@@ -231,14 +255,39 @@ namespace
         return true;
     }
 
+    // The asset of (type, name) the fastfiles brought, 0 when the database has
+    // none or only its stand-in. Read from the database's table itself, {
+    // type, asset, zone (0: only a stand-in), ... }: this is the server's
+    // thread loading a level's scripts, with every zone the level needs
+    // already in. The title's two lookups are not for a name that may be
+    // unknown: DB_FindXAssetHeader waits seconds for a zone that might still
+    // bring it, and DB_IsXAssetDefault keeps the database's read lock, after
+    // which the next zone to load waits for ever.
+    uint32_t LoadedAsset(PPCContext& ctx, uint8_t* base, uint32_t type, const std::string& name)
+    {
+        const uint32_t guest = GuestName(base, name);
+#ifdef T_DB_FindXAssetEntry
+        const uint32_t entry = Call(ctx, base, GUEST_FUNC(T_DB_FindXAssetEntry), type, guest);
+        if (!entry || !PPC_LOAD_U8(entry + 8)) return 0;
+        return PPC_LOAD_U32(entry + 4);
+#else
+        // Advanced Warfare: the walk T_DB_IsXAssetDefault makes, without its lock.
+        const uint32_t bucket = Call(ctx, base, GUEST_FUNC(T_DB_HashAssetName), guest, type);
+        for (uint32_t index = PPC_LOAD_U16(T_DATA_DbHashHeads + bucket * 2), steps = 0; index && steps < 0x10000;
+             steps++)
+        {
+            const uint32_t entry = T_DATA_DbEntries + index * 16;
+            const uint32_t asset = PPC_LOAD_U32(entry + 4);
+            if (PPC_LOAD_U32(entry) == type && asset && PPC_LOAD_U32(asset) &&
+                !strcasecmp(reinterpret_cast<const char*>(base + PPC_LOAD_U32(asset)), name.c_str()))
+                return PPC_LOAD_U16(entry + 8) ? asset : 0;
+            index = PPC_LOAD_U16(entry + 12);
+        }
+        return 0;
+#endif
+    }
+
     // The fastfiles' own copy of a script, as the compiler takes an include.
-    // Read from the database's table itself, { type, asset, zone (0: only a
-    // stand-in), ... }: this is the server's thread loading a level's
-    // scripts, with every zone the level needs already in. The title's two
-    // lookups are not for a name that may be unknown: DB_FindXAssetHeader
-    // waits seconds for a zone that might still bring it, and
-    // DB_IsXAssetDefault keeps the database's read lock, after which the next
-    // zone to load waits for ever.
     bool StockScript(PPCContext& ctx, uint8_t* base, const std::string& path, mods::script::File* file)
     {
         std::string names[2];
@@ -247,10 +296,7 @@ namespace
         for (const std::string& name : names)
         {
             if (name.empty()) continue;
-            const uint32_t guest = GuestName(base, name);
-            const uint32_t entry = Call(ctx, base, GUEST_FUNC(T_DB_FindXAssetEntry), kScriptFile, guest);
-            if (!entry || !PPC_LOAD_U8(entry + 8)) continue;
-            const uint32_t asset = PPC_LOAD_U32(entry + 4);
+            const uint32_t asset = LoadedAsset(ctx, base, kScriptFile, name);
             if (!asset) continue;
             if (!file) return true;
             const uint32_t compressed = PPC_LOAD_U32(asset + 4), length = PPC_LOAD_U32(asset + 8);
@@ -344,7 +390,8 @@ namespace
         asset.load = g_load;
 
         std::error_code ec;
-        const fs::file_time_type stamp = fs::last_write_time(file->path, ec);
+        const bool builtin = !file->text.empty();
+        const fs::file_time_type stamp = builtin ? fs::file_time_type{} : fs::last_write_time(file->path, ec);
         if (asset.source != file->path || asset.stamp != stamp || !asset.served)
         {
             asset.source = file->path;
@@ -353,7 +400,8 @@ namespace
             const std::string shown = file->mod + "/" + path;
             std::vector<uint8_t> data, deflated, bytecode;
             uint32_t length = 0;
-            if (!ReadFile(file->path, data)) { LOGE("mods: %s cannot be read", shown.c_str()); return 0; }
+            if (builtin) data.assign(file->text.begin(), file->text.end());
+            else if (!ReadFile(file->path, data)) { LOGE("mods: %s cannot be read", shown.c_str()); return 0; }
             if (EndsWith(Lower(Utf8(file->path.filename())), ".gscbin"))
             {
                 if (!ReadCompiled(data, deflated, length, bytecode))
@@ -527,7 +575,12 @@ namespace
         }
         for (const uint32_t handle : handles)
         {
+#ifdef T_DATA_ScrLevelObject
+            const uint32_t thread =
+                Call(ctx, base, GUEST_FUNC(T_Scr_ExecThread), handle, PPC_LOAD_U32(T_DATA_ScrLevelObject), 0);
+#else
             const uint32_t thread = Call(ctx, base, GUEST_FUNC(T_Scr_ExecThread), handle, 0);
+#endif
             Call(ctx, base, GUEST_FUNC(T_Scr_FreeThread), thread);
         }
     }
@@ -567,9 +620,8 @@ static void DumpRawFile(PPCContext& ctx, uint8_t* base, const std::string& asked
     static std::set<std::string> written;
     if (!folder || asked.find_first_of("*?:<>|\"") != std::string::npos || asked.find("..") != std::string::npos) return;
     if (!written.insert(asked).second) return;
-    const uint32_t entry = Call(ctx, base, GUEST_FUNC(T_DB_FindXAssetEntry), kRawFile, GuestName(base, asked));
-    if (!entry || !PPC_LOAD_U8(entry + 8)) return;
-    const uint32_t asset = PPC_LOAD_U32(entry + 4);
+    const uint32_t asset = LoadedAsset(ctx, base, kRawFile, asked);
+    if (!asset) return;
     const uint32_t compressed = PPC_LOAD_U32(asset + 4), length = PPC_LOAD_U32(asset + 8), buffer = PPC_LOAD_U32(asset + 12);
     std::vector<uint8_t> data(length);
     uLongf size = length;
@@ -581,32 +633,45 @@ static void DumpRawFile(PPCContext& ctx, uint8_t* base, const std::string& asked
     out.write(reinterpret_cast<const char*>(data.data()), std::streamsize(size));
 }
 
+// The mods' answer for an asset the title asks the database for: their script
+// or raw file of that name, 0 for the database's own.
+static uint32_t ServeAsset(PPCContext& ctx, uint8_t* base, uint32_t type, uint32_t name)
+{
+    if ((type != kScriptFile && type != kRawFile) || !name) return 0;
+    std::lock_guard held(g_lock);
+    ScanOnce();
+    const std::string asked(reinterpret_cast<const char*>(base + name));
+    // MW2_TRACE_MODS: what the game asks for, each name once -- the
+    // paths a mod's file can stand for.
+    static const bool traced = env::Flag("MW2_TRACE_MODS");
+    static std::set<std::string> seen;
+    if (traced && seen.insert(char('0' + type - kRawFile) + asked).second)
+        LOGI("mods: the game asks for %s %s", type == kScriptFile ? "script" : "raw file",
+             type == kScriptFile ? ScriptPath(asked).c_str() : asked.c_str());
+    if (g_any.load(std::memory_order_relaxed))
+    {
+        const uint32_t asset = type == kScriptFile ? ServeScript(ctx, base, asked) : ServeRawFile(base, asked);
+        if (asset) return asset;
+    }
+    if (type == kScriptFile) DumpScript(ctx, base, asked);
+    else DumpRawFile(ctx, base, asked);
+    return 0;
+}
+
+#ifdef T_DB_FindXAssetHeader
 // (type, name, allowCreateDefault) -> the asset
 GUEST_HOOK(T_DB_FindXAssetHeader)
 {
-    const uint32_t type = ctx.r3.u32, name = ctx.r4.u32;
-    if ((type == kScriptFile || type == kRawFile) && name)
-    {
-        std::lock_guard held(g_lock);
-        ScanOnce();
-        const std::string asked(reinterpret_cast<const char*>(base + name));
-        // MW2_TRACE_MODS: what the game asks for, each name once -- the
-        // paths a mod's file can stand for.
-        static const bool traced = env::Flag("MW2_TRACE_MODS");
-        static std::set<std::string> seen;
-        if (traced && seen.insert(char('0' + type - kRawFile) + asked).second)
-            LOGI("mods: the game asks for %s %s", type == kScriptFile ? "script" : "raw file",
-                 type == kScriptFile ? ScriptPath(asked).c_str() : asked.c_str());
-        if (g_any.load(std::memory_order_relaxed))
-        {
-            const uint32_t asset = type == kScriptFile ? ServeScript(ctx, base, asked) : ServeRawFile(base, asked);
-            if (asset) { ctx.r3.u64 = asset; return; }
-        }
-        if (type == kScriptFile) DumpScript(ctx, base, asked);
-        else DumpRawFile(ctx, base, asked);
-    }
+    if (const uint32_t asset = ServeAsset(ctx, base, ctx.r3.u32, ctx.r4.u32)) { ctx.r3.u64 = asset; return; }
     GUEST_ORIG(T_DB_FindXAssetHeader)(ctx, base);
 }
+#else
+// Advanced Warfare's lookup is hooked in aw_update_language.cpp, which asks here first.
+uint32_t mods::FindAsset(PPCContext& ctx, uint8_t* base, uint32_t type, uint32_t name)
+{
+    return ServeAsset(ctx, base, type, name);
+}
+#endif
 
 // (type, name) -> whether the database has only its stand-in for the asset,
 // which is what it has for a script or a raw file that only a mod has.
@@ -655,23 +720,38 @@ static constexpr const char* kRoomBracket = "$init";
 static constexpr const char* kRoomBracket = "common";
 #endif
 
+// The room itself, taken as the bracket it goes in closes.
+static void TakeRoom(PPCContext& ctx, uint8_t* base)
+{
+    std::lock_guard held(g_lock);
+    ScanOnce();
+    if (!g_any.load(std::memory_order_relaxed) || !PPC_LOAD_U32(T_DATA_ScriptPool)) return;
+    const uint32_t address = Call(ctx, base, GUEST_FUNC(T_PMem_Alloc), kCodeRoom, 4, 4, T_PMEM_SCRIPT_SOURCE);
+    if (!address) { LOGE("mods: the game's script memory had no room for the mods' code"); return; }
+    g_arenaStart = g_arenaNext = address - PPC_LOAD_U32(T_DATA_ScriptPool);
+    g_arenaEnd = g_arenaStart + kCodeRoom;
+    LOGI("mods: %u KB of the game's script memory set aside for the mods' code", kCodeRoom >> 10);
+}
+
+#ifdef T_PMem_EndAllocSide
+// Advanced Warfare's takes the side alone and closes the bracket open there,
+// whose name the pool's low end holds.
+GUEST_HOOK(T_PMem_EndAllocSide)
+{
+    const uint32_t name = PPC_LOAD_U32(T_DATA_ScriptPool + T_SCRIPT_POOL_LOW_NAME);
+    if (ctx.r3.u32 == 0 && name && !std::strcmp(reinterpret_cast<const char*>(base + name), kRoomBracket))
+        TakeRoom(ctx, base);
+    GUEST_ORIG(T_PMem_EndAllocSide)(ctx, base);
+}
+#else
 GUEST_HOOK(T_PMem_EndAlloc)
 {
     const uint32_t name = ctx.r3.u32;
     if (name && ctx.r4.u32 == 0 && !std::strcmp(reinterpret_cast<const char*>(base + name), kRoomBracket))
-    {
-        std::lock_guard held(g_lock);
-        ScanOnce();
-        if (g_any.load(std::memory_order_relaxed) && PPC_LOAD_U32(T_DATA_ScriptPool))
-        {
-            const uint32_t address = Call(ctx, base, GUEST_FUNC(T_PMem_Alloc), kCodeRoom, 4, 4, 3);
-            g_arenaStart = g_arenaNext = address - PPC_LOAD_U32(T_DATA_ScriptPool);
-            g_arenaEnd = g_arenaStart + kCodeRoom;
-            LOGI("mods: %u KB of the game's script memory set aside for the mods' code", kCodeRoom >> 10);
-        }
-    }
+        TakeRoom(ctx, base);
     GUEST_ORIG(T_PMem_EndAlloc)(ctx, base);
 }
+#endif
 
 #ifdef T_GScr_LoadGameTypeScript
 

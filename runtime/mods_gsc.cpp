@@ -8,13 +8,19 @@
 // built-in functions, methods, fields and stock script files.
 //
 // Only this file sees gsc-tool's headers. The build defines MW2_GSC when the
-// library is there (Modern Warfare 3's two titles; CMakeLists.txt).
+// library is there (Modern Warfare 3's two titles, and Advanced Warfare's
+// multiplayer as title update 17 makes it; CMakeLists.txt).
 #if MW2_GSC
 
 #include "mods.h"
 
 #include <xsk/stdinc.hpp>
+#if defined(AW_TITLE)
+#include <xsk/gsc/engine/s1_xb.hpp>
+#include "aw_gsc_builtins.h"
+#else
 #include <xsk/gsc/engine/iw5_xb.hpp>
+#endif
 
 #include <deque>
 #include <memory>
@@ -22,7 +28,30 @@
 
 namespace
 {
+#if defined(AW_TITLE)
+    // gsc-tool knows S1's Xbox 360 instructions and none of its built-in
+    // functions' and methods' numbers; the ones this port's scripts call are
+    // given to it here (aw_gsc_builtins.h has how each was found).
+    class Context : public xsk::gsc::s1_xb::context
+    {
+    public:
+        explicit Context(xsk::gsc::instance which) : xsk::gsc::s1_xb::context(which)
+        {
+            for (const auto& [id, name] : awgsc::kFunctions)
+            {
+                func_map_.insert({ id, name });
+                func_map_rev_.insert({ name, id });
+            }
+            for (const auto& [id, name] : awgsc::kMethods)
+            {
+                meth_map_.insert({ id, name });
+                meth_map_rev_.insert({ name, id });
+            }
+        }
+    };
+#else
     using Context = xsk::gsc::iw5_xb::context;
+#endif
 
     // Recursive: the finder a compile calls for an include asks for script
     // numbers (IdOf) on its way.

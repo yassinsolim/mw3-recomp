@@ -6,8 +6,15 @@
 #include <string>
 #include <vector>
 
+struct PPCContext;
+
 namespace mods
 {
+    // The mods' script or raw file for what the title asks its asset database
+    // for (type, name in guest memory), 0 for the database's own: for a title
+    // whose lookup another file hooks (Advanced Warfare's, aw_update_language.cpp).
+    uint32_t FindAsset(PPCContext& ctx, uint8_t* base, uint32_t type, uint32_t name);
+
     // The script compiler (mods_gsc.cpp): gsc-tool's, for this console's
     // build of the game. The executable has no compiler of its own: its
     // scripts come compiled, as `scriptfile` assets.

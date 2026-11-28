@@ -42,6 +42,9 @@
 #include <set>
 #include <string>
 #include <vector>
+#if MW2_GSC
+#include "mods.h"
+#endif
 
 #if defined(AW_TITLE_TU17)
 
@@ -186,11 +189,14 @@ GUEST_HOOK(T_DB_LinkAsset)
     GUEST_ORIG(T_DB_LinkAsset)(ctx, base);
 }
 
-// (type, name, make a default). A string English has not: the update's own
-// text.
+// (type, name, make a default). The port's own scripts first (mods.cpp: the
+// Exo Zombies bots'); then a string English has not: the update's own text.
 GUEST_HOOK(T_DB_FindAsset)
 {
     const uint32_t type = ctx.r3.u32, name = ctx.r4.u32;
+#if MW2_GSC
+    if (const uint32_t served = mods::FindAsset(ctx, base, type, name)) { ctx.r3.u64 = served; return; }
+#endif
     GUEST_ORIG(T_DB_FindAsset)(ctx, base);
     if (ctx.r3.u32 || !name || type != T_ASSET_LOCALIZE) return;
     const std::string key = GuestPtr<char>(name);

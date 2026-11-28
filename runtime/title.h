@@ -151,6 +151,56 @@
 // NetConstStrings asset '%s' for current map", 82079B60).
 #define T_ASSET_NETCONSTSTRINGS 0x33u
 
+// ---- the script loader (mods.cpp, for aw_zombie_bots.cpp) ----
+// The types are the table's above: 43 "rawfile", 44 "scriptfile", with the
+// layouts Modern Warfare 3's have ({ name, compressedLen, len, buffer } and
+// { name, compressedLen, len, bytecodeLen, buffer, bytecode }): sub_824297D8,
+// the script parser, asks T_DB_FindAsset for type 0x2C, then
+// T_DB_IsXAssetDefault (type, name), and inflates +0x10 into +8 bytes and
+// reads +0xC bytes of code at +0x14.
+#define T_ASSET_RAWFILE         0x2Bu
+#define T_ASSET_SCRIPTFILE      0x2Cu
+#define T_DB_IsXAssetDefault   82540A78
+// What T_DB_IsXAssetDefault walks under the database's lock: the bucket of
+// (name, type) by sub_8253DE18, a halfword index at 8354D580 + bucket * 2 of
+// the first of 16-byte entries at 82D48C98 { type, the header, the zone
+// (halfword, 0 for a stand-in), , the next (halfword at +0xC) }.
+#define T_DB_HashAssetName     8253DE18   // (name, type) -> bucket; reads nothing but a fixed table
+#define T_DATA_DbHashHeads        0x8354D580u
+#define T_DATA_DbEntries          0x82D48C98u
+// G_LoadScripts (sub_824A5798) opens the loader (Scr_BeginLoadScripts,
+// sub_82433328), calls GScr_LoadGameTypeScript (the one user of
+// "maps/mp/gametypes/%s", which loads it and its main, label 0x26F, through
+// sub_824A4F68 = Scr_LoadScript then Scr_GetFunctionHandle, and the
+// callbacks of "maps/mp/gametypes/_callbacksetup") and the map's
+// ("maps/mp/%s"), and closes the loader (sub_82433480).
+#define T_G_LoadScripts         824A5798
+#define T_GScr_LoadGameTypeScript 824A5230
+#define T_Scr_LoadScript        82433968   // (name) -> nonzero when it is loaded
+#define T_Scr_GetFunctionHandle 82433548   // (file, the function name's number) -> handle, 0 when none
+// The two that run the game type's main (+0x34 of g_scr_data, 839AE870) and
+// its start-up callback (+0x38): each calls Scr_ExecThread(handle, the level's
+// object, 0) and frees the thread it returns.
+#define T_Scr_LoadGameType      824A0500
+#define T_Scr_StartupGameType   824A02D8
+#define T_Scr_ExecThread        824294E8   // (handle, object, parameter count) -> thread
+#define T_DATA_ScrLevelObject     0x83E8599Cu
+#define T_Scr_FreeThread        8242C100   // (thread)
+// The script pool: Scr_BeginLoadScripts takes its program buffer from
+// sub_8235EE50, which answers [842D9700] and 2 MB, and a function handle is
+// an offset from it (Scr_GetFunctionHandle answers 0 past the size). The pool
+// is PMem's of source 5 { buffer, low { name, count, pos, ... } (0x14C bytes),
+// high { ... } }. PMem_Alloc (size, alignment, protection, source) is
+// sub_8235FF40; protection 4 takes from the low end. PMem_EndAlloc(side) is
+// sub_8235F960, which closes the bracket of that side in both of PMem's pools:
+// Com_Init (sub_824522A8) opens "$init" at the low ends and closes it with
+// (0) before any fastfile is loaded.
+#define T_DATA_ScriptPool         0x842D9700u
+#define T_SCRIPT_POOL_LOW_NAME    4u
+#define T_PMem_Alloc            8235FF40
+#define T_PMEM_SCRIPT_SOURCE      5u
+#define T_PMem_EndAllocSide     8235F960
+
 // ---- field of view (field_of_view.cpp) ----
 // The disc's four, found again from cg_fovScale's pointer (829AAEB0, stored
 // by sub_827BE608): cg is [82AD0298] + client * 0xBF780.
