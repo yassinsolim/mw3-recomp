@@ -48,8 +48,10 @@ jobs:
           # And the count, against what tests/CMakeLists.txt registers: a check
           # that quietly stops being registered is then a failure rather than
           # one line less of output, with no number here to keep in step.
+          # Indented add_test lines count too: signal-forward is registered
+          # inside if(NOT WIN32), which this Linux runner takes.
           registered=$(ctest --test-dir build-tests -N | sed -n 's/^Total Tests: //p')
-          expected=$(grep -c '^add_test(' tests/CMakeLists.txt)
+          expected=$(grep -c '^[[:space:]]*add_test(' tests/CMakeLists.txt)
           echo "registered checks: $registered, expected: $expected"
           [ "$registered" = "$expected" ]
 
