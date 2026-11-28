@@ -1,9 +1,9 @@
 {
   "release": {
     "repo": "yassinsolim/mw3-recomp",
-    "tag": "toolchain-v2"
+    "tag": "toolchain-v3"
   },
   "asset": "recomp-toolchain.apk",
-  "version": "2",
-  "sha256": "d53834da0adfb7fb64ed4445c6c1c3b8ad5947a42985051db8a60f64a69abece"
+  "version": "3",
+  "sha256": "319b9a13508bd0fbd5966d213429235e71e17a64ee78cc762496fa798522eeb9"
 }
