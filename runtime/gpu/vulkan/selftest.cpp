@@ -9,7 +9,8 @@
 // and one small frame is drawn off screen and read back:
 //
 //   - shaders built as the renderer's are: no vertex attributes, the draw's
-//     record found by its base vertex, positions and the record read from a
+//     record found through a draw table at its base vertex and its offset
+//     passed on to the pixel stage, positions and the record read from a
 //     storage buffer, the texture taken out of one 65,536-image set that is
 //     updated after it is bound and indexed non-uniformly (bindings.h);
 //   - a BC1 texture sampled by the driver, where the renderer would let it;
@@ -337,16 +338,20 @@ namespace
             { -1, -1, -0.5f, -0.5f, 0.125f, 0, 0, 0, { 1, 1, 1, 0.5f }, true },
         };
         constexpr uint32_t kQuads = sizeof quads / sizeof quads[0];
-        // The records first, eight words each, then six vertices of eight words a quad.
+        // The records first, eight words each, then six vertices of eight
+        // words a quad, then the draw table (selftest.vert): an entry a quad,
+        // the record's dword offset and where its vertices are, found at the
+        // quad's draw's base vertex.
         auto* words = static_cast<uint32_t*>(arena.mapped);
         std::memset(words, 0, 4096 * 4);
-        constexpr uint32_t kVertexWords = 64;
+        constexpr uint32_t kVertexWords = 64, kTableWords = 512;
         for (uint32_t q = 0; q < kQuads; q++)
         {
             const Quad& quad = quads[q];
             uint32_t* record = words + q * 8;
             const uint32_t at = kVertexWords + q * 48;
-            record[0] = at;
+            words[kTableWords + q * 2] = q * 8;
+            words[kTableWords + q * 2 + 1] = at;
             record[1] = quad.image;
             record[2] = quad.mode;
             record[3] = quad.sampler;
@@ -644,8 +649,8 @@ namespace
         for (uint32_t q = 0; q < kQuads; q++)
         {
             vkCmdBindPipeline(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, quads[q].blended ? blended : opaque);
-            // The first vertex is the record's number (selftest.vert).
-            vkCmdDraw(commands, 6, 1, q, 0);
+            // The base vertex is where the quad's draw table entry is (selftest.vert).
+            vkCmdDraw(commands, 6, 1, kTableWords + q * 2, 0);
         }
         vkCmdEndRenderPass(commands);
 

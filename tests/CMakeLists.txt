@@ -114,6 +114,14 @@ add_executable(surface-transform-test
 target_include_directories(surface-transform-test PRIVATE "${MW2_RUNTIME}/gpu/vulkan")
 add_test(NAME surface-transform COMMAND surface-transform-test)
 
+# ---- what the driver self-test asks of a driver -----------------------------
+# Its pixel shaders (runtime/gpu/vulkan/selftest.cpp): each the texture
+# indexing of one form the renderer's own take, nothing more.
+add_executable(selftest-shaders-test
+    "${CMAKE_CURRENT_SOURCE_DIR}/selftest_shaders_test.cpp")
+target_include_directories(selftest-shaders-test PRIVATE "${MW2_RUNTIME}/gpu/vulkan")
+add_test(NAME selftest-shaders COMMAND selftest-shaders-test)
+
 # ---- what a device sustains ------------------------------------------------
 # The rule that holds a run to the frame rate its device keeps and gives it
 # the sun's shadows when its frames have room for them (runtime/adaptive.h):
@@ -160,6 +168,7 @@ if(WIN32)
     target_link_options(volume-test PRIVATE -static)
     target_link_options(version-test PRIVATE -static)
     target_link_options(picture-probe-test PRIVATE -static)
+    target_link_options(selftest-shaders-test PRIVATE -static)
     target_link_options(adaptive-test PRIVATE -static)
     target_link_options(demonware-test PRIVATE -static)
     target_link_options(pipeline-cache-test PRIVATE -static)

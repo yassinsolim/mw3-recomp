@@ -2,7 +2,7 @@
 """Writes the SPIR-V of the fixed shaders in runtime/gpu/vulkan/shaders as
 arrays of words: sharpen_shaders.inc, the two that sharpen the frame on its
 way to the window (runtime/gpu/vulkan/sharpen.cpp), and selftest_shaders.inc,
-the three of the driver self-test (runtime/android/driver_selftest.cpp).
+the three of the driver self-test (runtime/gpu/vulkan/selftest.cpp).
 
 The runtime writes its other SPIR-V itself (spirv.h), because those shaders
 are made while the title runs. These are fixed, and the fragment shader is a

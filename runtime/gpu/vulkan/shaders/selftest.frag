@@ -13,7 +13,7 @@ layout(location = 0) out vec4 colour;
 
 void main()
 {
-    uint base = record * 8u;
+    uint base = record;  // the record's dword offset (selftest.vert)
     uint image = arena.words[base + 1u];
     uint mode = arena.words[base + 2u];
     uint smp = arena.words[base + 3u];

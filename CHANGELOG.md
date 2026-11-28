@@ -11,7 +11,10 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   reads the phone's chip, takes the best ranked driver for it and the game
   (the copy it carries, or a download, asked for first on mobile data) and
   runs a self-test in a process of its own before using it: the device made
-  as a run makes it and a frame drawn off screen and compared. A driver that
+  as a run makes it and a frame drawn off screen and compared, with shaders
+  that ask of the driver nothing the renderer's own do not (K11MCH1's
+  Turnip v26.0.0 R7 and R8, which run the games, had crashed on a vertex
+  shader no game builds; ctest's `selftest-shaders`). A driver that
   fails is written down and the next is tried. A run whose renderer cannot
   start on an app-chosen driver switches to the next and starts again; a
   run that presents frames of one colour for a minute or of moving speckle
