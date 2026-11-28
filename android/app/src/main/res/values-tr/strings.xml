@@ -252,6 +252,8 @@
     <string name="tap_to_fire_hint">Baktığın yere kısa bir dokunuş, Ateş düğmesine uzanmadan atış yapar.</string>
     <string name="aim_when_firing">Ateş ederken nişan al (dokunmatik)</string>
     <string name="aim_when_firing_hint">Ekrandaki Ateş düğmesi aynı zamanda nişan alır: bastığında nişangâh kalkar, atış bir an sonra gelir; düğmeyi bırakınca ikisi de bırakılır. Nişan düğmesini zaten basılı tutuyorsan Ateş her zamanki gibi çalışır.</string>
+    <string name="aim_when_firing_delay">Atıştan önce nişan: %1$d ms</string>
+    <string name="menu_aim_when_firing_delay">Atıştan önce nişan</string>
     <string name="gyro_aiming">Jiroskopla nişan alma</string>
     <string name="gyro_label">Jiroskopla nişan alma: %1$s</string>
     <string-array name="gyro_choices">

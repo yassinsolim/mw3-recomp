@@ -242,7 +242,8 @@ No controller is needed. The same in all four games:
   it turns the view as it does on the look area. The other buttons on that
   side do the same. Or turn on **Tap the look area to fire**.
 - **Aim** is a toggle at the top left: tap to raise the sight, tap again to
-  lower it.
+  lower it. Short of a thumb for it, turn on **Aim when firing**: Fire raises
+  the sight too and the shot follows a moment later.
 - **Make it yours.** In a game, **Menu → Touch look and gyroscope** sets how
   fast the view turns (13° for a centimetre of swipe to begin with, about
   half a turn across the screen), up and down against sideways, how much

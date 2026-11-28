@@ -252,6 +252,8 @@
     <string name="tap_to_fire_hint">Un tocco breve dove guardi spara un colpo, senza dover raggiungere il pulsante Fuoco.</string>
     <string name="aim_when_firing">Mira mentre spari (touch)</string>
     <string name="aim_when_firing_hint">Il pulsante Fuoco sullo schermo prende anche la mira: il mirino si alza quando premi e lo sparo parte un istante dopo; rilasciando Fuoco si rilasciano entrambi. Se tieni già premuto Mira, Fuoco funziona come al solito.</string>
+    <string name="aim_when_firing_delay">Mira prima dello sparo: %1$d ms</string>
+    <string name="menu_aim_when_firing_delay">Mira prima dello sparo</string>
     <string name="gyro_aiming">Mira con giroscopio</string>
     <string name="gyro_label">Mira con giroscopio: %1$s</string>
     <string-array name="gyro_choices">

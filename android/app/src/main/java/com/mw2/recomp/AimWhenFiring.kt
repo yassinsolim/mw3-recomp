@@ -87,10 +87,14 @@ class AimWhenFiring(var delayMillis: Long = DEFAULT_DELAY_MILLIS) {
 
     companion object {
         /**
-         * Of a sight coming up in the five titles at their native 30 frames a second (measured on a phone, the
-         * log in docs/android.md, Aim when firing): a short, safe default.
+         * Measured in Call of Duty 4's campaign with its M4 and holographic sight (tools/aim_fire.py, docs/android.md): the
+         * sight starts to come up some 100 ms after the trigger is pulled and is up at about 240 ms. A shot at 200 ms
+         * leaves with the sights nearly there and costs a fifth of a second; the delay is a setting (0 to
+         * [MAX_DELAY_MILLIS]) for a weapon, a sniper rifle's scope above all, that takes longer.
          */
-        const val DEFAULT_DELAY_MILLIS = 150L
+        const val DEFAULT_DELAY_MILLIS = 200L
+        const val MAX_DELAY_MILLIS = 500L
+        const val DELAY_STEP_MILLIS = 50L
 
         /** Two frames of the slower titles: enough for the game's own poll to see the trigger. */
         const val MIN_SHOT_MILLIS = 70L

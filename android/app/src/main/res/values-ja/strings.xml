@@ -252,6 +252,8 @@
     <string name="tap_to_fire_hint">見ている場所を短くタップすると、発射ボタンに手を伸ばさずに撃てます。</string>
     <string name="aim_when_firing">射撃時にエイム（タッチ）</string>
     <string name="aim_when_firing_hint">画面の発射ボタンでエイムも行います。押すとサイトが上がり、少し遅れて発射します。離すと両方が解除されます。すでにエイムを押している場合は、発射は通常どおり動作します。</string>
+    <string name="aim_when_firing_delay">射撃前のエイム時間: %1$d ms</string>
+    <string name="menu_aim_when_firing_delay">射撃前のエイム時間</string>
     <string name="gyro_aiming">ジャイロエイム</string>
     <string name="gyro_label">ジャイロエイム: %1$s</string>
     <string-array name="gyro_choices">

@@ -1732,6 +1732,13 @@ class GameActivity : AppCompatActivity(), NativeListener {
         rows.add(GameMenu.Choice(getString(R.string.aim_when_firing), onOff(), if (prefs.aimWhenFiring) 1 else 0) {
             prefs.aimWhenFiring = it == 1
         })
+        val aimDelays = (0..AimWhenFiring.MAX_DELAY_MILLIS.toInt() step AimWhenFiring.DELAY_STEP_MILLIS.toInt()).toList()
+        rows.add(GameMenu.Choice(
+            getString(R.string.menu_aim_when_firing_delay), aimDelays.map { "$it ms" },
+            nearest(aimDelays, prefs.aimWhenFiringDelay),
+        ) {
+            prefs.aimWhenFiringDelay = aimDelays[it]
+        })
 
         if (gyro.available) {
             rows.add(GameMenu.Choice(

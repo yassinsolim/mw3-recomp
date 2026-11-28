@@ -252,6 +252,8 @@
     <string name="tap_to_fire_hint">Un toque corto donde miras dispara, sin tener que ir al botón Disparar.</string>
     <string name="aim_when_firing">Apuntar al disparar (táctil)</string>
     <string name="aim_when_firing_hint">El botón Disparar de la pantalla también apunta: la mira sube al pulsarlo y el disparo sale un instante después; al soltarlo se sueltan ambos. Si ya mantienes Apuntar, Disparar funciona como siempre.</string>
+    <string name="aim_when_firing_delay">Apuntar antes del disparo: %1$d ms</string>
+    <string name="menu_aim_when_firing_delay">Apuntar antes del disparo</string>
     <string name="gyro_aiming">Apuntado con giroscopio</string>
     <string name="gyro_label">Apuntado con giroscopio: %1$s</string>
     <string-array name="gyro_choices">

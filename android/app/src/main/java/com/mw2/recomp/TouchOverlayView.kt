@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.os.SystemClock
 import android.util.AttributeSet
+import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -104,9 +105,17 @@ class TouchOverlayView @JvmOverloads constructor(
     // Fire also aims (Prefs.aimWhenFiring): while a press of Fire is being
     // managed (AimWhenFiring) the pad state has both triggers from it.
     private val aimFire = AimWhenFiring()
-    private val recheckAimFire = Runnable { pushState() }
+    private val recheckAimFire = Runnable {
+        pushState()
+        invalidate()
+    }
 
     private fun isFire(element: ControlElement) = element.kind == ControlKind.TRIGGER && element.value == 1
+
+    /** A debug build says when a trigger's finger came down and up, on the clock of the game's `trigger:` lines (tools/aim_fire.py). */
+    private fun traceTrigger(element: ControlElement, what: String, millis: Long) {
+        if (BuildConfig.DEBUG && element.kind == ControlKind.TRIGGER) Log.i("TouchTrigger", "${element.id} $what at $millis ms")
+    }
 
     /** Aim is held or toggled on: the sights are up or coming up on the player's say. */
     private fun playerAiming(): Boolean = layout.elements.any {
@@ -376,6 +385,7 @@ class TouchOverlayView @JvmOverloads constructor(
         }
         triggerHaptic()
         claims[pointerId] = element
+        traceTrigger(element, "down", millis)
         when (element.kind) {
             ControlKind.STICK -> moveStick(element, x, y)
             ControlKind.DPAD -> moveDpad(element, x, y)
@@ -384,11 +394,15 @@ class TouchOverlayView @JvmOverloads constructor(
                     val on = !toggled.remove(element.id)
                     if (on) toggled.add(element.id)
                     if (isFire(element) && prefs.aimWhenFiring) {
+                        aimFire.delayMillis = prefs.aimWhenFiringDelay.toLong()
                         if (on) aimFire.press(millis, playerAiming()) else aimFire.release(millis)
                     }
                 } else {
                     held.add(element.id)
-                    if (isFire(element) && prefs.aimWhenFiring) aimFire.press(millis, playerAiming())
+                    if (isFire(element) && prefs.aimWhenFiring) {
+                        aimFire.delayMillis = prefs.aimWhenFiringDelay.toLong()
+                        aimFire.press(millis, playerAiming())
+                    }
                 }
                 if (besideLook(element)) looks[pointerId] = Look(x, y, millis, turning = false)
             }
@@ -414,6 +428,7 @@ class TouchOverlayView @JvmOverloads constructor(
         }
         val element = claims.remove(pointerId)
         if (element != null) {
+            traceTrigger(element, "up", millis)
             when (element.kind) {
                 ControlKind.STICK -> stickPositions.remove(element.id)
                 ControlKind.DPAD -> dpadBits.remove(element.id)
@@ -598,7 +613,9 @@ class TouchOverlayView @JvmOverloads constructor(
     }
 
     private fun isOn(element: ControlElement): Boolean =
-        held.contains(element.id) || toggled.contains(element.id)
+        held.contains(element.id) || toggled.contains(element.id) ||
+            // Aim lights up while Fire is holding it for the player.
+            (element.kind == ControlKind.TRIGGER && element.value == 0 && aimFire.leftTrigger(SystemClock.uptimeMillis()))
 
     companion object {
         /** How far a pressed thumb wobbles without meaning to move. */

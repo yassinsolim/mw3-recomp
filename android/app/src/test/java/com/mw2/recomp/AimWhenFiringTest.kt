@@ -141,4 +141,27 @@ class AimWhenFiringTest {
         assertTrue(AimWhenFiring.DEFAULT_DELAY_MILLIS in 100L..250L)
         assertEquals(AimWhenFiring.DEFAULT_DELAY_MILLIS, AimWhenFiring().delayMillis)
     }
+
+    @Test
+    fun theDelayThePlayerSetsIsTheOneTheNextPressUses() {
+        val a = AimWhenFiring()
+        a.delayMillis = 400
+        a.press(1000, false)
+        assertFalse(a.rightTrigger(1399))
+        assertTrue(a.rightTrigger(1400))
+        assertEquals(1400L, a.nextChangeAt(1000))
+        a.release(1500)
+        a.delayMillis = 100
+        // The next press, after this one ended.
+        assertTrue(a.press(5000, false))
+        assertFalse(a.rightTrigger(5099))
+        assertTrue(a.rightTrigger(5100))
+    }
+
+    @Test
+    fun theSettingsRangeHoldsTheDefaultAndStartsAtNoDelay() {
+        assertTrue(AimWhenFiring.DEFAULT_DELAY_MILLIS in 0L..AimWhenFiring.MAX_DELAY_MILLIS)
+        assertEquals(0L, AimWhenFiring.MAX_DELAY_MILLIS % AimWhenFiring.DELAY_STEP_MILLIS)
+        assertEquals(0L, AimWhenFiring.DEFAULT_DELAY_MILLIS % AimWhenFiring.DELAY_STEP_MILLIS)
+    }
 }

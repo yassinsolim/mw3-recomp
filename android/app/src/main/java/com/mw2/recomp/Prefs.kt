@@ -455,6 +455,12 @@ class Prefs(context: Context) {
         get() = store.getBoolean(KEY_AIM_WHEN_FIRING, false)
         set(value) = store.edit().putBoolean(KEY_AIM_WHEN_FIRING, value).apply()
 
+    /** Milliseconds from Fire down to the right trigger when [aimWhenFiring] holds the left one first. */
+    var aimWhenFiringDelay: Int
+        get() = store.getInt(KEY_AIM_WHEN_FIRING_DELAY, AimWhenFiring.DEFAULT_DELAY_MILLIS.toInt())
+            .coerceIn(0, AimWhenFiring.MAX_DELAY_MILLIS.toInt())
+        set(value) = store.edit().putInt(KEY_AIM_WHEN_FIRING_DELAY, value.coerceIn(0, AimWhenFiring.MAX_DELAY_MILLIS.toInt())).apply()
+
     /** The gyroscope turning the view: [GYRO_OFF], [GYRO_ALWAYS] or [GYRO_AIMING]. */
     var gyroMode: Int
         get() = store.getInt(KEY_GYRO_MODE, GYRO_OFF).coerceIn(GYRO_OFF, GYRO_AIMING)
@@ -863,6 +869,7 @@ class Prefs(context: Context) {
         private const val KEY_TOUCH_LOOK_AIMING = "touchLookAiming"
         private const val KEY_TAP_TO_FIRE = "tapToFire"
         private const val KEY_AIM_WHEN_FIRING = "aimWhenFiring"
+        private const val KEY_AIM_WHEN_FIRING_DELAY = "aimWhenFiringDelay"
         private const val KEY_GYRO_MODE = "gyroMode"
         private const val KEY_GYRO_SENSITIVITY = "gyroSensitivity"
         /** The gyroscope's settings, in the order the runtime numbers them (android/input.cpp). */

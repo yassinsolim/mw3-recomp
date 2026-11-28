@@ -25,6 +25,24 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   (`runtime/gpu/vulkan/pipeline_cache_rules.h`, tested in
   `tests/pipeline_cache_test.cpp`). A Mali is still given one pipeline
   creation at a time under every driver.
+- **Aim when firing (touch)** (off to begin with; Settings → Controls and the
+  game's menu, Touch look and gyroscope; asked for by a player who plays with
+  touch only and has no third thumb for Aim). The on-screen Fire button also
+  aims: pressing it holds the left trigger at once and the right trigger
+  after a delay that lets the sights come up (**Aim before the shot**, 200 ms
+  to begin with, 0 to 500 ms); letting go of Fire lets go of both. A tap on
+  Fire shorter than the delay still shoots (the right trigger is held for at
+  least 70 ms, then both go up). Aim already held or toggled on when Fire goes
+  down: Fire is what it was, the sights are the player's. Dragging the thumb
+  on Fire to look keeps working; a controller, and the tap on the look area,
+  are untouched, and the Aim button lights while Fire holds it. The rules are
+  in `AimWhenFiring.kt` (`AimWhenFiringTest`), measured on a Retroid Pocket
+  Flip 2 in Call of Duty 4's campaign by `tools/aim_fire.py` (Aim at 14 to 24
+  ms after the finger, the first shot at 214 to 224 ms, both let go with the
+  finger; the sights there take about 240 ms to come up,
+  [docs/android.md](docs/android.md#aim-when-firing-touch)); `MW2_TRACE_LOOK=1`
+  now also logs `trigger:` lines (what the game's poll saw of the triggers)
+  and the time of each `look:` line.
 - **Invert looking left and right, and up and down, for touch and the
   gyroscope.** The one switch ("Invert looking up and down", touch only)
   is two: **Invert looking left and right** and **Invert looking up and

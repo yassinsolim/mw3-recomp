@@ -279,6 +279,8 @@
     <string name="tap_to_fire_hint">A short tap where you look fires a shot, without reaching for the Fire button.</string>
     <string name="aim_when_firing">Aim when firing (touch)</string>
     <string name="aim_when_firing_hint">The on-screen Fire button also aims: the sights come up as you press it and the shot follows a moment later; letting go of Fire lets go of both. If you are already holding Aim, Fire works as usual.</string>
+    <string name="aim_when_firing_delay">Aim before the shot: %1$d ms</string>
+    <string name="menu_aim_when_firing_delay">Aim before the shot</string>
     <string name="gyro_aiming">Gyroscope aiming</string>
     <string name="gyro_label">Gyroscope aiming: %1$s</string>
     <string-array name="gyro_choices">

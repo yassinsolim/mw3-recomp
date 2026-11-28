@@ -252,6 +252,8 @@
     <string name="tap_to_fire_hint">Ein kurzes Tippen dort, wo du hinsiehst, gibt einen Schuss ab, ohne zur Feuern-Taste greifen zu müssen.</string>
     <string name="aim_when_firing">Beim Schießen zielen (Touch)</string>
     <string name="aim_when_firing_hint">Die Feuern-Taste auf dem Bildschirm zielt auch: Beim Drücken geht das Visier hoch, kurz darauf fällt der Schuss; beim Loslassen enden beide. Hältst du Zielen schon gedrückt, funktioniert Feuern wie gewohnt.</string>
+    <string name="aim_when_firing_delay">Zielzeit vor dem Schuss: %1$d ms</string>
+    <string name="menu_aim_when_firing_delay">Zielzeit vor dem Schuss</string>
     <string name="gyro_aiming">Gyro-Zielen</string>
     <string name="gyro_label">Gyro-Zielen: %1$s</string>
     <string-array name="gyro_choices">
