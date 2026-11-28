@@ -1,6 +1,7 @@
 #include "platform.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -79,6 +80,8 @@ void platform::IdleThreadPriority() { SetThreadPriority(GetCurrentThread(), THRE
 // than a guess at the machine's cores would.
 void platform::SetThreadAffinity(ThreadAffinityRole, uint32_t) {}
 uint32_t platform::CoreCount(ThreadAffinityRole) { return 0; }
+void platform::NoteMainThread() {}
+void platform::PlaceMainThread() {}
 
 // No symbols without a PDB: each frame as its offset in the executable, which
 // `llvm-symbolizer --obj=mw2.exe` turns back into a name on the build machine.
@@ -229,6 +232,7 @@ void platform::IdleThreadPriority()
 
 #if defined(__ANDROID__)
 #include "log.h"
+#include "env.h"
 namespace
 {
     struct CpuTopology
@@ -347,7 +351,7 @@ namespace
         return topology;
     }
 
-    uint32_t MaskOf(const CpuTopology& topology, platform::ThreadAffinityRole role)
+    uint32_t RoleMask(const CpuTopology& topology, platform::ThreadAffinityRole role)
     {
         switch (role)
         {
@@ -363,6 +367,7 @@ namespace
         case platform::ThreadAffinityRole::PrimeCore:
             return topology.primeMask | topology.perfMask;
         case platform::ThreadAffinityRole::PerformanceCore:
+        case platform::ThreadAffinityRole::MainThread:
             return topology.perfMask ? topology.perfMask : topology.primeMask;
         case platform::ThreadAffinityRole::WorkerCore:
             return topology.workerMask ? topology.workerMask : topology.perfMask;
@@ -372,6 +377,24 @@ namespace
         default:
             return 0;
         }
+    }
+
+    // A core mask (0x allowed) in place of a role's, to measure another
+    // layout: MW2_CORES_RING (PrimeCore), MW2_CORES_TITLE (PerformanceCore),
+    // MW2_CORES_MAIN (MainThread, else the title's), MW2_CORES_SPARE
+    // (SpareCore, else the title's and the background's).
+    uint32_t MaskOf(const CpuTopology& topology, platform::ThreadAffinityRole role)
+    {
+        using Role = platform::ThreadAffinityRole;
+        static const uint32_t ring = uint32_t(env::Number("MW2_CORES_RING", 0, 0));
+        static const uint32_t title = uint32_t(env::Number("MW2_CORES_TITLE", 0, 0));
+        static const uint32_t main = uint32_t(env::Number("MW2_CORES_MAIN", title, 0));
+        static const uint32_t spare = uint32_t(env::Number("MW2_CORES_SPARE", title ? title | topology.workerMask : 0, 0));
+        const uint32_t chosen = role == Role::PrimeCore ? ring
+                              : role == Role::PerformanceCore ? title
+                              : role == Role::MainThread ? main
+                              : role == Role::SpareCore ? spare : 0;
+        return chosen ? chosen : RoleMask(topology, role);
     }
 }
 
@@ -403,6 +426,19 @@ uint32_t platform::CoreCount(ThreadAffinityRole role)
 void platform::SetThreadAffinity(ThreadAffinityRole, uint32_t) {}
 uint32_t platform::CoreCount(ThreadAffinityRole) { return 0; }
 #endif
+
+namespace
+{
+    std::atomic<uint32_t> g_mainThread{ 0 };
+}
+
+void platform::NoteMainThread() { g_mainThread = ThreadId(); }
+
+void platform::PlaceMainThread()
+{
+    if (const uint32_t thread = g_mainThread.exchange(0))
+        SetThreadAffinity(ThreadAffinityRole::MainThread, thread);
+}
 
 #if defined(__ANDROID__)
 // _Unwind_Backtrace is in libgcc/libunwind and is what bionic itself uses.

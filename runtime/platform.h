@@ -25,6 +25,7 @@ namespace platform
     enum class ThreadAffinityRole {
         PrimeCore,       // The ring consumer: the one stage every frame goes through, the only thread let on the fastest core
         PerformanceCore, // The title's threads, the command recorder, the texture readers
+        MainThread,      // The title's main thread: the performance cores, as its others
         WorkerCore,      // Background shader warmup / audio / file I/O
         SpareCore,       // A title's threads beyond the ones that make its frame in turn: the performance and the efficiency cores
         Default          // OS scheduler default
@@ -36,6 +37,12 @@ namespace platform
     // How many cores that cluster has; 0 where threads are not pinned (the
     // desktop), so a caller sizing a pool falls back to its own number.
     uint32_t CoreCount(ThreadAffinityRole role);
+    // The title's main thread, noted as it enters the title's code, and
+    // moved to its own cores (ThreadAffinityRole::MainThread) once start-up
+    // is over: a thread it starts takes its cores with it, and the audio and
+    // DPC workers it starts then belong with the title's others.
+    void NoteMainThread();
+    void PlaceMainThread();
 
     // The calling thread's host stack to stderr. The recompiled functions are
     // named sub_XXXXXXXX, so where symbols resolve this is the guest's stack.

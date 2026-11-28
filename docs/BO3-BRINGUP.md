@@ -725,6 +725,57 @@ at 57 or more, 1% low 21.9, longest 134 ms), The Giant 59.8 (97%, 26.0,
 `cores 80 the fastest, 70 the title's, 0F the background's (by capacity)`,
 one prime, three performance and four efficiency cores.
 
+## Main's core and the generated code (27 November 2026, night)
+
+Shadows of Evil, warm, Thor at 120, one slot, interleaved (the plain
+build's spread is 100.4 to 106.7):
+
+| Layout (`MW2_CORES_*`, runtime/platform.cpp) | mean (1% low) |
+|---|---|
+| as before: ring consumer on the fastest and the performance cores, Main with the title's | 103.9 (24, caches warming), 102.3 (54) |
+| Main alone on the fastest core, the ring consumer on the performance cores | 102.3 (36) |
+| Main on the fastest core, the ring consumer still allowed there | 86.4 (43) |
+| Main on the fastest core and cpu6, the title's other threads on cpu3-5 | 103.1 (52) |
+| the host's memcpy for the title's (below) | 101.8 (54) |
+| that, and the frame's stack accesses not volatile (below) | 100.1 (50) |
+
+None is past the spread. Main was applied its cores as it entered the
+title's code in these runs, and the DPC and audio workers it starts then
+took the fastest core with it (`Cpus_allowed_list` 7): Main alone there
+stood ready with no core 39% of the time. Main now gets its cores at the
+1200th frame (`platform::PlaceMainThread`); that order is not measured yet.
+
+**What the generated code costs** (simpleperf by symbol, Shadows of Evil
+on the Flip 2 at 60, 20 s; counters are not readable): Main's samples were
+61% guest code, 22% kernel, 9% `@plt` (each guest call reaches `sub_X`
+through the dynamic linker's table, cmake/game_library.cmake), 6% outlined
+atomics; its hottest guest function was the CRT's memcpy (14%: byte-swapped
+8-byte loads and stores, its condition registers kept in the context),
+then the job queue's push and pop (sub_82145D90/82145F00: a 64-bit
+`ldarx`/`stdcx.` loop between `lwsync`s, each a `dmb ish`). The workers
+and the server are 69 to 78% guest code, a third of it sub_82493D58 and
+sub_82493B20 (VMX128 maths through SIMDe). Every guest load and store is
+`volatile`, so a value spilled to the guest stack and read back goes
+through memory: 22% of the accesses are at r1. Made plain (a
+`plain_stack_accesses` recompiler option, tried and not kept) the code
+was 12% larger and the frame rate the same. The memcpy is the host's now
+(`T_Memcpy`, runtime/guest_memcpy.cpp; `MW2_GUEST_MEMCPY=1` puts the
+guest's back): 5.4% of Main's samples where the guest's was 14.3%, and
+Shadows of Evil plays as before; it is not yet run in the multiplayer on
+a phone.
+
+What holds Shadows of Evil under 115: the frames wait for the processor
+57 to 62% of the time and for the chip 14 to 30%; the four performance
+cores are full (Main 61 to 66% of a core, the two busiest workers 58 to
+69%, the server 54 to 61%, the ring consumer 60 to 80% on the fastest),
+and the backend, the server's second thread and Main each stand ready
+with no core 15 to 34% of the time. Making Main's own code cheaper (the
+memcpy) did not move the frame rate, so Main is not the one chain the
+frame waits on: it waits on the job workers, which share the same four
+cores. Past about 104 needs either less work across all of the game's
+threads (a fifth of every guest thread's time is the kernel and the call
+table) or a fifth fast core.
+
 ## Open
 
 - The zombies once ended in `Could not load default asset '' for asset type

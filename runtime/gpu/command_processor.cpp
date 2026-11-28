@@ -12,6 +12,7 @@
 #include "../guest.h"
 #include "../image_move.h"
 #include "../log.h"
+#include "../platform.h"
 #include "../kernel/kernel.h"
 #include "vulkan/renderer.h"
 
@@ -732,6 +733,9 @@ namespace
                 if (Rendering()) vk::renderer::Swap(frontBuffer, WriteEndRecord);
             }
             g.swapsParsed++;
+            // Start-up is long over by the 1200th frame: the title's main
+            // thread to its own cores from here (platform::PlaceMainThread).
+            if (g.swapsParsed == 1200) platform::PlaceMainThread();
             pacing::Note(pacing::kSwap);
             NoteFrameCost();
             CensusSwap();

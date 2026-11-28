@@ -272,6 +272,8 @@
 // The streamed images' move, as the multiplayer's: the same function with
 // the registers in another order (the one place `oris r8,r8,0x4b02` stands).
 #define T_Image_FlushMove      824871A8
+// The CRT's memcpy, as the multiplayer's: instruction for instruction.
+#define T_Memcpy               82A08D60
 // The vsync dvar's pointer, read by the swap callback (sub_824A18E0) as the
 // multiplayer's.
 #define T_DATA_VsyncDvar       0x83858360u
@@ -353,6 +355,9 @@
 // where the texture lies: without it every texture streamed in after the
 // first is whatever the memory held before, a video's frames among them.
 #define T_Image_FlushMove      824880D0
+// The CRT's memcpy (dest, source, size), with 902 callers: aligns the
+// destination, then copies 8 bytes at a time forward (guest_memcpy.cpp).
+#define T_Memcpy               82A16B40
 
 // the D3D9 library (XDK 21256)
 // The one caller of VdSwap.

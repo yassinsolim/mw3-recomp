@@ -336,6 +336,9 @@ int mw2::Run(int argc, char** argv)
     crash::Step("guest", "start-up is done; the title's own code runs from here");
     LOGI("entering guest at %08X (stack %08X..%08X)", entry, stackBase, stackTop);
     LOGI("--------------------------------------------------");
+    // Its own cores (MainThread) come later (PlaceMainThread): the threads
+    // it starts in the meantime take its cores with them.
+    platform::NoteMainThread();
     fn(ctx, guest::Base());
     LOGI("--------------------------------------------------");
     LOGI("guest returned, r3 = %08X", ctx.r3.u32);
