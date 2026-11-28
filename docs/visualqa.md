@@ -408,6 +408,40 @@ coming on at 84.4 s in four of them (the other two at 108 and 110 s). Known
 and not blocking; the reports and the failing run's recording are in
 `private-captures\release0114\mw2bots_ab`.
 
+On 28 November 2026, Black Ops III's work toward 120 on the Thor
+(`bo3-thor120`, BO3-BRINGUP.md) against android before it merged: apps
+built from the branch (`.bm`) and from `1f5326a` (`.bmh`), the same game
+libraries in both, each scenario run with both apps back to back, the order
+alternating. Of its shared runtime changes, the poll's yield, the spinning
+yield's sleep and Advanced Warfare's core layout are Black Ops III's alone
+(`T_POLL_YIELD`, `T_YIELD_SLEEP_US`, `T_FRAME_PROCESSORS`); the rest reach
+every title: a wait keeps the objects it names on the stack, the scene is
+drawn smaller only while the chip is at work 85% of the window or more and
+steps back up against the frames' own period, the performance line gives
+the 1% low, `KeSetAffinityThread` is logged, and the main thread is given
+the title's cores again at the 1200th frame (no title but Black Ops III
+moves its main thread, by those log lines, so for the four games the mask
+is the one it already has).
+
+| scenario | Thor, branch | Thor, android | Flip 2, branch | Flip 2, android |
+|---|---|---|---|---|
+| `mw2-campaign` | PASS, 115.7, 44 ms | PASS, 114.4, 45 ms | PASS, 60.0, 69 ms | PASS, 60.0, 67 ms |
+| `mw2-bots` | PASS, 118.5, 46 ms | PASS, 118.7, 53 ms | PASS, 60.2, 58 ms | PASS, 60.1, 64 ms |
+| `mw3-campaign` | PASS, 115.1, 49 ms | PASS, 115.4, 47 ms | PASS, 59.7, 84 ms | PASS, 59.8, 105 ms |
+| `mw3-bots` | PASS, 116.8, 81 ms | PASS, 116.7, 60 ms | PASS, 59.9, 83 ms | PASS, 59.7, 69 ms |
+| `mw3-survival` | PASS, 118.2, 52 ms | PASS, 117.9, 42 ms | PASS, 60.1, 76 ms | PASS, 59.9, 76 ms |
+| `cod4-campaign` | PASS, 117.0, 71 ms | PASS, 117.6, 78 ms | PASS, 59.5, 199 ms; again 59.3, 205 ms | PASS, 59.4, 106 ms; again 59.2, 740 ms |
+| `cod4-bots` | PASS, 118.6, 61 ms | PASS, 118.6, 81 ms | PASS, 60.1, 132 ms | FAIL, 60.1, 71 ms: `flicker` at 159.3 s (a muzzle flash on a wall at arm's length) and `local-flicker` at 85.0 s (the held rifle drawn unlit for one frame) |
+| `aw-campaign` | PASS, 118.0, 50 ms | PASS, 118.1, 51 ms | PASS, 60.4, 61 ms | PASS, 60.3, 64 ms |
+| `aw-match` | PASS, 118.2, 74 ms | PASS, 118.0, 74 ms | PASS, 60.1, 285 ms; again 60.3, 88 ms | PASS, 60.3, 92 ms; again 60.2, 85 ms |
+| `aw-shadows` | PASS, 118.3, 110 ms | PASS, 118.3, 102 ms | PASS, 60.0, 158 ms | PASS, 60.2, 152 ms |
+
+No frame rate differs by more than 1.3 a second, and that one (Thor
+S.S.D.D.) is the branch's ahead. The Flip 2's long frames are first visits: The Bog's is in its first second of
+play on both apps (the title late, 199 to 740 ms), and Riot's 285 ms was 66
+shaders and 156 textures new at once, not there on the run after it. The
+unlit rifle on Crash is android's app, the branch's run of it clean.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
