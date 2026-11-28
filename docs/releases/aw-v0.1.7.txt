@@ -1,0 +1,21 @@
+Call of Duty: Advanced Warfare for Android v0.1.7
+
+Nothing to rebuild: the game code you built for v0.1.6 is used as it is, and your saves and settings are kept.
+
+New
+- Graphics driver picker: the app picks a driver for your GPU from a catalog, tests it before the game, and switches if it fails (it asks first if the picture looks broken). Import one from a link or a shared zip.
+- Exo Zombies: bots buy weapons and ammo (System Link with the app's Bots setting).
+- Snapdragon 8 Elite (Adreno 8xx) gets The412Banner's A8xx Turnip (not yet tried on one).
+- If your own driver crashes or is known broken, the app offers Use recommended or Keep mine.
+- K11MCH1's Turnip R7/R8 now pass the driver self-test.
+- Setup says why a disc image was refused.
+- Crash logs name the thread that crashed.
+- The rotation warning only shows when the picture really may be rotated.
+
+Known issues
+- Adreno 8xx hasn't been tried on a device yet.
+- Gyro aiming hasn't been tried on a device yet.
+- Some Snapdragon 8 Gen 2 phones were reported showing a garbled picture; not reproduced yet.
+- Map packs are experimental.
+
+Official downloads are only on GitHub Releases. Never share the game code you build: it contains the game. Unofficial fan project, not affiliated with Activision or Microsoft.

@@ -382,6 +382,32 @@ The rest of that release's gate, the same evening, on the same apps
   other in a dark interior with no band. Not seen again, so not compared
   with `c41a440`.
 
+On 28 November 2026, the release's suite on `c677978` (MW3/MW2 v0.1.14,
+CoD4 v0.1.9, AW v0.1.7) passed every row but the Thor's `mw2-bots`, which
+failed `local-flicker` twice in the empty part, and neither is the
+release's doing:
+
+- **89.7 s**, the ribbed wall of the dark shed in a turn: the check's
+  mistake the `fff0519` run was failed for at 89.5 s (the table above).
+- **85.4 s**, a lit patch on a container's wall for one frame (and a second
+  one 50 ms later, under the check's size). The sun's shadows came on by the
+  adaptive rule at 84.4 s (`sm_enable 1`), and 14 pipelines were found
+  missing at once in that second, more than the six workers: the known case
+  of [rendering.md](rendering.md#pipelines) where no wait is begun and a
+  colour draw goes for a frame. Every Thor run of this scenario has that
+  burst (10 to 24 misses) when the shadows come on; whether a frame shows it
+  depends on what is in view.
+
+Modern Warfare 2's code is the same on `1f5326a`, whose runs passed: its
+game library is byte for byte the same in both apps, `runtime/mods.cpp` is
+built only where `MW2_GSC` is (Modern Warfare 3 and Advanced Warfare's
+multiplayer), and the two apps' libraries differ only in the build's paths
+and the addresses they move. Six runs on the Thor, interleaved, `1f5326a`
+against `0c28bfb` (= `c677978` + a CI fix): all six pass, the shadows
+coming on at 84.4 s in four of them (the other two at 108 and 110 s). Known
+and not blocking; the reports and the failing run's recording are in
+`private-captures\release0114\mw2bots_ab`.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
