@@ -86,6 +86,7 @@ namespace gpu
 }
 
 namespace pacing { void Note(Event, unsigned) {} }
+namespace platform { void PlaceMainThread() {} }
 namespace imagepool
 {
     bool CopiesWaiting() { return false; }
