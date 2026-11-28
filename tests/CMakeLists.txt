@@ -156,6 +156,21 @@ add_executable(pipeline-cache-test
 target_include_directories(pipeline-cache-test PRIVATE "${MW2_RUNTIME}")
 add_test(NAME pipeline-cache COMMAND pipeline-cache-test)
 
+# ---- how a crash reaches the system's handler ------------------------------
+# The last fault handler calls the one before it from the crashing thread
+# (runtime/signal_forward.h), and another thread's write to a page the GPU
+# watch keeps read-only is still the watch's while it runs: the system then
+# records the crash, not that write (case C0009). Signals as POSIX has them:
+# not on Windows, whose crash.cpp is a vectored exception handler.
+if(NOT WIN32)
+    add_executable(signal-forward-test
+        "${CMAKE_CURRENT_SOURCE_DIR}/signal_forward_test.cpp")
+    target_include_directories(signal-forward-test PRIVATE "${MW2_RUNTIME}")
+    find_package(Threads REQUIRED)
+    target_link_libraries(signal-forward-test PRIVATE Threads::Threads)
+    add_test(NAME signal-forward COMMAND signal-forward-test)
+endif()
+
 if(WIN32)
     # The same rule the game is linked with: no C++ runtime beside the
     # executable. Without it a check that pulls in one more libstdc++ symbol

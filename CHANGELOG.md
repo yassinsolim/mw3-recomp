@@ -289,6 +289,20 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 - The four READMEs now have an "Official downloads" section: the only official APKs are on each project's GitHub releases page, re-uploaded APKs and game downloads are not ours, and the game is always built from your own disc.
 
 ### Fixed
+- **Android records the thread that crashed, not the next watched write.**
+  The last fault handler put the system's handlers back for the whole
+  process and let the fault happen again, and in that window another
+  thread's write to a page the GPU watch keeps read-only (hundreds a second
+  while a level loads) went to the system as the crash: a Snapdragon 8
+  Elite's AW 0.1.6 log (case C0009) had Qualcomm's shader compiler crash
+  on a pipeline worker, the runtime's report of it, and Android's record of
+  a SEGV_ACCERR at a page boundary on the title's Database thread. The
+  handler now calls the system's from the crashing thread with its siginfo
+  and context, and leaves the runtime's installed for the others
+  (`runtime/signal_forward.h`, ctest's `signal-forward`). On a Retroid
+  Pocket Flip 2, a harness with a crashing thread and a thread writing to a
+  watched page: Android named the writing thread 10 times out of 10 the old
+  way, the crashing one 8 out of 8 this way.
 - **Setup says why a disc image was refused.** `GameBuild.takeFromImage`
   swallowed every exception, so an image that could not be read (moved,
   deleted, its permission taken back, a failing card, no space left while

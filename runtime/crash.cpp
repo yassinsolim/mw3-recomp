@@ -64,6 +64,7 @@ const char* crash::LastStep()
 #ifndef MW2_LIBRARY_FILE
 #define MW2_LIBRARY_FILE "libmw2.so"
 #endif
+#include "signal_forward.h"
 #include <fcntl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -159,19 +160,21 @@ namespace
     }
 
     // How a fault's report ends. On Android the process then dies of the
-    // signal itself, through the handlers that were there before this one
-    // (the system's, which write a tombstone): the system then records a
-    // native crash with its own backtrace, which the app's log share reads
-    // back (LogSummary.kt), where _exit recorded "exited by itself" and
-    // nothing else. A fault repeats when its instruction runs again; a
-    // signal that was sent (abort, a refused system call) is sent again.
+    // signal itself, through the handler that was there before this one (the
+    // system's, which writes a tombstone): the system then records a native
+    // crash with its own backtrace, which the app's log share reads back
+    // (LogSummary.kt), where _exit recorded "exited by itself" and nothing
+    // else. That handler is called from here, on this thread, and every other
+    // thread keeps this file's handlers until the process is gone: the GPU
+    // watch's write faults go on being taken, and none of them is recorded
+    // as the crash in this one's place (signal_forward.h).
     // The first thread here ends the process; another waits for that.
 #ifdef MW2_ANDROID
     constexpr int kFatal[] = { SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP, SIGABRT, SIGSYS };
     struct sigaction g_before[std::size(kFatal)];
 #endif
 
-    void EndOfFault(int sig, bool sent)
+    void EndOfFault(int sig, siginfo_t* info, void* uctx, bool sent)
     {
         crash::OnFault();
 #ifdef MW2_ANDROID
@@ -179,10 +182,10 @@ namespace
         if (ending.exchange(true)) for (;;) pause();
         // The report went through a pipe another thread reads into the log.
         android::SettleStandardStreams();
-        for (size_t i = 0; i < std::size(kFatal); i++) sigaction(kFatal[i], &g_before[i], nullptr);
-        if (sent) syscall(SYS_tgkill, getpid(), syscall(SYS_gettid), sig);
+        for (size_t i = 0; i < std::size(kFatal); i++)
+            if (kFatal[i] == sig) signal_forward::End(g_before[i], sig, info, uctx, sent);
 #else
-        (void)sig; (void)sent;
+        (void)sig; (void)info; (void)uctx; (void)sent;
         _exit(3);
 #endif
     }
@@ -191,7 +194,7 @@ namespace
     // abort() and a system call the device's policy refuses: a driver that
     // gives up, an uncaught C++ exception, a fortified libc call. Neither is
     // a fault at an address, so the report is the thread's stack.
-    void SentSignalHandler(int sig, siginfo_t*, void*)
+    void SentSignalHandler(int sig, siginfo_t* info, void* uctx)
     {
         std::fprintf(stderr, "\n[E] ---- the process is ending on %s ----\n",
                      sig == SIGABRT ? "SIGABRT: abort() was called (a failed assertion, an uncaught"
@@ -200,7 +203,7 @@ namespace
         std::fprintf(stderr, "[E] last step: %s, on thread %s\n", crash::LastStep(), t_name ? t_name : "?");
         std::fflush(stderr);
         DumpBacktrace("backtrace");
-        EndOfFault(sig, true);
+        EndOfFault(sig, info, uctx, true);
     }
 #endif
 
@@ -361,7 +364,7 @@ namespace
             }
         }
 #endif
-        EndOfFault(sig, false);
+        EndOfFault(sig, info, uctx, false);
     }
 
     // MW2_DUMP=<hexaddr>[:words][,...] prints blocks of guest memory when the
