@@ -49,8 +49,9 @@ class DriverCatalogTest {
             // Qualcomm's own drivers are linked to: never the app's choice, never carried.
             if (driver.kind == "qualcomm") assertTrue(driver.id, !driver.auto && driver.asset.isEmpty())
         }
-        // The two the apps carry are the ones DriverStore unpacks.
+        // The three the apps carry are the ones DriverStore unpacks.
         assertEquals(DriverStore.BUNDLED_ASSET, catalog.entry("turnip-27.0.0-r2")!!.asset)
+        assertEquals(DriverStore.BUNDLED_ASSET_A8XX, catalog.entry("turnip-27.0.0-20261121-a8xx-banner")!!.asset)
         assertEquals(DriverStore.BUNDLED_ASSET_API29, catalog.entry("turnip-27.0.0-483aff3-api29")!!.asset)
     }
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 2026112802,
+  "version": 2026112803,
   "about": "Graphics drivers the apps may fetch (docs/android.md, The driver catalog). Checked by tools/driver_catalog.py verify. Proprietary drivers are linked to, never carried or chosen automatically.",
   "drivers": [
     {
@@ -213,10 +213,11 @@
       "kind": "turnip",
       "source": "The412Banner/Banners-Turnip v27.0.0-20261121",
       "url": "https://github.com/The412Banner/Banners-Turnip/releases/download/v27.0.0-20261121/Turnip-v27.0.0-20261121-A8xx.zip",
+      "asset": "drivers/turnip_a8xx.zip",
       "sha256": "d04357d9b96489a0f8385bad175a4f99a6b4e02f0ff8b6b0ea2cb65f1fbf8082",
       "size": 2602807,
       "library": "libvulkan_freedreno.so",
-      "licence": "GPL-3.0 as built (Mesa, MIT, with patches); downloaded from its publisher, not carried",
+      "licence": "GPL-3.0 as built (Mesa, MIT, with patches); carried as its publisher's zip, unchanged",
       "auto": true,
       "minApi": 30,
       "gpus": [
