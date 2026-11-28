@@ -148,6 +148,13 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   dropped by the filter and refused by `tools/check_no_game_files.py` and
   the history check
   ([docs/android-releases.md](docs/android-releases.md#what-must-not-reach-the-public-repositories)).
+- **The release's driver gate knows the project's own Turnip.** Since the
+  API 29 Turnip went into the apps (`turnip_api29.zip`, for Android 10 and
+  the Adreno 8xx), `release.py`'s gate 3 refused every draft: it held every
+  driver package to the community Turnip's SHA-256. It now wants both: the
+  community one by its SHA-256, the project's by the Mesa commit
+  `android/build_turnip.sh` pins (its `meta.json`), and no other
+  ([docs/android-releases.md](docs/android-releases.md#the-automated-procedure)).
 - **Looking by touch turns the view by your finger, not by a stick (all
   four games on Android).** A player without a controller wrote that "the
   screen sensitivity is bad" and that he did not like "relying on a

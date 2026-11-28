@@ -35,8 +35,9 @@ say it would, the game-code line after it).
              workflow ended well.
            2 tools/check_runtime_apk.py on the draft's APK; its certificate is
              the release key's; its package and version are the tag's.
-           3 the Turnip package (android/fetch_deps.sh's SHA-256) and
-             libadrenotools' libraries are inside the APK.
+           3 the two Turnip packages (the community one by android/fetch_deps.sh's
+             SHA-256, the project's API 29 build by build_turnip.sh's Mesa
+             commit) and libadrenotools' libraries are inside the APK.
            4 every statement the published app took is taken by the draft, or
              the notes say in their first lines that the game code is built
              again; the toolchain release setup/toolchain.json names exists
@@ -422,20 +423,35 @@ class Release:
         return package.group(3)
 
     def gate_driver(self, game, apk):
+        # The two Turnip packages android/fetch_deps.sh puts in the app: the community one by its SHA-256, and the
+        # project's own build for Android 10 and the Adreno 8xx (android/build_turnip.sh, built by the release
+        # workflow, so not hashed) by the Mesa commit its meta.json names, the check fetch_deps.sh itself makes.
         fetch = (REPOSITORY / "android" / "fetch_deps.sh").read_text(encoding="utf-8")
         wanted = re.search(r'(?m)^TURNIP_SHA256="(\w+)"', fetch).group(1)
+        community = "assets/drivers/" + re.search(r'(?m)^TURNIP_ASSET=".*/drivers/([^"/]+)"', fetch).group(1)
+        own = "assets/drivers/" + re.search(r'(?m)^TURNIP29_ASSET=".*/drivers/([^"/]+)"', fetch).group(1)
+        build = (REPOSITORY / "android" / "build_turnip.sh").read_text(encoding="utf-8")
+        mesa = re.search(r'(?m)^MESA_COMMIT="(\w+)"', build).group(1)[:10]
         with zipfile.ZipFile(apk) as package:
             names = package.namelist()
             drivers = [name for name in names if name.startswith("assets/drivers/") and name.endswith(".zip")]
-            if not drivers:
-                raise Refused(f"gate 3, {game}: no Turnip package under assets/drivers/")
+            for name in (community, own):
+                if name not in drivers:
+                    raise Refused(f"gate 3, {game}: no {name}")
             for name in drivers:
                 data = package.read(name)
-                if hashlib.sha256(data).hexdigest() != wanted:
-                    raise Refused(f"gate 3, {game}: {name} is not the Turnip package android/fetch_deps.sh names")
-                inside = zipfile.ZipFile(io.BytesIO(data)).namelist()
-                if "meta.json" not in inside or not any(one.endswith(".so") for one in inside):
-                    raise Refused(f"gate 3, {game}: {name} has no driver in it: {inside}")
+                inside = zipfile.ZipFile(io.BytesIO(data))
+                if "meta.json" not in inside.namelist() or not any(one.endswith(".so") for one in inside.namelist()):
+                    raise Refused(f"gate 3, {game}: {name} has no driver in it: {inside.namelist()}")
+                if name == community:
+                    if hashlib.sha256(data).hexdigest() != wanted:
+                        raise Refused(f"gate 3, {game}: {name} is not the Turnip package android/fetch_deps.sh names")
+                elif name == own:
+                    if mesa not in json.loads(inside.read("meta.json")).get("driverVersion", ""):
+                        raise Refused(f"gate 3, {game}: {name} is not built from Mesa {mesa} "
+                                      "(android/build_turnip.sh)")
+                else:
+                    raise Refused(f"gate 3, {game}: {name} is a driver package android/fetch_deps.sh does not name")
             for library in ADRENOTOOLS_LIBRARIES:
                 entry = f"lib/arm64-v8a/{library}"
                 if entry not in names or package.read(entry)[:4] != b"\x7fELF":
@@ -444,7 +460,7 @@ class Release:
             for title in GAMES[game][4]:
                 if b"adrenotools" not in package.read(f"lib/arm64-v8a/lib{title}.so"):
                     raise Refused(f"gate 3, {game}: lib{title}.so was built without libadrenotools")
-        return drivers[0].rsplit("/", 1)[1]
+        return f"{community.rsplit('/', 1)[1]} and {own.rsplit('/', 1)[1]}"
 
     def gate_abi(self, game, tag, abi, notes):
         was = self.state["published"][game]
