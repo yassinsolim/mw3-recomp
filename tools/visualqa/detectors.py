@@ -75,6 +75,12 @@ class Thresholds:
     # for how long. A fade between scenes is black for under two seconds; the
     # world missing behind the HUD (Black Ops III) stays.
     black_share: float = 0.97
+    # A black picture has nothing in its black. The walls of an unlit doorway
+    # on Black Tuesday, seen up close at levels 3 to 8 (both phones, 149 to
+    # 161 s of a run with the apps built at f39fd7b), vary by 1.9 to 3.0
+    # levels among their pixels under 16, in the game's own frames and
+    # through the encoder; a frame drawn black varies by none.
+    black_flat: float = 1.0
     white_share: float = 0.60
     # A washed frame has nothing dark in it at all: the level 5% of it is under.
     washed_darkest: float = 150.0
@@ -269,7 +275,7 @@ def blank(m, context, t):
     findings = []
     play = np.array([context.in_play(seconds) for seconds in m.seconds])
     kinds = (
-        ("black", m.black >= t.black_share, "the picture is black"),
+        ("black", (m.black >= t.black_share) & (m.dark_spread < t.black_flat), "the picture is black"),
         ("white", (m.white >= t.white_share) | (m.darkest >= t.washed_darkest), "the picture is washed white"),
         ("uniform", (m.spread <= t.uniform_spread) & (m.black < t.black_share), "the picture is one flat colour"),
     )

@@ -312,6 +312,40 @@ labelled set. The second run's `missing` was a dark pillar, strafed past
 close by, filling one column of regions with its own colour. The check
 now lets a single column of one colour pass.
 
+On 27 November 2026, with the apps built at `f39fd7b` (translations,
+invert switches, driver fixes, aim when firing, floating stick, the pad's
+slot, CPU clusters by capacity) and the checks as they are here:
+
+| scenario | AYN Thor (120 Hz) | Retroid Pocket Flip 2 (60 Hz) |
+|---|---|---|
+| `mw2-campaign` | PASS, 114.8, 48 ms | PASS, 60.0, 64 ms |
+| `mw2-bots` | PASS, 118.1, 48 ms | PASS, 60.1, 58 ms |
+| `mw3-campaign` | PASS, 114.9, 53 ms (failed `black` at 150 s, the check's mistake, mended) | PASS, 59.9, 84 ms (the same at 151 s) |
+| `mw3-bots` | PASS, 116.1, 53 ms | PASS, 59.9, 62 ms |
+| `mw3-survival` | PASS, 117.3, 52 ms | PASS, 60.0, 68 ms |
+| `cod4-campaign` | PASS, 116.4, 69 ms | PASS, 59.7, 77 ms |
+| `cod4-bots` | PASS, 118.5, 56 ms | PASS, 60.0, 77 ms |
+| `aw-campaign` | PASS, 117.3, 227 ms | PASS, 60.3, 55 ms |
+| `aw-match` | PASS, 117.7, 70 ms | PASS, 60.3, 95 ms |
+| `aw-shadows` | PASS, 118.2, 103 ms (second run; the first ended at 57 s, the debug build's `STALL` stack dump faulting in the unwinder, as in BO3-BRINGUP.md) | PASS, 60.2, 163 ms (second run; the first failed `local-flicker` at 209 s, a fault) |
+
+Black Tuesday's walk on this build ends, on both phones alike, in an unlit
+doorway at 149 to 161 s: walls at levels 3 to 8, textured (they vary by 1.9
+to 3.0 levels among the pixels under 16). `black` now wants the black to be
+flat as well (`black_flat`); a frame drawn black varies by none. The Flip's
+first `aw-shadows` run went into a dark room on Solar and a flat pale blue
+band swept the view near 206 s and from 208.5 to 209.1 s while the room
+stood still: taken for the known sun-shadow flicker (AW-BRINGUP.md, the
+cause open, with the sun's shadows on), not compared at that spot on
+`c41a440`'s apps, whose rerun did not walk there; its recording is in the
+labelled set as a fault. The Thor ran 0.5 to 2.3 frames a second below the
+`c41a440` tables in every scenario, with the same CPU clusters (`cpu:
+cores 80 the fastest, 78 the title's, 07 the background's` on the Thor,
+`80, 70, 0F` on the Flip 2, by capacity: as by clock before) and the same
+graphics chip and renderer times a frame. Run back to back on the Thor
+that evening, S.S.D.D. made 114.8 with `c41a440`'s apps and 114.4 with
+these: the phone's state that day, not the code.
+
 ## Calibration
 
 `tools/visualqa/calibration.json` lists the labelled recordings: which
@@ -339,7 +373,7 @@ On 27 November 2026, with the numbers in `Thresholds` and `frames.py`:
 | Riot on the Thor, whose perforated screen of square holes 16 to 18 px a side the block check took for a lattice | 1 | passed |
 | Solar on the Thor, where a pillar strafed past close by filled a column of regions with its colour and the missing check took it for ground gone | 1 | passed |
 
-15 of 15 faulty recordings caught and 29 of 29 clean ones passed: recall
+16 of 16 faulty recordings caught (the Flip 2's blue band on Solar, `f39fd7b`, added) and 29 of 29 clean ones passed: recall
 1.00, precision 1.00, by recording. The set is small, and nothing in it is
 a black world, a washed frame, a frozen picture or missing ground in a
 recording of a real run: those checks are tested on drawn pictures alone

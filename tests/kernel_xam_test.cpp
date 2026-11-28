@@ -109,6 +109,8 @@ namespace kernel
     void ForgetSessionLags() {}
     void NoteSessionLag(const void*, uint32_t) {}
     void SetXnAddrPeer(void*, uint64_t) {}
+    // The dashboard language misc.cpp reads from MW2_LANGUAGE: English.
+    uint32_t ConsoleLanguage() { return 1; }
     // Voice chat off: no headset is reported at any controller.
     namespace voice { bool On() { return false; } }
 }

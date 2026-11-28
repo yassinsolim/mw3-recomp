@@ -67,6 +67,8 @@
    "what": "Solar on an AYN Thor (c41a440), no fault: a dark pillar strafed past close by filled a column of five regions at 152.4 s and of six at 153.8 s with its one colour, which the missing check took for ground gone"},
   {"file": "runs/thor_aw-shadows_viewmodel.mp4", "log": "runs/thor_aw-shadows_viewmodel.log", "offset": 109.53, "play_from": 125, "faults": ["local-flicker"],
    "what": "Solar on an AYN Thor (c41a440), a fault: the held weapon and arms gone for one frame at 134.7 s but for a sight and a magazine, its draws skipped while six new pipelines for it compiled at once on a first visit (MW2_ASYNC_PIPELINES)"},
+  {"file": "runs/flip_aw-shadows_band.mp4", "log": "runs/flip_aw-shadows_band.log", "offset": 109.4, "play_from": 125, "faults": ["local-flicker"],
+   "what": "Solar on a Retroid Pocket Flip 2 (f39fd7b), a fault: in an unlit room a flat pale blue band across the view near 206.0 s and from 208.5 to 209.1 s, sweeping over a room that stays still, the sun-shadow flicker with the sun's shadows on (AW-BRINGUP.md); the reruns on f39fd7b and on c41a440's apps did not walk into the room"},
   {"file": "runs/flip_mw3-campaign.mp4", "log": "runs/flip_mw3-campaign.log", "offset": 50.65, "play_from": 95, "combat_from": 95,
    "what": "Black Tuesday: sparks in the overturned vehicle, the street fight"},
   {"file": "runs/flip_mw3-survival.mp4", "log": "runs/flip_mw3-survival.log", "offset": 50.65, "play_from": 70, "combat_from": 70,

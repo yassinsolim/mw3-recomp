@@ -189,6 +189,15 @@ class PictureChecks(unittest.TestCase):
         pictures = drifting(30) + [np.zeros((HEIGHT, WIDTH, 3), np.uint8)] * 60 + drifting(30)
         self.assertNotIn("black", checks(pictures))
 
+    def test_dark_wall_is_not_black(self):
+        # A wall of an unlit doorway seen up close: levels 4 to 13 all over, varying by 1.2 among its
+        # pixels (Black Tuesday's walls: 1.9 to 3.0).
+        noise = np.random.default_rng(3).integers(3, 15, (HEIGHT // 4, WIDTH // 4, 3)).astype(np.uint8)
+        wall = cv2.GaussianBlur(cv2.resize(noise, (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC), (0, 0), 2)
+        pictures = drifting(30) + drifting(360, wall) + drifting(30)
+        self.assertNotIn("black", checks(pictures))
+        self.assertNotIn("uniform", checks(pictures))
+
     def test_washed_white(self):
         washed = cv2.add(cv2.convertScaleAbs(scene(), alpha=0.2), 200)
         self.assertEqual(checks(drifting(30) + [washed] * 360).get("white"), detectors.FAIL)

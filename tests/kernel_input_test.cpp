@@ -16,6 +16,8 @@ PPC_FUNC(__imp__XamInputGetCapabilities);
 PPC_FUNC(__imp__XamInputSetState);
 namespace online { void Frame() {} }
 namespace console { void Pump(PPCContext&, unsigned char*) {} }
+// No sign-in question on screen: every press goes to the title.
+namespace signin { bool Input(uint32_t, uint16_t) { return false; } }
 
 int main(int argc, char** argv)
 {

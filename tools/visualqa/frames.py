@@ -138,6 +138,7 @@ class Measurements:
     change: np.ndarray        # mean difference from the frame before, 0-255
     moved: np.ndarray         # share of the pixels that differ from the frame before
     black: np.ndarray         # share of the pixels that are black
+    dark_spread: np.ndarray   # standard deviation of the brightness of those black pixels
     white: np.ndarray         # share that are white
     darkest: np.ndarray       # the brightness 5% of the pixels are under
     spread: np.ndarray        # standard deviation of the brightness
@@ -393,7 +394,9 @@ def measure(frames, mask="hud", progress=None):
         colour = cv2.resize(small_colour.astype(np.float32) * keep[:, :, None], CELLS, interpolation=cv2.INTER_AREA)
         rows["colour"].append((colour / safe_weight[:, :, None]).reshape(-1, 3))
         values = small[seen]
-        rows["black"].append(float((values < 16).mean()))
+        dark = values[values < 16]
+        rows["black"].append(float(dark.size / values.size))
+        rows["dark_spread"].append(float(dark.std()) if dark.size else 0.0)
         rows["white"].append(float((values > 235).mean()))
         rows["darkest"].append(float(np.percentile(values, 5)))
         rows["spread"].append(float(values.std()))
