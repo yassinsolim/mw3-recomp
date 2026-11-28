@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">زر الإطلاق على الشاشة يصوّب أيضًا: يرتفع المنظار عند الضغط عليه وتنطلق الرصاصة بعد لحظة؛ وعند رفع إصبعك عن الإطلاق يُترك الاثنان. إذا كنت تضغط على زر التصويب أصلًا، يعمل الإطلاق كالمعتاد.</string>
     <string name="aim_when_firing_delay">التصويب قبل الطلقة: %1$d مللي ثانية</string>
     <string name="menu_aim_when_firing_delay">التصويب قبل الطلقة</string>
+    <string name="floating_stick">عصا الحركة العائمة</string>
+    <string name="floating_stick_hint">تظهر عصا الحركة حيث يلمس إبهامك الأيسر الجانب الأيسر من الشاشة لأول مرة وتتبعه، بدل أن تبقى في مكان ثابت.</string>
+    <string name="auto_sprint">الجري التلقائي</string>
+    <string name="auto_sprint_hint">أبقِ عصا الحركة عند حافتها للحظة فيُضغط الجري (نقر العصا اليسرى) عنك؛ وعند إرجاعها يُترك.</string>
     <string name="gyro_aiming">التصويب بالجيروسكوب</string>
     <string name="gyro_label">التصويب بالجيروسكوب: %1$s</string>
     <string-array name="gyro_choices">

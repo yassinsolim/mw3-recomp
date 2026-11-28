@@ -30,6 +30,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 
@@ -281,6 +282,19 @@ bool android::input::Poll(uint32_t user, Pad& out)
                 left = nowLeft;
                 right = nowRight;
                 LOGI("trigger: lt %d rt %d at %.2f ms", nowLeft ? 1 : 0, nowRight ? 1 : 0,
+                     std::chrono::duration<double, std::milli>(Clock::now().time_since_epoch()).count());
+            }
+            // The left stick and its click (sprint), when the click changes or the stick moves by an eighth:
+            // tools/move_stick.py.
+            static int lastX = 0, lastY = 0;
+            static bool click = false;
+            const bool nowClick = (out.buttons & 0x0040) != 0;
+            if (nowClick != click || std::abs(int(out.leftX) - lastX) >= 4096 || std::abs(int(out.leftY) - lastY) >= 4096)
+            {
+                click = nowClick;
+                lastX = out.leftX;
+                lastY = out.leftY;
+                LOGI("stick: lx %d ly %d l3 %d at %.2f ms", int(out.leftX), int(out.leftY), nowClick ? 1 : 0,
                      std::chrono::duration<double, std::milli>(Clock::now().time_since_epoch()).count());
             }
         }

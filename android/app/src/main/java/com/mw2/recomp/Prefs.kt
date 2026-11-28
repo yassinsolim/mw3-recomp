@@ -461,6 +461,16 @@ class Prefs(context: Context) {
             .coerceIn(0, AimWhenFiring.MAX_DELAY_MILLIS.toInt())
         set(value) = store.edit().putInt(KEY_AIM_WHEN_FIRING_DELAY, value.coerceIn(0, AimWhenFiring.MAX_DELAY_MILLIS.toInt())).apply()
 
+    /** The movement stick appears where the left thumb first touches the left side of the screen (MoveStick). */
+    var floatingStick: Boolean
+        get() = store.getBoolean(KEY_FLOATING_STICK, false)
+        set(value) = store.edit().putBoolean(KEY_FLOATING_STICK, value).apply()
+
+    /** The movement stick pushed to its edge for a moment presses the game's sprint, the left stick's click (AutoSprint). */
+    var autoSprint: Boolean
+        get() = store.getBoolean(KEY_AUTO_SPRINT, false)
+        set(value) = store.edit().putBoolean(KEY_AUTO_SPRINT, value).apply()
+
     /** The gyroscope turning the view: [GYRO_OFF], [GYRO_ALWAYS] or [GYRO_AIMING]. */
     var gyroMode: Int
         get() = store.getInt(KEY_GYRO_MODE, GYRO_OFF).coerceIn(GYRO_OFF, GYRO_AIMING)
@@ -870,6 +880,8 @@ class Prefs(context: Context) {
         private const val KEY_TAP_TO_FIRE = "tapToFire"
         private const val KEY_AIM_WHEN_FIRING = "aimWhenFiring"
         private const val KEY_AIM_WHEN_FIRING_DELAY = "aimWhenFiringDelay"
+        private const val KEY_FLOATING_STICK = "floatingStick"
+        private const val KEY_AUTO_SPRINT = "autoSprint"
         private const val KEY_GYRO_MODE = "gyroMode"
         private const val KEY_GYRO_SENSITIVITY = "gyroSensitivity"
         /** The gyroscope's settings, in the order the runtime numbers them (android/input.cpp). */

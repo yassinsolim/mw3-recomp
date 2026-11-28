@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Экранная кнопка «Огонь» ещё и прицеливается: прицел поднимается при нажатии, а выстрел следует мгновение спустя; отпускание «Огня» отпускает оба. Если «Прицел» уже удерживается, «Огонь» работает как обычно.</string>
     <string name="aim_when_firing_delay">Прицеливание перед выстрелом: %1$d мс</string>
     <string name="menu_aim_when_firing_delay">Прицеливание перед выстрелом</string>
+    <string name="floating_stick">Плавающий стик движения</string>
+    <string name="floating_stick_hint">Стик движения появляется там, где левый палец впервые касается левой части экрана, и следует за ним, а не стоит на одном месте.</string>
+    <string name="auto_sprint">Автоспринт</string>
+    <string name="auto_sprint_hint">Удерживайте стик движения у края на мгновение — спринт (нажатие левого стика) нажмётся за вас; верните стик назад — и он отпустится.</string>
     <string name="gyro_aiming">Прицеливание гироскопом</string>
     <string name="gyro_label">Прицеливание гироскопом: %1$s</string>
     <string-array name="gyro_choices">

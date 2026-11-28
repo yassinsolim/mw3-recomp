@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">屏幕上的开火按钮同时负责瞄准：按下时准星抬起，稍后射出子弹；松开开火按钮即同时松开两者。如果你已经按住瞄准，开火照常工作。</string>
     <string name="aim_when_firing_delay">开枪前瞄准时间：%1$d 毫秒</string>
     <string name="menu_aim_when_firing_delay">开枪前瞄准时间</string>
+    <string name="floating_stick">浮动移动摇杆</string>
+    <string name="floating_stick_hint">移动摇杆出现在左拇指第一次触碰屏幕左侧的位置，并跟随拇指，而不是固定在一处。</string>
+    <string name="auto_sprint">自动冲刺</string>
+    <string name="auto_sprint_hint">把移动摇杆推到边缘停留片刻，就会替你按下冲刺（左摇杆按下）；拉回来就会松开。</string>
     <string name="gyro_aiming">陀螺仪瞄准</string>
     <string name="gyro_label">陀螺仪瞄准：%1$s</string>
     <string-array name="gyro_choices">

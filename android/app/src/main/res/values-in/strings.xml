@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Tombol Tembak di layar juga membidik: alat bidik naik saat ditekan dan tembakan menyusul sesaat kemudian; melepas Tembak melepas keduanya. Jika Anda sudah menahan Bidik, Tembak bekerja seperti biasa.</string>
     <string name="aim_when_firing_delay">Bidik sebelum tembakan: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Bidik sebelum tembakan</string>
+    <string name="floating_stick">Stik gerak mengambang</string>
+    <string name="floating_stick_hint">Stik gerak muncul di tempat ibu jari kiri Anda pertama kali menyentuh sisi kiri layar dan mengikutinya, bukan diam di satu tempat.</string>
+    <string name="auto_sprint">Lari otomatis</string>
+    <string name="auto_sprint_hint">Tahan stik gerak di tepinya sejenak dan lari (klik stik kiri) ditekan untuk Anda; tarik kembali dan dilepas.</string>
     <string name="gyro_aiming">Bidik dengan giroskop</string>
     <string name="gyro_label">Bidik dengan giroskop: %1$s</string>
     <string-array name="gyro_choices">

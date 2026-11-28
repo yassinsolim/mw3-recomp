@@ -43,6 +43,21 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   [docs/android.md](docs/android.md#aim-when-firing-touch)); `MW2_TRACE_LOOK=1`
   now also logs `trigger:` lines (what the game's poll saw of the triggers)
   and the time of each `look:` line.
+- **Floating movement stick and auto-sprint for touch** (both off to begin
+  with; Settings → Controls and the game's menu, Touch look and gyroscope;
+  asked for in an issue on the Advanced Warfare repository and by the same
+  player as Aim when firing). **Floating movement stick**: the movement stick
+  is put down wherever the left thumb first touches the left side of the
+  screen where no button is, and the push is measured from there, as
+  Call of Duty: Mobile's is (the right half is the look area already, so it is
+  the left stick that floats); the base is drawn under the thumb and not at
+  all while nothing touches it. **Auto-sprint**: the stick held at 90% of its
+  radius or more for 300 ms presses the game's sprint, the left stick's click,
+  for the player, and pulling it back below 70% or lifting the thumb lets go;
+  the Run button lights while the stick holds it. The rules are in
+  `MoveStick.kt` (`MoveStickTest`); `tools/move_stick.py` checks them on a
+  phone, and `MW2_TRACE_LOOK=1` now also logs `stick:` lines (the left
+  stick's push and its click as the game's poll saw them).
 - **Invert looking left and right, and up and down, for touch and the
   gyroscope.** The one switch ("Invert looking up and down", touch only)
   is two: **Invert looking left and right** and **Invert looking up and

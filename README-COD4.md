@@ -233,7 +233,10 @@ off or on in Settings → Graphics, or in the game's Menu → Graphics.
 
 No controller is needed. The same in all four games:
 
-- **Move** with the stick at the bottom left.
+- **Move** with the stick at the bottom left. **Floating movement stick**
+  puts it under your thumb wherever you touch the left side, and
+  **Auto-sprint** presses sprint for you when you hold the stick at its edge
+  (both under **Settings → Controls**, off to begin with).
 - **Look** by dragging anywhere on the right half of the screen. The view
   turns by how far your finger moves: the same swipe is the same turn
   whether it is slow or a flick, at 30 frames a second or 120. There is no

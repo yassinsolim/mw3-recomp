@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Die Feuern-Taste auf dem Bildschirm zielt auch: Beim Drücken geht das Visier hoch, kurz darauf fällt der Schuss; beim Loslassen enden beide. Hältst du Zielen schon gedrückt, funktioniert Feuern wie gewohnt.</string>
     <string name="aim_when_firing_delay">Zielzeit vor dem Schuss: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Zielzeit vor dem Schuss</string>
+    <string name="floating_stick">Schwebender Bewegungsstick</string>
+    <string name="floating_stick_hint">Der Bewegungsstick erscheint dort, wo dein linker Daumen den linken Bildschirmteil zuerst berührt, und folgt ihm, statt an einem festen Ort zu sitzen.</string>
+    <string name="auto_sprint">Automatisch sprinten</string>
+    <string name="auto_sprint_hint">Hältst du den Bewegungsstick kurz am Rand, wird das Sprinten (Klick des linken Sticks) für dich gedrückt; ziehst du zurück, wird es losgelassen.</string>
     <string name="gyro_aiming">Gyro-Zielen</string>
     <string name="gyro_label">Gyro-Zielen: %1$s</string>
     <string-array name="gyro_choices">

@@ -80,6 +80,10 @@ class TouchOverlayView @JvmOverloads constructor(
     private val held = HashSet<String>()
     private val toggled = HashSet<String>()
 
+    // The movement stick of Prefs.floatingStick sits where its finger first came down: id -> x, y in pixels.
+    private val floatOrigins = HashMap<String, FloatArray>()
+    private val pushScratch = FloatArray(2)
+
     /**
      * A finger that turns the view as it moves: one on the look area, or
      * one that went down on a button beside it and has been dragged off its
@@ -103,9 +107,13 @@ class TouchOverlayView @JvmOverloads constructor(
     }
 
     // Fire also aims (Prefs.aimWhenFiring): while a press of Fire is being
-    // managed (AimWhenFiring) the pad state has both triggers from it.
+    // managed (AimWhenFiring) the pad state has both triggers from it. And a
+    // movement stick held at its edge presses sprint when the time is up
+    // (Prefs.autoSprint, AutoSprint). Both are waited for: [recheckLater]
+    // sends the state again when the next of them is due.
     private val aimFire = AimWhenFiring()
-    private val recheckAimFire = Runnable {
+    private val autoSprint = AutoSprint()
+    private val recheckLater = Runnable {
         pushState()
         invalidate()
     }
@@ -116,6 +124,9 @@ class TouchOverlayView @JvmOverloads constructor(
     private fun traceTrigger(element: ControlElement, what: String, millis: Long) {
         if (BuildConfig.DEBUG && element.kind == ControlKind.TRIGGER) Log.i("TouchTrigger", "${element.id} $what at $millis ms")
     }
+
+    /** The stick that walks: the first left one. */
+    private fun isMovementStick(element: ControlElement) = element.kind == ControlKind.STICK && element.value == 0
 
     /** Aim is held or toggled on: the sights are up or coming up on the player's say. */
     private fun playerAiming(): Boolean = layout.elements.any {
@@ -218,6 +229,8 @@ class TouchOverlayView @JvmOverloads constructor(
         for (element in layout.elements) {
             if (element.kind == ControlKind.LOOK) continue
             if (!element.visible && !includeHidden) continue
+            // A floating stick is not a place on the screen: the touch it takes is any that no button took.
+            if (!editing && prefs.floatingStick && isMovementStick(element)) continue
             if (!hit(element, x, y)) continue
             val reach = hypot(x - centreX(element), y - centreY(element)) / radius(element)
             if (reach < nearestReach) {
@@ -276,20 +289,27 @@ class TouchOverlayView @JvmOverloads constructor(
             leftTrigger = 255
             if (aimFire.rightTrigger(now)) rightTrigger = 255
         }
+        // Sprint is the left stick's click: pressed for the player while the stick is held at its edge.
+        if (prefs.autoSprint) {
+            if (autoSprint.update(MoveStick.magnitude(leftX, leftY), now)) buttons = buttons or NativeBridge.L3
+        } else {
+            autoSprint.cancel()
+        }
         NativeBridge.nativeTouchState(
             buttons, leftTrigger, rightTrigger,
             leftX.coerceIn(-1f, 1f), leftY.coerceIn(-1f, 1f),
             rightX.coerceIn(-1f, 1f), rightY.coerceIn(-1f, 1f),
         )
-        removeCallbacks(recheckAimFire)
-        val next = aimFire.nextChangeAt(now)
-        if (next != AimWhenFiring.NOT_YET) postDelayed(recheckAimFire, max(0L, next - now))
+        removeCallbacks(recheckLater)
+        val next = minOf(aimFire.nextChangeAt(now), autoSprint.nextChangeAt(now))
+        if (next != AimWhenFiring.NOT_YET) postDelayed(recheckLater, max(0L, next - now))
     }
 
     /** Everything up: called when the pad is hidden, edited, or paused. */
     fun releaseEverything() {
         claims.clear()
         stickPositions.clear()
+        floatOrigins.clear()
         dpadBits.clear()
         held.clear()
         // Toggles survive a pause -- a player who was aiming down sights
@@ -298,8 +318,9 @@ class TouchOverlayView @JvmOverloads constructor(
         if (editing) toggled.clear()
         looks.clear()
         removeCallbacks(endTapFire)
-        removeCallbacks(recheckAimFire)
+        removeCallbacks(recheckLater)
         aimFire.cancel()
+        autoSprint.cancel()
         tapFiring = false
         if (NativeBridge.isLoaded()) {
             NativeBridge.nativeLookEnd()
@@ -378,7 +399,7 @@ class TouchOverlayView @JvmOverloads constructor(
     }
 
     private fun press(pointerId: Int, x: Float, y: Float, millis: Long): Boolean {
-        val element = elementAt(x, y) ?: return false
+        val element = elementAt(x, y) ?: return pressFloatingStick(pointerId, x, y, millis)
         if (element.kind == ControlKind.LOOK) {
             looks[pointerId] = Look(x, y, millis, turning = true)
             return false
@@ -430,7 +451,10 @@ class TouchOverlayView @JvmOverloads constructor(
         if (element != null) {
             traceTrigger(element, "up", millis)
             when (element.kind) {
-                ControlKind.STICK -> stickPositions.remove(element.id)
+                ControlKind.STICK -> {
+                    stickPositions.remove(element.id)
+                    floatOrigins.remove(element.id)
+                }
                 ControlKind.DPAD -> dpadBits.remove(element.id)
                 else -> {
                     held.remove(element.id)
@@ -470,14 +494,31 @@ class TouchOverlayView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * The movement stick of Prefs.floatingStick: a finger that came down on
+     * the stick's side of the screen where no button is takes the stick, and
+     * the stick is centred where it came down. Its radius is the stick's
+     * own, and it goes where the finger goes within it.
+     */
+    private fun pressFloatingStick(pointerId: Int, x: Float, y: Float, millis: Long): Boolean {
+        if (!prefs.floatingStick) return false
+        val stick = layout.elements.firstOrNull { isMovementStick(it) && it.visible } ?: return false
+        if (!MoveStick.onMovementSide(x, width.toFloat(), stick.xFrac)) return false
+        if (claims.containsValue(stick)) return false
+        triggerHaptic()
+        claims[pointerId] = stick
+        floatOrigins[stick.id] = floatArrayOf(x, y)
+        if (BuildConfig.DEBUG) Log.i("TouchStick", "origin ${x.roundToInt()} ${y.roundToInt()} at $millis ms")
+        moveStick(stick, x, y)
+        return true
+    }
+
     private fun moveStick(element: ControlElement, x: Float, y: Float) {
-        val r = radius(element)
-        var dx = (x - centreX(element)) / r
-        // The guest's Y points up; the screen's points down.
-        var dy = -(y - centreY(element)) / r
-        val length = hypot(dx, dy)
-        if (length > 1f) { dx /= length; dy /= length }
-        stickPositions[element.id] = floatArrayOf(dx, dy)
+        val origin = floatOrigins[element.id]
+        MoveStick.deflection(
+            x, y, origin?.get(0) ?: centreX(element), origin?.get(1) ?: centreY(element), radius(element), pushScratch,
+        )
+        stickPositions[element.id] = floatArrayOf(pushScratch[0], pushScratch[1])
     }
 
     private fun moveDpad(element: ControlElement, x: Float, y: Float) {
@@ -598,7 +639,10 @@ class TouchOverlayView @JvmOverloads constructor(
             val alpha = if (editing) max(0.28f, element.alpha) else element.alpha
             when (element.kind) {
                 ControlKind.LOOK -> drawLook(canvas, element, faded)
-                ControlKind.STICK -> drawStick(canvas, element, alpha, faded)
+                // A floating stick is drawn where the finger is, and not at all while none is down.
+                ControlKind.STICK -> if (editing || !prefs.floatingStick || !isMovementStick(element) ||
+                    floatOrigins.containsKey(element.id)
+                ) drawStick(canvas, element, alpha, faded)
                 ControlKind.DPAD -> drawDpad(canvas, element, alpha, faded)
                 ControlKind.BUTTON, ControlKind.TRIGGER -> drawButton(canvas, element, alpha, faded)
             }
@@ -613,9 +657,12 @@ class TouchOverlayView @JvmOverloads constructor(
     }
 
     private fun isOn(element: ControlElement): Boolean =
-        held.contains(element.id) || toggled.contains(element.id) ||
-            // Aim lights up while Fire is holding it for the player.
-            (element.kind == ControlKind.TRIGGER && element.value == 0 && aimFire.leftTrigger(SystemClock.uptimeMillis()))
+        held.contains(element.id) || toggled.contains(element.id) || when {
+            // Aim lights up while Fire is holding it for the player, Run while the stick has pressed it.
+            element.kind == ControlKind.TRIGGER && element.value == 0 -> aimFire.leftTrigger(SystemClock.uptimeMillis())
+            element.kind == ControlKind.BUTTON && element.value == NativeBridge.L3 -> autoSprint.sprinting
+            else -> false
+        }
 
     companion object {
         /** How far a pressed thumb wobbles without meaning to move. */
@@ -843,8 +890,9 @@ class TouchOverlayView @JvmOverloads constructor(
 
     private fun drawStick(canvas: Canvas, element: ControlElement, alpha: Float, faded: Boolean) {
         val r = radius(element)
-        val cx = centreX(element)
-        val cy = centreY(element)
+        val origin = floatOrigins[element.id]
+        val cx = origin?.get(0) ?: centreX(element)
+        val cy = origin?.get(1) ?: centreY(element)
         val fadeFactor = if (faded) 0.45f else 1f
         val position = stickPositions[element.id]
         val isDeflected = position != null

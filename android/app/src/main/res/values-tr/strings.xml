@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Ekrandaki Ateş düğmesi aynı zamanda nişan alır: bastığında nişangâh kalkar, atış bir an sonra gelir; düğmeyi bırakınca ikisi de bırakılır. Nişan düğmesini zaten basılı tutuyorsan Ateş her zamanki gibi çalışır.</string>
     <string name="aim_when_firing_delay">Atıştan önce nişan: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Atıştan önce nişan</string>
+    <string name="floating_stick">Yüzen hareket çubuğu</string>
+    <string name="floating_stick_hint">Hareket çubuğu, sol başparmağın ekranın sol tarafına ilk dokunduğu yerde belirir ve onu izler; tek bir yerde durmaz.</string>
+    <string name="auto_sprint">Otomatik koşu</string>
+    <string name="auto_sprint_hint">Hareket çubuğunu bir an kenarda tutarsan koşu (sol çubuğa basma) senin yerine basılır; geri çekersen bırakılır.</string>
     <string name="gyro_aiming">Jiroskopla nişan alma</string>
     <string name="gyro_label">Jiroskopla nişan alma: %1$s</string>
     <string-array name="gyro_choices">

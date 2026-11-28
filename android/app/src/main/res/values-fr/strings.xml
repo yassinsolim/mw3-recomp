@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Le bouton Tir à l\'écran vise aussi : le viseur se lève quand vous appuyez et le coup part un instant plus tard ; relâcher Tir relâche les deux. Si vous maintenez déjà Viser, Tir fonctionne comme d\'habitude.</string>
     <string name="aim_when_firing_delay">Visée avant le tir : %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Visée avant le tir</string>
+    <string name="floating_stick">Stick de déplacement flottant</string>
+    <string name="floating_stick_hint">Le stick de déplacement apparaît là où votre pouce gauche touche d\'abord la moitié gauche de l\'écran et le suit, au lieu de rester à un endroit fixe.</string>
+    <string name="auto_sprint">Sprint automatique</string>
+    <string name="auto_sprint_hint">Maintenez le stick de déplacement au bord un instant et le sprint (le clic du stick gauche) est enfoncé pour vous ; ramenez-le et il est relâché.</string>
     <string name="gyro_aiming">Visée au gyroscope</string>
     <string name="gyro_label">Visée au gyroscope : %1$s</string>
     <string-array name="gyro_choices">

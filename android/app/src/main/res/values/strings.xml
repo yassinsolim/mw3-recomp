@@ -281,6 +281,10 @@
     <string name="aim_when_firing_hint">The on-screen Fire button also aims: the sights come up as you press it and the shot follows a moment later; letting go of Fire lets go of both. If you are already holding Aim, Fire works as usual.</string>
     <string name="aim_when_firing_delay">Aim before the shot: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Aim before the shot</string>
+    <string name="floating_stick">Floating movement stick</string>
+    <string name="floating_stick_hint">The movement stick appears where your left thumb first touches the left side of the screen, and follows it, instead of sitting in one place.</string>
+    <string name="auto_sprint">Auto-sprint</string>
+    <string name="auto_sprint_hint">Hold the movement stick at its edge for a moment and sprint (the left stick click) is pressed for you; pull back and it is let go.</string>
     <string name="gyro_aiming">Gyroscope aiming</string>
     <string name="gyro_label">Gyroscope aiming: %1$s</string>
     <string-array name="gyro_choices">

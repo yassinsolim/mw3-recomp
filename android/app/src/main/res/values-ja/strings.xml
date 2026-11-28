@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">画面の発射ボタンでエイムも行います。押すとサイトが上がり、少し遅れて発射します。離すと両方が解除されます。すでにエイムを押している場合は、発射は通常どおり動作します。</string>
     <string name="aim_when_firing_delay">射撃前のエイム時間: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">射撃前のエイム時間</string>
+    <string name="floating_stick">浮動式の移動スティック</string>
+    <string name="floating_stick_hint">移動スティックは、左側を最初に触れた位置に現れ、親指に合わせて動きます。固定位置にはありません。</string>
+    <string name="auto_sprint">オートダッシュ</string>
+    <string name="auto_sprint_hint">移動スティックを端に少し保つと、ダッシュ（左スティック押し込み）が自動で押されます。戻すと離されます。</string>
     <string name="gyro_aiming">ジャイロエイム</string>
     <string name="gyro_label">ジャイロエイム: %1$s</string>
     <string-array name="gyro_choices">

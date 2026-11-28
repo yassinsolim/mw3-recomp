@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Il pulsante Fuoco sullo schermo prende anche la mira: il mirino si alza quando premi e lo sparo parte un istante dopo; rilasciando Fuoco si rilasciano entrambi. Se tieni già premuto Mira, Fuoco funziona come al solito.</string>
     <string name="aim_when_firing_delay">Mira prima dello sparo: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Mira prima dello sparo</string>
+    <string name="floating_stick">Stick di movimento mobile</string>
+    <string name="floating_stick_hint">Lo stick di movimento compare dove il pollice sinistro tocca per la prima volta la metà sinistra dello schermo e lo segue, invece di stare sempre nello stesso punto.</string>
+    <string name="auto_sprint">Scatto automatico</string>
+    <string name="auto_sprint_hint">Tieni lo stick di movimento al bordo per un attimo e lo scatto (il clic dello stick sinistro) viene premuto per te; riportalo indietro e viene rilasciato.</string>
     <string name="gyro_aiming">Mira con giroscopio</string>
     <string name="gyro_label">Mira con giroscopio: %1$s</string>
     <string-array name="gyro_choices">

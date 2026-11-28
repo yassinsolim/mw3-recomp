@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">Przycisk Strzał na ekranie też celuje: przyrządy unoszą się po naciśnięciu, a strzał pada chwilę później; puszczenie Strzału puszcza oba. Jeśli już trzymasz Celuj, Strzał działa jak zwykle.</string>
     <string name="aim_when_firing_delay">Celowanie przed strzałem: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Celowanie przed strzałem</string>
+    <string name="floating_stick">Pływający drążek ruchu</string>
+    <string name="floating_stick_hint">Drążek ruchu pojawia się tam, gdzie lewy kciuk po raz pierwszy dotknie lewej strony ekranu, i podąża za nim, zamiast tkwić w jednym miejscu.</string>
+    <string name="auto_sprint">Automatyczny sprint</string>
+    <string name="auto_sprint_hint">Przytrzymaj drążek ruchu przy krawędzi na chwilę, a sprint (kliknięcie lewego drążka) zostanie wciśnięty za ciebie; cofnij, a zostanie puszczony.</string>
     <string name="gyro_aiming">Celowanie żyroskopem</string>
     <string name="gyro_label">Celowanie żyroskopem: %1$s</string>
     <string-array name="gyro_choices">

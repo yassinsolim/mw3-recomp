@@ -706,6 +706,32 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/floating_stick"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/floating_stick" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/floating_stick_hint" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/auto_sprint"
+                    style="@style/SettingSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/auto_sprint" />
+
+                <TextView
+                    style="@style/SettingHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/auto_sprint_hint" />
+
                 <TextView
                     android:id="@+id/gyro_label"
                     style="@style/SettingLabel"

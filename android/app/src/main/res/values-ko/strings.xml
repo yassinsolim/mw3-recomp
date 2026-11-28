@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">화면의 사격 버튼이 조준도 함께 해요. 누르면 조준경이 올라오고 잠시 뒤에 발사되며, 버튼에서 손을 떼면 둘 다 해제돼요. 이미 조준을 누르고 있다면 사격은 평소처럼 동작해요.</string>
     <string name="aim_when_firing_delay">사격 전 조준 시간: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">사격 전 조준 시간</string>
+    <string name="floating_stick">움직이는 이동 스틱</string>
+    <string name="floating_stick_hint">이동 스틱이 화면 왼쪽을 처음 터치한 곳에 나타나고 엄지를 따라가요. 한 자리에 고정되어 있지 않아요.</string>
+    <string name="auto_sprint">자동 달리기</string>
+    <string name="auto_sprint_hint">이동 스틱을 가장자리에 잠깐 두면 달리기(왼쪽 스틱 클릭)가 대신 눌려요. 되돌리면 놓아져요.</string>
     <string name="gyro_aiming">자이로 조준</string>
     <string name="gyro_label">자이로 조준: %1$s</string>
     <string-array name="gyro_choices">

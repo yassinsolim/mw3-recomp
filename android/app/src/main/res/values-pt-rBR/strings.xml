@@ -254,6 +254,10 @@
     <string name="aim_when_firing_hint">O botão Atirar na tela também mira: a mira sobe quando você o toca e o tiro sai um instante depois; soltar Atirar solta os dois. Se você já está segurando Mirar, Atirar funciona como sempre.</string>
     <string name="aim_when_firing_delay">Mirar antes do tiro: %1$d ms</string>
     <string name="menu_aim_when_firing_delay">Mirar antes do tiro</string>
+    <string name="floating_stick">Analógico de movimento flutuante</string>
+    <string name="floating_stick_hint">O analógico de movimento aparece onde seu polegar esquerdo toca primeiro o lado esquerdo da tela e o acompanha, em vez de ficar sempre no mesmo lugar.</string>
+    <string name="auto_sprint">Corrida automática</string>
+    <string name="auto_sprint_hint">Segure o analógico de movimento na borda por um instante e a corrida (o clique do analógico esquerdo) é pressionada por você; volte e ela é solta.</string>
     <string name="gyro_aiming">Mira com giroscópio</string>
     <string name="gyro_label">Mira com giroscópio: %1$s</string>
     <string-array name="gyro_choices">

@@ -365,6 +365,8 @@ class SettingsActivity : AppCompatActivity() {
             { getString(R.string.aim_when_firing_delay, it * AimWhenFiring.DELAY_STEP_MILLIS.toInt()) },
             { prefs.aimWhenFiringDelay = it * AimWhenFiring.DELAY_STEP_MILLIS.toInt() },
         )
+        switch(R.id.floating_stick, prefs.floatingStick) { prefs.floatingStick = it }
+        switch(R.id.auto_sprint, prefs.autoSprint) { prefs.autoSprint = it }
 
         // The gyroscope, where the phone has one.
         if (GyroInput(this).available) {

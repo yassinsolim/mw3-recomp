@@ -1739,6 +1739,13 @@ class GameActivity : AppCompatActivity(), NativeListener {
         ) {
             prefs.aimWhenFiringDelay = aimDelays[it]
         })
+        // Read by the on-screen pad as a finger comes down on the left side, and as the stick is pushed (MoveStick).
+        rows.add(GameMenu.Choice(getString(R.string.floating_stick), onOff(), if (prefs.floatingStick) 1 else 0) {
+            prefs.floatingStick = it == 1
+        })
+        rows.add(GameMenu.Choice(getString(R.string.auto_sprint), onOff(), if (prefs.autoSprint) 1 else 0) {
+            prefs.autoSprint = it == 1
+        })
 
         if (gyro.available) {
             rows.add(GameMenu.Choice(
