@@ -41,6 +41,9 @@ namespace vk::pipeline
     void SetCachePath(const char* path);
     // Whether Initialise found a cache there the driver took.
     bool CacheLoaded();
+    // Whether this run's cache is written back to that file for the next
+    // (pipeline_cache_rules.h: not under a Mali driver older than r38).
+    bool CacheKept();
 
     // A device's VkPhysicalDeviceIDProperties::deviceUUID, in hex: which of
     // the machine's devices it is. `physical` is a VkPhysicalDevice.

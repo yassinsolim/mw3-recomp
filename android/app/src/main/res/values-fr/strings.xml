@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Compile tous les pipelines enregistrés avant l\'écran titre au lieu de les préparer en jeu. Le démarrage prend plusieurs minutes avec un cache vide et le téléphone chauffe, mais il ne reste ensuite presque plus de saccades de shaders en jeu. Désactivé : démarrage rapide de 2 secondes avec préparation en arrière-plan.</string>
     <string name="async_pipelines">Compiler les shaders en arrière-plan</string>
     <string name="async_pipelines_hint">Évite les blocages la première fois qu\'une carte est jouée ; certains objets peuvent apparaître quelques secondes en retard pendant la compilation de leurs shaders. Désactivé : chaque shader est compilé dès sa première utilisation, ce qui peut figer brièvement le jeu.</string>
+    <string name="boot_compile_progress">Compilation des shaders : %1$d sur %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">Une attente unique : le prochain démarrage réutilise ces shaders et sera bien plus rapide.</string>
+    <string name="boot_compile_every_start">Avec le pilote graphique de ce téléphone, les shaders ne sont pas conservés d\'un démarrage à l\'autre : cette attente revient à chaque fois. Désactivez « Compiler tous les shaders au démarrage » dans les Paramètres pour démarrer plus vite.</string>
     <string name="tab_multiplayer">MULTIJOUEUR</string>
     <string name="section_bots">Bots</string>
     <string name="section_unlocks">Déblocages</string>

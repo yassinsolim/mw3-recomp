@@ -1216,6 +1216,13 @@ namespace vk::renderer::detail
         uint32_t misses = 0;
         uint32_t lastCompileMs = 0;
         bool cutsceneActive = false;
+        // The compile before the first frame the player asked for
+        // (MW2_SHADER_PREWARM_ALL): how many pipelines it builds, how many it
+        // has been through, and whether what it builds is kept for the next
+        // run (vk::pipeline::CacheKept). Zero totals where there is none.
+        uint32_t bootTotal = 0;
+        uint32_t bootDone = 0;
+        bool bootKept = false;
     };
     WarmupStats GetWarmupStats();
     void SetCutsceneActive(bool active);

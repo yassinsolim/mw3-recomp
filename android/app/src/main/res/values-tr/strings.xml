@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Kaydedilen tüm pipeline\'ları oyun sırasında ısıtmak yerine başlık ekranından önce derler. Önbellek boşken açılış dakikalar sürer ve telefon ısınır, ama sonrasında oyun içinde neredeyse hiç gölgelendirici takılması kalmaz. Kapalı, arka planda ısınmalı 2 saniyelik hızlı açılış demektir.</string>
     <string name="async_pipelines">Gölgelendiricileri arka planda derle</string>
     <string name="async_pipelines_hint">Bir harita ilk kez oynanırken donmaları önler; bazı nesneler gölgelendiricileri derlenirken birkaç saniye geç görünebilir. Kapalı olduğunda her gölgelendirici ilk çizildiği anda derlenir ve bu, oyunu kısa süre dondurabilir.</string>
+    <string name="boot_compile_progress">Gölgelendiriciler derleniyor: %2$d içinden %1$d (%3$d%%)</string>
+    <string name="boot_compile_once">Bu bekleme yalnızca bir kez: sonraki açılış bu gölgelendiricileri yeniden kullanır ve çok daha hızlı olur.</string>
+    <string name="boot_compile_every_start">Bu telefonun grafik sürücüsüyle gölgelendiriciler açılışlar arasında saklanmıyor, bu yüzden bu bekleme her seferinde tekrarlanır. Daha hızlı açmak için Ayarlar\'da \"Tüm gölgelendiricileri açılışta derle\" seçeneğini kapatın.</string>
     <string name="tab_multiplayer">ÇOK OYUNCULU</string>
     <string name="section_bots">Botlar</string>
     <string name="section_unlocks">Kilit açma</string>

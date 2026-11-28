@@ -247,7 +247,9 @@ object NativeBridge {
      * nothing, 1 the graphics chip, 2 the processor, 3 not known) and the
      * seconds since they ended (negative before any), and of the play so
      * far its seconds, the chip's ms a frame and the share of it that came
-     * under nine tenths of the rate }.
+     * under nine tenths of the rate, and of the compile before the first
+     * frame (Compile shaders at boot) its pipelines, how many it has been
+     * through and 1 when what it builds is kept for the next run }.
      */
     external fun nativeStats(out: FloatArray)
 

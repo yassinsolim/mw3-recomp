@@ -322,6 +322,9 @@
     <string name="prewarm_all_hint">Compiles every recorded pipeline before the title screen instead of warming them up during play. Boot takes minutes on a cold cache and the phone gets warm, but there is almost no in-game shader stutter left afterwards. Off means the quick 2-second boot with background warmup.</string>
     <string name="async_pipelines">Compile shaders in the background</string>
     <string name="async_pipelines_hint">Avoids freezes the first time a map is played; some objects may appear a few seconds late while their shaders compile. Off compiles each shader the moment it is first drawn, which can freeze the game briefly.</string>
+    <string name="boot_compile_progress">Compiling shaders: %1$d of %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">A one-time wait: the next start reuses these shaders and is much quicker.</string>
+    <string name="boot_compile_every_start">Shaders are not kept between starts with this phone\'s graphics driver, so this wait comes back every time. Turn off Compile all shaders at boot in Settings to start sooner.</string>
     <string name="tab_multiplayer">MULTIPLAYER</string>
     <string name="section_bots">Bots</string>
     <string name="section_unlocks">Unlocks</string>

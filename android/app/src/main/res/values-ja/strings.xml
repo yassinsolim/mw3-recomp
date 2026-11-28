@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">記録済みのパイプラインをプレイ中に準備する代わりに、タイトル画面の前にすべてコンパイルします。キャッシュが空だと起動に数分かかり端末も熱くなりますが、その後はゲーム中のシェーダーによるカクつきがほぼなくなります。オフにすると、2秒で起動しバックグラウンドで準備します。</string>
     <string name="async_pipelines">シェーダーをバックグラウンドでコンパイル</string>
     <string name="async_pipelines_hint">マップを初めてプレイするときのフリーズを防ぎます。シェーダーのコンパイル中は、一部のオブジェクトが数秒遅れて表示されることがあります。オフにすると、各シェーダーを初めて描画する瞬間にコンパイルするため、ゲームが一瞬止まることがあります。</string>
+    <string name="boot_compile_progress">シェーダーをコンパイル中：%2$d 個中 %1$d 個（%3$d%%）</string>
+    <string name="boot_compile_once">この待ち時間は一度だけです。次回の起動ではこれらのシェーダーを再利用するので、ずっと速くなります。</string>
+    <string name="boot_compile_every_start">このスマホのグラフィックドライバーでは起動の間でシェーダーが保持されないため、この待ち時間は毎回発生します。早く起動したい場合は、設定で「起動時にすべてのシェーダーをコンパイル」をオフにしてください。</string>
     <string name="tab_multiplayer">マルチプレイヤー</string>
     <string name="section_bots">ボット</string>
     <string name="section_unlocks">アンロック</string>

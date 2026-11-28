@@ -4,6 +4,7 @@
 #include "../../env.h"
 #include "../../log.h"
 #include "../../report.h"
+#include "pipeline_cache_rules.h"
 
 #ifndef MW2_HAVE_VULKAN
 // No loader, so nothing here can be built. The callers all tolerate a device
@@ -55,6 +56,7 @@ bool vk::pipeline::DeviceHasExtension(void*, const char*) { return false; }
 uint32_t vk::pipeline::GraphicsFamily(void*) { return UINT32_MAX; }
 void vk::pipeline::SetCachePath(const char*) {}
 bool vk::pipeline::CacheLoaded() { return false; }
+bool vk::pipeline::CacheKept() { return false; }
 void vk::pipeline::SetDevice(const std::string&) {}
 std::string vk::pipeline::DeviceId(void*) { return {}; }
 void* vk::pipeline::ChooseDevice(void*, const std::string&, uint32_t*) { return nullptr; }
@@ -102,6 +104,7 @@ namespace { bool OpenVulkan() { return true; } }
 namespace
 {
     namespace bindings = vk::bindings;
+    namespace cache_rules = vk::pipeline::cache_rules;
 
     struct State
     {
@@ -135,6 +138,9 @@ namespace
         const char* shaderIr = nullptr;
         PFN_vkGetPipelineExecutableInternalRepresentationsKHR getExecutableRepresentations = nullptr;
         bool cacheLoaded = false;
+        // This run's cache is written back to its file (CreateCache,
+        // pipeline_cache_rules.h).
+        bool cacheKept = false;
         // How large the driver's cache was when it was last written to its
         // file (SaveCache).
         size_t cacheSavedBytes = 0;
@@ -709,7 +715,11 @@ bool vk::pipeline::CreateDevice(void* physicalDevice, uint32_t family,
     else libraries.graphicsPipelineLibrary = VK_FALSE;
 #ifdef MW2_ANDROID
     // A phone's driver is given one creation at a time unless it is known to
-    // take several: Mali's cache deadlocked with two under way. Turnip takes
+    // take several. No Mali release is: a Mali-G68 MC4's compiler hung with
+    // two under way (11bcf04, no driver version kept), and elsewhere a
+    // Mali-G52/G57 under r49p1 crashed in its compiler with two (wgpu, cinnabar
+    // PR 7, from one tombstone) -- a release newer than the r38 the reporting
+    // phones run, so a release number does not clear it either. Turnip takes
     // them (CompileThreads in renderer_pipelines.cpp has the measurements),
     // and a first visit to a level, hundreds of pipelines nobody has
     // compiled, is over in a third of the time on three threads.
@@ -1047,34 +1057,16 @@ namespace
         uint64_t dataSize = 0;
     };
 
-    // Mali's Android driver has historically had bugs with cross-session cache
-    // blobs. Elsewhere the cache is always kept: the launcher's compile pass
-    // depends on it (launcher/precompile.cpp).
+    // A Mali's cache is kept between runs from driver r38 on and not under
+    // older ones (pipeline_cache_rules.h has why). Elsewhere it is always
+    // kept: the launcher's compile pass depends on it (launcher/precompile.cpp).
     bool IsMali()
     {
 #ifdef MW2_ANDROID
-        return g.deviceProperties.vendorID == 0x13B5;
+        return g.deviceProperties.vendorID == cache_rules::kArm;
 #else
         return false;
 #endif
-    }
-
-    // Whether this GPU's VkPipelineCache is persisted to disk across sessions.
-    // Mali has historically had driver bugs with cross-session cache blobs, so
-    // we create and use the cache within a session (which allows ISA reuse
-    // between pipelines that share shaders) but do not save it to disk by
-    // default. MW2_PERSIST_PIPELINE_CACHE=1 overrides: the test reports of
-    // Poco X6 Pro (Mali-G615, driver 1.3.247) show every run recompiling
-    // hundreds of pipelines at 300-464 ms as the training level loads, which
-    // is what stalls the GPU thread behind its guest waits long enough for
-    // the title to error out -- worth a player let-in even against the
-    // historical driver bug. If the driver rejects a loaded blob, CreateCache
-    // logs it and falls back to an empty cache, so the failure is soft.
-    bool PersistCache()
-    {
-        static const bool asked = env::Flag("MW2_PERSIST_PIPELINE_CACHE");
-        if (asked) LOGI("pipeline: persisting the pipeline cache across runs (user request) on %04X", g.deviceProperties.vendorID);
-        return !IsMali() || asked;
     }
 
     // How much of the driver's cache is kept, MW2_PIPELINE_CACHE_MB; 0 is all
@@ -1197,6 +1189,15 @@ namespace
             {
                 data.clear();
                 LOGW("pipeline: truncated cache payload in %s, starting empty", path.c_str());
+            }
+            // The driver's own header has to name this device too: a driver
+            // need not survive a blob it did not write.
+            else if (const char* problem = cache_rules::DriverHeaderProblem(
+                         data.data(), data.size(), g.deviceProperties.vendorID, g.deviceProperties.deviceID,
+                         g.deviceProperties.pipelineCacheUUID))
+            {
+                data.clear();
+                LOGW("pipeline: cache in %s set aside, %s; starting empty", path.c_str(), problem);
             }
         }
         std::fclose(f);
@@ -1381,24 +1382,29 @@ namespace
             return;
         }
 
-        // Mali: skip disk-load by default to avoid cross-session driver
-        // instability, but still create an in-session cache for ISA reuse.
-        // MW2_PERSIST_PIPELINE_CACHE=1 asks for the disk blob back (see
-        // PersistCache above).
+        // A Mali under a driver older than r38 uses the cache within the run
+        // only (pipeline_cache_rules.h); MW2_PERSIST_PIPELINE_CACHE says
+        // otherwise either way.
         std::vector<uint8_t> initial;
-        const bool persist = PersistCache();
-        const char* path = persist ? CachePath() : nullptr;
+        const bool mali = IsMali();
+        const cache_rules::Keep keep = cache_rules::KeepAcrossRuns(mali, g.deviceProperties.driverVersion,
+                                                                   env::Text("MW2_PERSIST_PIPELINE_CACHE"));
+        if (mali)
+            LOGI("pipeline: the pipeline cache is %s between runs on this Mali (driver r%u: %s)",
+                 keep.keep ? "kept" : "not kept", cache_rules::MaliRelease(g.deviceProperties.driverVersion), keep.why);
+        const char* path = keep.keep ? CachePath() : nullptr;
+        g.cacheKept = path != nullptr;
         if (path)
         {
             LOGI("pipeline: checking persistent pipeline cache at: %s", path);
             initial = ReadCacheFile(path);
             if (g.cacheControl) OpenClosedCaches(path, initial.size());
         }
-        else if (!persist)
+        else if (!keep.keep)
         {
-            LOGI("pipeline: Mali GPU detected -- using in-session VkPipelineCache only;"
-                 " set MW2_PERSIST_PIPELINE_CACHE=1 to keep the disk blob across runs");
-            vk::pipeline::NoteFallback("the pipeline cache is not kept between runs (Mali)");
+            LOGI("pipeline: using the pipeline cache within this run only; set MW2_PERSIST_PIPELINE_CACHE=1 to keep"
+                 " it across runs");
+            vk::pipeline::NoteFallback("the pipeline cache is not kept between runs (Mali driver older than r38)");
         }
 
         bool taken = false;
@@ -1453,9 +1459,9 @@ namespace
     void SaveCache(bool last = false)
     {
         std::unique_lock lock(c.lock);
-        // Do not persist cache blobs to disk on Mali by default --
-        // in-session use only. MW2_PERSIST_PIPELINE_CACHE=1 keeps saving.
-        if (!PersistCache()) return;
+        // A Mali under a driver older than r38 keeps it within the run only
+        // (CreateCache).
+        if (!g.cacheKept) return;
         const char* path = CachePath();
         if (!path || !g.cache) return;
         const size_t size = CacheBytes(g.cache);
@@ -1516,6 +1522,7 @@ namespace
 
 void vk::pipeline::SetCachePath(const char* path) { g_cachePath = path ? path : ""; }
 bool vk::pipeline::CacheLoaded() { return g.cacheLoaded; }
+bool vk::pipeline::CacheKept() { return g.cacheKept; }
 void vk::pipeline::SetDevice(const std::string& id) { g_wantedDevice = id; }
 bool vk::pipeline::CreationFeedback() { return g.creationFeedback; }
 bool vk::pipeline::ShaderStats() { return g.shaderStats; }

@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">플레이 중에 예열하는 대신 타이틀 화면 전에 기록된 파이프라인을 모두 컴파일해요. 캐시가 비어 있으면 부팅에 몇 분이 걸리고 휴대폰이 따뜻해지지만, 이후에는 게임 중 셰이더 끊김이 거의 없어요. 꺼짐이면 2초 만에 빠르게 부팅하고 백그라운드에서 예열해요.</string>
     <string name="async_pipelines">백그라운드에서 셰이더 컴파일</string>
     <string name="async_pipelines_hint">맵을 처음 플레이할 때 멈춤을 막아 줘요. 셰이더를 컴파일하는 동안 일부 오브젝트가 몇 초 늦게 나타날 수 있어요. 꺼짐이면 각 셰이더를 처음 그릴 때 컴파일하므로 게임이 잠깐 멈출 수 있어요.</string>
+    <string name="boot_compile_progress">셰이더 컴파일 중: %2$d개 중 %1$d개 (%3$d%%)</string>
+    <string name="boot_compile_once">한 번만 기다리면 돼요. 다음 실행부터는 이 셰이더를 다시 써서 훨씬 빨라요.</string>
+    <string name="boot_compile_every_start">이 휴대폰의 그래픽 드라이버에서는 실행 간에 셰이더가 유지되지 않아 매번 이만큼 기다려야 해요. 더 빨리 시작하려면 설정에서 \'시작할 때 모든 셰이더 컴파일\'을 꺼 주세요.</string>
     <string name="tab_multiplayer">멀티플레이어</string>
     <string name="section_bots">봇</string>
     <string name="section_unlocks">잠금 해제</string>

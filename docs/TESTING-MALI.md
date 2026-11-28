@@ -73,12 +73,13 @@ setting in the app. Try one at a time and send the log of each run.
 | `MW2_FORCE_LEGACY_RENDERING=1` | render passes instead of dynamic rendering (what a Vulkan 1.1 Mali driver uses anyway) |
 | `MW2_NO_SHADOW=1` | no shadow of guest memory behind the arena: half a gigabyte less, and the path every Adreno phone runs. Only a phone of more than 6 GB with a driver from r44 on has the shadow at all |
 | `MW2_FORCE_BC_DECOMPRESS=1` | BC textures decoded by the runtime even where the driver says it samples them (some r54 and later drivers do) |
-| Settings → **Keep pipeline cache between runs** (`MW2_PERSIST_PIPELINE_CACHE=1`) | keeps the driver's pipeline cache between runs. Off on a Mali, because older drivers reloaded it badly; with it off every run compiles its shaders again, which is slow in the first minute of each level |
+| Settings → **Keep pipeline cache between runs** (`MW2_PERSIST_PIPELINE_CACHE=1`) | keeps the driver's pipeline cache between runs under a Mali driver older than r38 too; from r38 on it is kept anyway (`MW2_PERSIST_PIPELINE_CACHE=0` refuses it there). A run that crashes at start right after one that compiled shaders: **Clear shader cache** in Settings, and say so in the report |
 | Settings → **Smooth edges (multisampling)** off | the default; turn it on only to test it |
 
 A first run that stutters while a level loads is shaders compiling, not a
-fault. A second run that stutters the same way is worth reporting with
-**Keep pipeline cache between runs** on.
+fault. A second run that stutters the same way is worth reporting: the log's
+`pipeline: the pipeline cache is kept/not kept between runs on this Mali` line
+says which it was.
 
 ## Answering a first report
 

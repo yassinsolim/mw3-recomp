@@ -489,6 +489,10 @@ namespace vk::renderer::detail
         std::atomic<uint32_t> g_statCompleted{ 0 };
         std::atomic<uint32_t> g_statMisses{ 0 };
         std::atomic<uint32_t> g_statLastCompileMs{ 0 };
+        // The compile before the first frame (PrewarmFromCache, with
+        // MW2_SHADER_PREWARM_ALL): what the app shows over the black screen.
+        std::atomic<uint32_t> g_bootTotal{ 0 };
+        std::atomic<uint32_t> g_bootDone{ 0 };
 
         // Millisecond timestamp (steady_clock epoch) of the last render-thread
         // vkQueueSubmit. The warmup worker reads this to back off when the GPU
@@ -1038,6 +1042,9 @@ namespace vk::renderer::detail
         s.misses = warmup::g_statMisses.load(std::memory_order_relaxed);
         s.lastCompileMs = warmup::g_statLastCompileMs.load(std::memory_order_relaxed);
         s.cutsceneActive = warmup::g_cutsceneActive.load(std::memory_order_relaxed);
+        s.bootTotal = warmup::g_bootTotal.load(std::memory_order_relaxed);
+        s.bootDone = warmup::g_bootDone.load(std::memory_order_relaxed);
+        s.bootKept = vk::pipeline::CacheKept();
         return s;
     }
 
@@ -1234,8 +1241,10 @@ namespace vk::renderer::detail
                 if (shadersOf(want, vertex, pixel)) g.recorded.push_back(want);
         }
 
+        if (prewarmAll) warmup::g_bootTotal.store(uint32_t(wanted.size()), std::memory_order_relaxed);
         for (size_t i = 0; i < wanted.size(); i++)
         {
+            if (prewarmAll) warmup::g_bootDone.store(uint32_t(i), std::memory_order_relaxed);
             const Recorded& want = wanted[i];
             const Shader* vertex = nullptr;
             const Shader* pixel = nullptr;
@@ -1259,6 +1268,7 @@ namespace vk::renderer::detail
                 warmup::g_statQueued.fetch_add(1, std::memory_order_relaxed);
             }
         }
+        if (prewarmAll) warmup::g_bootDone.store(uint32_t(wanted.size()), std::memory_order_relaxed);
 
         if (!warmup::g_warmupQueue.empty())
         {

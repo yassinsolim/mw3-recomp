@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Kompiliert alle aufgezeichneten Pipelines vor dem Titelbildschirm, statt sie während des Spielens vorzubereiten. Mit leerem Cache dauert der Start Minuten und das Handy wird warm, danach gibt es aber kaum noch Shader-Ruckler im Spiel. „Aus“ bedeutet den schnellen 2-Sekunden-Start mit Vorbereitung im Hintergrund.</string>
     <string name="async_pipelines">Shader im Hintergrund kompilieren</string>
     <string name="async_pipelines_hint">Verhindert Hänger, wenn eine Karte zum ersten Mal gespielt wird; manche Objekte erscheinen eventuell ein paar Sekunden später, während ihre Shader kompiliert werden. „Aus“ kompiliert jeden Shader erst, wenn er zum ersten Mal gezeichnet wird, was das Spiel kurz einfrieren kann.</string>
+    <string name="boot_compile_progress">Shader werden kompiliert: %1$d von %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">Eine einmalige Wartezeit: Der nächste Start verwendet diese Shader wieder und geht viel schneller.</string>
+    <string name="boot_compile_every_start">Mit dem Grafiktreiber dieses Telefons werden Shader zwischen Starts nicht behalten, deshalb kommt diese Wartezeit jedes Mal wieder. Schalte „Alle Shader beim Start kompilieren“ in den Einstellungen aus, um schneller zu starten.</string>
     <string name="tab_multiplayer">MEHRSPIELER</string>
     <string name="section_bots">Bots</string>
     <string name="section_unlocks">Freischaltungen</string>

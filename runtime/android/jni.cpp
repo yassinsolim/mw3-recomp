@@ -800,6 +800,13 @@ MW2_NATIVE(void, nativeStats)(JNIEnv* env, jobject, jfloatArray out)
         values[6] = jfloat(ws.queued);
         if (len >= 8) values[7] = jfloat(ws.completed);
         if (len >= 9) values[8] = jfloat(ws.lastCompileMs);
+        // The compile before the first frame, shown over the black screen.
+        if (len >= 22)
+        {
+            values[19] = jfloat(ws.bootTotal);
+            values[20] = jfloat(ws.bootDone);
+            values[21] = ws.bootKept ? 1.0f : 0.0f;
+        }
     }
     if (len >= 14)
     {

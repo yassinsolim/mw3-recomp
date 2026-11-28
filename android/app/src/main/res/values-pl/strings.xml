@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Kompiluje wszystkie zapisane potoki przed ekranem tytułowym, zamiast rozgrzewać je w trakcie gry. Przy pustej pamięci podręcznej uruchamianie trwa kilka minut, a telefon się nagrzewa, ale potem w grze prawie nie ma przycięć przez shadery. Wył. oznacza szybki, 2-sekundowy start z rozgrzewaniem w tle.</string>
     <string name="async_pipelines">Kompiluj shadery w tle</string>
     <string name="async_pipelines_hint">Zapobiega zawieszeniom przy pierwszym graniu na mapie; niektóre obiekty mogą pojawić się z kilkusekundowym opóźnieniem, gdy kompilują się ich shadery. Wył. kompiluje każdy shader przy pierwszym rysowaniu, co może na chwilę zamrozić grę.</string>
+    <string name="boot_compile_progress">Kompilowanie shaderów: %1$d z %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">To jednorazowe czekanie: przy następnym uruchomieniu te shadery zostaną użyte ponownie i start będzie dużo szybszy.</string>
+    <string name="boot_compile_every_start">Ze sterownikiem graficznym tego telefonu shadery nie są zachowywane między uruchomieniami, więc to czekanie wraca za każdym razem. Wyłącz „Kompiluj wszystkie shadery przy starcie” w Ustawieniach, aby uruchamiać szybciej.</string>
     <string name="tab_multiplayer">GRA WIELOOSOBOWA</string>
     <string name="section_bots">Boty</string>
     <string name="section_unlocks">Odblokowania</string>

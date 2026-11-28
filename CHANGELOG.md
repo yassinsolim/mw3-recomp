@@ -5,6 +5,26 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Added
+- **Compile all shaders at boot shows how far it is.** The compile before
+  the first frame was minutes of a black screen with nothing on it (1,064
+  pipelines one at a time on a Galaxy A35's Mali-G68, mw2 #4), which looked
+  like a freeze. A card over the screen now counts them with a bar, and says
+  whether it is a one-time wait or one that comes back at every start; the
+  "no picture yet" message waits while it goes on (`BootCompile.kt`,
+  tested in `BootCompileTest`).
+- **A Mali keeps its pipeline cache between runs from driver r38 on.** It
+  was used within a run only on every Mali, so every start compiled every
+  shader again. The reason given in October ("known driver deadlocks") came
+  from a change that also removed the lock every creation waited on, and no
+  log has shown a reloaded cache failing on a Mali; drivers older than r38
+  still keep it within the run unless Settings → Keep pipeline cache between
+  runs is on, and `MW2_PERSIST_PIPELINE_CACHE=0` refuses it under any. A
+  cache read back now reaches the driver only when the driver's own
+  `VkPipelineCacheHeaderVersionOne` names this device and its
+  pipelineCacheUUID, besides the runtime's header
+  (`runtime/gpu/vulkan/pipeline_cache_rules.h`, tested in
+  `tests/pipeline_cache_test.cpp`). A Mali is still given one pipeline
+  creation at a time under every driver.
 - **Invert looking left and right, and up and down, for touch and the
   gyroscope.** The one switch ("Invert looking up and down", touch only)
   is two: **Invert looking left and right** and **Invert looking up and

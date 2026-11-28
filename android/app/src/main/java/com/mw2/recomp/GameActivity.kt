@@ -38,6 +38,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -127,6 +128,11 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private lateinit var hudExpandedText: TextView
     private var hudIsExpanded = false
     private lateinit var menuButton: Button
+    // Over the black screen while Compile shaders at boot runs (BootCompile).
+    private lateinit var bootCard: LinearLayout
+    private lateinit var bootText: TextView
+    private lateinit var bootNote: TextView
+    private lateinit var bootBar: ProgressBar
     private var editPanel: EditPanel? = null
 
     private val pads = GamepadInput()
@@ -137,7 +143,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
     private var vibrator: Vibrator? = null
     private var lastRumble = 0
 
-    private val statsValues = FloatArray(19)
+    private val statsValues = FloatArray(BootCompile.STATS_VALUES)
     private var started = false
 
     /**
@@ -326,6 +332,7 @@ class GameActivity : AppCompatActivity(), NativeListener {
             if (NativeBridge.isLoaded()) {
                 NativeBridge.nativeStats(statsValues)
                 watchForBlackScreen()
+                showBootCompile()
                 followHeldRate()
                 measureBestLooking()
                 perfSession?.tick()
@@ -521,6 +528,12 @@ class GameActivity : AppCompatActivity(), NativeListener {
             frameSeen = true
             return
         }
+        // Compiling shaders the player asked for and saying how far it is
+        // (showBootCompile): not a black screen while it goes on.
+        if (BootCompile.from(statsValues)?.running == true) {
+            watchingSince = SystemClock.elapsedRealtime()
+            return
+        }
         // Compiling every shader before the first frame is minutes of a
         // black screen the player asked for.
         val patience = if (prefs.prewarmAllShaders) NO_FRAME_PREWARM_MS else NO_FRAME_MS
@@ -529,6 +542,24 @@ class GameActivity : AppCompatActivity(), NativeListener {
             NativeBridge.nativeLog(true, line)
             showRendererFailure(getString(R.string.no_frame, (patience / 1000).toInt()), mayWait = true)
         }
+    }
+
+    /**
+     * The card over the black screen while Compile shaders at boot runs: how
+     * many of how many, and whether the next start waits as long
+     * (BootCompile). Gone with the first frame of the game's.
+     */
+    private fun showBootCompile() {
+        val boot = BootCompile.from(statsValues)
+        if (boot == null || !boot.running || statsValues[5] >= 2f || failureShown) {
+            bootCard.visibility = View.GONE
+            return
+        }
+        bootText.text = getString(R.string.boot_compile_progress, boot.done, boot.total, boot.percent)
+        bootNote.setText(boot.note)
+        bootBar.max = boot.total
+        bootBar.progress = boot.done
+        bootCard.visibility = View.VISIBLE
     }
 
     /**
@@ -962,6 +993,41 @@ class GameActivity : AppCompatActivity(), NativeListener {
             ).apply { topMargin = pad(6); marginEnd = pad(6) }
         )
 
+        bootCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = GradientDrawable().apply {
+                setColor(Color.argb(235, 20, 20, 23))
+                cornerRadius = pad(12).toFloat()
+                setStroke(pad(1), Color.argb(200, 255, 122, 26))
+            }
+            setPadding(pad(18), pad(14), pad(18), pad(14))
+            visibility = View.GONE
+        }
+        bootText = TextView(this).apply {
+            setTextColor(Color.argb(255, 255, 236, 214))
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        bootCard.addView(bootText)
+        bootBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+        bootCard.addView(
+            bootBar,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = pad(10); bottomMargin = pad(10) },
+        )
+        bootNote = TextView(this).apply {
+            setTextColor(Color.argb(230, 226, 232, 240))
+            textSize = 12f
+            gravity = Gravity.CENTER
+        }
+        bootCard.addView(bootNote)
+        root.addView(
+            bootCard,
+            FrameLayout.LayoutParams(pad(360), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER),
+        )
+
         setContentView(root)
     }
 
@@ -1200,8 +1266,8 @@ class GameActivity : AppCompatActivity(), NativeListener {
             NativeBridge.nativeSetOption("MW2_VOICE", if (voiceChat) "1" else "")
             NativeBridge.nativeSetOption("MW2_VOICE_PTT", if (prefs.voicePushToTalk) "1" else "0")
         }
-        // Mali drivers have had trouble reloading persisted Vulkan pipeline blobs.
-        // Respect the user's setting; the safe default is off on this device class.
+        // Empty leaves it to the runtime: a Mali's cache is kept from driver
+        // r38 on (pipeline_cache_rules.h); on keeps it under older ones too.
         NativeBridge.nativeSetOption(
             "MW2_PERSIST_PIPELINE_CACHE",
             if (prefs.persistPipelineCache) "1" else "",

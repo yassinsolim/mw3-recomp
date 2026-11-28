@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">在标题画面前编译所有已记录的管线，而不是在游戏中逐步预热。无缓存时启动需要几分钟，手机也会发热，但之后游戏中几乎不会再有着色器卡顿。关闭则为 2 秒快速启动，并在后台预热。</string>
     <string name="async_pipelines">在后台编译着色器</string>
     <string name="async_pipelines_hint">避免首次游玩地图时卡住；部分物体可能会在着色器编译期间晚几秒出现。关闭后，每个着色器会在首次绘制时编译，可能导致游戏短暂卡住。</string>
+    <string name="boot_compile_progress">正在编译着色器：%1$d / %2$d（%3$d%%）</string>
+    <string name="boot_compile_once">只需等这一次：下次启动会复用这些着色器，速度快得多。</string>
+    <string name="boot_compile_every_start">这台手机的图形驱动不会在两次启动之间保留着色器，所以每次启动都要等这么久。想更快启动，请在设置中关闭“启动时编译所有着色器”。</string>
     <string name="tab_multiplayer">多人游戏</string>
     <string name="section_bots">机器人</string>
     <string name="section_unlocks">解锁</string>

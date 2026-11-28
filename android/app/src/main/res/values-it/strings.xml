@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Compila tutte le pipeline registrate prima della schermata del titolo invece di prepararle durante il gioco. Con la cache vuota l\'avvio richiede minuti e il telefono si scalda, ma dopo non resta quasi nessuno scatto da shader in partita. Disattivato significa avvio rapido di 2 secondi con preparazione in background.</string>
     <string name="async_pipelines">Compila gli shader in background</string>
     <string name="async_pipelines_hint">Evita blocchi la prima volta che giochi una mappa; alcuni oggetti potrebbero comparire con qualche secondo di ritardo mentre i loro shader vengono compilati. Disattivato compila ogni shader appena viene disegnato la prima volta, il che può bloccare brevemente il gioco.</string>
+    <string name="boot_compile_progress">Compilazione degli shader: %1$d di %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">Un\'attesa da fare una volta sola: il prossimo avvio riusa questi shader ed è molto più rapido.</string>
+    <string name="boot_compile_every_start">Con il driver grafico di questo telefono gli shader non vengono conservati tra un avvio e l\'altro, quindi questa attesa si ripete ogni volta. Disattiva «Compila tutti gli shader all\'avvio» nelle Impostazioni per partire prima.</string>
     <string name="tab_multiplayer">MULTIGIOCATORE</string>
     <string name="section_bots">Bot</string>
     <string name="section_unlocks">Sblocchi</string>

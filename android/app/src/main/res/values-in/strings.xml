@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Mengompilasi semua pipeline yang tercatat sebelum layar judul, bukan memanaskannya selama bermain. Booting memakan beberapa menit saat cache masih kosong dan ponsel jadi hangat, tetapi setelahnya hampir tidak ada lagi patah-patah shader di dalam game. Nonaktif berarti booting cepat 2 detik dengan pemanasan di latar belakang.</string>
     <string name="async_pipelines">Kompilasi shader di latar belakang</string>
     <string name="async_pipelines_hint">Mencegah macet saat peta pertama kali dimainkan; beberapa objek mungkin muncul terlambat beberapa detik selagi shader-nya dikompilasi. Nonaktif mengompilasi tiap shader saat pertama kali digambar, yang bisa membuat game macet sebentar.</string>
+    <string name="boot_compile_progress">Mengompilasi shader: %1$d dari %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">Menunggu sekali saja: saat mulai berikutnya shader ini dipakai lagi dan jauh lebih cepat.</string>
+    <string name="boot_compile_every_start">Dengan driver grafis ponsel ini shader tidak disimpan antarsesi, jadi penantian ini terulang setiap kali. Matikan Kompilasi semua shader saat mulai di Pengaturan agar mulai lebih cepat.</string>
     <string name="tab_multiplayer">MULTIPLAYER</string>
     <string name="section_bots">Bot</string>
     <string name="section_unlocks">Buka kunci</string>

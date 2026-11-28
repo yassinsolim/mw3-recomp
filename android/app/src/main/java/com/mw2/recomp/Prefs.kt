@@ -694,8 +694,10 @@ class Prefs(context: Context) {
         set(value) = store.edit().putBoolean(KEY_MAP_VOTE, value).apply()
 
     /**
-     * Keep the driver's pipeline blob on disk between runs on Mali
-     * (MW2_PERSIST_PIPELINE_CACHE). Off by default: it may be unstable.
+     * Keep the driver's pipeline blob on disk between runs under any Mali
+     * driver (MW2_PERSIST_PIPELINE_CACHE=1). Off leaves it to the runtime,
+     * which keeps it from driver r38 on and not under older ones
+     * (runtime/gpu/vulkan/pipeline_cache_rules.h).
      */
     var persistPipelineCache: Boolean
         get() = store.getBoolean(KEY_PERSIST_PIPELINE, false)

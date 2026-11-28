@@ -28,6 +28,7 @@ one changes there it changes here.
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -281,10 +282,12 @@ def walk(report):
     w.at_least("the backdrop's push constants (the pipeline layout itself has none)", "maxPushConstantsSize", 64)
 
     # ---- pipeline cache ------------------------------------------------------
-    if r.vendor == VENDOR_ARM:
+    # runtime/gpu/vulkan/pipeline_cache_rules.h: a Mali's is kept from r38 on.
+    release = re.match(r"r(\d+)p", r.release())
+    if r.vendor == VENDOR_ARM and not (release and int(release.group(1)) >= 38):
         w.add("FALLBACK", "pipeline cache on disk",
-              "kept for the run only: Mali drivers have reloaded cache blobs badly"
-              " (MW2_PERSIST_PIPELINE_CACHE=1, Settings > Keep compiled shaders)")
+              "kept for the run only under a Mali driver older than r38"
+              " (MW2_PERSIST_PIPELINE_CACHE=1, Settings > Keep pipeline cache between runs)")
     else:
         w.add("PASS", "pipeline cache on disk", "written as it grows, read at the next start")
 

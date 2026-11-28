@@ -120,6 +120,16 @@ add_executable(demonware-test
 target_include_directories(demonware-test PRIVATE "${MW2_RUNTIME}" "${CMAKE_CURRENT_SOURCE_DIR}/stubs")
 add_test(NAME demonware COMMAND demonware-test)
 
+# ---- the pipeline cache between runs ---------------------------------------
+# Whether the driver's pipeline cache is kept for the next run, by GPU and Mali
+# driver release, and that a blob read back reaches the driver only when its
+# VkPipelineCacheHeaderVersionOne names this device
+# (runtime/gpu/vulkan/pipeline_cache_rules.h): no Mali phone is here to say so.
+add_executable(pipeline-cache-test
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline_cache_test.cpp")
+target_include_directories(pipeline-cache-test PRIVATE "${MW2_RUNTIME}")
+add_test(NAME pipeline-cache COMMAND pipeline-cache-test)
+
 if(WIN32)
     # The same rule the game is linked with: no C++ runtime beside the
     # executable. Without it a check that pulls in one more libstdc++ symbol
@@ -132,4 +142,5 @@ if(WIN32)
     target_link_options(volume-test PRIVATE -static)
     target_link_options(version-test PRIVATE -static)
     target_link_options(demonware-test PRIVATE -static)
+    target_link_options(pipeline-cache-test PRIVATE -static)
 endif()

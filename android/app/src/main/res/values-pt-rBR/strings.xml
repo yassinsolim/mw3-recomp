@@ -291,6 +291,9 @@
     <string name="prewarm_all_hint">Compila todos os pipelines gravados antes da tela inicial, em vez de prepará-los durante o jogo. Com o cache vazio, a inicialização leva minutos e o celular esquenta, mas depois quase não sobram travadas de shader no jogo. Desligado mantém a inicialização rápida de 2 segundos com preparo em segundo plano.</string>
     <string name="async_pipelines">Compilar shaders em segundo plano</string>
     <string name="async_pipelines_hint">Evita travamentos na primeira vez que um mapa é jogado; alguns objetos podem aparecer alguns segundos depois enquanto seus shaders compilam. Desligado compila cada shader no momento em que ele é desenhado pela primeira vez, o que pode travar o jogo por um instante.</string>
+    <string name="boot_compile_progress">Compilando shaders: %1$d de %2$d (%3$d%%)</string>
+    <string name="boot_compile_once">É uma espera única: a próxima inicialização reutiliza esses shaders e é muito mais rápida.</string>
+    <string name="boot_compile_every_start">Com o driver gráfico deste celular os shaders não são mantidos entre inicializações, então essa espera se repete toda vez. Desligue \"Compilar todos os shaders ao iniciar\" nas Configurações para começar mais rápido.</string>
     <string name="tab_multiplayer">MULTIJOGADOR</string>
     <string name="section_bots">Bots</string>
     <string name="section_unlocks">Desbloqueios</string>
