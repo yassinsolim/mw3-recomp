@@ -13,8 +13,14 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   level Gaz, facing a lit window, had his back lit. The pack now matches
   its unpack and Xenia's tests. This changes the game code of Modern
   Warfare 2, Modern Warfare 3, Call of Duty 4, Advanced Warfare and Black
-  Ops III, so the app builds it again once after the update
-  ([docs/building.md](docs/building.md#local-changes-to-xenonrecomp)).
+  Ops III, so the app builds it again once after the update, with build
+  tools 3 (`toolchain-v3`, the recompiler with the fix)
+  ([docs/building.md](docs/building.md#local-changes-to-xenonrecomp);
+  before and after on the AYN Thor:
+  [docs/rendering.md](docs/rendering.md#characters-normals-the-2_10_10_10-pack)).
+  The release tool's gate 4 now refuses build tools made from another
+  recompiler patch or commit than the apps'
+  (`tests/release_toolchain_test.py`).
 - **Setup and the installer accept the same Modern Warfare 3 disc.** The app's
   check of a disc took both packagings of the campaign executable
   (`d90bc8d9…`, executable version 22, the bring-up's, and `e94de720…`, the

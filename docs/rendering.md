@@ -1391,6 +1391,32 @@ The log says what was loaded, each file closed or dropped, and after a save
 by the driver". A report ends with the pipelines built and how many of them
 the driver compiled, which in a second run of the same level is none.
 
+## Characters' normals: the 2_10_10_10 pack
+
+The games skin their animated models on the processor: they unpack each
+vertex's normal and tangent from the D3D 10-10-10-2 format (`vupkd3d128`),
+turn them by the bone and pack them again (`vpkd3d128`) for the GPU. Until
+November 2026 the recompiler's pack wrote x into z's bits and z into x's,
+and its unpack added w to 3.0 where Xenia adds 1.0, so the characters were
+lit as if the light came from another side
+([building.md](building.md#local-changes-to-xenonrecomp)). The fix changes
+only those instructions, and with them the game code of every title.
+
+Before and after on the AYN Thor (28 November 2026; android 05d738e's apps
+against the fix's, debug builds `.vpka`/`.vpkb`, the same level loaded from
+the console with the same pad script, the game's own frame dumps at the
+same frame numbers):
+
+| Scene | Before | After | Frames a second (play, before / after) |
+|---|---|---|---|
+| Call of Duty 4, F.N.G. (Killhouse), Gaz facing the lit window | his cap top and his back lit, as on the PC | his back dark, the light on the side toward the window | 118.9 / 118.9 |
+| Modern Warfare 3, Black Tuesday, Sandman in the vehicle and in the street | his face lit evenly from the front | his face darker, lit warm from the fire behind him | 115.2 / 115.2 |
+| Advanced Warfare, Induction (Seoul), the soldiers in the pod | faces and chests lit from the front | lit from the window and the light panel behind them | 117.8 / 117.7 |
+
+Nothing else in the pictures changed: the level, the weapon, the effects
+and the HUD are the same, and the characters' meshes are whole (no torn or
+faceted skinning, no black or speckled normals).
+
 ## Not implemented
 
 - Resolve write-back: the CPU cannot read resolved pixels from guest memory.
