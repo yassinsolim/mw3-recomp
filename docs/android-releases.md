@@ -355,6 +355,16 @@ abfe2d558ce8`); Black Tuesday then ran at 119 frames a second. On Windows,
 before fetched and built the recompiler again, recompiled both executables
 and built the same two statements in a minute and a half.
 
+`toolchain-v3` (the 2_10_10_10 fix, 28 November 2026) was tried the same
+way on the AYN Thor with Call of Duty 4: a debug app naming it in
+`setup/toolchain.json`, a fresh install with the disc image, **Build the
+game** downloaded the drafted APK (`319b9a13…`, the release key's) and
+Android asked to update the toolchain 2 package to 3; the build ended in
+about four minutes with `cod4 c6be9fad…` and `cod4mp e13eb3d6…`, the codes
+`config/abi/` records, the launcher said Ready, and the campaign loaded
+`files/game-code/libcod4game.so`. The toolchain 2 package was put back
+after (version code 2, the same APK SHA-256 as before).
+
 What setup builds again, on Windows with Modern Warfare 2
 (`setup\setup.cmd -Game mw2 -GameOnly -NoInstall`, November 2026): from
 nothing, the recompiler included, 2 minutes; again with nothing changed,
