@@ -1485,6 +1485,34 @@ was pushed with adb. Evidence in `private-captures\aw\flip-dlc-*`.
 PC both times); Exo Zombies and a match with bots alone on the Flip 2; a
 match by normal play in Exo Zombies past round 1.
 
+### The Exo Zombies bots buy weapons (28 November 2026, C0016)
+
+The game's zombies bots only guard a player (`bot_zombies_think`), so they
+kept the start pistol. `runtime/aw_zombie_bots.cpp` is a script of the
+port's own, compiled by the mods loader: each bot that can afford a station
+(the `wallbuy` triggers' own `currentweaponcost`/`currentammocost`) gets a
+tactical goal there (`bot_new_tactical_goal`), presses use
+(`botpressbutton`), and the game's `wallbuythink` charges `attempttobuy`
+and gives the weapon or the ammo; then `bot_zombies_think` runs again. It
+shops for a weapon while it has one primary or holds the weapon it spawned
+with, for ammo under a third of the reserve. `MW2_ZOMBIE_BOTS=0` turns it
+off; `=2` is a test harness (the human takes no damage, the bots report
+every 15 s). Reports are prints to the bot itself, written to the log as
+`zombie bots: client N ...` by a hook on `SV_GameSendServerCommand`
+(`823E5BF8`, title.h). The built-in, method and name numbers it uses are
+`runtime/aw_gsc_builtins.h`, found by laying the dumped Xbox scripts beside
+the PC's; `main` is 0x26F, `init` 0x20D.
+
+Seen on Windows, Outbreak, System Link, three bots, `MW2_ZOMBIE_BOTS=2`
+(`MW2_NET_LINK=1`, `MW2_BOTS=6` for three friendly bots):
+`client 3 bought weapon iw5_maulzm_mp cost 500 points 500 -> 0`, `client 1
+bought ammo iw5_maulzm_mp cost 250 points 1370 -> 1120`, nine sales (eight
+weapons, one ammo) in one match, rebought after deaths; round 6 reached with the human's
+points at 500 (no kill of his). Not working every time: the M182 SPR
+station (`pressed use, nothing bought`, 70-86 units away) never sold, and a
+station is left a minute after a failure. The bots all went down in round
+6. Not seen on a phone.
+
 ## The aim after a sprint (26 November 2026)
 
 A tester's recording (a Retroid Pocket 5, the disc's multiplayer): from a

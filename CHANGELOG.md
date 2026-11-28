@@ -21,6 +21,11 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
   (`DriverRescue.kt`, `DriverRescueTest` from three players' crashes;
   `MW2_DEBUG_CRASH_IN_DRIVER=1` crashes a run inside the driver to check
   it; docs/android.md, section 6).
+- **Exo Zombies bots buy weapons and ammo** (AW title update 17): a script
+  of the port's own sends each bot to a weapon station it can afford and
+  presses use, so the game's own `wallbuythink` takes its points and gives
+  the weapon or refills its ammo. `MW2_ZOMBIE_BOTS=0` turns it off. Seen on
+  Windows in Outbreak to round 6; not yet on a phone (docs/AW-BRINGUP.md).
 - **The app chooses the graphics driver, proves it, and falls back.** Each
   app carries a catalog of drivers with a pinned SHA-256 each
   (`android/drivers/catalog.json`, checked by `tools/driver_catalog.py`),

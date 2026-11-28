@@ -200,6 +200,13 @@
 #define T_PMem_Alloc            8235FF40
 #define T_PMEM_SCRIPT_SOURCE      5u
 #define T_PMem_EndAllocSide     8235F960
+// SV_GameSendServerCommand(client number, reliable, text): -1 is every client,
+// and either way it hands "%s" and the text to sub_823DE558. The script's
+// player print, method 0x80C9 (sub_824E6D50), formats "%c" with 'g', builds
+// the message (sub_824A6470) and sends va("%s \"%s\"") through it, so the
+// Exo Zombies bots' script reports through a print to the bot itself, which
+// no one sees (aw_zombie_bots.cpp).
+#define T_SV_GameSendServerCommand 823E5BF8
 
 // ---- field of view (field_of_view.cpp) ----
 // The disc's four, found again from cg_fovScale's pointer (829AAEB0, stored

@@ -30,8 +30,8 @@ namespace
 {
 #if defined(AW_TITLE)
     // gsc-tool knows S1's Xbox 360 instructions and none of its built-in
-    // functions' and methods' numbers; the ones this port's scripts call are
-    // given to it here (aw_gsc_builtins.h has how each was found).
+    // functions', methods' and names' numbers; the ones this port's scripts
+    // use are given to it here (aw_gsc_builtins.h has how each was found).
     class Context : public xsk::gsc::s1_xb::context
     {
     public:
@@ -46,6 +46,11 @@ namespace
             {
                 meth_map_.insert({ id, name });
                 meth_map_rev_.insert({ name, id });
+            }
+            for (const auto& [id, name] : awgsc::kTokens)
+            {
+                token_map_.insert({ id, name });
+                token_map_rev_.insert({ name, id });
             }
         }
     };
