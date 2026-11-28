@@ -1,0 +1,21 @@
+Call of Duty 4: Modern Warfare for Android v0.1.8
+
+Nothing to rebuild: the game code you built for v0.1.7 is used as it is, and your saves and settings are kept.
+
+New
+- A controller no longer plays as a second, signed-out player: it is player 1 and your progress is saved.
+- Snapdragon 8 Elite (Adreno 8xx) uses the project's own Turnip driver by default (not yet tried on one).
+- Older Snapdragons on Android 10 and 11 start: a crash at start is fixed and they get the bundled Turnip.
+- Mali: the shader compile at the first start shows its progress, and from driver r38 the shaders are kept between runs.
+- Touch, all off by default: aim when firing, a floating movement stick and auto-sprint.
+- Invert left/right and up/down for touch and the gyroscope, and left/right for a controller.
+- The app in 13 more languages, Arabic laid out right to left.
+- Edit controls: the look area no longer offers size and opacity it doesn't have.
+
+Known issues
+- Gyro aiming hasn't been tried on a device yet.
+- Some Snapdragon 8 Gen 2 phones were reported showing a garbled picture; not reproduced yet.
+- Map packs are experimental.
+- Multiplayer over the internet needs a relay server; see the README.
+
+Official downloads are only on GitHub Releases. Never share the game code you build: it contains the game. Unofficial fan project, not affiliated with Activision or Microsoft.
