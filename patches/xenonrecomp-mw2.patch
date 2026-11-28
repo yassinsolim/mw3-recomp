@@ -269,7 +269,7 @@ index f5db6d1..9c3d7b6 100644
      "recompiler_config.cpp")
  
 diff --git a/XenonRecomp/recompiler.cpp b/XenonRecomp/recompiler.cpp
-index fa91527..e4ad113 100644
+index fa91527..3351171 100644
 --- a/XenonRecomp/recompiler.cpp
 +++ b/XenonRecomp/recompiler.cpp
 @@ -1,5 +1,6 @@
@@ -839,24 +839,38 @@ index fa91527..e4ad113 100644
          switch (insn.operands[2])
          {
          case 0: // D3D color
-@@ -2014,26 +2096,40 @@ bool Recompiler::Recompile(
+@@ -2014,26 +2096,54 @@ bool Recompiler::Recompile(
              println("\t{}.u32[{}] = {}.u32;", v(insn.operands[0]), insn.operands[4], temp());
              break;
  
 +        case 2: // three 10-bit signed normalised components, w in the top two bits
 +            // The inverse of the unpack below: the caller has already put each
 +            // component back in the mantissa of 3.0f, so the field is just the
-+            // low bits of the float. Clamped because one component overflowing
-+            // its field would corrupt the next one.
++            // low bits of the float. The word is w_z_y_x from the top down, as
++            // the unpack reads it: x in bits 0..9, z in bits 20..29. x, y and z
++            // saturate to [-511, 511] and w to [0, 3] (w is measured from 3.0f
++            // here, although the unpack adds it to 1.0f); a negative float
++            // packs as the minimum and a NaN as 0x200 for x, y and z and 0 for
++            // w, as Xenia does. Clamped because one component overflowing its
++            // field would corrupt the next one.
++            if (insn.operands[3] != 1)
++                fmt::println("Unexpected 2_10_10_10 pack instruction at {:X}", base);
++
 +            {
-+                constexpr size_t lanes[]  = { 3, 2, 1, 0 };     // x, y, z, w
-+                constexpr size_t shifts[] = { 20, 10, 0, 30 };
-+                constexpr int    limits[] = { 511, 511, 511, 1 };
-+                constexpr uint32_t masks[]= { 0x3FF, 0x3FF, 0x3FF, 0x3 };
++                constexpr size_t lanes[]     = { 3, 2, 1, 0 };     // x, y, z, w
++                constexpr size_t shifts[]    = { 0, 10, 20, 30 };
++                constexpr int32_t minimums[] = { -511, -511, -511, 0 };
++                constexpr int32_t maximums[] = { 511, 511, 511, 3 };
++                constexpr int32_t nans[]     = { -512, -512, -512, 0 };
++                constexpr uint32_t masks[]   = { 0x3FF, 0x3FF, 0x3FF, 0x3 };
 +                for (size_t i = 0; i < 4; i++)
 +                {
-+                    println("\t{}.s32[{}] = int32_t({}.u32[{}]) - 0x40400000;", vTemp(), i, v(insn.operands[1]), lanes[i]);
-+                    println("\t{0}.s32[{1}] = {0}.s32[{1}] < {2} ? {2} : ({0}.s32[{1}] > {3} ? {3} : {0}.s32[{1}]);", vTemp(), i, -limits[i] - 1, limits[i]);
++                    // Positive floats order like their bits, so the clamp works on
++                    // the bits relative to 3.0f; negative floats go straight to the
++                    // minimum.
++                    println("\t{0}.s32[{1}] = int32_t({2}.u32[{3}]) < 0 ? {4} : int32_t({2}.u32[{3}]) - 0x40400000;", vTemp(), i, v(insn.operands[1]), lanes[i], minimums[i]);
++                    println("\t{0}.s32[{1}] = {2}.f32[{3}] != {2}.f32[{3}] ? {4} : ({0}.s32[{1}] < {5} ? {5} : ({0}.s32[{1}] > {6} ? {6} : {0}.s32[{1}]));",
++                        vTemp(), i, v(insn.operands[1]), lanes[i], nans[i], minimums[i], maximums[i]);
 +                    println("\t{}.u32 {}= (uint32_t({}.s32[{}]) & 0x{:X}) << {};", temp(), i == 0 ? "" : "|", vTemp(), i, masks[i], shifts[i]);
 +                }
 +                println("\t{}.u32[{}] = {}.u32;", v(insn.operands[0]), insn.operands[4], temp());
@@ -895,7 +909,7 @@ index fa91527..e4ad113 100644
              break;
  
          default:
-@@ -2041,12 +2137,18 @@ bool Recompiler::Recompile(
+@@ -2041,12 +2151,18 @@ bool Recompiler::Recompile(
              break;
          }
          break;
@@ -914,7 +928,7 @@ index fa91527..e4ad113 100644
      case PPC_INST_VREFP:
      case PPC_INST_VREFP128:
          // TODO: see if we can use rcp safely
-@@ -2088,6 +2190,7 @@ bool Recompiler::Recompile(
+@@ -2088,6 +2204,7 @@ bool Recompiler::Recompile(
          break;
  
      case PPC_INST_VSEL:
@@ -922,7 +936,7 @@ index fa91527..e4ad113 100644
          println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_or_si128(simde_mm_andnot_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)), simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8))));", v(insn.operands[0]), v(insn.operands[3]), v(insn.operands[1]), v(insn.operands[3]), v(insn.operands[2]));
          break;
  
-@@ -2212,6 +2315,31 @@ bool Recompiler::Recompile(
+@@ -2212,6 +2329,32 @@ bool Recompiler::Recompile(
              println("\t{} = {};", v(insn.operands[0]), vTemp());
              break;
  
@@ -939,14 +953,15 @@ index fa91527..e4ad113 100644
 +            // rotation built out of these into a reflection -- which is what put
 +            // MW2's static props, the weapons tables among them, on their sides.
 +            //
-+            // x, y and z are signed; w is two bits and unsigned, so it is not
-+            // sign-extended along with them.
++            // x, y and z are signed and added to 3.0f; w is two bits, unsigned,
++            // and added to 1.0f, so that a multiply-add by (2^23 / 3) takes it
++            // to 0..1 (Xenia's 3, 3, 3, 1).
 +            {
 +                constexpr size_t shifts[] = { 22, 12, 2 };      // x, y, z
 +                println("\t{}.u32 = {}.u32[0];", temp(), v(insn.operands[1]));
 +                for (size_t i = 0; i < 3; i++)
 +                    println("\t{}.u32[{}] = 0x40400000 + uint32_t(int32_t({}.u32 << {}) >> 22);", vTemp(), 3 - i, temp(), shifts[i]);
-+                println("\t{}.u32[0] = 0x40400000 + ({}.u32 >> 30);", vTemp(), temp());
++                println("\t{}.u32[0] = 0x3F800000 + ({}.u32 >> 30);", vTemp(), temp());
 +                println("\t{} = {};", v(insn.operands[0]), vTemp());
 +            }
 +            break;
@@ -954,7 +969,7 @@ index fa91527..e4ad113 100644
          default:
              println("\t__builtin_debugtrap();");
              break;
-@@ -2252,7 +2380,7 @@ bool Recompiler::Recompile(
+@@ -2252,7 +2395,7 @@ bool Recompiler::Recompile(
      case PPC_INST_XOR:
          println("\t{}.u64 = {}.u64 ^ {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
          if (strchr(insn.opcode->name, '.'))
@@ -963,7 +978,7 @@ index fa91527..e4ad113 100644
          break;
  
      case PPC_INST_XORI:
-@@ -2263,6 +2391,212 @@ bool Recompiler::Recompile(
+@@ -2263,6 +2406,212 @@ bool Recompiler::Recompile(
          println("\t{}.u64 = {}.u64 ^ {};", r(insn.operands[0]), r(insn.operands[1]), insn.operands[2] << 16);
          break;
  
@@ -1176,7 +1191,7 @@ index fa91527..e4ad113 100644
      default:
          return false;
      }
-@@ -2381,6 +2715,11 @@ bool Recompiler::Recompile(const Function& fn)
+@@ -2381,6 +2730,11 @@ bool Recompiler::Recompile(const Function& fn)
          name = fmt::format("sub_{}", fn.base);
      }
  
@@ -1188,7 +1203,7 @@ index fa91527..e4ad113 100644
  #ifdef XENON_RECOMP_USE_ALIAS
      println("__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
  #endif
-@@ -2512,20 +2851,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2512,20 +2866,10 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
  
          if (config.skipLr)
              println("#define PPC_CONFIG_SKIP_LR");      
@@ -1211,7 +1226,7 @@ index fa91527..e4ad113 100644
  
          println("");
  
-@@ -2602,6 +2931,14 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
+@@ -2602,6 +2946,14 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
          SaveCurrentOutData("ppc_func_mapping.cpp");
      }
  

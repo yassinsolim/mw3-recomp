@@ -544,7 +544,14 @@ failing with `0xc0000139` before it can run a single check.
     `dcbst` (no-op), `bdzf`, `eqv`, `addc`, `addme`, `subfze`, `mulhdu`,
     `frsqrte`, `vsubuws`, `vpkswss`/`vpkswss128`, `vcfpuxws128`, `vsel128`.
   - `vpkd3d128`/`vupkd3d128`: the 10-10-10-2 signed normalised format (x in the
-    low bits, w unsigned in the top two), and `float16_2` packing.
+    low bits, w unsigned in the top two) both ways, as Xenia does it and its
+    instruction tests check: the pack saturates x, y and z to [-511, 511] and
+    w to [0, 3], the unpack adds w to 1.0 (x, y and z to 3.0); and
+    `float16_2` packing. Until November 2026 the pack wrote x into z's bits
+    and z into x's and clipped w to [-2, 1]: the games skin their animated
+    models on the processor with it, so their normals and tangents had two
+    axes swapped and the characters were lit as if the light came from
+    elsewhere.
   - A jump table switches on the low 32 bits of the index register: the guard
     ahead of it is `cmplwi`, and the high half may hold other bits.
   - A jump table's `default:` returns instead of `__builtin_unreachable()`, which

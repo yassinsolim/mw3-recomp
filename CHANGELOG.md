@@ -5,6 +5,16 @@ All notable changes to the Modern Warfare 2 Android native recompilation project
 ## [Unreleased]
 
 ### Fixed
+- **Characters were lit from the wrong side; the game code is rebuilt once
+  on update.** The recompiler packed animated models' normals and tangents
+  with two axes swapped after the games skin them on the processor (and
+  its unpack added the fourth component to 3.0 where Xenia adds 1.0), so
+  the light seemed to come from the wrong side: in Call of Duty 4's first
+  level Gaz, facing a lit window, had his back lit. The pack now matches
+  its unpack and Xenia's tests. This changes the game code of Modern
+  Warfare 2, Modern Warfare 3, Call of Duty 4, Advanced Warfare and Black
+  Ops III, so the app builds it again once after the update
+  ([docs/building.md](docs/building.md#local-changes-to-xenonrecomp)).
 - **Setup and the installer accept the same Modern Warfare 3 disc.** The app's
   check of a disc took both packagings of the campaign executable
   (`d90bc8d9…`, executable version 22, the bring-up's, and `e94de720…`, the
